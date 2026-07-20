@@ -1,0 +1,24 @@
+{
+  "name": "parakkat-hr",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Parakkat HRMS monorepo root. Web app in frontend/, Supabase backend in backend/, native mobile shells in android/ and ios/ (Capacitor).",
+  "scripts": {
+    "build:web": "npm --prefix frontend run build",
+    "cap:sync": "npm run build:web && cap sync",
+    "android": "npm run build:web && cap sync android && cap open android",
+    "ios": "npm run build:web && cap sync ios && cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.4.2"
+  }
+}

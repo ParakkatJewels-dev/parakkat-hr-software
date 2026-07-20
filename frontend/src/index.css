@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --color-gold-400: #ffffff;
+  --color-gold-450: #f5f5f5;
+  --color-gold-500: #e5e5e5;
+  --color-gold-600: #a3a3a3;
+  --color-charcoal-950: #000000;
+  --color-charcoal-900: #0a0a0a;
+  --color-charcoal-800: #171717;
+  --color-warm-gray-100: #fafafa;
+  --color-warm-gray-400: #a3a3a3;
+  --color-neutral-105: #f4f4f3;
+  --color-neutral-150: #ededeb;
+  --color-neutral-205: #e4e4e1;
+  --color-neutral-250: #d8d8d3;
+  --color-neutral-305: #c5c5bd;
+  --color-neutral-350: #abab9f;
+  --color-neutral-405: #96968a;
+  --color-neutral-450: #7d7d71;
+  --color-neutral-455: #76766a;
+  --color-neutral-505: #66665d;
+  --color-neutral-550: #57574f;
+  --color-neutral-605: #46463f;
+  --color-neutral-650: #3c3c36;
+  --color-neutral-705: #2e2e2a;
+  --color-neutral-750: #262623;
+  --color-neutral-805: #1e1e1b;
+  --color-neutral-850: #171714;
+  --color-neutral-855: #151512;
+  --color-neutral-905: #10100e;
+  --color-slate-205: #e0e3e8;
+  --color-slate-250: #d0d5dd;
+  --color-slate-350: #a8b0bd;
+  --color-slate-450: #778191;
+  --color-slate-750: #344054;
+  --color-slate-850: #1d2939;
+  --color-slate-855: #182230;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --surface-bg: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-muted: #f8f8f8;
+  --surface-text: #0f0f0f;
+  --surface-text-soft: #4b5563;
+  --surface-border: #e5e7eb;
+  --accent: #111111;
+  --accent-strong: #000000;
+}
+
+.dark {
+  --surface-bg: #000000;
+  --surface-elevated: #111111;
+  --surface-muted: #171717;
+  --surface-text: #ffffff;
+  --surface-text-soft: #cfcfcf;
+  --surface-border: #404040;
+  --accent: #ffffff;
+  --accent-strong: #ffffff;
+}
+
+@layer base {
+  * { @apply border-neutral-200; }
+  html { color-scheme: light; }
+  body {
+    min-height: 100vh;
+    overflow-x: hidden;
+    font-size: 15px;
+    line-height: 1.55;
+    font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background-color: var(--surface-bg);
+    color: var(--surface-text);
+    transition: background-color .2s ease, color .2s ease;
+  }
+  .dark body { background-color: var(--surface-bg); color: var(--surface-text); }
+  button, input, select, textarea { font: inherit; }
+  button:not(:disabled), [role="button"] { cursor: pointer; }
+  button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  ::selection { background: #111111; color: #fff; }
+}
+
+/* A neutral white/black system shared by all legacy component utilities. */
+.dark { color-scheme: dark; }
+.dark .text-neutral-900, .dark .text-neutral-850, .dark .text-neutral-805, .dark .text-slate-100, .dark .text-slate-200, .dark .text-slate-250 { color: #ffffff !important; }
+.dark .text-neutral-800, .dark .text-neutral-750, .dark .text-neutral-700, .dark .text-slate-300, .dark .text-slate-350 { color: #e9e9e9 !important; }
+.dark .text-neutral-400, .dark .text-neutral-450, .dark .text-neutral-455, .dark .text-neutral-500, .dark .text-neutral-505, .dark .text-neutral-550, .dark .text-slate-400, .dark .text-slate-450, .dark .text-slate-500 { color: #a3a3a3 !important; }
+
+main h2 { font-size: 1.5rem !important; line-height: 1.25 !important; letter-spacing: -.025em; font-weight: 600 !important; }
+main h3 { font-size: 1rem; line-height: 1.35; letter-spacing: -.01em; font-weight: 600; }
+main .text-\[8px\], main .text-\[8\.5px\], main .text-\[9px\], main .text-\[9\.5px\] { font-size: .75rem !important; }
+main .text-\[10px\], main .text-\[10\.5px\], main .text-\[11px\] { font-size: .8125rem !important; }
+main .text-xs { font-size: .875rem; line-height: 1.45; }
+main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .08em; }
+
+/* Keep primary actions high-contrast in both modes. */
+.dark [class~="bg-black"][class*="dark:bg-white"], .dark [class~="bg-black"][class*="dark:bg-neutral-100"] { background: #ffffff !important; border-color: #ffffff !important; color: #000000 !important; box-shadow: 0 8px 18px rgba(0,0,0,.22); }
+.dark [class~="bg-black"][class*="dark:bg-white"]:hover, .dark [class~="bg-black"][class*="dark:bg-neutral-100"]:hover { background: #e5e5e5 !important; transform: translateY(-1px); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(82,82,82,.62); border: 2px solid transparent; border-radius: 999px; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: rgba(115,115,115,.82); }
+
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.animate-slide-up { animation: slideUp .35s cubic-bezier(.16,1,.3,1) both; }
+.animate-fade-in { animation: fadeIn .2s ease-out both; }
+
+.premium-card { @apply rounded-xl border bg-white p-4 shadow-sm transition-[border-color,box-shadow] duration-200; border-color: var(--surface-border); background-color: var(--surface-elevated); color: var(--surface-text); }
+.premium-card:hover { @apply shadow-md; }
+.dark .premium-card { background: #111111; border-color: #262626; box-shadow: 0 12px 28px rgba(0,0,0,.18); }
+.dark .premium-card:hover { border-color: #525252; box-shadow: 0 16px 36px rgba(0,0,0,.28); }
+.premium-card-active { border-color: var(--accent) !important; box-shadow: 0 0 0 1px rgb(0 0 0 / .15); }
+
+/* Shared application shell: makes every feature area read as one product, not separate screens. */
+.page-shell { width: min(100%, 1680px); margin-inline: auto; }
+.page-shell > :first-child:has(h2) {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .75rem;
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+}
+.page-shell > :first-child:has(h2) h2 { margin: 0; font-size: 1.5rem !important; }
+.page-shell > :first-child:has(h2) p { max-width: 46rem; margin-top: .35rem; font-size: .9375rem !important; line-height: 1.55; }
+.glass-panel {
+  border: 1px solid var(--surface-border);
+  background: var(--surface-elevated);
+  border-radius: .75rem;
+  box-shadow: 0 1px 2px rgb(0 0 0 / .04);
+}
+.dark .page-shell > :first-child:has(h2) { background: #000000; border-color: #262626; }
+.dark .glass-panel { background: #111111; border-color: #262626; box-shadow: none; }
+.page-shell .glass-panel > h3, .page-shell .premium-card > h3 { font-size: 1rem; }
+.page-shell .glass-panel > h3, .page-shell .premium-card > h3, .page-shell .premium-card > div > h3 { color: #1f2937; }
+.dark .page-shell .glass-panel > h3, .dark .page-shell .premium-card > h3, .dark .page-shell .premium-card > div > h3 { color: #f5f5f5; }
+
+@media (max-width: 640px) {
+  .page-shell { width: 100%; }
+  .page-shell > :first-child:has(h2) { padding: 1rem; flex-direction: column; }
+  .page-shell > :first-child:has(h2) > button { width: 100%; justify-content: center; }
+}
+
+.nav-item-active { @apply font-semibold; background: rgb(0 0 0 / .07); color: var(--accent) !important; box-shadow: inset 2px 0 var(--accent); }
+.dark .nav-item-active { background: rgb(255 255 255 / .10); }
+
+.premium-table { @apply w-full border-collapse text-left text-sm; }
+.premium-table th { @apply border-b px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-neutral-500; }
+.premium-table td { @apply border-b px-3 py-3 text-neutral-800 transition-colors; }
+.premium-table tr:hover td { @apply bg-neutral-50; }
+.dark .premium-table th { color: #ffffff; border-color: #262626; }
+.dark .premium-table td { color: #f5f5f5; border-color: #262626; }
+.dark .premium-table tr:hover td { background: #171717; }
+
+input, select, textarea { @apply rounded-lg; border-color: var(--surface-border); background-color: var(--surface-elevated); color: var(--surface-text); }
+.dark input, .dark select, .dark textarea { border-color: #404040 !important; background-color: #000000 !important; color: #ffffff !important; }
+.dark input::placeholder, .dark textarea::placeholder { color: #737373; }
+.dark select option { background: #000000; color: #ffffff; }
+.checkin-btn { @apply rounded-lg px-4 py-2 text-xs font-semibold shadow-sm transition-all duration-200 active:scale-95; }

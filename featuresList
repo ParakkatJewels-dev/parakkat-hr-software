@@ -1,0 +1,423 @@
+Design and develop a modern, enterprise-grade Human Resource Management System (HRMS) inspired by leading platforms like greytHR, Keka, Darwinbox, and Zoho People. Create a premium SaaS experience with a clean, minimal, modern UI optimized for desktop and fully responsive for tablet and mobile.
+
+Use:
+- Minimalist UI
+- Large white spaces
+- Rounded cards
+- Soft shadows
+- Inter font
+- Lucide Icons
+- Light & Dark mode
+- Theme customization
+- Beautiful analytics
+- Smooth animations
+- Enterprise-level dashboard
+
+====================
+SIDEBAR MODULES
+====================
+
+Dashboard
+Recruitment
+Onboarding
+Employees
+Organization
+Attendance
+Leave Management
+Payroll
+Expense Management
+Performance Management
+Asset Management
+Document Management
+Employee Self Service (ESS)
+Helpdesk
+Exit Management
+Reports & Analytics
+AI Assistant
+Integrations
+Administration
+Settings
+
+====================
+DASHBOARD
+====================
+
+Include:
+
+• Employee Statistics
+• Active Employees
+• New Joiners
+• Employees on Leave
+• Attendance Today
+• Payroll Summary
+• Pending Approvals
+• Upcoming Birthdays
+• Work Anniversaries
+• Recruitment Pipeline
+• Hiring Trend
+• Expense Overview
+• Department Distribution
+• Performance Summary
+• Notifications
+• Company Announcements
+• Calendar
+• Recent Activities
+• Quick Actions
+
+Charts:
+• KPI Cards
+• Donut Charts
+• Bar Charts
+• Line Charts
+• Area Charts
+
+====================
+RECRUITMENT
+====================
+
+• Applicant Tracking System (ATS)
+• Job Requisition
+• Job Posting
+• Career Portal
+• Resume Parser
+• Resume Library
+• AI Resume Screening
+• Candidate Database
+• Candidate Pipeline
+• Interview Scheduling
+• Interview Calendar
+• Interview Feedback
+• Interview Scorecards
+• Offer Letter Generator
+• Offer Approval Workflow
+• Recruiter Dashboard
+• Hiring Analytics
+• Gmail Integration
+• Outlook Integration
+• Google Meet
+• Microsoft Teams
+• Zoom
+
+====================
+ONBOARDING
+====================
+
+• Paperless Onboarding
+• Employee Registration
+• Self Onboarding Portal
+• Document Upload
+• Digital Signature
+• Appointment Letter
+• Welcome Kit
+• Background Verification
+• PAN Verification
+• Aadhaar Verification
+• Asset Allocation
+• Department Checklists
+• Policy Acceptance
+• Automated Reminders
+• Progress Tracking
+
+====================
+EMPLOYEE MANAGEMENT
+====================
+
+• Employee Database
+• Employee Profiles
+• Organization Hierarchy
+• Departments
+• Designations
+• Branches
+• Teams
+• Reporting Managers
+• Personal Details
+• Emergency Contacts
+• Education
+• Experience
+• Bank Details
+• Salary Details
+• Identity Documents
+• Employee Timeline
+• Employee Directory
+• Bulk Import
+• Bulk Export
+
+====================
+ATTENDANCE
+====================
+
+• Biometric Integration
+• Face Recognition
+• Selfie Attendance
+• GPS Attendance
+• Geo Fencing
+• QR Attendance
+• Web Check-In
+• Shift Management
+• Shift Rotation
+• Overtime
+• Attendance Regularization
+• Attendance Permissions
+• Late Mark Rules
+• Early Exit Rules
+• Attendance Calendar
+• Attendance Reports
+
+====================
+LEAVE MANAGEMENT
+====================
+
+• Multiple Leave Policies
+• Casual Leave
+• Sick Leave
+• Earned Leave
+• Maternity Leave
+• Paternity Leave
+• Comp Off
+• Holiday Calendar
+• Leave Accrual
+• Carry Forward
+• Leave Encashment
+• Leave Approval Workflow
+• Team Calendar
+• Leave Reports
+
+====================
+PAYROLL
+====================
+
+• Payroll Processing
+• Salary Structure
+• Salary Revision
+• Bonuses
+• Incentives
+• Arrears
+• Flexible Benefits
+• Loans
+• Salary Advances
+• EMI Management
+• Payslip Generation
+• Payroll Approval
+• Payroll Dashboard
+• Payroll Reports
+• Bank Transfer
+
+Compliance:
+
+• PF
+• ESI
+• PT
+• TDS
+• LWF
+• Gratuity
+• Bonus
+• Minimum Wage
+• Form 16
+• Form 24Q
+
+====================
+EXPENSE MANAGEMENT
+====================
+
+• Expense Claims
+• OCR Receipt Scanner
+• Receipt Upload
+• Travel Claims
+• Medical Claims
+• Fuel Claims
+• Advance Requests
+• Policy Rules
+• Approval Workflow
+• Reimbursements
+• Expense Reports
+• Finance Dashboard
+
+====================
+PERFORMANCE MANAGEMENT
+====================
+
+• Goal Setting
+• KPI
+• KRA
+• SMART Goals
+• Milestones
+• Continuous Feedback
+• One-on-One Meetings
+• Self Assessment
+• Manager Assessment
+• 360 Degree Reviews
+• Calibration
+• Talent Matrix
+• Individual Development Plans
+• Performance Reports
+
+====================
+ASSET MANAGEMENT
+====================
+
+• Asset Inventory
+• Laptop Assignment
+• Mobile Assignment
+• Asset Requests
+• Asset Return
+• Asset History
+• QR Asset Tracking
+• Asset Reports
+
+====================
+DOCUMENT MANAGEMENT
+====================
+
+• Employee Documents
+• Company Policies
+• Document Templates
+• Digital Signature
+• Secure Vault
+• Version History
+• Expiry Notifications
+
+====================
+EMPLOYEE SELF SERVICE (ESS)
+====================
+
+Employee:
+
+• Dashboard
+• Profile
+• Attendance
+• Leave
+• Payslips
+• Tax Declaration
+• Expense Claims
+• Documents
+• HR Letters
+• Helpdesk
+• Approval Tracking
+
+Manager:
+
+• Team Dashboard
+• Team Attendance
+• Leave Approval
+• Expense Approval
+• Performance Reviews
+• Reports
+
+====================
+HELPDESK
+====================
+
+• HR Tickets
+• IT Support
+• Asset Requests
+• SLA Tracking
+• Knowledge Base
+
+====================
+EXIT MANAGEMENT
+====================
+
+• Online Resignation
+• Notice Period
+• Exit Checklist
+• Asset Recovery
+• Exit Interview
+• No Dues Clearance
+• Full & Final Settlement
+• Relieving Letter
+• Experience Letter
+• Alumni Management
+
+====================
+REPORTS & ANALYTICS
+====================
+
+• HR Dashboard
+• Attendance Reports
+• Payroll Reports
+• Leave Reports
+• Recruitment Reports
+• Expense Reports
+• Performance Reports
+• Compliance Reports
+• Custom Report Builder
+• Query Builder
+• Scheduled Reports
+• Export Reports
+
+====================
+AI FEATURES
+====================
+
+• AI HR Assistant
+• Resume Screening AI
+• AI Chatbot
+• Attendance Insights
+• Payroll Insights
+• Employee Analytics
+• Attrition Prediction
+• OCR Document Scanner
+• Predictive Reports
+• Natural Language Commands
+
+====================
+INTEGRATIONS
+====================
+
+• Google Workspace
+• Microsoft 365
+• Slack
+• WhatsApp
+• Outlook
+• Gmail
+• Zoom
+• Google Meet
+• Microsoft Teams
+• REST APIs
+• SSO
+• Biometric Devices
+• Accounting Software
+• Banking APIs
+
+====================
+ADMINISTRATION
+====================
+
+• User Management
+• Roles & Permissions (RBAC)
+• Workflow Builder
+• Approval Matrix
+• Notification Settings
+• Email Templates
+• SMS Templates
+• Audit Logs
+• Activity Logs
+• Company Settings
+• Branch Management
+• Department Management
+• Holiday Management
+• Shift Management
+
+====================
+UI REQUIREMENTS
+====================
+
+• Premium SaaS Dashboard
+• Minimal Modern UI
+• Responsive Layout
+• Soft Glassmorphism
+• Rounded Cards
+• Beautiful Data Tables
+• Sticky Sidebar
+• Sticky Header
+• Global Search
+• Command Palette (Ctrl + K)
+• Notification Center
+• Theme Switcher
+• Light/Dark Mode
+• Smooth Animations
+• Fast Loading
+• Fully Accessible
+
+Goal:
+Build a next-generation enterprise HRMS that is more modern, cleaner, faster, and visually superior to greytHR while remaining scalable for startups, SMEs, and enterprise organizations.
