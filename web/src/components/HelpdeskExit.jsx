@@ -137,7 +137,7 @@ export default function HelpdeskExit() {
                     </div>
                     <span className="text-[9px] px-2 py-0.5 bg-neutral-200 dark:bg-neutral-900 text-neutral-550 dark:text-neutral-400 rounded-full font-mono border border-neutral-300 dark:border-neutral-800">{ext.status}</span>
                   </div>
-                  <div className="border-t border-neutral-100 dark:border-neutral-900/60 pt-2.5 grid grid-cols-4 gap-2 text-[9.5px]">
+                  <div className="border-t border-neutral-100 dark:border-neutral-900/60 pt-2.5 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[9.5px]">
                     {Object.keys(ext.approvals || {}).map((dept) => (
                       <div key={dept} className={`p-1.5 rounded-lg border text-center font-mono ${ext.approvals[dept] === 'Approved' ? 'bg-emerald-100/50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900/20 dark:text-emerald-450 text-emerald-800' : 'bg-neutral-105 border-neutral-200 dark:bg-neutral-900 dark:border-neutral-800 text-neutral-500'}`}>
                         <span className="block font-bold text-[8.5px] uppercase">{dept}</span>

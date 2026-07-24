@@ -1,8 +1,12 @@
 {
   "appId": "com.parakkatjewels.hr",
   "appName": "Parakkat HR",
-  "webDir": "frontend/dist",
+  "webDir": "web/dist",
   "backgroundColor": "#0f0f0f",
+  "server": {
+    "url": "https://REPLACE-WITH-YOUR-HOSTED-WEB-URL",
+    "androidScheme": "https"
+  },
   "plugins": {
     "SplashScreen": {
       "launchShowDuration": 900,

@@ -1,132 +1,751 @@
-import React, { useMemo } from 'react';
-import { Clock, Calendar, AlertTriangle, Loader2 } from 'lucide-react';
-import { useAttendance, usePunch } from '../data/attendance';
+// Attendance screen.
+//
+// Attendance is DERIVED from BioTime face-terminal punches by the engine in services/attendance —
+// there is no punch button here any more, because punching happens at the terminal. What this
+// screen does is show what the engine concluded, surface the exceptions HR must act on, and let
+// people raise a correction when the device missed something.
+import React, { useMemo, useState } from 'react';
+import {
+  Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
+  CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
+} from 'lucide-react';
+import {
+  useAttendanceSummary, useMonthlyAttendance, useAttendanceExceptions,
+  useRawPunches, useRecompute, useExportRegister, useExportPayroll,
+  todayIso, STATUS_STYLES, STATUS_CODES, fmtTime, fmtMinutes,
+} from '../data/attendance';
+import {
+  useRegularizations, useMyRegularizations, useCreateRegularization, useDecideRegularization,
+} from '../data/regularizations';
 import { useAuth } from '../auth/AuthContext';
+import { usePermissions } from '../auth/usePermissions';
 
-const todayStr = () => new Date().toISOString().split('T')[0];
-const nowIso = () => new Date().toISOString();
-const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--');
+const TABS = [
+  { id: 'today', label: 'Today', icon: Users },
+  { id: 'calendar', label: 'Monthly calendar', icon: CalendarDays },
+  { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle, perm: 'attendance.manage' },
+  { id: 'regularizations', label: 'Regularizations', icon: CheckCircle2 },
+];
 
-const statusClass = (s) =>
-  s === 'On Time'
-    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-450'
-    : s === 'Late In'
-    ? 'bg-amber-105 text-amber-805 dark:bg-amber-950/45 dark:text-amber-450'
-    : 'bg-neutral-200 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-455';
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
 
-export default function Attendance() {
-  const { data: logs = [], isLoading, error } = useAttendance();
-  const { employee } = useAuth();
-  const punch = usePunch();
-  const canPunch = Boolean(employee?.id);
-
-  // today's own row -> checked-in if it has a check_in and no check_out
-  const todayRow = useMemo(
-    () => logs.find((l) => l.work_date === todayStr() && l.employee?.employee_code === employee?.employee_code),
-    [logs, employee]
+function StatusBadge({ status, isLop }) {
+  return (
+    <span className={`badge ${STATUS_STYLES[status] ?? 'badge-muted'}`}>
+      {isLop ? 'LOP' : status}
+    </span>
   );
-  const checkedIn = Boolean(todayRow?.check_in && !todayRow?.check_out);
+}
 
-  const checkIn = () => {
-    const now = new Date();
-    const late = now.getHours() > 9 || (now.getHours() === 9 && now.getMinutes() > 15);
-    punch.mutate({ employee_id: employee.id, work_date: todayStr(), check_in: nowIso(), check_out: null, status: late ? 'Late In' : 'On Time' });
+function Kpi({ icon: Icon, label, value, tone = 'neutral' }) {
+  const tones = {
+    neutral: 'text-neutral-800 dark:text-neutral-100',
+    green: 'text-emerald-600 dark:text-emerald-400',
+    amber: 'text-amber-600 dark:text-amber-400',
+    red: 'text-red-600 dark:text-red-400',
   };
-  const checkOut = () => {
-    const ci = todayRow?.check_in ? new Date(todayRow.check_in) : new Date();
-    const hours = Math.max(0, Math.round(((Date.now() - ci.getTime()) / 3600000) * 10) / 10);
-    punch.mutate({ employee_id: employee.id, work_date: todayStr(), check_in: todayRow?.check_in || nowIso(), check_out: nowIso(), hours, status: todayRow?.status || 'On Time' });
-  };
+  return (
+    <div className="premium-card p-4">
+      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+        <Icon size={13} />
+        {label}
+      </div>
+      <div className={`mt-2 text-2xl font-black font-mono ${tones[tone]}`}>{value}</div>
+    </div>
+  );
+}
+
+function ErrorNote({ error }) {
+  if (!error) return null;
+  return (
+    <div className="premium-card p-4 border-red-300 dark:border-red-900/60">
+      <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
+        <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+        <span>{error.message || String(error)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Today — who is in
+// ---------------------------------------------------------------------------
+
+function TodayView({ workDate, setWorkDate }) {
+  const { data = [], isLoading, error, summary, refetch, isFetching } = useAttendanceSummary(workDate);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState('all');
+
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return data.filter((row) => {
+      if (filter === 'in' && !(row.check_in && !row.check_out)) return false;
+      if (filter === 'absent' && row.status !== 'Absent') return false;
+      if (filter === 'late' && !row.is_late) return false;
+      if (filter === 'exceptions' && !(row.is_late || row.is_missing_punch || row.is_early_exit)) return false;
+      if (!term) return true;
+      return (
+        row.employee?.full_name?.toLowerCase().includes(term) ||
+        row.employee?.employee_code?.toLowerCase().includes(term) ||
+        row.employee?.branch?.name?.toLowerCase().includes(term)
+      );
+    });
+  }, [data, query, filter]);
+
+  const filters = [
+    { id: 'all', label: `All (${summary.total})` },
+    { id: 'in', label: `On site (${summary.stillIn})` },
+    { id: 'late', label: `Late (${summary.late})` },
+    { id: 'absent', label: `Absent (${summary.absent})` },
+    { id: 'exceptions', label: 'Exceptions' },
+  ];
 
   return (
-    <div className="page-shell space-y-6 animate-slide-up">
-      <div>
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-slate-100 font-sans">Attendance</h2>
-        <p className="text-xs text-neutral-500 dark:text-slate-400">Punch in/out and review attendance across your scope.</p>
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Kpi icon={Users} label="Roster" value={summary.total} />
+        <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green" />
+        <Kpi icon={Clock} label="Still on site" value={summary.stillIn} tone="green" />
+        <Kpi icon={AlertTriangle} label="Late" value={summary.late} tone="amber" />
+        <Kpi icon={XCircle} label="Absent" value={summary.absent} tone="red" />
+        <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber" />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* punch portal */}
-        <div className="lg:col-span-1 space-y-6">
-          <div className="premium-card p-5 space-y-4">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-250 flex items-center">
-              <Clock size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Punching Portal
-            </h3>
-            <div className="text-center py-6 bg-neutral-50 dark:bg-neutral-950/40 rounded-xl border border-neutral-200 dark:border-neutral-850">
-              <span className="text-[9px] text-neutral-500 font-mono tracking-widest block uppercase font-bold">session state</span>
-              <span className={`text-base font-extrabold font-mono mt-1.5 block ${checkedIn ? 'text-emerald-600 dark:text-emerald-450' : 'text-neutral-400'}`}>
-                {checkedIn ? 'ACTIVE CLOCK-IN' : 'SIGNED OUT'}
-              </span>
-              <span className="text-2xl font-black font-mono block mt-2 text-neutral-800 dark:text-neutral-100">
-                {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-            {canPunch ? (
-              checkedIn ? (
-                <button onClick={checkOut} disabled={punch.isPending} className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 dark:bg-neutral-100 dark:text-black dark:hover:bg-white text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-60">
-                  Sign-Out / End Day
-                </button>
-              ) : (
-                <button onClick={checkIn} disabled={punch.isPending} className="w-full py-2.5 bg-black hover:bg-neutral-900 dark:bg-gold-450 dark:text-charcoal-900 text-white rounded-xl text-xs font-bold cursor-pointer disabled:opacity-60">
-                  Sign-In / Start Day
-                </button>
-              )
-            ) : (
-              <p className="text-[10.5px] text-neutral-400 text-center">
-                Your login isn't linked to an employee, so you can't punch. You can still review the logs below.
-              </p>
-            )}
+      <div className="premium-card p-4 space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={workDate}
+            onChange={(e) => setWorkDate(e.target.value || todayIso())}
+            className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs"
+          />
+          <div className="relative flex-1 min-w-45">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search name, code or branch…"
+              className="w-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 pl-8 pr-3 py-1.5 rounded-xl text-xs"
+            />
           </div>
-
-          <div className="premium-card p-4 flex items-start space-x-3.5 border-l-4 border-l-black dark:border-l-gold-450">
-            <div className="p-2 bg-neutral-100 dark:bg-neutral-900 text-neutral-805 dark:text-neutral-200 rounded-lg shrink-0"><AlertTriangle size={16} /></div>
-            <div>
-              <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200">General Day Shift (GDS)</h4>
-              <p className="text-[10.5px] text-neutral-500 dark:text-neutral-450 mt-1 leading-relaxed">09:00 AM – 06:00 PM · 15 min grace. Late-ins beyond 15 min are flagged.</p>
-            </div>
-          </div>
+          <button
+            onClick={() => refetch()}
+            className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+            title="Refresh"
+          >
+            <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
+          </button>
         </div>
 
-        {/* logs */}
-        <div className="lg:col-span-2">
-          <div className="premium-card p-5 space-y-4">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-100 flex items-center">
-              <Calendar size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Punch Registry
-            </h3>
-            {isLoading ? (
-              <div className="flex justify-center py-10 text-gold-500"><Loader2 size={22} className="animate-spin" /></div>
-            ) : error ? (
-              <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
-            ) : logs.length === 0 ? (
-              <p className="text-xs text-neutral-500 py-8 text-center">No attendance records visible to you yet.</p>
+        <div className="flex flex-wrap gap-1.5">
+          {filters.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => setFilter(f.id)}
+              className={`chip text-[11px] ${filter === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <ErrorNote error={error} />
+
+      <div className="premium-card overflow-hidden">
+        {isLoading ? (
+          <div className="p-10 flex justify-center text-neutral-400">
+            <Loader2 className="animate-spin" size={18} />
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="p-10 text-center text-xs text-neutral-500">
+            No attendance rows for {workDate}.
+            <div className="mt-1 text-[11px] text-neutral-400">
+              If punches exist but rows do not, the engine has not processed this date yet.
+            </div>
+          </div>
+        ) : (
+          <div className="table-scroll">
+            <table className="premium-table w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left">Employee</th>
+                  <th className="text-left">Branch</th>
+                  <th className="text-left">Shift</th>
+                  <th className="text-left">In</th>
+                  <th className="text-left">Out</th>
+                  <th className="text-left">Worked</th>
+                  <th className="text-left">OT</th>
+                  <th className="text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((row) => (
+                  <tr key={row.id}>
+                    <td>
+                      <div className="font-semibold text-neutral-800 dark:text-neutral-100">
+                        {row.employee?.full_name ?? '—'}
+                      </div>
+                      <div className="text-[10px] text-neutral-400 font-mono">
+                        {row.employee?.employee_code ?? ''}
+                      </div>
+                    </td>
+                    <td className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
+                    <td className="text-neutral-500">{row.shift?.code ?? '—'}</td>
+                    <td className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                      {fmtTime(row.check_in)}
+                      {row.is_late ? <span className="ml-1 text-[9px]">+{row.late_minutes}m</span> : null}
+                    </td>
+                    <td className={`font-mono ${row.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                      {fmtTime(row.check_out)}
+                    </td>
+                    <td className="font-mono">{fmtMinutes(row.worked_minutes)}</td>
+                    <td className="font-mono text-emerald-600 dark:text-emerald-400">
+                      {fmtMinutes(row.ot_minutes)}
+                    </td>
+                    <td><StatusBadge status={row.status} isLop={row.is_lop} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Monthly calendar
+// ---------------------------------------------------------------------------
+
+function CalendarView({ employeeId, employeeName }) {
+  const now = new Date();
+  const [year, setYear] = useState(now.getFullYear());
+  const [month, setMonth] = useState(now.getMonth() + 1);
+  const [selected, setSelected] = useState(null);
+
+  const { data = [], isLoading, error } = useMonthlyAttendance(employeeId, year, month);
+  const { data: punches = [] } = useRawPunches(employeeId, selected);
+
+  const byDate = useMemo(() => new Map(data.map((r) => [r.work_date, r])), [data]);
+
+  const cells = useMemo(() => {
+    const firstDow = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const out = Array.from({ length: firstDow }, () => null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      out.push(`${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`);
+    }
+    return out;
+  }, [year, month]);
+
+  const totals = useMemo(
+    () =>
+      data.reduce(
+        (acc, r) => {
+          acc.payable += Number(r.day_fraction ?? 0);
+          acc.ot += Number(r.ot_minutes ?? 0);
+          if (r.status === 'Absent') acc.absent += 1;
+          if (r.is_late) acc.late += 1;
+          if (r.status === 'On Leave') acc.leave += 1;
+          return acc;
+        },
+        { payable: 0, ot: 0, absent: 0, late: 0, leave: 0 }
+      ),
+    [data]
+  );
+
+  const shiftMonth = (delta) => {
+    const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+    setYear(next.getUTCFullYear());
+    setMonth(next.getUTCMonth() + 1);
+    setSelected(null);
+  };
+
+  if (!employeeId) {
+    return (
+      <div className="premium-card p-10 text-center text-xs text-neutral-500">
+        No employee record is linked to your login, so there is no calendar to show.
+      </div>
+    );
+  }
+
+  const selectedRow = selected ? byDate.get(selected) : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="premium-card p-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
+            <ChevronLeft size={14} />
+          </button>
+          <span className="text-sm font-bold min-w-37.5 text-center">{MONTHS[month - 1]} {year}</span>
+          <button onClick={() => shiftMonth(1)} className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
+            <ChevronRight size={14} />
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-4 text-[11px]">
+          <span><b className="font-mono text-emerald-600 dark:text-emerald-400">{totals.payable.toFixed(1)}</b> payable days</span>
+          <span><b className="font-mono">{fmtMinutes(totals.ot)}</b> OT</span>
+          <span><b className="font-mono text-red-600 dark:text-red-400">{totals.absent}</b> absent</span>
+          <span><b className="font-mono text-amber-600 dark:text-amber-400">{totals.late}</b> late</span>
+          <span><b className="font-mono">{totals.leave}</b> leave</span>
+        </div>
+      </div>
+
+      <ErrorNote error={error} />
+
+      <div className="premium-card p-4">
+        <div className="text-[11px] text-neutral-500 mb-3">{employeeName}</div>
+
+        {isLoading ? (
+          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+        ) : (
+          <>
+            <div className="grid grid-cols-7 gap-1.5 mb-1.5">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+                <div key={d} className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 text-center">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {cells.map((date, i) => {
+                if (!date) return <div key={`pad-${i}`} />;
+                const row = byDate.get(date);
+                const day = Number(date.slice(-2));
+                const isSelected = selected === date;
+
+                return (
+                  <button
+                    key={date}
+                    onClick={() => setSelected(isSelected ? null : date)}
+                    className={`aspect-square rounded-xl p-1.5 flex flex-col items-center justify-center border transition-all
+                      ${isSelected ? 'ring-2 ring-emerald-500 border-transparent' : 'border-neutral-200 dark:border-neutral-850'}
+                      ${row ? STATUS_STYLES[row.status] ?? '' : 'bg-neutral-50 dark:bg-neutral-950/40 text-neutral-400'}`}
+                    title={row ? `${row.status}${row.remarks ? ` — ${row.remarks}` : ''}` : 'Not processed'}
+                  >
+                    <span className="text-[11px] font-bold leading-none">{day}</span>
+                    <span className="text-[9px] font-black mt-0.5 leading-none">
+                      {row ? (row.is_lop ? 'LP' : STATUS_CODES[row.status] ?? '·') : '·'}
+                    </span>
+                    {row?.is_late ? <span className="w-1 h-1 rounded-full bg-red-500 mt-0.5" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {selected ? (
+        <div className="premium-card p-4 space-y-3 animate-fade-in">
+          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">
+            {selected}
+          </h4>
+
+          {selectedRow ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <div className="text-[10px] text-neutral-400 uppercase">Status</div>
+                <StatusBadge status={selectedRow.status} isLop={selectedRow.is_lop} />
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-400 uppercase">In / Out</div>
+                <span className="font-mono">{fmtTime(selectedRow.check_in)} – {fmtTime(selectedRow.check_out)}</span>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-400 uppercase">Worked</div>
+                <span className="font-mono">{fmtMinutes(selectedRow.worked_minutes)}</span>
+              </div>
+              <div>
+                <div className="text-[10px] text-neutral-400 uppercase">Overtime</div>
+                <span className="font-mono">{fmtMinutes(selectedRow.ot_minutes)}</span>
+              </div>
+              {selectedRow.remarks ? (
+                <div className="col-span-full text-[11px] text-neutral-500">{selectedRow.remarks}</div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-xs text-neutral-500">This date has not been processed by the engine.</p>
+          )}
+
+          <div className="soft-divider" />
+          <div>
+            <div className="text-[10px] text-neutral-400 uppercase mb-1.5">Raw device punches</div>
+            {punches.length === 0 ? (
+              <p className="text-[11px] text-neutral-500">No punches recorded around this date.</p>
             ) : (
-              <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
-                <table className="premium-table">
-                  <thead>
-                    <tr>
-                      <th>Date</th><th>Employee</th><th>In</th><th>Out</th><th>Hrs</th><th className="text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="font-mono">
-                    {logs.map((log) => (
-                      <tr key={log.id}>
-                        <td className="font-sans font-semibold text-neutral-805 dark:text-slate-300">{log.work_date}</td>
-                        <td className="font-sans text-neutral-600 dark:text-neutral-400">{log.employee?.full_name || '—'}{log.employee?.branch?.code ? ` (${log.employee.branch.code})` : ''}</td>
-                        <td className="text-neutral-600 dark:text-neutral-400">{fmtTime(log.check_in)}</td>
-                        <td className="text-neutral-600 dark:text-neutral-400">{fmtTime(log.check_out)}</td>
-                        <td className="text-neutral-600 dark:text-neutral-400">{log.hours ?? '—'}</td>
-                        <td className="text-right font-sans">
-                          <span className={`px-2 py-0.5 rounded-full text-[8.5px] font-bold uppercase tracking-wider ${statusClass(log.status)}`}>{log.status || '—'}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="flex flex-wrap gap-1.5">
+                {punches.map((p) => (
+                  <span
+                    key={p.id}
+                    className="chip text-[10px] font-mono"
+                    title={`${p.terminal_alias ?? p.terminal_sn ?? ''} · ${p.source}`}
+                  >
+                    {fmtTime(p.punch_time)}
+                    {p.punch_state_label ? ` ${p.punch_state_label}` : ''}
+                  </span>
+                ))}
               </div>
             )}
           </div>
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Exceptions + reports
+// ---------------------------------------------------------------------------
+
+function ExceptionsView() {
+  const today = todayIso();
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+  const [from, setFrom] = useState(weekAgo);
+  const [to, setTo] = useState(today);
+
+  const { data = [], isLoading, error, refetch } = useAttendanceExceptions(from, to);
+  const recompute = useRecompute();
+  const exportRegister = useExportRegister();
+  const exportPayroll = useExportPayroll();
+
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [year, setYear] = useState(new Date().getFullYear());
+
+  return (
+    <div className="space-y-4">
+      <div className="premium-card p-4 space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+            From
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+              className="block mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
+          </label>
+          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+            To
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
+              className="block mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
+          </label>
+
+          <button
+            onClick={() => recompute.mutate({ from, to }, { onSuccess: () => refetch() })}
+            disabled={recompute.isPending}
+            className="px-3 py-2 rounded-xl bg-neutral-900 dark:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {recompute.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            Recompute range
+          </button>
+        </div>
+
+        {recompute.isError ? <ErrorNote error={recompute.error} /> : null}
+        {recompute.isSuccess ? (
+          <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
+            Recomputed {recompute.data?.rowsWritten ?? 0} rows across {recompute.data?.employees ?? 0} employees.
+          </p>
+        ) : null}
+
+        <div className="soft-divider" />
+
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+            Report month
+            <div className="flex gap-1.5 mt-1">
+              <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
+                className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs">
+                {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+              </select>
+              <input type="number" value={year} onChange={(e) => setYear(Number(e.target.value))}
+                className="w-20 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
+            </div>
+          </label>
+
+          <button
+            onClick={() => exportRegister.mutate({ year, month })}
+            disabled={exportRegister.isPending}
+            className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {exportRegister.isPending ? <Loader2 size={13} className="animate-spin" /> : <FileSpreadsheet size={13} />}
+            Attendance register
+          </button>
+
+          <button
+            onClick={() => exportPayroll.mutate({ year, month })}
+            disabled={exportPayroll.isPending}
+            className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {exportPayroll.isPending ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            Payroll export
+          </button>
+        </div>
+
+        {exportRegister.isError || exportPayroll.isError ? (
+          <ErrorNote error={exportRegister.error || exportPayroll.error} />
+        ) : null}
       </div>
+
+      <ErrorNote error={error} />
+
+      <div className="premium-card overflow-hidden">
+        {isLoading ? (
+          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+        ) : data.length === 0 ? (
+          <div className="p-10 text-center text-xs text-neutral-500">No exceptions in this range.</div>
+        ) : (
+          <div className="table-scroll">
+            <table className="premium-table w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left">Date</th>
+                  <th className="text-left">Employee</th>
+                  <th className="text-left">Branch</th>
+                  <th className="text-left">Issue</th>
+                  <th className="text-left">In</th>
+                  <th className="text-left">Out</th>
+                  <th className="text-left">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row) => {
+                  const issues = [
+                    row.status === 'Absent' ? 'Absent' : null,
+                    row.is_missing_punch ? 'Missing punch' : null,
+                    row.is_late ? `Late ${row.late_minutes}m` : null,
+                    row.is_early_exit ? `Early ${row.early_exit_minutes}m` : null,
+                    row.status === 'No Shift' ? 'No shift assigned' : null,
+                  ].filter(Boolean);
+
+                  return (
+                    <tr key={row.id}>
+                      <td className="font-mono">{row.work_date}</td>
+                      <td>
+                        <div className="font-semibold text-neutral-800 dark:text-neutral-100">{row.employee?.full_name ?? '—'}</div>
+                        <div className="text-[10px] text-neutral-400 font-mono">{row.employee?.employee_code ?? ''}</div>
+                      </td>
+                      <td className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
+                      <td>
+                        <div className="flex flex-wrap gap-1">
+                          {issues.map((issue) => (
+                            <span key={issue} className="badge bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{issue}</span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="font-mono">{fmtTime(row.check_in)}</td>
+                      <td className="font-mono">{fmtTime(row.check_out)}</td>
+                      <td><StatusBadge status={row.status} isLop={row.is_lop} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Regularizations
+// ---------------------------------------------------------------------------
+
+function RegularizationsView({ employee, canApprove }) {
+  const { data: queue = [], isLoading } = useRegularizations(canApprove ? 'Pending' : undefined);
+  const { data: mine = [] } = useMyRegularizations(employee?.id);
+  const create = useCreateRegularization();
+  const decide = useDecideRegularization();
+
+  const [form, setForm] = useState({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' });
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!employee?.id) return;
+    if (!form.checkIn && !form.checkOut) return;
+    create.mutate(
+      { employeeId: employee.id, ...form },
+      { onSuccess: () => setForm({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' }) }
+    );
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="lg:col-span-1 space-y-4">
+        <form onSubmit={submit} className="premium-card p-4 space-y-3">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
+            Raise a correction
+          </h3>
+          <p className="text-[11px] text-neutral-500">
+            For a day the terminal missed a punch. Approval feeds back into the engine, which
+            recomputes that date.
+          </p>
+
+          <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+            Date
+            <input type="date" required value={form.workDate}
+              onChange={(e) => setForm({ ...form, workDate: e.target.value })}
+              className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
+          </label>
+
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+              Check in
+              <input type="time" value={form.checkIn}
+                onChange={(e) => setForm({ ...form, checkIn: e.target.value })}
+                className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
+            </label>
+            <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+              Check out
+              <input type="time" value={form.checkOut}
+                onChange={(e) => setForm({ ...form, checkOut: e.target.value })}
+                className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
+            </label>
+          </div>
+
+          <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+            Reason
+            <textarea required rows={2} value={form.reason}
+              onChange={(e) => setForm({ ...form, reason: e.target.value })}
+              placeholder="Face reader did not register on exit"
+              className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
+          </label>
+
+          <button type="submit" disabled={create.isPending || !employee?.id}
+            className="w-full py-2 rounded-xl bg-neutral-900 dark:bg-emerald-600 text-white text-xs font-bold disabled:opacity-50">
+            {create.isPending ? 'Submitting…' : 'Submit for approval'}
+          </button>
+
+          {create.isError ? <ErrorNote error={create.error} /> : null}
+          {create.isSuccess ? <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Submitted.</p> : null}
+          {!employee?.id ? <p className="text-[11px] text-amber-600">Your login is not linked to an employee record.</p> : null}
+        </form>
+
+        <div className="premium-card p-4">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200 mb-2">
+            My requests
+          </h3>
+          {mine.length === 0 ? (
+            <p className="text-[11px] text-neutral-500">Nothing raised yet.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {mine.slice(0, 8).map((r) => (
+                <li key={r.id} className="flex items-center justify-between text-[11px]">
+                  <span className="font-mono">{r.work_date}</span>
+                  <span className={`badge ${r.status === 'Approved' ? 'badge-green' : r.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 'badge-muted'}`}>
+                    {r.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
+      <div className="lg:col-span-2">
+        <div className="premium-card overflow-hidden">
+          <div className="p-4 pb-2">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
+              {canApprove ? 'Pending approval' : 'Recent requests'}
+            </h3>
+          </div>
+
+          {isLoading ? (
+            <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          ) : queue.length === 0 ? (
+            <div className="p-10 text-center text-xs text-neutral-500">Nothing waiting.</div>
+          ) : (
+            <div className="table-scroll">
+              <table className="premium-table w-full text-xs">
+                <thead>
+                  <tr>
+                    <th className="text-left">Date</th>
+                    <th className="text-left">Employee</th>
+                    <th className="text-left">Proposed</th>
+                    <th className="text-left">Reason</th>
+                    {canApprove ? <th className="text-right">Decision</th> : null}
+                  </tr>
+                </thead>
+                <tbody>
+                  {queue.map((r) => (
+                    <tr key={r.id}>
+                      <td className="font-mono">{r.work_date}</td>
+                      <td>
+                        <div className="font-semibold text-neutral-800 dark:text-neutral-100">{r.employee?.full_name ?? '—'}</div>
+                        <div className="text-[10px] text-neutral-400">{r.employee?.branch?.name ?? ''}</div>
+                      </td>
+                      <td className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
+                      <td className="max-w-55 truncate text-neutral-500" title={r.reason}>{r.reason}</td>
+                      {canApprove ? (
+                        <td className="text-right whitespace-nowrap">
+                          <button
+                            onClick={() => decide.mutate({ id: r.id, decision: 'Approved' })}
+                            disabled={decide.isPending}
+                            className="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold mr-1 disabled:opacity-50"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => decide.mutate({ id: r.id, decision: 'Rejected' })}
+                            disabled={decide.isPending}
+                            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+export default function Attendance() {
+  const { employee } = useAuth();
+  const { canAny } = usePermissions();
+  const [tab, setTab] = useState('today');
+  const [workDate, setWorkDate] = useState(todayIso());
+
+  const visibleTabs = TABS.filter((t) => !t.perm || canAny(t.perm));
+  const canApprove = canAny('regularization.approve');
+
+  return (
+    <div className="page-shell space-y-5 animate-slide-up">
+      <div>
+        <h2 className="text-xl font-bold text-neutral-900 dark:text-slate-100 font-sans">Attendance</h2>
+        <p className="text-xs text-neutral-500 dark:text-slate-400">
+          Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes
+          and the engine derives each day against the assigned shift.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {visibleTabs.map((t) => {
+          const Icon = t.icon;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`drawer-tab flex items-center gap-1.5 ${tab === t.id ? 'drawer-tab-active' : ''}`}
+            >
+              <Icon size={13} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === 'today' ? <TodayView workDate={workDate} setWorkDate={setWorkDate} /> : null}
+      {tab === 'calendar' ? <CalendarView employeeId={employee?.id} employeeName={employee?.full_name} /> : null}
+      {tab === 'exceptions' ? <ExceptionsView /> : null}
+      {tab === 'regularizations' ? <RegularizationsView employee={employee} canApprove={canApprove} /> : null}
     </div>
   );
 }

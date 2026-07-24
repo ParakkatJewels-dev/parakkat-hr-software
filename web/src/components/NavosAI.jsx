@@ -71,7 +71,7 @@ export default function NavosAI({ onNavigate }) {
           className="fixed bottom-6 right-6 p-4 bg-black dark:bg-white text-white dark:text-black rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 z-40 cursor-pointer flex items-center space-x-2 border border-neutral-300 dark:border-neutral-800"
         >
           <Bot size={22} className="animate-pulse" />
-          <span className="text-xs font-semibold tracking-wide pr-1 ">Parakkat AI</span>
+          {/* <span className="text-xs font-semibold tracking-wide pr-1 ">AI</span> */}
         </button>
       )}
 

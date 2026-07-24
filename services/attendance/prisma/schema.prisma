@@ -1,0 +1,187 @@
+// Prisma schema for the BioTime attendance service.
+//
+// IMPORTANT — Prisma does NOT own this database. The SQL migrations in
+// web/backend/supabase/migrations/ are the source of truth: they carry the RLS policies, the
+// ancestry triggers and the Supabase auth wiring that Prisma has no concept of. Running
+// `prisma migrate` against this database would try to drop all of it.
+//
+// The workflow is therefore introspection-only:
+//     npx prisma db pull        # regenerate models from the live schema after a new .sql migration
+//     npx prisma generate       # typed client for the worker
+// `db pull` emits every table in public; the models below are the Phase 1 subset, hand-written so
+// the shape can be reviewed before the migration is applied. Treat this file as generated after
+// that point.
+//
+// The worker connects with the direct Postgres connection string (session pooler, port 5432) and
+// so runs as a privileged role that bypasses RLS. That is deliberate: it is a trusted background
+// process with no user context, and it must write punches for every employee. All *user-facing*
+// reads keep going through Supabase/PostgREST, where RLS is enforced.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")        // session pooler, port 5432 — supports prepared statements
+  directUrl = env("DIRECT_DATABASE_URL") // used by db pull / introspection
+}
+
+// ---------------------------------------------------------------------------
+// HR side — read-mostly. The sync worker NEVER writes to these.
+// ---------------------------------------------------------------------------
+
+model Employee {
+  id           String    @id @default(uuid()) @db.Uuid
+  entityId     String    @map("entity_id") @db.Uuid
+  zoneId       String?   @map("zone_id") @db.Uuid
+  branchId     String?   @map("branch_id") @db.Uuid
+  departmentId String?   @map("department_id") @db.Uuid
+  employeeCode String?   @map("employee_code")
+  fullName     String    @map("full_name")
+  email        String?
+  status       String    @default("Active")
+  joinDate     DateTime? @map("join_date") @db.Date
+  managerId    String?   @map("manager_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  biotimeEmployee BiotimeEmployee?
+  rawPunches      RawPunch[]
+
+  @@unique([entityId, employeeCode])
+  @@index([branchId])
+  @@map("employees")
+}
+
+// ---------------------------------------------------------------------------
+// Device side — owned by the sync worker.
+// ---------------------------------------------------------------------------
+
+model Device {
+  id           String    @id @default(uuid()) @db.Uuid
+  serialNumber String    @unique @map("serial_number")
+  alias        String?
+  ipAddress    String?   @map("ip_address")
+  areaName     String?   @map("area_name")
+  entityId     String?   @map("entity_id") @db.Uuid
+  branchId     String?   @map("branch_id") @db.Uuid
+  lastPunchAt  DateTime? @map("last_punch_at") @db.Timestamptz(6)
+  lastSeenAt   DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  isActive     Boolean   @default(true) @map("is_active")
+  raw          Json?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([branchId])
+  @@map("devices")
+}
+
+/// BioTime's own personnel roster. Links to Employee but never creates or mutates one —
+/// the Excel-imported HR record stays master.
+model BiotimeEmployee {
+  id             String    @id @default(uuid()) @db.Uuid
+  empCode        String    @unique @map("emp_code")
+  biotimeId      BigInt?   @unique @map("biotime_id")
+  firstName      String?   @map("first_name")
+  lastName       String?   @map("last_name")
+  fullName       String?   @map("full_name")
+  departmentName String?   @map("department_name")
+  areaName       String?   @map("area_name")
+  positionName   String?   @map("position_name")
+  hireDate       DateTime? @map("hire_date") @db.Date
+  isActive       Boolean   @default(true) @map("is_active")
+
+  employeeId String? @unique @map("employee_id") @db.Uuid
+  /// unmatched | auto | ambiguous | manual | ignored — see 0012_biotime.sql
+  linkStatus String  @default("unmatched") @map("link_status")
+  linkedAt   DateTime? @map("linked_at") @db.Timestamptz(6)
+  linkedBy   String?   @map("linked_by") @db.Uuid
+
+  /// Ranked name-similarity candidates for the HR mapping screen.
+  matchSuggestions Json? @map("match_suggestions")
+
+  raw          Json?
+  firstSeenAt  DateTime  @default(now()) @map("first_seen_at") @db.Timestamptz(6)
+  lastSyncedAt DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  @@index([linkStatus])
+  @@map("biotime_employees")
+}
+
+/// Immutable punch log. Append-only; the engine reads it, nothing updates it except link resolution.
+model RawPunch {
+  id        BigInt  @id @default(autoincrement())
+  biotimeId BigInt? @unique @map("biotime_id")
+  empCode   String  @map("emp_code")
+
+  employeeId   String? @map("employee_id") @db.Uuid
+  entityId     String? @map("entity_id") @db.Uuid
+  zoneId       String? @map("zone_id") @db.Uuid
+  branchId     String? @map("branch_id") @db.Uuid
+  departmentId String? @map("department_id") @db.Uuid
+
+  /// UTC. BioTime hands back a naive local string; the worker parses it as Asia/Kolkata.
+  punchTime       DateTime  @map("punch_time") @db.Timestamptz(6)
+  punchState      String?   @map("punch_state")
+  punchStateLabel String?   @map("punch_state_label")
+  verifyType      String?   @map("verify_type")
+  terminalSn      String?   @map("terminal_sn")
+  terminalAlias   String?   @map("terminal_alias")
+  areaAlias       String?   @map("area_alias")
+  uploadTime      DateTime? @map("upload_time") @db.Timestamptz(6)
+  source          String    @default("biotime")
+  raw             Json      @default("{}")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  employee Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  /// The dedupe key. createMany({ skipDuplicates: true }) leans on this.
+  @@unique([empCode, punchTime])
+  @@index([employeeId, punchTime])
+  @@index([punchTime])
+  @@index([empCode, punchTime])
+  @@index([branchId, punchTime])
+  @@map("raw_punches")
+}
+
+// ---------------------------------------------------------------------------
+// Sync bookkeeping
+// ---------------------------------------------------------------------------
+
+model SyncState {
+  key                 String    @id
+  lastTransactionId   BigInt?   @map("last_transaction_id")
+  lastPunchTime       DateTime? @map("last_punch_time") @db.Timestamptz(6)
+  lastSuccessAt       DateTime? @map("last_success_at") @db.Timestamptz(6)
+  lastError           String?   @map("last_error")
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("sync_state")
+}
+
+model SyncRun {
+  id              BigInt    @id @default(autoincrement())
+  kind            String
+  status          String    @default("running")
+  startedAt       DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt      DateTime? @map("finished_at") @db.Timestamptz(6)
+  durationMs      Int?      @map("duration_ms")
+  pagesFetched    Int       @default(0) @map("pages_fetched")
+  recordsFetched  Int       @default(0) @map("records_fetched")
+  recordsInserted Int       @default(0) @map("records_inserted")
+  recordsSkipped  Int       @default(0) @map("records_skipped")
+  unmatchedCodes  Int       @default(0) @map("unmatched_codes")
+  cursorBefore    Json?     @map("cursor_before")
+  cursorAfter     Json?     @map("cursor_after")
+  errorMessage    String?   @map("error_message")
+  detail          Json?
+
+  @@index([kind, startedAt(sort: Desc)])
+  @@map("sync_runs")
+}

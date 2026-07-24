@@ -1,0 +1,27 @@
+{
+  // Node 20+, CommonJS output. package.json has no "type": "module", so "node16" resolves this
+  // package as CJS — imports stay extensionless and `import` compiles to `require`.
+  //
+  // Deliberately NOT "moduleResolution": "node": that is the legacy node10 algorithm, which
+  // TypeScript has deprecated for removal in 6.0 and which ignores the "exports" field in
+  // package.json — so it silently resolves paths that Node itself would refuse at runtime.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "node16",
+    "moduleResolution": "node16",
+    "lib": ["ES2022"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

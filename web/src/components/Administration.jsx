@@ -1,14 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck, Clock, Clipboard, X, Plus, Loader2, AlertTriangle, Link2, UserCog, KeyRound, Trash2,
+  UserPlus, Pencil, Star, Lock,
 } from 'lucide-react';
 import { useAuditLog } from '../data/audit';
 import { useOrg } from '../data/org';
-import { useEmployees } from '../data/employees';
+import { useEmployees, useCreateEmployee } from '../data/employees';
 import {
   useManagedUsers, useRoles, useRolesWithPermissions, useAssignRole, useRevokeRole, useLinkEmployee,
+  usePermissionCatalog, useSaveRole, useDeleteRole, useSetSuperAdmin, useCreateUser,
 } from '../data/admin';
 import { usePermissions } from '../auth/usePermissions';
+import { EmployeeOrgFields } from './EmployeeOrgFields';
 
 const BTN = 'inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer transition-opacity bg-black text-white dark:bg-gold-450 dark:text-charcoal-900 hover:opacity-90 disabled:opacity-60';
 const ICON_BTN = 'p-1.5 rounded-lg cursor-pointer transition-colors text-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white';
@@ -22,6 +25,19 @@ const SCOPE_TYPES = [
   { key: 'department', label: 'Department', needsId: true, from: 'departments' },
   { key: 'self', label: 'Self — own records only', needsId: false },
 ];
+
+// Which scope levels each built-in role may be granted at — mirrors the DB guard (0019). A role not
+// listed here (i.e. a custom role) may be granted at any scope. Global is additionally gated to
+// super admins in the UI below.
+const ROLE_SCOPES = {
+  super_admin: ['global'],
+  entity_admin: ['entity'],
+  hr_manager: ['entity', 'zone', 'branch', 'department'],
+  zonal_manager: ['zone'],
+  branch_manager: ['branch'],
+  dept_head: ['department'],
+  employee: ['self'],
+};
 
 const SUB_TABS = [
   { key: 'users', label: 'Users & Access', icon: UserCog },
@@ -45,14 +61,14 @@ export default function Administration() {
         </p>
       </div>
 
-      <div className="flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
+      <div className="tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
         {SUB_TABS.map((t) => {
           const Icon = t.icon;
           return (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`pb-2.5 flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
+              className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
                 tab === t.key
                   ? 'border-black dark:border-gold-500 text-black dark:text-gold-400'
                   : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
@@ -82,9 +98,13 @@ function UsersAccess() {
   const assign = useAssignRole();
   const revoke = useRevokeRole();
   const link = useLinkEmployee();
+  const createUser = useCreateUser();
+  const createEmployee = useCreateEmployee();
+  const setSuper = useSetSuperAdmin();
 
   const [assignFor, setAssignFor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
+  const [showInvite, setShowInvite] = useState(false);
 
   const entities = org?.entities ?? [];
   const ecode = (id) => entities.find((e) => e.id === id)?.code ?? '?';
@@ -134,13 +154,20 @@ function UsersAccess() {
 
   return (
     <div className="space-y-4">
-      <div className="glass-panel p-4 rounded-2xl text-[11px] text-neutral-500 dark:text-neutral-400 flex items-start gap-2">
-        <KeyRound size={14} className="shrink-0 mt-0.5 text-gold-500" />
-        <span>
-          New logins are provisioned with <code>python backend/scripts/create_user.py &lt;email&gt;</code> (or the
-          Supabase dashboard). Then link them to an employee and grant a role at a scope below.
-        </span>
+      <div className="glass-panel p-4 rounded-2xl flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2 text-[11px] text-neutral-500 dark:text-neutral-400">
+          <KeyRound size={14} className="shrink-0 mt-0.5 text-gold-500" />
+          <span>
+            Create a login with an email and password you set — no invitation email is sent. Then link it to an
+            employee and grant a role at a scope; new users can sign in immediately but see nothing until they have a role.
+          </span>
+        </div>
+        <button onClick={() => setShowInvite(true)} className={BTN + ' shrink-0'}>
+          <UserPlus size={12} /> Create user
+        </button>
       </div>
+
+      {setSuper.error && <ErrorLine msg={setSuper.error.message} />}
 
       {users.map((u) => (
         <div key={u.user_id} className="premium-card p-4 space-y-3">
@@ -163,6 +190,16 @@ function UsersAccess() {
               </p>
             </div>
             <div className="flex items-center gap-2">
+              {isSuperAdmin && (
+                <button
+                  onClick={() => setSuper.mutate({ user_id: u.user_id, flag: !u.is_super_admin })}
+                  disabled={setSuper.isPending}
+                  className={ICON_BTN + (u.is_super_admin ? ' text-gold-500!' : '')}
+                  title={u.is_super_admin ? 'Revoke super admin' : 'Make super admin'}
+                >
+                  <Star size={15} className={u.is_super_admin ? 'fill-gold-500' : ''} />
+                </button>
+              )}
               <button onClick={() => setLinkFor(u)} className={ICON_BTN} title="Link to employee">
                 <Link2 size={15} />
               </button>
@@ -229,14 +266,36 @@ function UsersAccess() {
         <LinkEmployeeModal
           user={linkFor}
           employees={employees}
-          busy={link.isPending}
-          error={link.error?.message}
-          onClose={() => { link.reset(); setLinkFor(null); }}
+          org={org}
+          busy={link.isPending || createEmployee.isPending}
+          error={link.error?.message || createEmployee.error?.message}
+          onClose={() => { link.reset(); createEmployee.reset(); setLinkFor(null); }}
           onSubmit={async (employee_id) => {
             try {
               await link.mutateAsync({ user_id: linkFor.user_id, employee_id });
               setLinkFor(null);
             } catch { /* shown */ }
+          }}
+          onCreateAndLink={async (payload) => {
+            try {
+              const emp = await createEmployee.mutateAsync(payload);
+              await link.mutateAsync({ user_id: linkFor.user_id, employee_id: emp.id });
+              setLinkFor(null);
+            } catch { /* shown */ }
+          }}
+        />
+      )}
+
+      {showInvite && (
+        <CreateUserModal
+          employees={employees}
+          isSuperAdmin={isSuperAdmin}
+          busy={createUser.isPending}
+          error={createUser.error?.message}
+          result={createUser.data}
+          onClose={() => { createUser.reset(); setShowInvite(false); }}
+          onSubmit={async (payload) => {
+            try { await createUser.mutateAsync(payload); } catch { /* shown in modal */ }
           }}
         />
       )}
@@ -244,10 +303,129 @@ function UsersAccess() {
   );
 }
 
+function CreateUserModal({ employees, isSuperAdmin, busy, error, result, onClose, onSubmit }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
+  const [superAdmin, setSuperAdmin] = useState(false);
+  const [q, setQ] = useState('');
+  const [employeeId, setEmployeeId] = useState('');
+
+  const results = useMemo(() => {
+    const s = q.toLowerCase();
+    if (!s) return [];
+    return employees
+      .filter((e) => (e.full_name || '').toLowerCase().includes(s) || (e.employee_code || '').toLowerCase().includes(s))
+      .slice(0, 8);
+  }, [employees, q]);
+  const chosen = employees.find((e) => e.id === employeeId);
+
+  // Once the login is created, show the outcome and the exact credentials to hand over.
+  if (result?.user_id) {
+    return (
+      <Modal title="User created" onClose={onClose}>
+        <div className="space-y-3 text-xs">
+          <p className="text-neutral-700 dark:text-neutral-200">
+            Login <span className="font-semibold">{result.email}</span> is ready — they can sign in now with the
+            email and password you set. No email was sent.
+          </p>
+          <p className="text-neutral-500 dark:text-neutral-400">
+            Next: grant them a role at a scope (and link an employee, if you didn’t above), or they’ll sign in
+            but see nothing.
+          </p>
+          <div className="flex justify-end"><button onClick={onClose} className={BTN}>Done</button></div>
+        </div>
+      </Modal>
+    );
+  }
+
+  const submit = (e) => {
+    e.preventDefault();
+    onSubmit({ email: email.trim(), password: password, employee_id: employeeId || null, super_admin: superAdmin });
+  };
+  const canSubmit = email.trim() && password.length >= 6;
+
+  return (
+    <Modal title="Create user" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-3">
+        <Field label="Email">
+          <input type="email" autoFocus className={INPUT} value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="someone@parakkatjewels.com" required />
+        </Field>
+        <Field label="Password">
+          <div className="relative">
+            <input type={showPw ? 'text' : 'password'} className={INPUT + ' pr-16'} value={password}
+              onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" required minLength={6} />
+            <button type="button" onClick={() => setShowPw((v) => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">
+              {showPw ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          <p className="text-[10px] text-neutral-400 mt-1">You set this — share it with the user securely; they can change it after signing in.</p>
+        </Field>
+        <Field label="Link to employee (optional)">
+          {chosen ? (
+            <div className="flex items-center justify-between rounded-xl bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-xs">
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200">{chosen.full_name} <span className="font-mono text-[10px] text-neutral-500">· {chosen.employee_code}</span></span>
+              <button type="button" onClick={() => { setEmployeeId(''); setQ(''); }} className="text-neutral-400 hover:text-red-500"><X size={14} /></button>
+            </div>
+          ) : (
+            <>
+              <input className={INPUT} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or code…" />
+              {results.length > 0 && (
+                <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
+                  {results.map((e) => (
+                    <button key={e.id} type="button" onClick={() => setEmployeeId(e.id)}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer">
+                      <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
+                      <span className="font-mono text-[10px] text-neutral-500">{e.employee_code}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </Field>
+        {isSuperAdmin && (
+          <label className="flex items-center gap-2 text-[11px] cursor-pointer text-neutral-700 dark:text-neutral-300">
+            <input type="checkbox" checked={superAdmin} onChange={(e) => setSuperAdmin(e.target.checked)} className="accent-gold-500 cursor-pointer" />
+            Make this user a super admin
+          </label>
+        )}
+        {error && <ErrorLine msg={error} />}
+        <ModalActions busy={busy} disabled={!canSubmit} onClose={onClose} submitLabel="Create user" />
+      </form>
+    </Modal>
+  );
+}
+
 function AssignRoleModal({ user, roles, orgList, ecode, isSuperAdmin, busy, error, onClose, onSubmit }) {
+  // Super admin is granted via the star toggle, not here — keep it out of the role list.
+  const assignableRoles = useMemo(() => roles.filter((r) => r.key !== 'super_admin'), [roles]);
+
   const [roleId, setRoleId] = useState('');
-  const [scopeType, setScopeType] = useState('branch');
+  const [scopeType, setScopeType] = useState('');
   const [scopeId, setScopeId] = useState('');
+
+  const role = assignableRoles.find((r) => r.id === roleId) || null;
+
+  // Scopes valid for the chosen role. Built-in roles are constrained to their level; custom roles
+  // may use any scope. Global stays super-admin-only.
+  const allowedScopes = useMemo(() => {
+    if (!role) return [];
+    const base = ROLE_SCOPES[role.key] ?? SCOPE_TYPES.map((s) => s.key);
+    return base.filter((k) => k !== 'global' || isSuperAdmin);
+  }, [role, isSuperAdmin]);
+
+  // Keep scopeType valid whenever the allowed set changes (i.e. the role changed).
+  useEffect(() => {
+    if (!allowedScopes.length) {
+      if (scopeType) { setScopeType(''); setScopeId(''); }
+    } else if (!allowedScopes.includes(scopeType)) {
+      setScopeType(allowedScopes[0]);
+      setScopeId('');
+    }
+  }, [allowedScopes, scopeType]);
 
   const scopeDef = SCOPE_TYPES.find((s) => s.key === scopeType);
   const items = scopeDef?.needsId ? orgList[scopeDef.from] ?? [] : [];
@@ -261,9 +439,9 @@ function AssignRoleModal({ user, roles, orgList, ecode, isSuperAdmin, busy, erro
 
   const submit = (e) => {
     e.preventDefault();
-    onSubmit({ role_id: roleId, scope_type: scopeType, scope_id: scopeDef.needsId ? scopeId : null });
+    onSubmit({ role_id: roleId, scope_type: scopeType, scope_id: scopeDef?.needsId ? scopeId : null });
   };
-  const canSubmit = roleId && (!scopeDef.needsId || scopeId);
+  const canSubmit = roleId && scopeType && (!scopeDef?.needsId || scopeId);
 
   return (
     <Modal title={`Assign role — ${user.email}`} onClose={onClose}>
@@ -271,21 +449,29 @@ function AssignRoleModal({ user, roles, orgList, ecode, isSuperAdmin, busy, erro
         <Field label="Role">
           <select value={roleId} onChange={(e) => setRoleId(e.target.value)} className={INPUT} required>
             <option value="">Select a role…</option>
-            {roles.map((r) => (
+            {assignableRoles.map((r) => (
               <option key={r.id} value={r.id}>{prettyRole(r.key)}</option>
             ))}
           </select>
         </Field>
 
-        <Field label="Scope">
-          <select value={scopeType} onChange={(e) => { setScopeType(e.target.value); setScopeId(''); }} className={INPUT}>
-            {SCOPE_TYPES.filter((s) => s.key !== 'global' || isSuperAdmin).map((s) => (
-              <option key={s.key} value={s.key}>{s.label}</option>
-            ))}
-          </select>
-        </Field>
+        {role && (allowedScopes.length > 1 ? (
+          <Field label="Scope">
+            <select value={scopeType} onChange={(e) => { setScopeType(e.target.value); setScopeId(''); }} className={INPUT}>
+              {allowedScopes.map((k) => {
+                const def = SCOPE_TYPES.find((s) => s.key === k);
+                return <option key={k} value={k}>{def?.label ?? k}</option>;
+              })}
+            </select>
+          </Field>
+        ) : (
+          <div className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2">
+            Scope: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{scopeDef?.label ?? scopeType}</span>
+            <span className="block text-[10px] text-neutral-400 mt-0.5">Fixed for this role.</span>
+          </div>
+        ))}
 
-        {scopeDef?.needsId && (
+        {role && scopeDef?.needsId && (
           <Field label={`Which ${scopeType}?`}>
             <select value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={INPUT} required>
               <option value="">Select…</option>
@@ -303,8 +489,14 @@ function AssignRoleModal({ user, roles, orgList, ecode, isSuperAdmin, busy, erro
   );
 }
 
-function LinkEmployeeModal({ user, employees, busy, error, onClose, onSubmit }) {
+function LinkEmployeeModal({ user, employees, org, busy, error, onClose, onSubmit, onCreateAndLink }) {
+  const [mode, setMode] = useState('existing'); // 'existing' | 'new'
   const [q, setQ] = useState('');
+  const [form, setForm] = useState({
+    full_name: '', employee_code: '',
+    entity_id: '', branch_id: '', department_id: '', designation_id: '',
+  });
+
   const results = useMemo(() => {
     const s = q.toLowerCase();
     return employees
@@ -312,66 +504,314 @@ function LinkEmployeeModal({ user, employees, busy, error, onClose, onSubmit }) 
       .slice(0, 25);
   }, [employees, q]);
 
+  const patch = (p) => setForm((f) => ({ ...f, ...p }));
+  const canCreate = form.full_name.trim() && form.entity_id;
+  const submitNew = (e) => {
+    e.preventDefault();
+    if (!canCreate) return;
+    onCreateAndLink({
+      full_name: form.full_name.trim(),
+      employee_code: form.employee_code.trim() || null,
+      entity_id: form.entity_id,
+      branch_id: form.branch_id || null,
+      department_id: form.department_id || null,
+      designation_id: form.designation_id || null,
+      status: 'Active',
+    });
+  };
+
   return (
     <Modal title={`Link employee — ${user.email}`} onClose={onClose}>
-      <div className="space-y-3">
-        <input autoFocus className={INPUT} placeholder="Search employee by name or code…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="max-h-64 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-          {results.map((e) => (
-            <button
-              key={e.id}
-              onClick={() => onSubmit(e.id)}
-              disabled={busy}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer disabled:opacity-60"
-            >
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
-              <span className="font-mono text-[10px] text-neutral-500">{e.employee_code} · {e.entity?.code}{e.branch ? ' · ' + e.branch.code : ''}</span>
-            </button>
-          ))}
-          {results.length === 0 && <p className="px-3 py-4 text-xs text-neutral-400 text-center">No matches.</p>}
-        </div>
-        {user.employee_id && (
-          <button onClick={() => onSubmit(null)} disabled={busy} className="text-[11px] text-red-500 hover:underline cursor-pointer">
-            Unlink current employee
+      <div className="flex gap-1 p-0.5 bg-neutral-100 dark:bg-neutral-900 rounded-xl mb-3">
+        {[['existing', 'Link existing'], ['new', 'New employee']].map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setMode(k)}
+            className={`flex-1 text-[11px] font-semibold py-1.5 rounded-lg cursor-pointer transition-colors ${
+              mode === k ? 'bg-white dark:bg-neutral-800 text-neutral-900 dark:text-white shadow-sm' : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200'
+            }`}
+          >
+            {label}
           </button>
-        )}
-        {error && <ErrorLine msg={error} />}
-        <div className="flex justify-end">
-          <button onClick={onClose} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Done</button>
-        </div>
+        ))}
       </div>
+
+      {mode === 'existing' ? (
+        <div className="space-y-3">
+          <input autoFocus className={INPUT} placeholder="Search employee by name or code…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <div className="max-h-64 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
+            {results.map((e) => (
+              <button
+                key={e.id}
+                onClick={() => onSubmit(e.id)}
+                disabled={busy}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer disabled:opacity-60"
+              >
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
+                <span className="font-mono text-[10px] text-neutral-500">{e.employee_code} · {e.entity?.code}{e.branch ? ' · ' + e.branch.code : ''}</span>
+              </button>
+            ))}
+            {results.length === 0 && <p className="px-3 py-4 text-xs text-neutral-400 text-center">No matches.</p>}
+          </div>
+          {user.employee_id && (
+            <button onClick={() => onSubmit(null)} disabled={busy} className="text-[11px] text-red-500 hover:underline cursor-pointer">
+              Unlink current employee
+            </button>
+          )}
+          {error && <ErrorLine msg={error} />}
+          <div className="flex justify-end">
+            <button onClick={onClose} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Done</button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={submitNew} className="space-y-3">
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+            Create a new employee record, placed in a branch/department, and link this login to it.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Full name">
+              <input className={INPUT} value={form.full_name} onChange={(e) => patch({ full_name: e.target.value })} placeholder="e.g. Anita Rao" required />
+            </Field>
+            <Field label="Employee code (optional)">
+              <input className={INPUT} value={form.employee_code} onChange={(e) => patch({ employee_code: e.target.value })} placeholder="e.g. PPI-0243" />
+            </Field>
+          </div>
+          <EmployeeOrgFields org={org} value={form} onChange={patch} inputClass={INPUT} />
+          {error && <ErrorLine msg={error} />}
+          <ModalActions busy={busy} disabled={!canCreate} onClose={onClose} submitLabel="Create & link" />
+        </form>
+      )}
     </Modal>
   );
 }
 
-// ---------------------------------------------------------------- Roles matrix
+// ---------------------------------------------------------------- Roles manager
 function RolesMatrix() {
   const { data: roles = [], isLoading, error } = useRolesWithPermissions();
+  const { data: catalog = [] } = usePermissionCatalog();
+  const { isSuperAdmin } = usePermissions();
+  const saveRole = useSaveRole();
+  const deleteRole = useDeleteRole();
+  const [editing, setEditing] = useState(null); // role object, or {} for a new role
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
   if (isLoading) return <div className="flex justify-center py-16 text-gold-500"><Loader2 size={24} className="animate-spin" /></div>;
   if (error) return <p className="text-xs text-amber-600">{error.message}</p>;
+
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
-        System roles and the permissions they carry. A role becomes branch- or department-specific by the
-        <span className="font-semibold"> scope</span> you grant it at (in Users &amp; Access), not by a separate role.
-      </p>
-      {roles.map((r) => (
-        <div key={r.id} className="premium-card p-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-sm text-neutral-800 dark:text-slate-100">{prettyRole(r.key)}</span>
-            <span className="text-[10px] font-mono text-neutral-400">{r.permissionKeys.length} permissions</span>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] text-neutral-500 dark:text-neutral-400 max-w-2xl">
+          Roles and the permissions they carry. A role becomes branch- or department-specific by the
+          <span className="font-semibold"> scope</span> you grant it at (in Users &amp; Access), not by a separate role.
+          {isSuperAdmin
+            ? ' Edit any role’s permissions, or create your own custom roles.'
+            : ' Only a super admin can create or edit roles.'}
+        </p>
+        {isSuperAdmin && (
+          <button onClick={() => setEditing({})} className={BTN + ' shrink-0'}>
+            <Plus size={12} /> New role
+          </button>
+        )}
+      </div>
+
+      {roles.map((r) => {
+        const locked = r.key === 'super_admin';
+        return (
+          <div key={r.id} className="premium-card p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-bold text-sm text-neutral-800 dark:text-slate-100 truncate">{prettyRole(r.key)}</span>
+                {r.is_system && (
+                  <span className="text-[9px] font-bold uppercase font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-200 dark:border-neutral-800">
+                    System
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-[10px] font-mono text-neutral-400">{r.permissionKeys.length} perms</span>
+                {isSuperAdmin && !locked && (
+                  <button onClick={() => setEditing(r)} className={ICON_BTN} title="Edit permissions">
+                    <Pencil size={14} />
+                  </button>
+                )}
+                {isSuperAdmin && !locked && (
+                  <button
+                    onClick={() => setConfirmDelete(r)}
+                    className={ICON_BTN + ' hover:text-red-500!'}
+                    title="Delete role"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
+                {locked && <Lock size={13} className="text-neutral-400" title="Managed automatically" />}
+              </div>
+            </div>
+            {r.description && <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{r.description}</p>}
+            <div className="flex flex-wrap gap-1.5 pt-1">
+              {r.permissionKeys.length === 0 && (
+                <span className="text-[11px] text-neutral-400">No permissions{locked ? ' (has implicit full access)' : ''}.</span>
+              )}
+              {r.permissionKeys.map((k) => (
+                <span key={k} className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-850">
+                  {k}
+                </span>
+              ))}
+            </div>
           </div>
-          {r.description && <p className="text-[11px] text-neutral-500 dark:text-neutral-400">{r.description}</p>}
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {r.permissionKeys.map((k) => (
-              <span key={k} className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-850">
-                {k}
-              </span>
+        );
+      })}
+
+      {editing && (
+        <RoleEditorModal
+          role={editing.id ? editing : null}
+          catalog={catalog}
+          busy={saveRole.isPending}
+          error={saveRole.error?.message}
+          onClose={() => { saveRole.reset(); setEditing(null); }}
+          onSubmit={async (payload) => {
+            try {
+              await saveRole.mutateAsync(payload);
+              setEditing(null);
+            } catch { /* shown in modal */ }
+          }}
+        />
+      )}
+
+      {confirmDelete && (
+        <Modal title={`Delete role — ${prettyRole(confirmDelete.key)}`} onClose={() => { deleteRole.reset(); setConfirmDelete(null); }}>
+          <div className="space-y-3">
+            <p className="text-xs text-neutral-600 dark:text-neutral-300">
+              This permanently removes the <span className="font-semibold">{prettyRole(confirmDelete.key)}</span> role.
+              It can't be assigned to anyone — revoke its grants first if it is.
+            </p>
+            {confirmDelete.is_system && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-lg px-3 py-2 flex items-start gap-1.5">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                This is a built-in role. Deleting it won't re-appear automatically — you'd have to recreate it as a custom role.
+              </p>
+            )}
+            {deleteRole.error && <ErrorLine msg={deleteRole.error.message} />}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { deleteRole.reset(); setConfirmDelete(null); }} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Cancel</button>
+              <button
+                onClick={async () => {
+                  try { await deleteRole.mutateAsync(confirmDelete.id); setConfirmDelete(null); } catch { /* shown */ }
+                }}
+                disabled={deleteRole.isPending}
+                className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer bg-red-600 text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {deleteRole.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />} Delete
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function RoleEditorModal({ role, catalog, busy, error, onClose, onSubmit }) {
+  const isNew = !role;
+  const isSystem = Boolean(role?.is_system);
+  const [key, setKey] = useState(role?.key ?? '');
+  const [name, setName] = useState(role?.name ?? '');
+  const [description, setDescription] = useState(role?.description ?? '');
+  const [selected, setSelected] = useState(() => new Set(role?.permissionKeys ?? []));
+
+  // Group the permission catalog by resource for a readable grid.
+  const groups = useMemo(() => {
+    const m = new Map();
+    for (const p of catalog) {
+      if (!m.has(p.resource)) m.set(p.resource, []);
+      m.get(p.resource).push(p);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [catalog]);
+
+  const toggle = (k) => setSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(k)) next.delete(k); else next.add(k);
+    return next;
+  });
+
+  const submit = (e) => {
+    e.preventDefault();
+    onSubmit({
+      roleId: role?.id ?? null,
+      key: isNew ? key : role.key,
+      name: isNew ? name : role.name,
+      description: isSystem ? role.description : description,
+      permissionKeys: [...selected],
+    });
+  };
+  const canSubmit = isNew ? (key.trim() && name.trim()) : true;
+
+  const title = isNew ? 'New role' : `Edit role — ${prettyRole(role.key)}`;
+
+  return (
+    <Modal title={title} onClose={onClose} wide>
+      <form onSubmit={submit} className="space-y-4">
+        {isNew ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Key (identifier)">
+              <input className={INPUT} value={key} onChange={(e) => setKey(e.target.value)}
+                placeholder="e.g. regional_auditor" required />
+            </Field>
+            <Field label="Display name">
+              <input className={INPUT} value={name} onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Regional Auditor" required />
+            </Field>
+            <div className="sm:col-span-2">
+              <Field label="Description (optional)">
+                <input className={INPUT} value={description} onChange={(e) => setDescription(e.target.value)}
+                  placeholder="What this role is for" />
+              </Field>
+            </div>
+          </div>
+        ) : isSystem ? (
+          <p className="text-[11px] text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
+            <Lock size={12} /> System role — its name is fixed, but you can tune which permissions it grants.
+          </p>
+        ) : (
+          <Field label="Description (optional)">
+            <input className={INPUT} value={description} onChange={(e) => setDescription(e.target.value)} />
+          </Field>
+        )}
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">
+              Permissions ({selected.size})
+            </label>
+          </div>
+          <div className="max-h-[46vh] overflow-y-auto space-y-3 pr-1">
+            {groups.map(([resource, perms]) => (
+              <div key={resource} className="border border-neutral-200 dark:border-neutral-850 rounded-xl p-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-500 mb-2">{resource}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {perms.map((p) => (
+                    <label key={p.key} className="flex items-center gap-2 text-[11px] cursor-pointer text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-white">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(p.key)}
+                        onChange={() => toggle(p.key)}
+                        className="accent-gold-500 cursor-pointer"
+                      />
+                      <span className="font-mono text-[10.5px]">{p.action}</span>
+                      {p.description && <span className="text-neutral-400 truncate">— {p.description}</span>}
+                    </label>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>
-      ))}
-    </div>
+
+        {error && <ErrorLine msg={error} />}
+        <ModalActions busy={busy} disabled={!canSubmit} onClose={onClose} submitLabel={isNew ? 'Create role' : 'Save'} />
+      </form>
+    </Modal>
   );
 }
 
@@ -455,10 +895,10 @@ const Field = ({ label, children }) => (
 const ErrorLine = ({ msg }) => (
   <p className="text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">{msg}</p>
 );
-function Modal({ title, onClose, children }) {
+function Modal({ title, onClose, children, wide }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-md bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-gold-500/15 rounded-2xl shadow-2xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className={`w-full ${wide ? 'max-w-2xl' : 'max-w-md'} bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-gold-500/15 rounded-2xl shadow-2xl p-5 space-y-4`} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold">{title}</h3>
           <button onClick={onClose} className={ICON_BTN}><X size={15} /></button>

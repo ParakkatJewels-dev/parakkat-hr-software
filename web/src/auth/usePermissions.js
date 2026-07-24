@@ -14,6 +14,12 @@ export function usePermissions() {
     // Does the user hold `perm` at ANY scope? Used for nav / whole-module visibility.
     const canAny = (perm) => isSuperAdmin || list.some((p) => p.permission === perm);
 
+    // Does the user hold `perm` at a scope BROADER than their own record (i.e. they can act on
+    // OTHER people's data)? An employee holds e.g. employee.read only at 'self' scope, so this is
+    // false for them — used to keep oversight modules (Directory, org KPIs) out of the ESS view.
+    const canBeyondSelf = (perm) =>
+      isSuperAdmin || list.some((p) => p.permission === perm && p.scope_type !== 'self');
+
     // Precise check against one resource's ancestry — mirrors app.has_perm(perm, entity, zone, branch, dept, employee).
     const can = (perm, scope = {}) => {
       if (isSuperAdmin) return true;
@@ -39,6 +45,6 @@ export function usePermissions() {
       });
     };
 
-    return { can, canAny, isSuperAdmin };
+    return { can, canAny, canBeyondSelf, isSuperAdmin };
   }, [permissions, isSuperAdmin, employee]);
 }

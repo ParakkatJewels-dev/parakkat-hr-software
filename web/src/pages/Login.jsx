@@ -24,9 +24,13 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-neutral-900 dark:text-warm-gray-100 px-4">
       <div className="w-full max-w-sm">
-        <div className="flex items-center justify-center mb-6">
-          <div className="px-4 py-2 bg-black dark:bg-gold-450 text-white dark:text-charcoal-900 rounded-xl font-bold tracking-wide shadow-[0_0_18px_rgba(223,189,98,.15)]">
-            PARAKKAT HR
+        <div className="flex flex-col items-center justify-center mb-6 gap-2.5">
+          <div className="w-12 h-12 bg-[#0ea971] text-white rounded-2xl flex items-center justify-center shadow-[0_8px_24px_rgba(14,169,113,.28)]">
+            <ShieldCheck size={22} />
+          </div>
+          <div className="text-center leading-tight">
+            <div className="font-extrabold tracking-wide text-neutral-900 dark:text-warm-gray-100">PARAKKAT HR</div>
+            <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-neutral-455 dark:text-neutral-500 mt-0.5">Group HRMS</div>
           </div>
         </div>
 

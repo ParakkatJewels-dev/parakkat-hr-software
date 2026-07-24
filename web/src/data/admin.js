@@ -33,7 +33,7 @@ export function useRolesWithPermissions() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('roles')
-        .select('id,key,name,description,role_permissions(permission:permissions(key))')
+        .select('id,key,name,description,is_system,role_permissions(permission:permissions(key))')
         .order('key');
       if (error) throw error;
       return (data ?? []).map((r) => ({
@@ -77,6 +77,99 @@ export function useLinkEmployee() {
         _employee: employee_id || null,
       });
       if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
+  });
+}
+
+// The full permission catalog, grouped by resource — powers the role editor's checkbox grid.
+export function usePermissionCatalog() {
+  return useQuery({
+    queryKey: ['permission-catalog'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('permissions')
+        .select('key,resource,action,description')
+        .order('resource')
+        .order('action');
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+// Create a custom role or replace an existing role's permission set (super admin only).
+// Pass roleId = null to create.
+export function useSaveRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ roleId = null, key, name, description, permissionKeys }) => {
+      const { data, error } = await supabase.rpc('save_role', {
+        _role_id: roleId,
+        _key: key ?? null,
+        _name: name ?? null,
+        _description: description ?? null,
+        _permission_keys: permissionKeys ?? [],
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['roles'] });
+      qc.invalidateQueries({ queryKey: ['roles-with-perms'] });
+    },
+  });
+}
+
+export function useDeleteRole() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (roleId) => {
+      const { error } = await supabase.rpc('delete_role', { _role_id: roleId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['roles'] });
+      qc.invalidateQueries({ queryKey: ['roles-with-perms'] });
+    },
+  });
+}
+
+// Toggle a login's global super-admin flag.
+export function useSetSuperAdmin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ user_id, flag }) => {
+      const { error } = await supabase.rpc('set_super_admin', { _user: user_id, _flag: flag });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
+  });
+}
+
+// Create a login directly (super admin only) — the admin sets the email + password, no email is
+// sent. Backed by the admin_create_user RPC, then optionally link an employee and/or promote to
+// super admin. No Edge Function / service_role key in the browser.
+export function useCreateUser() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ email, password, employee_id, super_admin }) => {
+      const { data: userId, error } = await supabase.rpc('admin_create_user', {
+        _email: email,
+        _password: password,
+      });
+      if (error) throw error;
+      if (employee_id) {
+        const { error: linkErr } = await supabase.rpc('link_user_to_employee', {
+          _user: userId, _employee: employee_id,
+        });
+        if (linkErr) throw linkErr;
+      }
+      if (super_admin) {
+        const { error: saErr } = await supabase.rpc('set_super_admin', { _user: userId, _flag: true });
+        if (saErr) throw saErr;
+      }
+      return { user_id: userId, email };
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
   });

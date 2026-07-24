@@ -1,0 +1,11 @@
+{
+  "name": "parakkat-hr-backend",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "migrate": "node scripts/migrate.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  }
+}

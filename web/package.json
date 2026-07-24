@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "import:employees": "python ../backend/scripts/import_employees.py"
+    "import:employees": "python backend/scripts/import_employees.py"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
