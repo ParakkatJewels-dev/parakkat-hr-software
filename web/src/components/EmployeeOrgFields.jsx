@@ -1,6 +1,7 @@
 import React from 'react';
 
-// Reusable cascading org selectors for an employee: Entity → Branch → Department → Designation.
+// Reusable cascading org selectors for an employee: Company → Branch → Department → Designation.
+// Labelled "Company" to match the rest of the UI; the underlying column is still entity_id.
 // Controlled: `value` holds { entity_id, branch_id, department_id, designation_id } and every change
 // calls `onChange(partialPatch)`. Selecting a higher level clears the lower ones so the choice stays
 // consistent. entity_id is required (employees.entity_id is NOT NULL); the rest are optional.
@@ -15,13 +16,13 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
     (g) => active(g) && (value.department_id ? g.department_id === value.department_id : g.entity_id === value.entity_id)
   );
 
-  const L = labelClass ?? 'block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 mb-1';
+  const L = labelClass ?? 'block text-base font-semibold text-neutral-600 dark:text-neutral-300 mb-1';
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
-        <label className={L}>Entity *</label>
-        <select
+        <label className={L} htmlFor="org-entity">Company *</label>
+        <select id="org-entity"
           className={inputClass}
           value={value.entity_id ?? ''}
           required
@@ -32,8 +33,8 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
         </select>
       </div>
       <div>
-        <label className={L}>Branch</label>
-        <select
+        <label className={L} htmlFor="org-branch">Branch</label>
+        <select id="org-branch"
           className={inputClass}
           value={value.branch_id ?? ''}
           disabled={!value.entity_id}
@@ -44,8 +45,8 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
         </select>
       </div>
       <div>
-        <label className={L}>Department</label>
-        <select
+        <label className={L} htmlFor="org-department">Department</label>
+        <select id="org-department"
           className={inputClass}
           value={value.department_id ?? ''}
           disabled={!value.entity_id}
@@ -56,8 +57,8 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
         </select>
       </div>
       <div>
-        <label className={L}>Designation</label>
-        <select
+        <label className={L} htmlFor="org-designation">Designation</label>
+        <select id="org-designation"
           className={inputClass}
           value={value.designation_id ?? ''}
           disabled={!value.entity_id}

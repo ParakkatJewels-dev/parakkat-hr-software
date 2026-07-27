@@ -84,10 +84,16 @@ export class BiotimeAuth {
   }
 
   private async doLogin(): Promise<AuthResult> {
-    // Try the known-good mode first; otherwise legacy then JWT, per the brief.
-    const order: AuthMode[] = this.discoveredMode
-      ? [this.discoveredMode, this.discoveredMode === 'token' ? 'jwt' : 'token']
-      : ['token', 'jwt'];
+    // An explicit BIOTIME_AUTH_MODE means "use exactly this" — probing the other scheme would
+    // contradict the setting (and posts the credentials twice). 'auto' probes: known-good first,
+    // otherwise legacy then JWT.
+    const forced = env.BIOTIME_AUTH_MODE;
+    const order: AuthMode[] =
+      forced === 'token' || forced === 'jwt'
+        ? [forced]
+        : this.discoveredMode
+          ? [this.discoveredMode, this.discoveredMode === 'token' ? 'jwt' : 'token']
+          : ['token', 'jwt'];
 
     let lastError: unknown;
 
@@ -158,6 +164,20 @@ export class BiotimeAuth {
       });
     }
 
+    // Django builds (Easy Time Pro included) answer a missing API route by redirecting to the
+    // HTML login page — axios follows it and hands back a 200 with a giant HTML string. Treat
+    // that as "wrong route for this build" so doLogin still probes the other scheme, and never
+    // stringify the body into the error (an HTML page's "keys" are its character indices).
+    if (typeof response.data === 'string' || response.data === null) {
+      throw Object.assign(
+        new Error(
+          `${url} answered with ${typeof response.data === 'string' ? 'an HTML page' : 'an empty body'}, ` +
+            `not a token — this build does not serve that auth route (is BIOTIME_BASE_URL correct?)`
+        ),
+        { response: { status: 404 } }
+      );
+    }
+
     const body = response.data as Record<string, unknown> | undefined;
     const token =
       (typeof body?.token === 'string' && body.token) ||
@@ -168,7 +188,7 @@ export class BiotimeAuth {
     if (!token) {
       throw new BiotimeAuthError(
         `${url} returned HTTP ${response.status} without a token field. Body keys: ` +
-          `${body ? Object.keys(body).join(', ') || '(empty)' : '(no body)'}`
+          `${body ? Object.keys(body).slice(0, 10).join(', ') || '(empty)' : '(no body)'}`
       );
     }
 

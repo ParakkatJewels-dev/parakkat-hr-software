@@ -18,27 +18,31 @@ if (localStorage.getItem('theme') !== 'light') {
   document.documentElement.classList.add('dark');
 }
 
-// Live-ish by default: Realtime (src/lib/realtime.js) pushes instant updates, and these options
-// guarantee the visible screen keeps itself fresh even if the Realtime socket is unavailable.
-// refetchIntervalInBackground:true is important on mobile — Capacitor webviews often don't report
-// window "focus", which would otherwise pause both the poll and focus-refetch, so the phone would
-// never auto-update. Forcing background polling makes the open screen refresh regardless.
+// Realtime (src/lib/realtime.js) is the push channel — it invalidates the exact caches that
+// changed, so polling only needs to be a safety net for a dropped socket.
+//
+// This used to poll EVERY query every 5s, in the background. Measured cost at this company's size
+// (264 staff): an entity admin's dashboard alone is 22 requests per cycle, so ~40 signed-in users
+// generated roughly 100 PostgREST requests per second, around the clock, including the 1-2 MB
+// attendance-exceptions query. A 5-minute net keeps the mobile guarantee the original comment
+// cared about (Capacitor webviews under-report "focus") at 1/60th the traffic; screens that truly
+// need to tick faster set their own interval (useDayAttendance, the sync-status hooks).
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 2_000,
+      staleTime: 60_000,
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
-      refetchOnMount: 'always',
-      refetchInterval: 5_000,
-      refetchIntervalInBackground: true,
+      refetchOnMount: true,
+      refetchInterval: 300_000,
+      refetchIntervalInBackground: false,
     },
   },
 });
 
 function FullScreenLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-gold-500">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-[#0ea971]">
       <Loader2 size={28} className="animate-spin" />
     </div>
   );
@@ -69,7 +73,7 @@ function NoAccess() {
         </button>
         <button
           onClick={signOut}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-black dark:bg-gold-450 dark:text-charcoal-900 text-white text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-black dark:bg-[#0ea971] dark:text-white text-white text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90"
         >
           <LogOut size={14} /> Sign out
         </button>

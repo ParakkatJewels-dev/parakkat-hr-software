@@ -30,14 +30,14 @@ export default function Login() {
           </div>
           <div className="text-center leading-tight">
             <div className="font-extrabold tracking-wide text-neutral-900 dark:text-warm-gray-100">PARAKKAT HR</div>
-            <div className="text-[9px] font-mono tracking-[0.2em] uppercase text-neutral-455 dark:text-neutral-500 mt-0.5">Group HRMS</div>
+            <div className="text-2xs font-mono tracking-[0.2em] uppercase text-neutral-455 dark:text-neutral-500 mt-0.5">Group HRMS</div>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-gold-500/15 rounded-2xl p-6 shadow-xl space-y-5">
+        <div className="bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xl space-y-5">
           <div className="space-y-1">
             <h1 className="text-lg font-bold flex items-center gap-2">
-              <ShieldCheck size={18} className="text-gold-500" /> Sign in
+              <ShieldCheck size={18} className="text-[#0ea971]" /> Sign in
             </h1>
             <p className="text-xs text-neutral-500 dark:text-neutral-400">
               Access is scoped to your role, entity, and branch.
@@ -45,7 +45,7 @@ export default function Login() {
           </div>
 
           {!isSupabaseConfigured && (
-            <div className="flex items-start gap-2 text-[11px] bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50 rounded-xl p-3">
+            <div className="flex items-start gap-2 text-xs bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/50 rounded-xl p-3">
               <AlertTriangle size={14} className="shrink-0 mt-0.5" />
               <span>
                 Backend not configured yet. Add your Supabase keys to <code>.env.local</code> and
@@ -56,7 +56,7 @@ export default function Login() {
 
           <form onSubmit={onSubmit} className="space-y-3.5">
             <div>
-              <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 mb-1">
+              <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300 mb-1">
                 Work email
               </label>
               <input
@@ -66,11 +66,11 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@parakkatjewels.com"
-                className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-gold-500 transition-colors"
+                className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0ea971] transition-colors"
               />
             </div>
             <div>
-              <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 mb-1">
+              <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300 mb-1">
                 Password
               </label>
               <input
@@ -79,12 +79,12 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-gold-500 transition-colors"
+                className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0ea971] transition-colors"
               />
             </div>
 
             {error && (
-              <p className="text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">
+              <p className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">
                 {error}
               </p>
             )}
@@ -92,7 +92,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={busy}
-              className="w-full flex items-center justify-center gap-2 bg-black dark:bg-gold-450 text-white dark:text-charcoal-900 font-semibold text-sm py-2.5 rounded-xl hover:opacity-90 disabled:opacity-60 transition-opacity cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 bg-black dark:bg-[#0ea971] text-white dark:text-charcoal-900 font-semibold text-sm py-2.5 rounded-xl hover:opacity-90 disabled:opacity-60 transition-opacity cursor-pointer"
             >
               {busy ? <Loader2 size={16} className="animate-spin" /> : <LogIn size={16} />}
               {busy ? 'Signing in…' : 'Sign in'}
@@ -100,7 +100,7 @@ export default function Login() {
           </form>
         </div>
 
-        <p className="text-center text-[10.5px] text-neutral-400 dark:text-neutral-600 mt-4">
+        <p className="text-center text-xs text-neutral-400 dark:text-neutral-600 mt-4">
           Parakkat Group HRMS · centralized admin, branch &amp; department scoped access
         </p>
       </div>

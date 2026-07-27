@@ -6,13 +6,15 @@ import {
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '../data/tasks';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
+import FormSection from './ui/FormSection';
+import { btnClass } from './ui/Btn';
 import { usePermissions } from '../auth/usePermissions';
 
 const STATUSES = ['To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-gold-500 transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
 
 const statusClass = (s) =>
   s === 'Done'
@@ -122,17 +124,17 @@ export default function TaskManagement() {
     <div className="page-shell space-y-6 animate-slide-up">
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
-          <h2 className="text-xl font-bold text-neutral-900 dark:text-slate-100 font-sans flex items-center gap-2">
-            <ListChecks size={20} className="text-gold-500" /> Task Management
-          </h2>
-          <p className="text-xs text-neutral-500 dark:text-slate-400">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
+            <ListChecks size={20} className="text-[#0ea971]" /> Task Management
+          </h1>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             Assign work down your branch, zone or entity and track it as it flows through the hierarchy.
           </p>
         </div>
         {canCreate && (
           <button
             onClick={() => setComposer({ parentId: null, defaultAssignee: employee?.id })}
-            className="flex items-center space-x-1.5 px-4 py-2 bg-black hover:bg-neutral-900 dark:bg-gold-450 dark:text-charcoal-900 dark:hover:opacity-90 text-xs font-semibold rounded-xl text-white transition-all shadow-md cursor-pointer"
+            className={btnClass('primary')}
           >
             <Plus size={14} /> <span>New Task</span>
           </button>
@@ -155,9 +157,9 @@ export default function TaskManagement() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
+              className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
                 statusFilter === s
-                  ? 'bg-black text-white border-black dark:bg-gold-450 dark:text-charcoal-900 dark:border-gold-450'
+                  ? 'bg-black text-white border-black dark:bg-[#0ea971] dark:text-white dark:border-neutral-700'
                   : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-850 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -169,9 +171,9 @@ export default function TaskManagement() {
           {employee?.id && (
             <button
               onClick={() => setMineOnly((v) => !v)}
-              className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
+              className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
                 mineOnly
-                  ? 'bg-gold-500/15 text-gold-600 dark:text-gold-400 border-gold-500/30'
+                  ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border-[#0ea971]/30'
                   : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-850 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -187,9 +189,9 @@ export default function TaskManagement() {
 
       {/* body */}
       {isLoading ? (
-        <div className="flex justify-center py-16 text-gold-500"><Loader2 size={24} className="animate-spin" /></div>
+        <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>
       ) : error ? (
-        <div className="glass-panel p-5 rounded-2xl flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
+        <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold">Couldn't load tasks.</p>
@@ -214,11 +216,11 @@ export default function TaskManagement() {
           {byPerson.map((g) => (
             <div key={g.assignee?.id ?? 'x'} className="space-y-2.5">
               <div className="flex items-center gap-2 px-1">
-                <div className="w-7 h-7 rounded-lg bg-black dark:bg-gold-450 text-white dark:text-charcoal-900 flex items-center justify-center font-bold text-[10px] font-mono shrink-0">
+                <div className={btnClass('primary')}>
                   {(g.assignee?.full_name || '?').split(' ').filter(Boolean).slice(0, 2).map((s) => s[0]).join('').toUpperCase()}
                 </div>
                 <span className="font-bold text-sm text-neutral-800 dark:text-slate-100">{g.assignee?.full_name || 'Unassigned'}</span>
-                <span className="text-[10px] font-mono text-neutral-400">
+                <span className="text-2xs font-mono text-neutral-400">
                   {g.assignee?.employee_code}{g.assignee?.branch?.code ? ` · ${g.assignee.branch.code}` : ''} · {g.tasks.length} task{g.tasks.length !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -256,38 +258,24 @@ function TaskTree({ task, childrenOf, depth, actions }) {
     <div className={depth > 0 ? 'ml-4 sm:ml-7 border-l border-neutral-200 dark:border-neutral-850 pl-3 sm:pl-4' : ''}>
       <TaskCard task={task} actions={actions} subCount={kids.length} nested={depth > 0} />
       {kids.length > 0 && (
-        <div className="mt-2.5 space-y-2.5">
-          {kids.map((k) => (
-            <TaskTree key={k.id} task={k} childrenOf={childrenOf} depth={depth + 1} actions={actions} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TaskCard({ task, actions, subCount = 0, nested = false }) {
-  const pm = priorityMeta(task.priority);
-  const overdue = isOverdue(task);
-  return (
-    <div className={`premium-card p-4 ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}>
-      <div className="flex items-start justify-between gap-3">
+        <div className="mt-2.5 space-y-2.5"> {kids.map((k) => ( <TaskTree key={k.id} task={k} childrenOf={childrenOf} depth={depth + 1} actions={actions} /> ))} </div> )} </div> );
+} function TaskCard({ task, actions, subCount = 0, nested = false }) { const pm = priorityMeta(task.priority); const overdue = isOverdue(task); return ( <div className={`premium-card ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}> <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             {nested && <CornerDownRight size={13} className="text-neutral-400 shrink-0" />}
-            <span className={`w-2 h-2 rounded-full shrink-0 ${pm.dot}`} title={`${task.priority} priority`} />
+            <span className={`w-2 h-2 rounded-full shrink-0 ${pm.dot}`} title={`${task.priority} priority`} aria-label={`${task.priority} priority`} />
             <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 truncate">{task.title}</span>
-            <span className={`text-[9px] font-bold uppercase font-mono ${pm.text}`}>{task.priority}</span>
+            <span className={`text-2xs font-bold uppercase font-mono ${pm.text}`}>{task.priority}</span>
             {subCount > 0 && (
-              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-200 dark:border-neutral-800 flex items-center gap-1">
+              <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-200 dark:border-neutral-800 flex items-center gap-1">
                 <GitBranch size={9} /> {subCount}
               </span>
             )}
           </div>
           {task.description && (
-            <p className="text-[11px] text-neutral-500 dark:text-neutral-400 line-clamp-2">{task.description}</p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{task.description}</p>
           )}
-          <div className="flex items-center gap-3 flex-wrap text-[10px] text-neutral-500 dark:text-neutral-400 pt-0.5">
+          <div className="flex items-center gap-3 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400 pt-0.5">
             <span className="inline-flex items-center gap-1">
               <User size={11} className="text-neutral-400" />
               <span className="font-semibold text-neutral-700 dark:text-neutral-300">{task.assignee?.full_name || 'Unassigned'}</span>
@@ -311,24 +299,24 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
             <select
               value={task.status}
               onChange={(e) => actions.setStatus(task.id, e.target.value)}
-              className={`text-[10px] font-bold uppercase tracking-wide font-mono rounded-lg px-2 py-1 border cursor-pointer focus:outline-none ${statusClass(task.status)}`}
+              className={`text-2xs font-bold uppercase tracking-wide font-mono rounded-lg px-2 py-1 border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 rounded-md ${statusClass(task.status)}`}
             >
               {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           ) : (
-            <span className={`text-[9px] px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border ${statusClass(task.status)}`}>
+            <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border ${statusClass(task.status)}`}>
               {task.status}
             </span>
           )}
           <div className="flex items-center gap-1">
             {actions.canCreate && (
-              <button onClick={() => actions.addSubtask(task)} title="Add sub-task"
+              <button onClick={() => actions.addSubtask(task)} title="Add sub-task" aria-label="Add sub-task"
                 className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white cursor-pointer">
                 <Plus size={13} />
               </button>
             )}
             {actions.canManage && (
-              <button onClick={() => actions.remove(task.id)} title="Delete task"
+              <button onClick={() => actions.remove(task.id)} title="Delete task" aria-label="Delete task"
                 className="p-1.5 rounded-lg text-neutral-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-950/40 cursor-pointer">
                 <Trash2 size={13} />
               </button>
@@ -372,40 +360,42 @@ function TaskComposer({ employees, currentEmployeeId, parentId, defaultAssignee,
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
-      <div className="w-full max-w-lg bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-gold-500/15 rounded-2xl shadow-2xl p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold flex items-center gap-2">
-            {parentId ? <><CornerDownRight size={15} className="text-gold-500" /> New sub-task</> : <><Plus size={15} className="text-gold-500" /> New task</>}
-          </h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer"><X size={15} /></button>
-        </div>
-
+    <FormSection
+      title={parentId ? 'New sub-task' : 'New task'}
+      subtitle={parentId ? undefined : 'Assign work to someone in your scope.'}
+      icon={parentId ? CornerDownRight : Plus}
+      onClose={onClose}
+      onSubmit={submit}
+      submitLabel={parentId ? 'Add sub-task' : 'Create task'}
+      busy={busy}
+      disabled={!title.trim() || !assigneeId}
+      error={error}
+    >
         {parentTask && (
-          <div className="text-[11px] text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 flex items-center gap-1.5">
-            <GitBranch size={12} className="text-gold-500 shrink-0" /> Under: <span className="font-semibold text-neutral-700 dark:text-neutral-300 truncate">{parentTask.title}</span>
+          <div className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 flex items-center gap-1.5">
+            <GitBranch size={12} className="text-[#0ea971] shrink-0" /> Under: <span className="font-semibold text-neutral-700 dark:text-neutral-300 truncate">{parentTask.title}</span>
           </div>
         )}
 
-        <form onSubmit={submit} className="space-y-3">
+        <div className="space-y-3">
           <div className="space-y-1">
-            <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Title</label>
+            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Title</label>
             <input autoFocus className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs to be done?" required />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Description (optional)</label>
+            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Description (optional)</label>
             <textarea rows={2} className={INPUT + ' resize-none'} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add detail or context…" />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-[11px] font-semibold text-neutral-600 dark:text-neutral-300">Assign to</label>
+            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Assign to</label>
             {chosen ? (
               <div className="flex items-center justify-between rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-xs">
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">
                   {chosen.full_name}
-                  <span className="font-mono text-[10px] text-neutral-500"> · {chosen.employee_code}{chosen.branch?.code ? ` · ${chosen.branch.code}` : ''}</span>
-                  {chosen.id === currentEmployeeId && <span className="ml-1 text-gold-600 dark:text-gold-400">(me)</span>}
+                  <span className="font-mono text-2xs text-neutral-500"> · {chosen.employee_code}{chosen.branch?.code ? ` · ${chosen.branch.code}` : ''}</span>
+                  {chosen.id === currentEmployeeId && <span className="ml-1 text-[#0c9765] dark:text-[#10b981]">(me)</span>}
                 </span>
                 <button type="button" onClick={() => { setAssigneeId(''); setQ(''); }} className="text-neutral-400 hover:text-red-500"><X size={14} /></button>
               </div>
@@ -418,13 +408,13 @@ function TaskComposer({ employees, currentEmployeeId, parentId, defaultAssignee,
                       <button key={e.id} type="button" onClick={() => setAssigneeId(e.id)}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer">
                         <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
-                        <span className="font-mono text-[10px] text-neutral-500">{e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}</span>
+                        <span className="font-mono text-2xs text-neutral-500">{e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}</span>
                       </button>
                     ))}
                   </div>
                 )}
                 {currentEmployeeId && (
-                  <button type="button" onClick={() => setAssigneeId(currentEmployeeId)} className="text-[11px] text-gold-600 dark:text-gold-400 hover:underline cursor-pointer mt-1">
+                  <button type="button" onClick={() => setAssigneeId(currentEmployeeId)} className="text-xs text-[#0c9765] dark:text-[#10b981] hover:underline cursor-pointer mt-1">
                     Assign to myself
                   </button>
                 )}
@@ -432,32 +422,21 @@ function TaskComposer({ employees, currentEmployeeId, parentId, defaultAssignee,
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><Flag size={11} /> Priority</label>
+              <label className="text-base font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><Flag size={11} /> Priority</label>
               <select value={priority} onChange={(e) => setPriority(e.target.value)} className={INPUT}>
                 {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><CalendarClock size={11} /> Due date</label>
+              <label className="text-base font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><CalendarClock size={11} /> Due date</label>
               <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={INPUT} />
             </div>
           </div>
 
-          {error && (
-            <p className="text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-lg px-3 py-2">{error}</p>
-          )}
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Cancel</button>
-            <button type="submit" disabled={busy || !title.trim() || !assigneeId}
-              className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-3 py-2 rounded-lg cursor-pointer bg-black text-white dark:bg-gold-450 dark:text-charcoal-900 hover:opacity-90 disabled:opacity-60">
-              {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} {parentId ? 'Add sub-task' : 'Create task'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+    </FormSection>
   );
 }
 
@@ -465,9 +444,9 @@ function ViewBtn({ active, onClick, icon: Icon, label }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 cursor-pointer transition-colors ${
+      className={`flex items-center gap-1.5 text-base font-semibold px-2.5 py-1 cursor-pointer transition-colors ${
         active
-          ? 'bg-black text-white dark:bg-gold-450 dark:text-charcoal-900'
+          ? 'bg-black text-white dark:bg-[#0ea971] dark:text-white'
           : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
       }`}
     >
@@ -478,8 +457,8 @@ function ViewBtn({ active, onClick, icon: Icon, label }) {
 
 function Stat({ label, value, accent }) {
   return (
-    <div className="premium-card p-4.5">
-      <span className="text-neutral-500 dark:text-neutral-455 text-[10px] font-bold uppercase tracking-wider block">{label}</span>
+    <div className="premium-card">
+      <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
       <span className={`text-2xl font-extrabold font-mono block mt-1.5 ${accent ? 'text-rose-500' : 'text-neutral-850 dark:text-slate-100'}`}>{value}</span>
     </div>
   );

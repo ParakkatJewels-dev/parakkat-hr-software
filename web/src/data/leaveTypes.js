@@ -50,8 +50,11 @@ export function useSaveLeaveType() {
   });
 }
 
-export function useLeaveBalances(employeeId, year = new Date().getFullYear()) {
+export function useLeaveBalances(employeeId, year = new Date().getFullYear(), { all = false } = {}) {
   return useQuery({
+    // Guard: without this, a login with no linked employee passes undefined and silently gets
+    // EVERY balance row RLS allows — shown to them as their own. Pass {all:true} deliberately.
+    enabled: all || Boolean(employeeId),
     queryKey: ['leave-balances', employeeId ?? 'all', year],
     queryFn: async () => {
       let query = supabase
@@ -62,12 +65,17 @@ export function useLeaveBalances(employeeId, year = new Date().getFullYear()) {
            employee:employees!leave_balances_employee_id_fkey(id, full_name, employee_code)`
         )
         .eq('year', year)
-        .limit(2000);
+        // 264 staff x N leave types. The old 2000 cap would silently truncate HR's
+        // leave-liability report the day a 6th type was added; warn rather than lie.
+        .limit(20000);
 
       if (employeeId) query = query.eq('employee_id', employeeId);
 
       const { data, error } = await query;
       if (error) throw error;
+      if ((data?.length ?? 0) === 20000) {
+        console.warn('[leave-balances] hit the row cap — results are truncated; add pagination');
+      }
       return data ?? [];
     },
   });

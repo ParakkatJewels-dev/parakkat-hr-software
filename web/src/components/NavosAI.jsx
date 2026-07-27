@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageSquare, Send, Sparkles, X, ChevronUp, Bot } from 'lucide-react';
+import { Send, Sparkles, X, Bot } from 'lucide-react';
 
 export default function NavosAI({ onNavigate }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -81,10 +81,10 @@ export default function NavosAI({ onNavigate }) {
           {/* Header */}
           <div className="p-4 bg-black dark:bg-neutral-900 border-b border-neutral-250 dark:border-neutral-900 flex justify-between items-center text-white">
             <div className="flex items-center space-x-2">
-              <Bot size={20} className="text-neutral-350 dark:text-neutral-400" />
+              <Bot size={20} className="text-neutral-450 dark:text-neutral-400" />
               <div>
                 <h3 className="font-bold text-xs text-white">NAVOS AI assistant</h3>
-                <span className="text-[9px] text-neutral-400 flex items-center">
+                <span className="text-2xs text-neutral-400 flex items-center">
                   <Sparkles size={8} className="mr-0.5 text-white animate-pulse" /> Powered by Bella Bot
                 </span>
               </div>
@@ -122,8 +122,8 @@ export default function NavosAI({ onNavigate }) {
               <button
                 key={idx}
                 onClick={() => handleSend(prompt.query)}
-                className="text-[9px] px-2 py-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-lg text-neutral-700 dark:text-neutral-350 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all cursor-pointer truncate max-w-[170px]"
-                title={prompt.text}
+                className="text-2xs px-2 py-1 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-lg text-neutral-700 dark:text-neutral-450 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black transition-all cursor-pointer truncate max-w-[170px]"
+                title={prompt.text} aria-label={prompt.text}
               >
                 {prompt.text}
               </button>

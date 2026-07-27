@@ -2,9 +2,11 @@
 // an employee sees their own; a branch manager/HR sees their branch's; a zonal manager, their zone.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { windowStartIso } from '../lib/dates';
 
-export function useLeaves() {
+export function useLeaves({ enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['leaves'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -12,9 +14,13 @@ export function useLeaves() {
         .select(
           // disambiguate: leaves has two FKs to employees (employee_id + approver_id)
           `id, type, start_date, end_date, days, reason, status, created_at,
-           employee:employees!leaves_employee_id_fkey(full_name, employee_code, branch:branches(code))`
+           employee:employees!leaves_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
-        .order('created_at', { ascending: false });
+        // Bounded: the whole table was fetched on every dashboard. Screens show recent activity;
+        // historical analysis goes through the Reports RPCs.
+        .gte('start_date', windowStartIso(180))
+        .order('created_at', { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },

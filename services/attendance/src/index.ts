@@ -9,6 +9,7 @@ import { assertDbReachable, disconnectDb } from './lib/db';
 import { createServer } from './api/server';
 import { startScheduler, stopScheduler, jobsInFlight } from './jobs/scheduler';
 import { biotime } from './biotime/client';
+import { syncEmployees } from './sync/syncEmployees';
 
 async function main(): Promise<void> {
   logger.info(
@@ -21,25 +22,51 @@ async function main(): Promise<void> {
     'starting Parakkat attendance service'
   );
 
-  // Fail fast on a bad database URL rather than discovering it on the first sync.
-  await assertDbReachable();
+  // The database being down at boot is NOT fatal either: on the intended deployment (a laptop
+  // that starts the service at logon) the network is often not up yet, and a crash here would
+  // burn through pm2's restart budget and leave the service permanently 'errored'. Wait for it.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await assertDbReachable();
+      break;
+    } catch (err) {
+      logger.warn(
+        { attempt, err: err instanceof Error ? err.message : String(err) },
+        'database not reachable yet — retrying in 15s (is the internet up?)'
+      );
+      await new Promise((r) => setTimeout(r, 15_000));
+    }
+  }
   logger.info('database reachable');
 
-  // BioTime being down at boot is NOT fatal — the terminals may be on a site that is offline, and
-  // the worker's whole job is to survive that and catch up. Log it and carry on.
-  const ping = await biotime.ping();
-  if (ping.ok) {
-    logger.info({ authMode: ping.mode }, 'BioTime reachable');
-  } else {
-    logger.warn({ error: ping.error }, 'BioTime not reachable at startup — the worker will keep retrying');
-  }
-
+  // Listen BEFORE probing BioTime: the probe can take minutes against a firewalled host, and
+  // the API (health checks, exports) must not wait on it.
   const app = createServer();
   const server = app.listen(env.API_PORT, () => {
     logger.info({ port: env.API_PORT }, 'API listening');
   });
 
+  // BioTime being down at boot is NOT fatal — the terminals may be on a site that is offline, and
+  // the worker's whole job is to survive that and catch up. Log it and carry on.
+  void biotime.ping().then((ping) => {
+    if (ping.ok) {
+      logger.info({ authMode: ping.mode }, 'BioTime reachable');
+    } else {
+      logger.warn({ error: ping.error }, 'BioTime not reachable at startup — the worker will keep retrying');
+    }
+  });
+
   startScheduler();
+
+  // Pull the device roster once at boot (fire-and-forget): without this, biotime_employees stays
+  // empty until the 01:15 cron and HR has nothing to map on day one.
+  if (env.ENABLE_WORKERS) {
+    void syncEmployees()
+      .then((r) => logger.info({ fetched: r.fetched, created: r.created }, 'startup roster sync done'))
+      .catch((err) =>
+        logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'startup roster sync failed — the nightly job will retry')
+      );
+  }
 
   // --- graceful shutdown ------------------------------------------------------
   // Stop taking new work, let anything in flight finish, then close cleanly. Killing a worker
@@ -77,15 +104,18 @@ async function main(): Promise<void> {
   // and let the supervisor restart us.
   process.on('unhandledRejection', (reason) => {
     logger.fatal({ reason }, 'unhandled promise rejection');
+    console.error('FATAL unhandled rejection:', reason); // pretty transport may not flush first
     process.exit(1);
   });
   process.on('uncaughtException', (err) => {
     logger.fatal({ err }, 'uncaught exception');
+    console.error('FATAL uncaught exception:', err);
     process.exit(1);
   });
 }
 
 main().catch((err) => {
   logger.fatal({ err }, 'failed to start');
+  console.error('FATAL failed to start:', err);
   process.exit(1);
 });

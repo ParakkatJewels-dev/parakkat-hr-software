@@ -39,14 +39,15 @@ healthRouter.get('/health', async (_req, res) => {
     const ageMinutes = lastSuccess ? Math.round((Date.now() - lastSuccess.getTime()) / 60_000) : null;
 
     // Generous threshold: 30 minutes of failure is a real outage, but a couple of missed 2-minute
-    // ticks during a BioTime restart should not page anyone.
-    const stale = ageMinutes === null || ageMinutes > 30;
+    // ticks during a BioTime restart should not page anyone. A service that has NEVER synced is
+    // "waiting", not unhealthy — otherwise a fresh install reports 503 until its first success.
+    const stale = ageMinutes !== null && ageMinutes > 30;
 
     checks.punchSync = {
       ok: !stale,
       detail: lastSuccess
         ? `last success ${ageMinutes} min ago${state?.consecutiveFailures ? `, ${state.consecutiveFailures} consecutive failures` : ''}`
-        : 'never completed a sync',
+        : 'waiting for the first successful sync',
     };
 
     if (stale && env.ENABLE_WORKERS) healthy = false;

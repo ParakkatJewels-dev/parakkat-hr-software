@@ -8,6 +8,9 @@
 // One instance only, deliberately: two would both run the cron schedule and double every sync.
 // The work is trivially small (a couple of HTTP calls a minute), so there is nothing to gain from
 // clustering and a cursor to corrupt if we tried.
+// pm2 does not create missing log directories — without this the app fails to launch (ENOENT).
+require('node:fs').mkdirSync(require('node:path').join(__dirname, 'logs'), { recursive: true });
+
 module.exports = {
   apps: [
     {

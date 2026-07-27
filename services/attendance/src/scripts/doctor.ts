@@ -28,10 +28,18 @@ async function main(): Promise<void> {
     problems += 1;
     console.log(`  ⚠  ${msg}`);
   };
+  // Expected-during-rollout states: printed, but NOT counted as failures — the installer aborts
+  // on a non-zero exit, and "punches waiting to be mapped" must never block a re-run.
+  const notice = (msg: string) => {
+    console.log(`  ℹ  ${msg}`);
+  };
 
   heading('Configuration');
   line('BioTime URL', env.BIOTIME_BASE_URL);
   line('BioTime user', env.BIOTIME_USERNAME);
+  if (env.BIOTIME_USERNAME === 'FILL_ME' || env.BIOTIME_PASSWORD === 'FILL_ME') {
+    warn('BIOTIME_USERNAME / BIOTIME_PASSWORD still contain the FILL_ME placeholder — run the installer (or edit .env) to set the Easy Time Pro login');
+  }
   line('BioTime timezone (assumed)', BIOTIME_TZ);
   line('Business timezone', APP_TZ);
   line('Poll schedule', env.SYNC_TRANSACTIONS_CRON);
@@ -63,6 +71,7 @@ async function main(): Promise<void> {
   } catch (err) {
     warn(`cannot reach the database: ${err instanceof Error ? err.message : String(err)}`);
     console.log('\nFix DATABASE_URL before continuing. Nothing else can be checked.\n');
+    process.exitCode = 1; // early exit must still fail the doctor (installers key off this)
     return;
   }
 
@@ -72,6 +81,7 @@ async function main(): Promise<void> {
   if (!ping.ok) {
     warn(`cannot reach BioTime: ${ping.error}`);
     console.log('\nFix BIOTIME_BASE_URL / credentials before continuing.\n');
+    process.exitCode = 1; // early exit must still fail the doctor (installers key off this)
     return;
   }
   line('Authentication', `ok (${ping.mode === 'jwt' ? 'JWT' : 'Token'} scheme)`);
@@ -154,7 +164,7 @@ async function main(): Promise<void> {
           `  in HR > Devices & Mapping. Run  npm run sync:employees  to populate the queue.`
       );
     } else if (matched < devicePeople.length / 2) {
-      warn(`only ${matched} codes match — the rest need mapping in HR > Devices & Mapping`);
+      notice(`only ${matched} codes match — the rest need mapping in HR > Devices & Mapping`);
     }
   }
 
@@ -165,7 +175,7 @@ async function main(): Promise<void> {
   const orphans = Number(orphanRows[0]?.orphans ?? 0);
   if (orphans > 0) {
     heading('Unmapped punches');
-    warn(`${orphans} stored punches are not linked to an employee yet`);
+    notice(`${orphans} stored punches are not linked to an employee yet — map codes in HR > Devices & Mapping (normal in the first days)`);
   }
 
   // --- verdict ------------------------------------------------------------------

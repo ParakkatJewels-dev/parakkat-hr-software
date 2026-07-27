@@ -169,8 +169,14 @@ export class BiotimeClient {
         yield items;
       }
 
-      // Stop when the page came back short, or we've read everything BioTime said existed.
-      const isLastPage = items.length < pageSize || (typeof total === 'number' && seen >= total);
+      // Prefer the server's own `next` link when present — a server that caps page_size below
+      // what we asked for returns "short" pages that are NOT the last page, and stopping on the
+      // short-page heuristic alone would silently drop the rest of the window.
+      const hasNextField = body != null && typeof body === 'object' && 'next' in body;
+      const isLastPage =
+        items.length === 0 ||
+        (hasNextField ? body.next == null : items.length < pageSize) ||
+        (typeof total === 'number' && seen >= total);
       if (isLastPage) return;
 
       page += 1;
@@ -194,7 +200,23 @@ export class BiotimeClient {
   async ping(): Promise<{ ok: boolean; mode: string | null; error?: string }> {
     try {
       await this.auth.login();
-      await this.get('/personnel/api/employees/', { page: 1, page_size: 1 });
+      const probe = await this.get<Record<string, unknown>>('/personnel/api/employees/', {
+        page: 1,
+        page_size: 1,
+      });
+      // A Django login page is a 200 with an HTML string — that must not count as "ok" or the
+      // sync reports success forever while ingesting nothing.
+      if (
+        probe == null ||
+        typeof probe !== 'object' ||
+        (!('count' in probe) && !('data' in probe) && !('results' in probe))
+      ) {
+        return {
+          ok: false,
+          mode: this.auth.mode,
+          error: 'the server answered with a non-JSON page — check that BIOTIME_BASE_URL points at Easy Time Pro / BioTime',
+        };
+      }
       return { ok: true, mode: this.auth.mode };
     } catch (err) {
       return {

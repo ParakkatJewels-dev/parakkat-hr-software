@@ -3,7 +3,7 @@
 /* ============================================================================
    Parakkat HR — Design System
    Compact · Structured · Responsive. Green "TeamHub"-inspired.
-   Shared class names (.premium-card, .premium-table, .page-shell, .glass-panel,
+   Shared class names (.premium-card, .premium-table, .page-shell,
    .nav-item-active, .drawer-tab*) and color tokens are consumed across all 18
    screens — keep them stable; refine their values here to restyle globally.
    Component classes live in @layer components so per-element Tailwind utilities
@@ -13,6 +13,47 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* ---- Fluid type scale --------------------------------------------------
+     Every size was previously hard-coded in px (text-[13px] and friends), so a phone and a 27"
+     iMac rendered identical 10px labels — unreadably small on one, lost on the other. These
+     interpolate between a 375px viewport and 1440px, so type grows with the screen instead of
+     stepping at breakpoints. Sizes stay small at the bottom because this is a data-dense HR
+     tool: the floor is legibility, not comfort reading.
+
+     The names deliberately override Tailwind's defaults so there is ONE scale in the app — a
+     stray `text-sm` picks up the fluid value rather than a fixed 14px. Use these, never px. */
+  --text-2xs: clamp(0.625rem, 0.603rem + 0.094vw, 0.6875rem);  /* 10 → 11  micro labels, badges */
+  --text-xs:  clamp(0.6875rem, 0.666rem + 0.094vw, 0.75rem);   /* 11 → 12  meta, captions */
+  --text-sm:  clamp(0.75rem, 0.728rem + 0.094vw, 0.8125rem);   /* 12 → 13  secondary body */
+  --text-base: clamp(0.8125rem, 0.79rem + 0.094vw, 0.875rem);  /* 13 → 14  body, buttons */
+  --text-md:  clamp(0.875rem, 0.853rem + 0.094vw, 0.9375rem);  /* 14 → 15  emphasised rows */
+  --text-lg:  clamp(0.9375rem, 0.894rem + 0.188vw, 1.0625rem); /* 15 → 17  card titles */
+  --text-xl:  clamp(1.125rem, 1.037rem + 0.376vw, 1.375rem);   /* 18 → 22  page headings */
+  --text-2xl: clamp(1.375rem, 1.243rem + 0.563vw, 1.75rem);    /* 22 → 28  hero figures */
+
+  /* ---- Fluid spacing -----------------------------------------------------
+     Card and page padding scale with the viewport too, so a phone is not spending a fifth of its
+     width on gutters while a wide screen looks cramped.
+     
+     These ramp to 2560px, NOT 1440. Capping at 1440 meant a 27" iMac got a laptop's padding while
+     the content ran 78% wider — everything stretched except the breathing room, which is exactly
+     what "cramped on the big screen" looks like. The type scale still stops at 1440 on purpose:
+     text should not keep growing, but space around it should. */
+  --space-card: clamp(0.625rem, 0.539rem + 0.366vw, 1.125rem); /* 10 → 18  card gutter */
+  --space-shell: clamp(0.625rem, 0.389rem + 1.007vw, 2rem);    /* 10 → 32  left/right */
+  /* Top and bottom get their own, more generous ramp. Side gutters are constrained by how much
+     width you can afford to give away; vertical space is nearly free on a tall screen, and
+     content that starts flush against the header reads as cramped on a large display. */
+  /* Top and bottom breathe more than the sides. Compact should mean tight CARDS and tight ROWS,
+     not content jammed against the chrome above it and the window edge below.
+     
+     Generous at the top end on purpose: Home has a single tab, so no tab bar renders and its
+     greeting sits directly beneath the sticky header with nothing between them. On a 27" screen
+     that looked pinned to the toolbar. Tabbed screens get the tab bar as separation and can
+     afford less, but one value for both is simpler than a special case. */
+  --space-shell-block: clamp(1.125rem, 0.546rem + 2.471vw, 4.5rem); /* 18 → 72  top/bottom */
+  --space-cell: clamp(0.375rem, 0.34rem + 0.15vw, 0.5rem);     /*  6 →  8  table row */
 
   /* Brand — emerald / mint */
   --color-gold-400: #34d399;
@@ -72,6 +113,13 @@
   --shadow-card: 0 1px 2px rgba(16, 32, 26, 0.04), 0 2px 8px rgba(16, 32, 26, 0.05);
   --shadow-card-hover: 0 2px 6px rgba(16, 32, 26, 0.07), 0 12px 28px rgba(16, 32, 26, 0.08);
   --shadow-pop: 0 12px 40px rgba(16, 32, 26, 0.16);
+
+  /* Muted text, corrected for contrast.
+     `text-neutral-400` is the app's default secondary text — timestamps, hints, meta lines — and
+     ran at Tailwind's #a1a1a1, which is 2.58:1 on a white card. WCAG AA needs 4.5:1. Rather than
+     touch ~180 call sites, the token itself becomes mode-aware: darker on light surfaces, lighter
+     on dark ones. Keep both sides above 4.5:1 if you retune these. */
+  --color-neutral-400: #6e766f;  /* 4.68:1 on #ffffff */
 }
 
 .dark {
@@ -83,6 +131,11 @@
   --surface-text-soft: #8ca497;
   --surface-border: #1e2d27;
   --surface-border-strong: #26382f;
+
+  /* Same two muted-text tokens, inverted for the dark canvas (see the note in :root).
+     neutral-450 was 3.79:1 on the dark card — it failed here for the mirror-image reason. */
+  --color-neutral-400: #9aa29b;  /* 6.77:1 on #111a16 */
+  --color-neutral-450: #949c95;  /* 6.30:1 on #111a16 */
   --accent: #10b981;
   --accent-strong: #34d399;
   --accent-soft: rgba(16, 185, 129, 0.14);
@@ -169,7 +222,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     border: 1px solid var(--surface-border);
     background-color: var(--surface-elevated);
     color: var(--surface-text);
-    padding: 1rem;
+    /* Fluid: a fixed 16rem gutter eats a phone and looks mean on a wide screen. */
+    padding: var(--space-card);
     box-shadow: var(--shadow-card);
     transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
   }
@@ -178,13 +232,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .dark .premium-card:hover { border-color: color-mix(in srgb, var(--accent) 32%, transparent); }
   .premium-card-active { border-color: var(--accent) !important; box-shadow: 0 0 0 1px var(--accent), var(--shadow-card) !important; }
 
-  .glass-panel {
-    border: 1px solid var(--surface-border);
-    background: var(--surface-elevated);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-card);
-  }
-  .dark .glass-panel { background: var(--surface-elevated); border-color: var(--surface-border); box-shadow: var(--shadow-card); }
 
   /* ---- Tables ---- */
   .premium-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .8125rem; }
@@ -198,8 +245,39 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     color: var(--surface-text-soft);
     background: var(--surface-subtle);
     white-space: nowrap;
+    /* Sticky against the nearest scrolling ancestor. Harmless on short tables; on a 120-row page
+       it is the difference between reading a column and counting cells. Needs an opaque
+       background (set above) or the rows show through as they pass under it. */
+    position: sticky;
+    top: 0;
+    z-index: 1;
   }
-  .premium-table td { border-bottom: 1px solid var(--surface-border); padding: .625rem .75rem; color: var(--surface-text); transition: background-color .15s ease; }
+
+  /* Give a long table its own scrollport so the sticky header has something to stick to.
+     `overflow-x-auto` alone does NOT work: when one axis is not `visible` the other computes to
+     `auto`, so the wrapper becomes a vertical scroll container the same height as its content —
+     the header never leaves the scrollport and sticky never engages. A max-height fixes that,
+     and keeps the toolbar and pager on screen while the rows move under them. */
+  .table-scroll {
+    overflow: auto;
+    max-height: min(70vh, 44rem);
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* A list living inside a card, next to other cards. Capped much shorter than a full-page table:
+     with 50 branches beside 5 departments an uncapped list makes one card ten times the height of
+     its neighbour and pushes everything below it off the screen. ~11 rows, then it scrolls. */
+  .list-scroll {
+    overflow: auto;
+    max-height: 22rem;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Compact mode: same columns, tighter rows. At 500 employees the difference is roughly a third
+     more people per screen, which is the whole point of a directory. */
+  .premium-table.is-compact td { padding-block: .3rem; }
+  .premium-table.is-compact td .avatar-cell { width: 1.5rem; height: 1.5rem; }
+  .premium-table.is-compact td .row-sub { display: none; }
+  .premium-table td { border-bottom: 1px solid var(--surface-border); padding: var(--space-cell) .75rem; color: var(--surface-text); transition: background-color .15s ease; }
   .premium-table tr:last-child td { border-bottom: none; }
   .premium-table tbody tr:hover td { background: var(--surface-muted); }
   .dark .premium-table th { color: var(--surface-text-soft); border-color: var(--surface-border); background: var(--surface-subtle); }
@@ -260,9 +338,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .page-shell > :first-child:has(h2) h2 { margin: 0; }
 .page-shell > :first-child:has(h2) p { max-width: 46rem; margin-top: .25rem; font-size: .8125rem !important; line-height: 1.5; color: var(--surface-text-soft); }
 .dark .page-shell > :first-child:has(h2) { background: var(--surface-elevated); border-color: var(--surface-border); }
-.page-shell .glass-panel > h3, .page-shell .premium-card > h3,
+.page-shell .premium-card > h3,
 .page-shell .premium-card > div > h3 { color: #142720; }
-.dark .page-shell .glass-panel > h3, .dark .page-shell .premium-card > h3,
+.dark .page-shell .premium-card > h3,
 .dark .page-shell .premium-card > div > h3 { color: #f4f6f5; }
 
 /* ---- Sidebar active pill (uses !important to win over hover utilities) ---- */
@@ -291,8 +369,51 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .animate-slide-up { animation: slideUp .35s cubic-bezier(.16, 1, .3, 1) both; }
 .animate-fade-in { animation: fadeIn .2s ease-out both; }
 @media (prefers-reduced-motion: reduce) {
-  .animate-slide-up, .animate-fade-in { animation: none; }
-  * { scroll-behavior: auto !important; }
+  /* Honour the OS setting properly: kill entrance animations, transitions and the loading
+     shimmer, not just the two named keyframes. Vestibular disorders make sliding panels and
+     pulsing skeletons genuinely unpleasant. */
+  .animate-slide-up, .animate-fade-in, .animate-pulse, .animate-spin { animation: none !important; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---- Touch targets ------------------------------------------------------- */
+/* This app ships to phones through Capacitor, where a 26px icon button is a miss waiting to
+   happen — the accepted floor for a finger is 44px. Rather than pad every icon button and lose
+   the density the desktop tables rely on, the floor applies only to coarse pointers, and only to
+   buttons whose entire content is one icon (`:has(> svg:only-child)`), so labelled buttons and
+   text links keep their own sizing. The icon itself does not grow; the tappable box around it
+   does. */
+@media (pointer: coarse) {
+  button:has(> svg:only-child),
+  a:has(> svg:only-child) {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ---- Skeleton placeholder ------------------------------------------------ */
+/* Reserves the space the real content will occupy, so nothing jumps when it arrives. */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-muted) 25%, var(--surface-subtle) 37%, var(--surface-muted) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-sheen 1.4s ease-in-out infinite;
+  border-radius: 0.5rem;
+}
+.dark .skeleton {
+  background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%);
+  background-size: 400% 100%;
+}
+@keyframes skeleton-sheen {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
 }
 
 /* ---- Native safe areas (notch / status bar) ------------------------------ */
@@ -332,6 +453,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 @media (max-width: 640px) {
   body { font-size: 13.5px; }
   .page-shell { width: 100%; }
+  /* The scroll area's gutter. Fluid, so it does not jump from 8px to 16px at one breakpoint —
+     replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
+     .page-shell so screens keep exactly one gutter, not two stacked. */
+  .app-main { padding: var(--space-shell-block) var(--space-shell); }
+  /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
+     honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
+     bottom edge instead of stopping flush against it. */
+  .app-main::after { content: ''; display: block; height: var(--space-shell-block); }
   .page-shell > :first-child:has(h2) { padding: .875rem 1rem; flex-direction: column; align-items: flex-start; }
   .page-shell > :first-child:has(h2) > button,
   .page-shell > :first-child:has(h2) > a { width: 100%; justify-content: center; }
@@ -340,4 +469,42 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   /* Horizontal tab bars (sub-navigation) scroll instead of clipping when they don't fit. */
   .tab-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .tab-scroll::-webkit-scrollbar { display: none; }
+}
+
+/* ---- Touch targets ------------------------------------------------------- */
+/* Icon-only buttons are ~26px in this dense layout, which is fine with a mouse and awkward with
+   a thumb. On coarse pointers only, give them the recommended 44px tap area without changing
+   how they look on desktop. `:has()` targets exactly the icon-only case, so text buttons and
+   inline links are untouched. */
+@media (pointer: coarse) {
+  button:has(> svg:only-child),
+  a:has(> svg:only-child) {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+/* ---- Skip link ----------------------------------------------------------- */
+/* This app has a long sidebar; without this a keyboard user tabs through every nav item on
+   every screen before reaching the content. Visible only when focused. */
+.skip-link {
+  position: absolute;
+  left: 0.75rem;
+  top: -3rem;
+  z-index: 60;
+  padding: 0.5rem 0.875rem;
+  border-radius: 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  transition: top 150ms ease;
+}
+.skip-link:focus {
+  top: 0.75rem;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }

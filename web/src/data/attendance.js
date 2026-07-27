@@ -96,7 +96,9 @@ export function useAttendanceExceptions(from, to) {
         .lte('work_date', to)
         .or('is_late.eq.true,is_missing_punch.eq.true,is_early_exit.eq.true,status.eq.Absent,status.eq.No Shift')
         .order('work_date', { ascending: false })
-        .limit(1000);
+        // A full month of exceptions across a large entity exceeds 1000; the health tile would
+        // silently under-report. 20k covers a month for ~700 staff.
+        .limit(20000);
       if (error) throw error;
       return data ?? [];
     },

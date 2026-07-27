@@ -1,36 +1,32 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign,
-  Receipt, Target, Briefcase, UserCheck, HelpCircle,
-  Bell, ChevronDown, Sparkles, LogOut, Menu, X, Bot,
-  Sun, Moon, Network, Laptop, FolderOpen, BarChart3,
-  Share2, Shield, Settings, Terminal, Search, Command,
-  ChevronLeft, ChevronRight, Fingerprint, ListChecks
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks,
 } from 'lucide-react';
 
 // Import components
 import Dashboard from './components/Dashboard';
-import Directory from './components/Directory';
-import Attendance from './components/Attendance';
-import AttendanceAdmin from './components/AttendanceAdmin';
-import Leave from './components/Leave';
-import Payroll from './components/Payroll';
-import Expense from './components/Expense';
-import Performance from './components/Performance';
-import Recruitment from './components/Recruitment';
-import Onboarding from './components/Onboarding';
-import HelpdeskExit from './components/HelpdeskExit';
-import NavosAI from './components/NavosAI';
-import Organization from './components/Organization';
-import AssetManagement from './components/AssetManagement';
-import DocumentManagement from './components/DocumentManagement';
-import ReportsAnalytics from './components/ReportsAnalytics';
-import Integrations from './components/Integrations';
-import Administration from './components/Administration';
-import TaskManagement from './components/TaskManagement';
-import ChangePassword from './components/ChangePassword';
+const Directory = lazy(() => import('./components/Directory'));
+const EmployeeImport = lazy(() => import('./components/EmployeeImport'));
+const Attendance = lazy(() => import('./components/Attendance'));
+const AttendanceAdmin = lazy(() => import('./components/AttendanceAdmin'));
+const Leave = lazy(() => import('./components/Leave'));
+const Payroll = lazy(() => import('./components/Payroll'));
+const Expense = lazy(() => import('./components/Expense'));
+const Performance = lazy(() => import('./components/Performance'));
+const Recruitment = lazy(() => import('./components/Recruitment'));
+const Onboarding = lazy(() => import('./components/Onboarding'));
+const HelpdeskExit = lazy(() => import('./components/HelpdeskExit'));
+const Organization = lazy(() => import('./components/Organization'));
+const AssetManagement = lazy(() => import('./components/AssetManagement'));
+const DocumentManagement = lazy(() => import('./components/DocumentManagement'));
+const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
+const Administration = lazy(() => import('./components/Administration'));
+const TaskManagement = lazy(() => import('./components/TaskManagement'));
+const SettingsPage = lazy(() => import('./components/SettingsPage'));
+import NotificationBell from './components/NotificationBell';
 import { useAuth } from './auth/AuthContext';
 import { usePermissions } from './auth/usePermissions';
+import { resolvePrimaryRole } from './lib/roles';
 import { useRealtimeSync } from './lib/realtime';
 import { useVersionCheck } from './lib/versionCheck';
 
@@ -42,7 +38,7 @@ const prettyRole = (key) =>
 function AccessDenied() {
   return (
     <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-      <Shield size={28} className="text-neutral-400 dark:text-gold-600 mb-3" />
+      <Shield size={28} className="text-neutral-400 dark:text-[#0c9765] mb-3" />
       <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">Access restricted</h2>
       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
         You don't have permission to view this section. If you believe this is a mistake, contact your
@@ -65,13 +61,14 @@ export default function App() {
     displayName.split(' ').filter(Boolean).slice(0, 2).map((s) => s[0]).join('') || 'U'
   ).toUpperCase();
 
-  // Real role label for the header (replaces the fake Admin/Employee toggle).
+  // Real role label for the header: the primary (highest) role, plus a count of any other
+  // oversight roles. The auto-granted employee@self role is not counted — every manager has it.
+  const primaryRole = resolvePrimaryRole(assignments, isSuperAdmin);
   const roleNames = [...new Set((assignments || []).map((a) => a.role))];
+  const extraRoles = roleNames.filter((r) => r !== primaryRole && r !== 'employee').length;
   const roleLabel = isSuperAdmin
     ? 'Super Admin'
-    : roleNames.length
-      ? prettyRole(roleNames[0]) + (roleNames.length > 1 ? ` +${roleNames.length - 1}` : '')
-      : 'Employee';
+    : prettyRole(primaryRole) + (extraRoles ? ` +${extraRoles}` : '');
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -127,150 +124,224 @@ export default function App() {
   // Each item names the permission required to SEE it (held at any scope). null = always visible.
   // RLS still scopes what data appears inside each screen. This mapping is a sensible default and
   // is easy to tune per your policy.
-  const navSections = [
+  //
+  // The sidebar is role-aware: a pure ESS employee gets a compact "My Workspace" layout with
+  // self-service labels; anyone holding an oversight role gets the full grouped structure below.
+  // Item ids are identical in both, so routing and permission guards are shared.
+  const essNavSections = [
     {
-      title: 'Overview',
+      title: 'My Workspace',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: null }
+        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: null },
+        { id: 'attendance', label: 'My Attendance', icon: Clock, perm: 'attendance.read' },
+        { id: 'leave', label: 'My Leave', icon: Calendar, perm: 'leave.read' },
+        { id: 'tasks', label: 'My Tasks', icon: ListChecks, perm: 'task.read' },
+        { id: 'payroll', label: 'My Payslips', icon: DollarSign, perm: 'payslip.read' },
+        { id: 'expense', label: 'My Expenses', icon: Receipt, perm: 'expense.read' },
+        { id: 'documents', label: 'My Documents', icon: FolderOpen, perm: 'document.read' }
       ]
     },
     {
-      title: 'People Operations',
+      title: 'Support',
       items: [
-        // `scoped` = oversight module: needs the permission at a scope broader than self, so a
-        // pure ESS employee (self-scoped employee.read) doesn't see the company directory.
-        { id: 'directory', label: 'Employee Directory', icon: Users, perm: 'employee.read', scoped: true },
-        { id: 'organization', label: 'Org Hierarchy', icon: Network, perm: 'org.manage' }
-      ]
-    },
-    {
-      title: 'Time & Targets',
-      items: [
-        { id: 'attendance', label: 'Attendance logs', icon: Clock, perm: 'attendance.read' },
-        { id: 'attendance-admin', label: 'Attendance Setup', icon: Fingerprint, perm: 'device.manage' },
-        { id: 'leave', label: 'Leave Management', icon: Calendar, perm: 'leave.read' },
-        { id: 'tasks', label: 'Task Management', icon: ListChecks, perm: 'task.read' },
-        { id: 'performance', label: 'PMS Performance', icon: Target, perm: 'performance.manage' }
-      ]
-    },
-    {
-      title: 'Finance & Assets',
-      items: [
-        { id: 'payroll', label: 'Payroll Console', icon: DollarSign, perm: 'payslip.read' },
-        { id: 'expense', label: 'Expense Claims', icon: Receipt, perm: 'expense.read' },
-        { id: 'assets', label: 'Asset Management', icon: Laptop, perm: 'asset.read' }
-      ]
-    },
-    {
-      title: 'Talent Acquisition',
-      items: [
-        { id: 'recruitment', label: 'Recruit Hub', icon: Briefcase, perm: 'recruitment.manage' },
-        { id: 'onboarding', label: 'Onboarding Board', icon: UserCheck, perm: 'onboarding.manage' }
-      ]
-    },
-    {
-      title: 'Support & Security',
-      items: [
-        { id: 'documents', label: 'Document Vault', icon: FolderOpen, perm: 'document.read' },
-        { id: 'helpdesk', label: 'Support & Exit', icon: HelpCircle, perm: 'ticket.read' },
-        { id: 'reports', label: 'Reports & Analytics', icon: BarChart3, perm: 'report.read' },
-        { id: 'integrations', label: 'REST Integrations', icon: Share2, perm: 'rbac.manage' },
-        { id: 'administration', label: 'Administration', icon: Shield, perm: 'rbac.manage' },
+        { id: 'helpdesk', label: 'Help & Support', icon: HelpCircle, perm: 'ticket.read' },
         { id: 'settings', label: 'Settings', icon: Settings, perm: null }
       ]
     }
   ];
 
-  // Can the current user see a nav item? `scoped` items require the permission beyond self scope.
-  const canSeeItem = (item) =>
-    !item.perm || (item.scoped ? canBeyondSelf(item.perm) : canAny(item.perm));
-
-  // Flat lookup + guard: can the current user view a given tab?
-  const allNavItems = navSections.flatMap((s) => s.items);
-  const canViewTab = (tabId) => {
-    const item = allNavItems.find((i) => i.id === tabId);
-    return !item || canSeeItem(item);
-  };
-
-  // Command palette options
-  const commandOptions = [
-    { label: 'Go to Dashboard', action: () => { setActiveTab('dashboard'); setShowCommandPalette(false); } },
-    { label: 'Open Employee Directory', action: () => { setActiveTab('directory'); setShowCommandPalette(false); } },
-    { label: 'Go to Attendance', action: () => { setActiveTab('attendance'); setShowCommandPalette(false); } },
-    { label: 'Apply for Time-Off / Leave', action: () => { setActiveTab('leave'); setShowCommandPalette(false); } },
-    { label: 'Open Task Management', action: () => { setActiveTab('tasks'); setShowCommandPalette(false); } },
-    { label: 'Submit Conveyance Expense Claim', action: () => { setActiveTab('expense'); setShowCommandPalette(false); } },
-    { label: 'View Asset Inventory Management', action: () => { setActiveTab('assets'); setShowCommandPalette(false); } },
-    { label: 'Configure REST Integrations', action: () => { setActiveTab('integrations'); setShowCommandPalette(false); } },
-    { label: 'Toggle Light/Dark Theme', action: () => { toggleTheme(); setShowCommandPalette(false); } }
+  // Oversight navigation: eight destinations, each grouping the screens that belong to one job.
+  //
+  // The previous shape put 19 flat items in front of an entity admin and split things that are
+  // one task — attendance logs sat apart from attendance setup, hiring was two entries, and
+  // Administration was a catch-all. Now the sidebar answers "what am I doing?" and the tab bar
+  // answers "which part of it?", reusing the section->tabs pattern the Payroll and Administration
+  // screens already use. Screen ids are unchanged, so every existing link and dashboard shortcut
+  // still resolves.
+  const oversightSections = [
+    {
+      id: 'home',
+      label: 'Home',
+      icon: LayoutDashboard,
+      tabs: [{ id: 'dashboard', label: 'Dashboard', perm: null }],
+    },
+    {
+      id: 'people',
+      label: 'People',
+      icon: Users,
+      tabs: [
+        // `scoped` = oversight module: needs the permission beyond self scope, so a pure ESS
+        // employee (self-scoped employee.read) never sees the company directory.
+        { id: 'directory', label: 'Directory', perm: 'employee.read', scoped: true },
+        { id: 'employee-import', label: 'Import', perm: 'employee.create' },
+        { id: 'organization', label: 'Structure', perm: 'org.manage' },
+        { id: 'recruitment', label: 'Hiring', perm: 'recruitment.manage' },
+        { id: 'onboarding', label: 'Onboarding', perm: 'onboarding.manage' },
+        { id: 'documents', label: 'Documents', perm: 'document.read' },
+      ],
+    },
+    {
+      id: 'time',
+      label: 'Time & Attendance',
+      icon: Clock,
+      tabs: [
+        { id: 'attendance', label: 'Attendance', perm: 'attendance.read' },
+        { id: 'leave', label: 'Leave', perm: 'leave.read' },
+        { id: 'attendance-admin', label: 'Shifts & Devices', perm: 'device.manage' },
+      ],
+    },
+    {
+      id: 'pay',
+      label: 'Pay & Expenses',
+      icon: DollarSign,
+      tabs: [
+        { id: 'payroll', label: 'Payroll', perm: 'payslip.read' },
+        { id: 'expense', label: 'Expenses', perm: 'expense.read' },
+      ],
+    },
+    {
+      id: 'work',
+      label: 'Work',
+      icon: ListChecks,
+      tabs: [
+        { id: 'tasks', label: 'Tasks', perm: 'task.read' },
+        { id: 'performance', label: 'Goals', perm: 'goal.read' },
+        { id: 'assets', label: 'Assets', perm: 'asset.read' },
+      ],
+    },
+    {
+      id: 'support',
+      label: 'Support',
+      icon: HelpCircle,
+      tabs: [{ id: 'helpdesk', label: 'Helpdesk & Exits', perm: 'ticket.read' }],
+    },
+    {
+      id: 'insights',
+      label: 'Reports',
+      icon: BarChart3,
+      tabs: [{ id: 'reports', label: 'Reports', perm: 'report.read' }],
+    },
+    {
+      id: 'admin',
+      label: 'Administration',
+      icon: Shield,
+      tabs: [
+        { id: 'administration', label: 'Users & Access', perm: 'rbac.manage' },
+        { id: 'admin-roles', label: 'Roles', perm: 'rbac.manage' },
+        { id: 'admin-audit', label: 'Audit Log', perm: 'rbac.manage' },
+        { id: 'settings', label: 'Settings', perm: null },
+      ],
+    },
   ];
 
-  const filteredCommands = commandOptions.filter(cmd =>
+  // ESS keeps a flat list: with nine items, adding a second level would be friction, not order.
+  const essSections = essNavSections.flatMap((g) =>
+    g.items.map((it) => ({ id: it.id, label: it.label, icon: it.icon, tabs: [{ ...it }] }))
+  );
+
+  const sections = primaryRole === 'employee' ? essSections : oversightSections;
+
+  // Can the current user see a screen? `scoped` items need the permission beyond self scope.
+  const canSeeTab = (t) =>
+    !t.perm || (t.scoped ? canBeyondSelf(t.perm) : canAny(t.perm));
+
+  // Sections the user may see at all, with their permitted screens.
+  const visibleSections = sections
+    .map((sec) => ({ ...sec, tabs: sec.tabs.filter(canSeeTab) }))
+    .filter((sec) => sec.tabs.length > 0);
+
+  const allTabs = sections.flatMap((sec) => sec.tabs);
+  const canViewTab = (tabId) => {
+    const t = allTabs.find((x) => x.id === tabId);
+    return !t || canSeeTab(t);
+  };
+
+  // Which section owns the screen on show? Drives sidebar highlighting and the tab bar, so a
+  // shortcut from the dashboard lands in the right place without the caller knowing the tree.
+  const activeSection =
+    visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab)) ?? visibleSections[0];
+  const activeTabMeta = allTabs.find((t) => t.id === activeTab);
+
+  // Open a section from the sidebar: land on the first screen the user may actually see.
+  const openSection = (sec) => {
+    if (!sec.tabs.some((t) => t.id === activeTab)) setActiveTab(sec.tabs[0].id);
+  };
+
+  const commandOptions = [
+    { label: 'Go to Dashboard', action: () => setActiveTab('dashboard') },
+    { label: 'Open Employee Directory', action: () => setActiveTab('directory') },
+    { label: 'Go to Attendance', action: () => setActiveTab('attendance') },
+    { label: 'Apply for Time-Off / Leave', action: () => setActiveTab('leave') },
+    { label: 'Open Task Management', action: () => setActiveTab('tasks') },
+    { label: 'Submit an Expense Claim', action: () => setActiveTab('expense') },
+    { label: 'View Asset Inventory', action: () => setActiveTab('assets') },
+    { label: 'Run Payroll', action: () => setActiveTab('payroll') },
+    { label: 'Open Reports & Analytics', action: () => setActiveTab('reports') },
+    { label: 'Toggle Light/Dark Theme', action: () => toggleTheme() },
+  ]
+    .filter((c) => c.label === 'Toggle Light/Dark Theme' || true)
+    .map((c) => ({ ...c, action: () => { c.action(); setShowCommandPalette(false); } }));
+
+  const filteredCommands = commandOptions.filter((cmd) =>
     cmd.label.toLowerCase().includes(commandSearch.toLowerCase())
   );
 
-  // Helper function to render grouped navigation items
+  // Sidebar: one row per section. No group headings any more — eight destinations do not need
+  // sub-titles to be scannable, and removing them buys back vertical space.
   const renderNavLinks = (isMobile = false) => {
-    return navSections.map((section, idx) => {
-      // Show only items the user may see (scoped items require the perm beyond self scope).
-      const visibleItems = section.items.filter(canSeeItem);
+    const isCollapsedDesktop = !isMobile && isSidebarCollapsed;
 
-      if (visibleItems.length === 0) return null;
+    return (
+      <div className="space-y-0.5">
+        {visibleSections.map((sec) => {
+          const Icon = sec.icon;
+          const isActive = activeSection?.id === sec.id;
+          return (
+            <button
+              key={sec.id}
+              onClick={() => {
+                openSection(sec);
+                if (isMobile) setMobileMenuOpen(false);
+              }}
+              aria-current={isActive ? 'page' : undefined}
+              title={isCollapsedDesktop ? sec.label : undefined}
+              aria-label={isCollapsedDesktop ? sec.label : undefined}
+              className={`w-full flex items-center rounded-xl text-base font-semibold cursor-pointer transition-colors duration-200 group relative border border-transparent ${
+                isCollapsedDesktop ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
+              } ${
+                isActive
+                  ? 'nav-item-active'
+                  : 'text-neutral-500 dark:text-warm-gray-400 hover:bg-neutral-50 dark:hover:bg-charcoal-800/80 hover:text-neutral-900 dark:hover:text-warm-gray-100'
+              }`}
+            >
+              <Icon
+                size={isCollapsedDesktop ? 18 : 16}
+                className={`shrink-0 ${
+                  isActive
+                    ? 'text-black dark:text-[#10b981]'
+                    : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-850 dark:group-hover:text-warm-gray-100'
+                }`}
+              />
+              {!isCollapsedDesktop && <span className="truncate">{sec.label}</span>}
 
-      const isCollapsedDesktop = !isMobile && isSidebarCollapsed;
-
-      return (
-        <div key={idx} className="space-y-1 mt-4 first:mt-0 animate-fade-in">
-          {!isCollapsedDesktop ? (
-            <span className="px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-neutral-400 dark:text-neutral-500 block select-none">
-              {section.title}
-            </span>
-          ) : (
-            idx > 0 && <div className="h-px bg-neutral-200/50 dark:bg-charcoal-800/80 my-3 mx-2 transition-all duration-300" />
-          )}
-          <div className="space-y-0.5 mt-1.5">
-            {visibleItems.map(item => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    if (isMobile) setMobileMenuOpen(false);
-                  }}
-                  title={isCollapsedDesktop ? item.label : undefined}
-                  className={`w-full flex items-center rounded-xl text-xs font-semibold cursor-pointer transition-all duration-200 group relative border border-transparent ${isCollapsedDesktop
-                    ? 'justify-center p-2.5'
-                    : 'space-x-3 px-3 py-2.5'
-                    } ${isActive
-                      ? 'nav-item-active'
-                      : 'text-neutral-500 dark:text-warm-gray-400 hover:bg-neutral-50 dark:hover:bg-charcoal-800/80 hover:text-neutral-900 dark:hover:text-warm-gray-100'
-                    }`}
-                >
-                  <Icon size={isCollapsedDesktop ? 18 : 14} className={`shrink-0 transition-transform duration-250 group-hover:scale-110 ${isActive ? 'text-black dark:text-[#dfbd62]' : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-850 dark:group-hover:text-warm-gray-100'}`} />
-                  {!isCollapsedDesktop && <span className="truncate">{item.label}</span>}
-
-                  {/* Premium floating CSS Tooltip */}
-                  {isCollapsedDesktop && (
-                    <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 absolute left-full ml-4 px-2.5 py-1.5 bg-neutral-900/95 dark:bg-white text-white dark:text-charcoal-900 text-[10px] font-bold rounded-lg shadow-xl border border-neutral-800/10 dark:border-neutral-200/10 transition-all duration-200 whitespace-nowrap z-50 pointer-events-none transform translate-x-1 group-hover:translate-x-0">
-                      {item.label}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      );
-    });
+              {isCollapsedDesktop && (
+                <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 absolute left-full ml-4 px-2.5 py-1.5 bg-neutral-900/95 dark:bg-white text-white dark:text-charcoal-900 text-base font-bold rounded-lg shadow-xl transition-opacity duration-200 whitespace-nowrap z-50 pointer-events-none">
+                  {sec.label}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
     <div className="flex h-dvh w-screen overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-charcoal-900 dark:text-warm-gray-100 relative transition-colors duration-250">
+      <a href="#main-content" className="skip-link">Skip to content</a>
 
       {/* Sidebar - Desktop */}
-      <aside className={`hidden lg:flex h-dvh flex-col bg-white dark:bg-charcoal-900 border-r border-neutral-200 dark:border-gold-500/15 shrink-0 select-none transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-64'
+      <aside className={`hidden lg:flex h-dvh flex-col bg-white dark:bg-charcoal-900 border-r border-neutral-200 dark:border-neutral-800 shrink-0 select-none transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-64'
         }`}>
         {/* Logo area */}
         <div className={`p-4 flex items-center justify-between border-b border-neutral-100 dark:border-charcoal-800/80 transition-all duration-300 ${isSidebarCollapsed ? 'flex-col space-y-4 px-2' : 'flex-row'
@@ -289,7 +360,7 @@ export default function App() {
               <button
                 onClick={() => setIsSidebarCollapsed(true)}
                 className="p-1.5 hover:bg-neutral-100 dark:hover:bg-charcoal-800/80 rounded-lg text-neutral-455 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-warm-gray-200 transition-colors"
-                title="Collapse Sidebar"
+                title="Collapse Sidebar" aria-label="Collapse Sidebar"
               >
                 <ChevronLeft size={14} />
               </button>
@@ -302,7 +373,7 @@ export default function App() {
               <button
                 onClick={() => setIsSidebarCollapsed(false)}
                 className="p-1.5 hover:bg-neutral-100 dark:hover:bg-charcoal-800/80 rounded-lg text-neutral-455 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-warm-gray-200 transition-colors"
-                title="Expand Sidebar"
+                title="Expand Sidebar" aria-label="Expand Sidebar"
               >
                 <ChevronRight size={14} />
               </button>
@@ -316,16 +387,16 @@ export default function App() {
         </nav>
 
         {/* Footer profile metadata */}
-        <div className={`p-3 border-t border-neutral-200 dark:border-gold-500/15 bg-neutral-50/50 dark:bg-charcoal-900 flex transition-colors duration-300 ${isSidebarCollapsed ? 'flex-col items-center space-y-3 px-2' : 'items-center justify-between'
+        <div className={`p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-charcoal-900 flex transition-colors duration-300 ${isSidebarCollapsed ? 'flex-col items-center space-y-3 px-2' : 'items-center justify-between'
           }`}>
           <div className="flex items-center space-x-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-black dark:bg-[#dfbd62] text-white dark:text-charcoal-900 flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
               {displayInitials}
             </div>
             {!isSidebarCollapsed && (
               <div className="min-w-0">
                 <span className="block text-xs font-bold text-neutral-800 dark:text-warm-gray-100 truncate">{displayName}</span>
-                <span className="block text-[9.5px] text-neutral-455 dark:text-neutral-500 truncate">{displaySubtitle}</span>
+                <span className="block text-2xs text-neutral-455 dark:text-neutral-500 truncate">{displaySubtitle}</span>
               </div>
             )}
           </div>
@@ -333,7 +404,7 @@ export default function App() {
             onClick={signOut}
             className={`p-1.5 bg-neutral-105 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-505 dark:text-neutral-455 hover:text-neutral-900 dark:hover:text-neutral-200 rounded-lg cursor-pointer transition-colors ${isSidebarCollapsed ? 'w-8 h-8 flex items-center justify-center' : ''
               }`}
-            title="Sign Out"
+            title="Sign Out" aria-label="Sign Out"
           >
             <LogOut size={13} />
           </button>
@@ -344,7 +415,7 @@ export default function App() {
       <div className="flex-1 flex min-h-0 flex-col min-w-0">
 
         {/* Header toolbar */}
-        <header className="app-header border-b border-neutral-200 dark:border-gold-500/15 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
+        <header className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
           {/* Mobile menu toggle & Title */}
           <div className="flex items-center space-x-3.5">
             <button
@@ -354,7 +425,12 @@ export default function App() {
               <Menu size={18} />
             </button>
             <span className="font-semibold text-xs sm:text-sm tracking-tight text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
-              {navSections.flatMap(s => s.items).find(n => n.id === activeTab)?.label || ''}
+              {activeSection?.label || ''}
+              {activeSection && activeSection.tabs.length > 1 && activeTabMeta && (
+                <span className="hidden sm:inline text-neutral-400 dark:text-neutral-500 font-normal">
+                  {' · '}{activeTabMeta.label}
+                </span>
+              )}
             </span>
           </div>
 
@@ -364,11 +440,11 @@ export default function App() {
             {/* Ctrl + K search bar */}
             <button
               onClick={() => setShowCommandPalette(true)}
-              className="hidden md:flex items-center gap-2 w-56 lg:w-72 px-3 py-2 bg-neutral-100 dark:bg-charcoal-800/60 border border-neutral-200/85 dark:border-gold-500/15 hover:border-neutral-300 dark:hover:border-gold-500/25 text-neutral-500 dark:text-neutral-400 rounded-xl text-xs cursor-pointer transition-all"
+              className="hidden md:flex items-center gap-2 w-56 lg:w-72 px-3 py-2 bg-neutral-100 dark:bg-charcoal-800/60 border border-neutral-200/85 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-[#0ea971]/25 text-neutral-500 dark:text-neutral-400 rounded-xl text-xs cursor-pointer transition-all"
             >
               <Search size={14} className="shrink-0" />
               <span className="truncate">Search anything…</span>
-              <span className="ml-auto shrink-0 text-[9px] font-mono px-1.5 py-0.5 bg-white dark:bg-charcoal-900 text-neutral-500 dark:text-neutral-400 rounded-md border border-neutral-200 dark:border-gold-500/15">⌘K</span>
+              <span className="ml-auto shrink-0 text-2xs font-mono px-1.5 py-0.5 bg-white dark:bg-charcoal-900 text-neutral-500 dark:text-neutral-400 rounded-md border border-neutral-200 dark:border-neutral-800">⌘K</span>
             </button>
 
             {/* Mobile search icon */}
@@ -380,7 +456,7 @@ export default function App() {
             </button>
 
             {/* Real role / scope indicator (replaces the old cosmetic ESS/Admin toggle) */}
-            <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-neutral-100 dark:bg-neutral-905 border border-neutral-200/80 dark:border-gold-500/15 rounded-xl text-[10px] font-mono text-neutral-600 dark:text-gold-300">
+            <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-neutral-100 dark:bg-neutral-905 border border-neutral-200/80 dark:border-neutral-800 rounded-xl text-2xs font-mono text-neutral-600 dark:text-[#10b981]">
               <Shield size={11} />
               <span>{roleLabel}</span>
             </div>
@@ -389,25 +465,22 @@ export default function App() {
             <button
               onClick={toggleTheme}
               className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             </button>
 
             {/* Notification trigger */}
-            <button className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer relative">
-              <Bell size={16} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#0ea971] dark:bg-[#10b981] rounded-full border border-white dark:border-charcoal-900"></span>
-            </button>
+            <NotificationBell onNavigate={setActiveTab} />
 
             {/* User chip */}
-            <div className="hidden sm:flex items-center gap-2.5 pl-2 sm:pl-3 ml-0.5 border-l border-neutral-200 dark:border-gold-500/15">
-              <div className="w-8 h-8 rounded-xl bg-black dark:bg-[#dfbd62] text-white dark:text-charcoal-900 flex items-center justify-center font-bold text-[11px] shrink-0 font-mono shadow-sm">
+            <div className="hidden sm:flex items-center gap-2.5 pl-2 sm:pl-3 ml-0.5 border-l border-neutral-200 dark:border-neutral-800">
+              <div className="w-8 h-8 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
                 {displayInitials}
               </div>
               <div className="hidden lg:flex flex-col leading-none min-w-0 max-w-[130px]">
                 <span className="text-xs font-bold text-neutral-800 dark:text-warm-gray-100 truncate">{displayName}</span>
-                <span className="text-[10px] text-neutral-455 dark:text-neutral-500 truncate mt-0.5">{roleLabel}</span>
+                <span className="text-2xs text-neutral-455 dark:text-neutral-500 truncate mt-0.5">{roleLabel}</span>
               </div>
             </div>
 
@@ -425,11 +498,11 @@ export default function App() {
                 placeholder="Search action or type command (e.g. Apply for Leave)..."
                 value={commandSearch}
                 onChange={(e) => setCommandSearch(e.target.value)}
-                className="w-full bg-transparent border-none text-xs text-neutral-800 dark:text-neutral-250 placeholder-neutral-450 focus:outline-none"
+                className="w-full bg-transparent border-none text-xs text-neutral-800 dark:text-neutral-250 placeholder-neutral-450 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 rounded-md"
               />
               <button
                 onClick={() => setShowCommandPalette(false)}
-                className="text-[9px] font-mono px-2 py-0.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-500 hover:text-black dark:hover:text-white rounded border border-neutral-200 dark:border-neutral-700 cursor-pointer"
+                className="text-2xs font-mono px-2 py-0.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-500 hover:text-black dark:hover:text-white rounded border border-neutral-200 dark:border-neutral-700 cursor-pointer"
               >
                 Close (ESC)
               </button>
@@ -440,7 +513,7 @@ export default function App() {
                 <button
                   key={idx}
                   onClick={cmd.action}
-                  className="text-left px-3 py-2 bg-neutral-50 dark:bg-neutral-900/40 hover:bg-neutral-100/50 dark:hover:bg-neutral-900 border border-neutral-150 dark:border-neutral-900 rounded-xl text-[10.5px] font-medium flex items-center justify-between cursor-pointer transition-colors"
+                  className="text-left px-3 py-2 bg-neutral-50 dark:bg-neutral-900/40 hover:bg-neutral-100/50 dark:hover:bg-neutral-900 border border-neutral-150 dark:border-neutral-900 rounded-xl text-xs font-medium flex items-center justify-between cursor-pointer transition-colors"
                 >
                   <span>{cmd.label}</span>
                   <Terminal size={11} className="text-neutral-400 opacity-60" />
@@ -456,7 +529,37 @@ export default function App() {
         )}
 
         {/* Content main body */}
-        <main className="flex-1 min-h-0 p-2 sm:p-4 overflow-y-auto">
+        {/* Second level: only shown when a section actually holds more than one screen, so
+            single-screen sections stay one click deep. */}
+        {activeSection && activeSection.tabs.length > 1 && (
+          <nav
+            aria-label={`${activeSection.label} sections`}
+            className="shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-white/70 dark:bg-charcoal-900/60 backdrop-blur-sm px-4 sm:px-6"
+          >
+            <div className="tab-scroll flex gap-5 -mb-px">
+              {activeSection.tabs.map((t) => {
+                const on = activeTab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setActiveTab(t.id)}
+                    aria-current={on ? 'page' : undefined}
+                    className={`shrink-0 whitespace-nowrap py-2.5 text-base font-semibold border-b-2 cursor-pointer transition-colors ${
+                      on
+                        ? 'border-[#0ea971] text-[#0ea971]'
+                        : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        )}
+
+        <main id="main-content" tabIndex={-1} className="app-main flex-1 min-h-0 overflow-y-auto">
+          <Suspense fallback={<div className="page-shell py-24 flex justify-center text-neutral-400 text-xs">Loading…</div>}>
           {(() => {
             if (!canViewTab(activeTab)) {
               return <AccessDenied />;
@@ -464,6 +567,8 @@ export default function App() {
             switch (activeTab) {
               case 'dashboard':
                 return <Dashboard onNavigate={setActiveTab} />;
+              case 'employee-import':
+                return <EmployeeImport onDone={() => setActiveTab('directory')} />;
               case 'directory':
                 return <Directory />;
               case 'organization':
@@ -494,46 +599,25 @@ export default function App() {
                 return <HelpdeskExit />;
               case 'reports':
                 return <ReportsAnalytics />;
-              case 'integrations':
-                return <Integrations />;
               case 'administration':
-                return <Administration />;
+                return <Administration view="users" />;
+              case 'admin-roles':
+                return <Administration view="roles" />;
+              case 'admin-audit':
+                return <Administration view="logs" />;
               case 'settings':
-                return (
-                  <div className="space-y-6 animate-fade-in text-xs text-neutral-500">
-                    <h2 className="text-xl font-bold text-slate-100 font-sans">System Settings</h2>
-                    <ChangePassword />
-                    <div className="premium-card p-5 space-y-4">
-                      <h3 className="font-semibold text-base text-neutral-800 dark:text-white">Profile Configuration</h3>
-                      <div className="grid grid-cols-2 gap-4 max-w-md">
-                        <div>
-                          <label className="block text-slate-400 font-semibold mb-1">Company Domain</label>
-                          <input type="text" disabled value="hrflow.io" className="w-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-1.5 rounded-xl text-neutral-805 dark:text-neutral-200" />
-                        </div>
-                        <div>
-                          <label className="block text-slate-400 font-semibold mb-1">Default Locale</label>
-                          <input type="text" disabled value="en-IN (India)" className="w-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-1.5 rounded-xl text-neutral-805 dark:text-neutral-200" />
-                        </div>
-                      </div>
-                      <div className="pt-3 border-t border-neutral-200 dark:border-neutral-850">
-                        <label className="flex items-center space-x-2 text-neutral-700 dark:text-neutral-300 font-semibold cursor-pointer">
-                          <input type="checkbox" defaultChecked className="rounded border-neutral-400" />
-                          <span>Enable real-time push email alerts for approvals</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                );
+                return <SettingsPage />;
               default:
                 return null;
             }
           })()}
+          </Suspense>
         </main>
 
       </div>
 
-      {/* Floating conversational bot widget (NAVOS AI Assistant) */}
-      <NavosAI onNavigate={setActiveTab} />
+      {/* NAVOS AI and REST Integrations are hidden until they do something real — a shell that
+          looks finished costs more trust than a missing menu item. */}
 
 
 
@@ -561,17 +645,17 @@ export default function App() {
 
             <div className="p-2.5 border-t border-neutral-200 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-950/20 flex items-center justify-between transition-colors">
               <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-black dark:bg-gold-450 text-white dark:text-charcoal-900 flex items-center justify-center font-bold text-xs shrink-0 font-mono">
+                <div className="w-9 h-9 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-charcoal-900 flex items-center justify-center font-bold text-xs shrink-0 font-mono">
                   {displayInitials}
                 </div>
                 <div className="min-w-0">
                   <span className="block text-xs font-bold text-neutral-800 dark:text-slate-200 truncate">{displayName}</span>
-                  <span className="block text-[9px] text-neutral-450 dark:text-neutral-500 truncate">{displaySubtitle}</span>
+                  <span className="block text-2xs text-neutral-450 dark:text-neutral-500 truncate">{displaySubtitle}</span>
                 </div>
                 <button
                   onClick={signOut}
                   className="p-1.5 ml-auto bg-neutral-150 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-450 rounded-lg cursor-pointer transition-colors"
-                  title="Sign Out"
+                  title="Sign Out" aria-label="Sign Out"
                 >
                   <LogOut size={13} />
                 </button>

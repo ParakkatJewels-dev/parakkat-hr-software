@@ -56,7 +56,7 @@ async function parse(response) {
 function wrapNetworkError(err) {
   if (err instanceof ApiError) return err;
   return new ApiError(
-    `Cannot reach the attendance service at ${BASE_URL}. Is it running (npm run dev in services/attendance)?`,
+    `Cannot reach the attendance service at ${BASE_URL}. It may be switched off, on a network this device cannot reach, or blocking this website's origin (CORS).`,
     0,
     null
   );

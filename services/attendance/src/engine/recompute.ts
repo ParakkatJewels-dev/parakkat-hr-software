@@ -422,8 +422,36 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
     const { from: punchFrom, to: punchTo } = punchWindowBounds(scope.from, scope.to);
     const punchesByEmployee = await loadPunches(punchFrom, punchTo, employeeIds);
 
-    const results: DayResult[] = [];
+    // Results are flushed in batches: a full-year recompute would otherwise hold 264 x 365
+    // objects (~100 MB) before the single write at the end.
+    const FLUSH_AT = 5_000;
+    let results: DayResult[] = [];
     const statusCounts: Record<string, number> = {};
+    let written = 0;
+    let skippedLocked = 0;
+    let totalProcessed = 0;
+    const flush = async (): Promise<void> => {
+      if (results.length === 0) return;
+      const r = await writeResults(results, scope.includeLocked ?? false);
+      written += r.written;
+      skippedLocked += r.skippedLocked;
+      totalProcessed += results.length;
+      results = [];
+    };
+
+    // Punches for an employee arrive sorted by punch_time (see loadPunches), so the window for a
+    // day can be found by binary search instead of scanning every punch for every date — that
+    // inner filter made a year-long recompute O(dates x punches): ~140M comparisons at this size.
+    const lowerBound = (arr: PunchRecord[], t: Date): number => {
+      let lo = 0;
+      let hi = arr.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid]!.punchTime < t) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    };
 
     for (const employee of employees) {
       const empAssignments = assignments.get(employee.id) ?? [];
@@ -445,7 +473,12 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
         const holidayName = calendarId ? holidays.get(`${calendarId}|${workDate}`) ?? null : null;
 
         const { from: winFrom, to: winTo } = punchWindow(workDate, shift);
-        const dayPunches = allPunches.filter((p) => p.punchTime >= winFrom && p.punchTime < winTo);
+        const dayPunches = [];
+        for (let i = lowerBound(allPunches, winFrom); i < allPunches.length; i++) {
+          const p = allPunches[i]!;
+          if (p.punchTime >= winTo) break;
+          dayPunches.push(p);
+        }
 
         const input: DayInput = {
           employeeId: employee.id,
@@ -462,11 +495,13 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
         results.push(result);
         statusCounts[result.status] = (statusCounts[result.status] ?? 0) + 1;
       }
+
+      if (results.length >= FLUSH_AT) await flush();
     }
 
-    const { written, skippedLocked } = await writeResults(results, scope.includeLocked ?? false);
+    await flush();
 
-    run.counters.recordsFetched = results.length;
+    run.counters.recordsFetched = totalProcessed;
     run.counters.recordsInserted = written;
     run.counters.recordsSkipped = skippedLocked;
     run.addDetail({ from: scope.from, to: scope.to, employees: employees.length, statusCounts });
@@ -505,16 +540,39 @@ export async function drainRecomputeQueue(limit = 5_000): Promise<RecomputeSumma
 
   if (pending.length === 0) return null;
 
-  const employeeIds = [...new Set(pending.map((p) => p.employee_id).filter((id): id is string => !!id))];
-  const days = pending.map((p) => toWorkDate(p.work_date)).sort();
-  const from = days[0]!;
-  const to = days[days.length - 1]!;
+  // The queue is collapsed into ONE range, so two unrelated entries (a backdated leave approval
+  // and today's punch fix) would span every day between them. Cap the span and leave the rest for
+  // the next tick, oldest first, rather than recomputing months inside a 5-minute cron.
+  const MAX_SPAN_DAYS = 31;
+  const sorted = [...pending].sort(
+    (a, b) => toWorkDate(a.work_date).localeCompare(toWorkDate(b.work_date))
+  );
+  const from = toWorkDate(sorted[0]!.work_date);
+  const spanEnd = new Date(`${from}T00:00:00Z`);
+  spanEnd.setUTCDate(spanEnd.getUTCDate() + MAX_SPAN_DAYS);
+  const cutoff = spanEnd.toISOString().slice(0, 10);
 
-  logger.info({ items: pending.length, employees: employeeIds.length, from, to }, 'draining recompute queue');
+  const batch = sorted.filter((p) => toWorkDate(p.work_date) <= cutoff);
+  const deferred = sorted.length - batch.length;
+  const to = toWorkDate(batch[batch.length - 1]!.work_date);
 
-  const summary = await recompute({ from, to, employeeIds: employeeIds.length ? employeeIds : undefined });
+  // A null employee_id means "everybody" — resolve it explicitly so the intent is visible in the
+  // logs instead of silently widening the run to every active employee.
+  const explicitIds = [...new Set(batch.map((p) => p.employee_id).filter((id): id is string => !!id))];
+  const allEmployees = batch.some((p) => p.employee_id === null);
 
-  const ids = pending.map((p) => p.id);
+  logger.info(
+    { items: batch.length, deferred, employees: allEmployees ? 'all' : explicitIds.length, from, to },
+    'draining recompute queue'
+  );
+
+  const summary = await recompute({
+    from,
+    to,
+    employeeIds: allEmployees || explicitIds.length === 0 ? undefined : explicitIds,
+  });
+
+  const ids = batch.map((p) => p.id);
   await prisma.$executeRaw`
     update public.attendance_recompute_queue
        set processed_at = now()

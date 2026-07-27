@@ -93,17 +93,21 @@ export async function advanceCursor(
 
 /** Mark a successful run that found nothing new — clears the failure streak without moving the mark. */
 export async function markSuccess(key: SyncKey): Promise<void> {
-  await prisma.syncState.update({
+  // upsert, not update: on a partially-seeded schema the row may not exist yet, and failing here
+  // would mask the real outcome of the run.
+  await prisma.syncState.upsert({
     where: { key },
-    data: { lastSuccessAt: new Date(), lastError: null, consecutiveFailures: 0, updatedAt: new Date() },
+    create: { key, lastSuccessAt: new Date(), consecutiveFailures: 0 },
+    update: { lastSuccessAt: new Date(), lastError: null, consecutiveFailures: 0, updatedAt: new Date() },
   });
 }
 
 export async function recordFailure(key: SyncKey, error: unknown): Promise<number> {
   const message = error instanceof Error ? error.message : String(error);
-  const row = await prisma.syncState.update({
+  const row = await prisma.syncState.upsert({
     where: { key },
-    data: {
+    create: { key, lastError: message.slice(0, 2_000), consecutiveFailures: 1 },
+    update: {
       lastError: message.slice(0, 2_000),
       consecutiveFailures: { increment: 1 },
       updatedAt: new Date(),

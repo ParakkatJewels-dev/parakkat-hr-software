@@ -1,18 +1,22 @@
 // Data hooks for the Expense module. RLS scopes rows; approve requires expense.approve at scope.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { windowStartIso } from '../lib/dates';
 
-export function useExpenses() {
+export function useExpenses({ enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['expenses'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('expenses')
         .select(
           `id, category, amount, expense_date, description, status, created_at,
-           employee:employees!expenses_employee_id_fkey(full_name, employee_code, branch:branches(code))`
+           employee:employees!expenses_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
-        .order('created_at', { ascending: false });
+        .gte('expense_date', windowStartIso(180))
+        .order('created_at', { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },

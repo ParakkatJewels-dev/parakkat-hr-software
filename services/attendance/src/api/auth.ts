@@ -12,6 +12,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { createClient } from '@supabase/supabase-js';
 import { env, canVerifyTokens } from '../config/env';
 import { logger } from '../lib/logger';
+import { prisma } from '../lib/db';
 
 export interface Grant {
   permission: string;
@@ -152,20 +153,56 @@ export function requirePermission(...permissions: string[]) {
   };
 }
 
-/** Branch ids the caller may see, or null for "everything" (global grant / super admin). */
-export function visibleScope(auth: AuthContext | undefined, permission: string): { branchIds: string[] | null; entityIds: string[] | null } {
-  if (!auth || auth.isSuperAdmin) return { branchIds: null, entityIds: null };
+/**
+ * What the caller may see, resolved FAIL-CLOSED.
+ *
+ * `all: true` only for super admins and global grants. Zone grants are widened to that zone's
+ * branches (DB lookup — this service bypasses RLS, so scope must be exact here). Department and
+ * self grants deliberately contribute NOTHING: they exist for in-app views where RLS narrows the
+ * rows, and a whole-branch export would silently over-grant them. A caller whose grants resolve
+ * to nothing gets empty lists — routes must treat that as 403, never as "everything".
+ */
+export interface VisibleScope {
+  all: boolean;
+  branchIds: string[];
+  entityIds: string[];
+}
 
-  const grants = auth.permissions.filter((p) => p.permission === permission);
-  if (grants.some((g) => g.scope_type === 'global')) return { branchIds: null, entityIds: null };
+export async function resolveVisibleScope(
+  auth: AuthContext | undefined,
+  permissions: string[]
+): Promise<VisibleScope> {
+  if (!auth) return { all: false, branchIds: [], entityIds: [] };
+  if (auth.isSuperAdmin) return { all: true, branchIds: [], entityIds: [] };
 
-  const branchIds = grants.filter((g) => g.scope_type === 'branch' && g.scope_id).map((g) => g.scope_id!);
-  const entityIds = grants.filter((g) => g.scope_type === 'entity' && g.scope_id).map((g) => g.scope_id!);
+  const grants = auth.permissions.filter((p) => permissions.includes(p.permission));
+  if (grants.some((g) => g.scope_type === 'global')) return { all: true, branchIds: [], entityIds: [] };
 
-  return {
-    branchIds: branchIds.length ? branchIds : null,
-    entityIds: entityIds.length ? entityIds : null,
-  };
+  const branchIds = new Set(
+    grants.filter((g) => g.scope_type === 'branch' && g.scope_id).map((g) => g.scope_id!)
+  );
+  const entityIds = new Set(
+    grants.filter((g) => g.scope_type === 'entity' && g.scope_id).map((g) => g.scope_id!)
+  );
+
+  const zoneIds = [
+    ...new Set(grants.filter((g) => g.scope_type === 'zone' && g.scope_id).map((g) => g.scope_id!)),
+  ];
+  if (zoneIds.length) {
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      select id from public.branches where zone_id = any(${zoneIds}::uuid[])`;
+    for (const row of rows) branchIds.add(row.id);
+  }
+
+  return { all: false, branchIds: [...branchIds], entityIds: [...entityIds] };
+}
+
+/** Branches that fall under a set of entities — used to intersect a requested branch filter. */
+export async function branchesOfEntities(entityIds: string[]): Promise<string[]> {
+  if (!entityIds.length) return [];
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    select id from public.branches where entity_id = any(${entityIds}::uuid[])`;
+  return rows.map((r) => r.id);
 }
 
 export function clearAuthCache(): void {

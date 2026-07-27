@@ -34,7 +34,8 @@ token — there is no second identity system).
 ```bash
 cd services/attendance
 npm install
-cp .env.example .env          # fill in DATABASE_URL and the BIOTIME_* values
+# .env ships in this folder pre-filled (gitignored). On a fresh git clone,
+# copy it from the main machine — the sync cannot run without it.
 npx prisma generate
 npm run doctor                # verify everything before starting the worker
 ```
@@ -64,7 +65,7 @@ It answers, with real data, the two questions that quietly corrupt everything if
 
 ## Environment
 
-Full list with commentary in [.env.example](.env.example). The ones that matter:
+Full list with commentary inside `.env` itself. The ones that matter:
 
 | Variable | Purpose |
 |---|---|

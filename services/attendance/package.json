@@ -17,7 +17,7 @@
     "recompute": "tsx src/scripts/recompute.ts",
     "seed": "tsx src/scripts/seed.ts",
     "doctor": "tsx src/scripts/doctor.ts",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test --experimental-test-module-mocks src"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

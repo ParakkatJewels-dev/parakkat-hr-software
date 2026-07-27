@@ -70,6 +70,9 @@ export function AuthProvider({ children }) {
     permissions: access?.permissions ?? [],
     assignments: access?.assignments ?? [],
     isSuperAdmin: Boolean(access?.is_super_admin),
+    // Seniority ceiling (migration 0044). You may only grant roles ranked strictly below this.
+    // Mirrors app.max_role_rank(); the database still enforces it — this only shapes the UI.
+    rank: access?.rank ?? 0,
     loading,
     accessLoading,
     signIn,

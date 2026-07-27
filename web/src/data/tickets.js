@@ -2,6 +2,7 @@
 // support/HR handle within scope (ticket.manage). tickets has two FKs to employees -> disambiguate.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { windowStartIso } from '../lib/dates';
 
 export function useTickets() {
   return useQuery({
@@ -13,7 +14,9 @@ export function useTickets() {
           `id, category, subject, description, priority, status, created_at,
            employee:employees!tickets_employee_id_fkey(full_name, employee_code, branch:branches(code))`
         )
-        .order('created_at', { ascending: false });
+        .gte('created_at', windowStartIso(180))
+        .order('created_at', { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },

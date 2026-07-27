@@ -29,19 +29,17 @@ Deno.serve(async (req) => {
     const { data: caller } = await admin.auth.getUser(jwt);
     if (!caller?.user) return json({ error: 'Not authenticated' }, 401);
 
-    // Authorize: caller must be super admin or hold rbac.manage somewhere.
+    // Authorize: SUPER ADMIN ONLY.
+    //
+    // This used to accept any rbac.manage holder at any scope and then mint a confirmed login for
+    // an arbitrary address, with no employee-scope check — bypassing grant_app_access and its
+    // email guard entirely. The app's normal path is public.grant_app_access (scoped, atomic,
+    // guarded); this function remains only as a break-glass tool.
     const { data: prof } = await admin
       .from('profiles').select('is_super_admin').eq('user_id', caller.user.id).maybeSingle();
-    let allowed = Boolean(prof?.is_super_admin);
-    if (!allowed) {
-      const { count } = await admin
-        .from('role_assignments')
-        .select('id, roles!inner(role_permissions!inner(permissions!inner(key)))', { count: 'exact', head: true })
-        .eq('user_id', caller.user.id)
-        .eq('roles.role_permissions.permissions.key', 'rbac.manage');
-      allowed = (count ?? 0) > 0;
+    if (!prof?.is_super_admin) {
+      return json({ error: 'Only a super admin may create logins here; use Give app access.' }, 403);
     }
-    if (!allowed) return json({ error: 'Not authorized to invite users' }, 403);
 
     const { email, password, employee_id } = await req.json();
     if (!email) return json({ error: 'email is required' }, 400);

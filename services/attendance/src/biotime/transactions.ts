@@ -40,6 +40,9 @@ function buildParams(p: FetchTransactionsParams): Record<string, unknown> {
   if (p.endTime) params.end_time = toBiotimeParam(p.endTime);
   if (p.empCode) params.emp_code = p.empCode;
   if (p.terminalSn) params.terminal_sn = p.terminalSn;
+  // Cursor advancement assumes oldest→newest; never rely on the server's default order.
+  // Servers without OrderingFilter simply ignore the param.
+  params.ordering = 'punch_time';
   return params;
 }
 
@@ -116,7 +119,9 @@ export async function* streamTransactions(
 export async function fetchRecentTransactions(limit = 5): Promise<BiotimeTransaction[]> {
   const rows = await biotime.getAll<BiotimeTransaction>(
     TRANSACTIONS_PATH,
-    {},
+    // Explicitly newest-first: the doctor's future-timestamp check inspects rows[0], and without
+    // ordering the server's default may hand back the OLDEST punch instead.
+    { ordering: '-punch_time' },
     { pageSize: limit, maxPages: 1 }
   );
   return rows.slice(0, limit);

@@ -44,6 +44,51 @@ export function useRolesWithPermissions() {
   });
 }
 
+/**
+ * One-step "give app access": creates the login if needed, links the employee and grants the
+ * role — all inside a single database transaction, so a failure can never leave a half-made
+ * login behind. Re-running for the same person reuses their login and skips a role they hold.
+ */
+export function useGrantAppAccess() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ employee_id, email, password, role_key, scope_type, scope_id }) => {
+      const { data, error } = await supabase.rpc('grant_app_access', {
+        _employee_id: employee_id,
+        _email: email,
+        _password: password,
+        _role_key: role_key,
+        _scope_type: scope_type,
+        _scope_id: scope_id ?? null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['managed-users'] });
+      qc.invalidateQueries({ queryKey: ['employees'] });
+    },
+  });
+}
+
+/**
+ * Delete a login for good. The employee record, their attendance and every other history stay —
+ * only the ability to sign in is removed. Refused for your own login and for the last super admin.
+ */
+export function useDeleteLogin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (user_id) => {
+      const { error } = await supabase.rpc('delete_login', { _user: user_id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['managed-users'] });
+      qc.invalidateQueries({ queryKey: ['employees'] });
+    },
+  });
+}
+
 export function useAssignRole() {
   const qc = useQueryClient();
   return useMutation({

@@ -19,6 +19,7 @@ import {
 } from '../data/regularizations';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
+import Pagination, { usePagination } from './ui/Pagination';
 
 const TABS = [
   { id: 'today', label: 'Today', icon: Users },
@@ -31,6 +32,9 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 function StatusBadge({ status, isLop }) {
+  // Rows scale with headcount — 242 people means 242 rows.
+  const pager = usePagination(filtered);
+
   return (
     <span className={`badge ${STATUS_STYLES[status] ?? 'badge-muted'}`}>
       {isLop ? 'LOP' : status}
@@ -46,8 +50,8 @@ function Kpi({ icon: Icon, label, value, tone = 'neutral' }) {
     red: 'text-red-600 dark:text-red-400',
   };
   return (
-    <div className="premium-card p-4">
-      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+    <div className="premium-card">
+      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
         <Icon size={13} />
         {label}
       </div>
@@ -59,7 +63,7 @@ function Kpi({ icon: Icon, label, value, tone = 'neutral' }) {
 function ErrorNote({ error }) {
   if (!error) return null;
   return (
-    <div className="premium-card p-4 border-red-300 dark:border-red-900/60">
+    <div className="premium-card border-red-300 dark:border-red-900/60">
       <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
         <AlertTriangle size={14} className="mt-0.5 shrink-0" />
         <span>{error.message || String(error)}</span>
@@ -112,7 +116,7 @@ function TodayView({ workDate, setWorkDate }) {
         <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber" />
       </div>
 
-      <div className="premium-card p-4 space-y-3">
+      <div className="premium-card space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="date"
@@ -132,7 +136,7 @@ function TodayView({ workDate, setWorkDate }) {
           <button
             onClick={() => refetch()}
             className="p-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
-            title="Refresh"
+            title="Refresh" aria-label="Refresh"
           >
             <RefreshCw size={13} className={isFetching ? 'animate-spin' : ''} />
           </button>
@@ -143,7 +147,7 @@ function TodayView({ workDate, setWorkDate }) {
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`chip text-[11px] ${filter === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
+              className={`chip text-xs mx-2 ${filter === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
             >
               {f.label}
             </button>
@@ -161,13 +165,13 @@ function TodayView({ workDate, setWorkDate }) {
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">
             No attendance rows for {workDate}.
-            <div className="mt-1 text-[11px] text-neutral-400">
+            <div className="mt-1 text-xs text-neutral-400">
               If punches exist but rows do not, the engine has not processed this date yet.
             </div>
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Employee</th>
@@ -181,13 +185,13 @@ function TodayView({ workDate, setWorkDate }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((row) => (
+                {pager.slice.map((row) => (
                   <tr key={row.id}>
                     <td>
                       <div className="font-semibold text-neutral-800 dark:text-neutral-100">
                         {row.employee?.full_name ?? '—'}
                       </div>
-                      <div className="text-[10px] text-neutral-400 font-mono">
+                      <div className="text-2xs text-neutral-400 font-mono">
                         {row.employee?.employee_code ?? ''}
                       </div>
                     </td>
@@ -195,7 +199,7 @@ function TodayView({ workDate, setWorkDate }) {
                     <td className="text-neutral-500">{row.shift?.code ?? '—'}</td>
                     <td className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
                       {fmtTime(row.check_in)}
-                      {row.is_late ? <span className="ml-1 text-[9px]">+{row.late_minutes}m</span> : null}
+                      {row.is_late ? <span className="ml-1 text-2xs">+{row.late_minutes}m</span> : null}
                     </td>
                     <td className={`font-mono ${row.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                       {fmtTime(row.check_out)}
@@ -207,8 +211,9 @@ function TodayView({ workDate, setWorkDate }) {
                     <td><StatusBadge status={row.status} isLop={row.is_lop} /></td>
                   </tr>
                 ))}
+                <Pagination {...pager} noun="rows" />
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -276,7 +281,7 @@ function CalendarView({ employeeId, employeeName }) {
 
   return (
     <div className="space-y-4">
-      <div className="premium-card p-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="premium-card flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
             <ChevronLeft size={14} />
@@ -286,7 +291,7 @@ function CalendarView({ employeeId, employeeName }) {
             <ChevronRight size={14} />
           </button>
         </div>
-        <div className="flex flex-wrap gap-4 text-[11px]">
+        <div className="flex flex-wrap gap-4 text-xs">
           <span><b className="font-mono text-emerald-600 dark:text-emerald-400">{totals.payable.toFixed(1)}</b> payable days</span>
           <span><b className="font-mono">{fmtMinutes(totals.ot)}</b> OT</span>
           <span><b className="font-mono text-red-600 dark:text-red-400">{totals.absent}</b> absent</span>
@@ -297,8 +302,8 @@ function CalendarView({ employeeId, employeeName }) {
 
       <ErrorNote error={error} />
 
-      <div className="premium-card p-4">
-        <div className="text-[11px] text-neutral-500 mb-3">{employeeName}</div>
+      <div className="premium-card">
+        <div className="text-xs text-neutral-500 mb-3">{employeeName}</div>
 
         {isLoading ? (
           <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
@@ -306,7 +311,7 @@ function CalendarView({ employeeId, employeeName }) {
           <>
             <div className="grid grid-cols-7 gap-1.5 mb-1.5">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-                <div key={d} className="text-[9px] font-bold uppercase tracking-wider text-neutral-400 text-center">{d}</div>
+                <div key={d} className="text-xs font-bold uppercase tracking-wider text-neutral-400 text-center">{d}</div>
               ))}
             </div>
             <div className="grid grid-cols-7 gap-1.5">
@@ -323,10 +328,10 @@ function CalendarView({ employeeId, employeeName }) {
                     className={`aspect-square rounded-xl p-1.5 flex flex-col items-center justify-center border transition-all
                       ${isSelected ? 'ring-2 ring-emerald-500 border-transparent' : 'border-neutral-200 dark:border-neutral-850'}
                       ${row ? STATUS_STYLES[row.status] ?? '' : 'bg-neutral-50 dark:bg-neutral-950/40 text-neutral-400'}`}
-                    title={row ? `${row.status}${row.remarks ? ` — ${row.remarks}` : ''}` : 'Not processed'}
+                    title={row ? `${row.status}${row.remarks ? ` — ${row.remarks}` : ''}` : 'Not processed'} aria-label={row ? `${row.status}${row.remarks ? ` — ${row.remarks}` : ''}` : 'Not processed'}
                   >
-                    <span className="text-[11px] font-bold leading-none">{day}</span>
-                    <span className="text-[9px] font-black mt-0.5 leading-none">
+                    <span className="text-base font-bold leading-none">{day}</span>
+                    <span className="text-2xs font-black mt-0.5 leading-none">
                       {row ? (row.is_lop ? 'LP' : STATUS_CODES[row.status] ?? '·') : '·'}
                     </span>
                     {row?.is_late ? <span className="w-1 h-1 rounded-full bg-red-500 mt-0.5" /> : null}
@@ -339,7 +344,7 @@ function CalendarView({ employeeId, employeeName }) {
       </div>
 
       {selected ? (
-        <div className="premium-card p-4 space-y-3 animate-fade-in">
+        <div className="premium-card space-y-3 animate-fade-in">
           <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">
             {selected}
           </h4>
@@ -347,23 +352,23 @@ function CalendarView({ employeeId, employeeName }) {
           {selectedRow ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
               <div>
-                <div className="text-[10px] text-neutral-400 uppercase">Status</div>
+                <div className="text-2xs text-neutral-400 uppercase">Status</div>
                 <StatusBadge status={selectedRow.status} isLop={selectedRow.is_lop} />
               </div>
               <div>
-                <div className="text-[10px] text-neutral-400 uppercase">In / Out</div>
+                <div className="text-2xs text-neutral-400 uppercase">In / Out</div>
                 <span className="font-mono">{fmtTime(selectedRow.check_in)} – {fmtTime(selectedRow.check_out)}</span>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-400 uppercase">Worked</div>
+                <div className="text-2xs text-neutral-400 uppercase">Worked</div>
                 <span className="font-mono">{fmtMinutes(selectedRow.worked_minutes)}</span>
               </div>
               <div>
-                <div className="text-[10px] text-neutral-400 uppercase">Overtime</div>
+                <div className="text-2xs text-neutral-400 uppercase">Overtime</div>
                 <span className="font-mono">{fmtMinutes(selectedRow.ot_minutes)}</span>
               </div>
               {selectedRow.remarks ? (
-                <div className="col-span-full text-[11px] text-neutral-500">{selectedRow.remarks}</div>
+                <div className="col-span-full text-xs text-neutral-500">{selectedRow.remarks}</div>
               ) : null}
             </div>
           ) : (
@@ -372,16 +377,16 @@ function CalendarView({ employeeId, employeeName }) {
 
           <div className="soft-divider" />
           <div>
-            <div className="text-[10px] text-neutral-400 uppercase mb-1.5">Raw device punches</div>
+            <div className="text-2xs text-neutral-400 uppercase mb-1.5">Raw device punches</div>
             {punches.length === 0 ? (
-              <p className="text-[11px] text-neutral-500">No punches recorded around this date.</p>
+              <p className="text-xs text-neutral-500">No punches recorded around this date.</p>
             ) : (
               <div className="flex flex-wrap gap-1.5">
                 {punches.map((p) => (
                   <span
                     key={p.id}
-                    className="chip text-[10px] font-mono"
-                    title={`${p.terminal_alias ?? p.terminal_sn ?? ''} · ${p.source}`}
+                    className="chip text-2xs font-mono"
+                    title={`${p.terminal_alias ?? p.terminal_sn ?? ''} · ${p.source}`} aria-label={`${p.terminal_alias ?? p.terminal_sn ?? ''} · ${p.source}`}
                   >
                     {fmtTime(p.punch_time)}
                     {p.punch_state_label ? ` ${p.punch_state_label}` : ''}
@@ -416,14 +421,14 @@ function ExceptionsView() {
 
   return (
     <div className="space-y-4">
-      <div className="premium-card p-4 space-y-3">
+      <div className="premium-card space-y-3">
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+          <label className="text-2xs uppercase tracking-wider text-neutral-500">
             From
             <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
               className="block mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
           </label>
-          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+          <label className="text-2xs uppercase tracking-wider text-neutral-500">
             To
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
               className="block mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
@@ -432,7 +437,7 @@ function ExceptionsView() {
           <button
             onClick={() => recompute.mutate({ from, to }, { onSuccess: () => refetch() })}
             disabled={recompute.isPending}
-            className="px-3 py-2 rounded-xl bg-neutral-900 dark:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-2 rounded-xl bg-neutral-900 dark:bg-[#0ea971] text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
           >
             {recompute.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             Recompute range
@@ -441,15 +446,17 @@ function ExceptionsView() {
 
         {recompute.isError ? <ErrorNote error={recompute.error} /> : null}
         {recompute.isSuccess ? (
-          <p className="text-[11px] text-emerald-600 dark:text-emerald-400">
-            Recomputed {recompute.data?.rowsWritten ?? 0} rows across {recompute.data?.employees ?? 0} employees.
+          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            {/* Ranges over 31 days come back as 202 {message} with no counts. */}
+            {recompute.data?.message ||
+              `Recomputed ${recompute.data?.rowsWritten ?? 0} rows across ${recompute.data?.employees ?? 0} employees.`}
           </p>
         ) : null}
 
         <div className="soft-divider" />
 
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-[10px] uppercase tracking-wider text-neutral-500">
+          <label className="text-2xs uppercase tracking-wider text-neutral-500">
             Report month
             <div className="flex gap-1.5 mt-1">
               <select value={month} onChange={(e) => setMonth(Number(e.target.value))}
@@ -494,7 +501,7 @@ function ExceptionsView() {
           <div className="p-10 text-center text-xs text-neutral-500">No exceptions in this range.</div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Date</th>
@@ -521,7 +528,7 @@ function ExceptionsView() {
                       <td className="font-mono">{row.work_date}</td>
                       <td>
                         <div className="font-semibold text-neutral-800 dark:text-neutral-100">{row.employee?.full_name ?? '—'}</div>
-                        <div className="text-[10px] text-neutral-400 font-mono">{row.employee?.employee_code ?? ''}</div>
+                        <div className="text-2xs text-neutral-400 font-mono">{row.employee?.employee_code ?? ''}</div>
                       </td>
                       <td className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
                       <td>
@@ -538,7 +545,7 @@ function ExceptionsView() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -571,30 +578,30 @@ function RegularizationsView({ employee, canApprove }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-1 space-y-4">
-        <form onSubmit={submit} className="premium-card p-4 space-y-3">
+        <form onSubmit={submit} className="premium-card space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
             Raise a correction
           </h3>
-          <p className="text-[11px] text-neutral-500">
+          <p className="text-xs text-neutral-500">
             For a day the terminal missed a punch. Approval feeds back into the engine, which
             recomputes that date.
           </p>
 
-          <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+          <label className="block text-2xs uppercase tracking-wider text-neutral-500">
             Date
             <input type="date" required value={form.workDate}
               onChange={(e) => setForm({ ...form, workDate: e.target.value })}
               className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
           </label>
 
-          <div className="grid grid-cols-2 gap-2">
-            <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <label className="block text-2xs uppercase tracking-wider text-neutral-500">
               Check in
               <input type="time" value={form.checkIn}
                 onChange={(e) => setForm({ ...form, checkIn: e.target.value })}
                 className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
             </label>
-            <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+            <label className="block text-2xs uppercase tracking-wider text-neutral-500">
               Check out
               <input type="time" value={form.checkOut}
                 onChange={(e) => setForm({ ...form, checkOut: e.target.value })}
@@ -602,7 +609,7 @@ function RegularizationsView({ employee, canApprove }) {
             </label>
           </div>
 
-          <label className="block text-[10px] uppercase tracking-wider text-neutral-500">
+          <label className="block text-2xs uppercase tracking-wider text-neutral-500">
             Reason
             <textarea required rows={2} value={form.reason}
               onChange={(e) => setForm({ ...form, reason: e.target.value })}
@@ -611,25 +618,25 @@ function RegularizationsView({ employee, canApprove }) {
           </label>
 
           <button type="submit" disabled={create.isPending || !employee?.id}
-            className="w-full py-2 rounded-xl bg-neutral-900 dark:bg-emerald-600 text-white text-xs font-bold disabled:opacity-50">
+            className="w-full py-2 rounded-xl bg-neutral-900 dark:bg-[#0ea971] text-white text-xs font-bold disabled:opacity-50">
             {create.isPending ? 'Submitting…' : 'Submit for approval'}
           </button>
 
           {create.isError ? <ErrorNote error={create.error} /> : null}
-          {create.isSuccess ? <p className="text-[11px] text-emerald-600 dark:text-emerald-400">Submitted.</p> : null}
-          {!employee?.id ? <p className="text-[11px] text-amber-600">Your login is not linked to an employee record.</p> : null}
+          {create.isSuccess ? <p className="text-xs text-emerald-600 dark:text-emerald-400">Submitted.</p> : null}
+          {!employee?.id ? <p className="text-xs text-amber-600">Your login is not linked to an employee record.</p> : null}
         </form>
 
-        <div className="premium-card p-4">
+        <div className="premium-card">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200 mb-2">
             My requests
           </h3>
           {mine.length === 0 ? (
-            <p className="text-[11px] text-neutral-500">Nothing raised yet.</p>
+            <p className="text-xs text-neutral-500">Nothing raised yet.</p>
           ) : (
             <ul className="space-y-1.5">
               {mine.slice(0, 8).map((r) => (
-                <li key={r.id} className="flex items-center justify-between text-[11px]">
+                <li key={r.id} className="flex items-center justify-between text-xs">
                   <span className="font-mono">{r.work_date}</span>
                   <span className={`badge ${r.status === 'Approved' ? 'badge-green' : r.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 'badge-muted'}`}>
                     {r.status}
@@ -655,7 +662,7 @@ function RegularizationsView({ employee, canApprove }) {
             <div className="p-10 text-center text-xs text-neutral-500">Nothing waiting.</div>
           ) : (
             <div className="table-scroll">
-              <table className="premium-table w-full text-xs">
+              <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
                 <thead>
                   <tr>
                     <th className="text-left">Date</th>
@@ -671,23 +678,23 @@ function RegularizationsView({ employee, canApprove }) {
                       <td className="font-mono">{r.work_date}</td>
                       <td>
                         <div className="font-semibold text-neutral-800 dark:text-neutral-100">{r.employee?.full_name ?? '—'}</div>
-                        <div className="text-[10px] text-neutral-400">{r.employee?.branch?.name ?? ''}</div>
+                        <div className="text-2xs text-neutral-400">{r.employee?.branch?.name ?? ''}</div>
                       </td>
                       <td className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
-                      <td className="max-w-55 truncate text-neutral-500" title={r.reason}>{r.reason}</td>
+                      <td className="max-w-55 truncate text-neutral-500" title={r.reason} aria-label={r.reason}>{r.reason}</td>
                       {canApprove ? (
                         <td className="text-right whitespace-nowrap">
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Approved' })}
                             disabled={decide.isPending}
-                            className="px-2 py-1 rounded-lg bg-emerald-600 text-white text-[10px] font-bold mr-1 disabled:opacity-50"
+                            className="px-2 py-1 rounded-lg bg-[#0ea971] text-white text-2xs font-bold mr-1 disabled:opacity-50"
                           >
                             Approve
                           </button>
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Rejected' })}
                             disabled={decide.isPending}
-                            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold disabled:opacity-50"
+                            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold disabled:opacity-50"
                           >
                             Reject
                           </button>
@@ -696,7 +703,7 @@ function RegularizationsView({ employee, canApprove }) {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
           )}
         </div>
@@ -719,8 +726,8 @@ export default function Attendance() {
   return (
     <div className="page-shell space-y-5 animate-slide-up">
       <div>
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-slate-100 font-sans">Attendance</h2>
-        <p className="text-xs text-neutral-500 dark:text-slate-400">
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Attendance</h1>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes
           and the engine derives each day against the assigned shift.
         </p>

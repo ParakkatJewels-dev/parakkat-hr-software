@@ -1,10 +1,15 @@
 // Environment loading and validation. Fails fast and loudly at boot: a worker that starts with a
 // bad BioTime URL and only discovers it two minutes later, mid-sync, is much harder to diagnose.
+import { join } from 'node:path';
 import { config as loadDotenv } from 'dotenv';
 import { z } from 'zod';
 import { IANAZone } from 'luxon';
 
-loadDotenv();
+// Resolve .env from the service root, NOT from process.cwd(). A Windows Service starts with its
+// own working directory (often C:\Windows\System32), so a bare loadDotenv() finds nothing, every
+// value falls back to its default, and the service boots with an empty BIOTIME_BASE_URL instead
+// of failing loudly. Compiled output lives at dist/config/env.js, so the root is two levels up.
+loadDotenv({ path: join(__dirname, '..', '..', '.env') });
 
 const bool = (def: boolean) =>
   z
@@ -87,7 +92,7 @@ if (!parsed.success) {
     .map((i) => `  - ${i.path.join('.') || '(root)'}: ${i.message}`)
     .join('\n');
   // Deliberately console.error, not the logger: the logger itself reads this config.
-  console.error(`\nInvalid environment configuration:\n${issues}\n\nSee .env.example.\n`);
+  console.error(`\nInvalid environment configuration:\n${issues}\n\nCheck the comments in .env.\n`);
   process.exit(1);
 }
 
@@ -100,7 +105,7 @@ class ConfigError extends Error {
   constructor(missing: string[], purpose: string) {
     super(
       `Missing configuration for ${purpose}: ${missing.join(', ')}. ` +
-        `Copy .env.example to .env and fill these in.`
+        `Set these in .env (see the comments in that file).`
     );
     this.name = 'ConfigError';
   }

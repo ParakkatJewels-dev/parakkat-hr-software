@@ -21,7 +21,10 @@ import {
   RUN_STATUS_STYLES, relativeTime,
 } from '../data/syncStatus';
 import { useOrg } from '../data/org';
+import { todayIso } from '../data/attendance';
 import { usePermissions } from '../auth/usePermissions';
+import { btnClass } from './ui/Btn';
+import Pagination, { usePagination } from './ui/Pagination';
 
 const TABS = [
   { id: 'mapping', label: 'Devices & mapping', icon: Fingerprint, perm: 'device.manage' },
@@ -33,22 +36,21 @@ const TABS = [
 
 const input =
   'bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs w-full';
-const label = 'block text-[10px] uppercase tracking-wider text-neutral-500';
-const btnPrimary =
-  'px-3 py-2 rounded-xl bg-neutral-900 dark:bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50';
+const label = 'block text-2xs uppercase tracking-wider text-neutral-500';
+const btnPrimary = btnClass('primary');
 const btnGhost =
   'px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50';
 
 function Note({ error, success }) {
   if (error) {
     return (
-      <div className="flex items-start gap-2 text-[11px] text-red-600 dark:text-red-400">
+      <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400">
         <AlertTriangle size={12} className="mt-0.5 shrink-0" />
         <span>{error.message || String(error)}</span>
       </div>
     );
   }
-  if (success) return <p className="text-[11px] text-emerald-600 dark:text-emerald-400">{success}</p>;
+  if (success) return <p className="text-xs text-emerald-600 dark:text-emerald-400">{success}</p>;
   return null;
 }
 
@@ -68,7 +70,7 @@ function SuggestionRow({ mapping, onLink, isPending }) {
       <td className="font-mono font-bold">{mapping.emp_code}</td>
       <td>
         <div className="font-semibold text-neutral-800 dark:text-neutral-100">{mapping.full_name ?? '—'}</div>
-        <div className="text-[10px] text-neutral-400">
+        <div className="text-2xs text-neutral-400">
           {[mapping.department_name, mapping.area_name].filter(Boolean).join(' · ')}
         </div>
       </td>
@@ -81,10 +83,10 @@ function SuggestionRow({ mapping, onLink, isPending }) {
         {mapping.employee ? (
           <div>
             <div className="font-semibold text-emerald-700 dark:text-emerald-400">{mapping.employee.full_name}</div>
-            <div className="text-[10px] text-neutral-400 font-mono">{mapping.employee.employee_code}</div>
+            <div className="text-2xs text-neutral-400 font-mono">{mapping.employee.employee_code}</div>
           </div>
         ) : (
-          <span className="text-[11px] text-neutral-400">Not mapped</span>
+          <span className="text-xs text-neutral-400">Not mapped</span>
         )}
       </td>
       <td>
@@ -94,18 +96,18 @@ function SuggestionRow({ mapping, onLink, isPending }) {
               key={s.employee_id}
               onClick={() => onLink({ empCode: mapping.emp_code, employeeId: s.employee_id })}
               disabled={isPending}
-              className="w-full text-left px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 text-[11px] flex items-center justify-between gap-2 disabled:opacity-50"
-              title={`Match reason: ${s.reason}`}
+              className="w-full text-left px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 text-xs flex items-center justify-between gap-2 disabled:opacity-50"
+              title={`Match reason: ${s.reason}`} aria-label={`Match reason: ${s.reason}`}
             >
               <span className="truncate">{s.full_name}</span>
-              <span className="font-mono text-[9px] text-neutral-400 shrink-0">
+              <span className="font-mono text-2xs text-neutral-400 shrink-0">
                 {Math.round((s.score ?? 0) * 100)}%
               </span>
             </button>
           ))}
 
           {!showSearch && suggestions.length === 0 && (
-            <span className="text-[11px] text-neutral-400">No name match found</span>
+            <span className="text-xs text-neutral-400">No name match found</span>
           )}
 
           {showSearch && (
@@ -117,7 +119,7 @@ function SuggestionRow({ mapping, onLink, isPending }) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search employee…"
-                  className="w-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 pl-7 pr-2 py-1 rounded-lg text-[11px]"
+                  className="w-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 pl-7 pr-2 py-1 rounded-lg text-xs"
                 />
               </div>
               {results.slice(0, 5).map((emp) => (
@@ -125,7 +127,7 @@ function SuggestionRow({ mapping, onLink, isPending }) {
                   key={emp.id}
                   onClick={() => onLink({ empCode: mapping.emp_code, employeeId: emp.id })}
                   disabled={isPending}
-                  className="w-full text-left px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 text-[11px] truncate disabled:opacity-50"
+                  className="w-full text-left px-2 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-emerald-100 dark:hover:bg-emerald-950/40 text-xs truncate disabled:opacity-50"
                 >
                   {emp.full_name}
                   <span className="text-neutral-400 font-mono ml-1">{emp.employee_code}</span>
@@ -136,7 +138,7 @@ function SuggestionRow({ mapping, onLink, isPending }) {
 
           <button
             onClick={() => setShowSearch(!showSearch)}
-            className="text-[10px] text-neutral-500 hover:text-emerald-600 underline"
+            className="text-2xs text-neutral-500 hover:text-emerald-600 underline"
           >
             {showSearch ? 'Show suggestions' : 'Search manually'}
           </button>
@@ -147,8 +149,8 @@ function SuggestionRow({ mapping, onLink, isPending }) {
           <button
             onClick={() => onLink({ empCode: mapping.emp_code, employeeId: null })}
             disabled={isPending}
-            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold mr-1 disabled:opacity-50"
-            title="Remove the link"
+            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold mr-1 disabled:opacity-50"
+            title="Remove the link" aria-label="Remove the link"
           >
             Unlink
           </button>
@@ -157,8 +159,8 @@ function SuggestionRow({ mapping, onLink, isPending }) {
           <button
             onClick={() => onLink({ empCode: mapping.emp_code, employeeId: null, ignore: true })}
             disabled={isPending}
-            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold disabled:opacity-50"
-            title="A device-only enrolment (guard, test finger, ex-staff)"
+            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold disabled:opacity-50"
+            title="A device-only enrolment (guard, test finger, ex-staff)" aria-label="A device-only enrolment (guard, test finger, ex-staff)"
           >
             Ignore
           </button>
@@ -181,6 +183,9 @@ function MappingTab() {
   const { data: org } = useOrg();
   const branches = org?.branches ?? [];
 
+  // Device mappings scale with headcount — 242 people means 242 rows to reconcile.
+  const pager = usePagination(mappings);
+
   const filters = [
     { id: 'unmatched', label: `Needs mapping (${counts?.unmatched ?? 0})` },
     { id: 'ambiguous', label: `Ambiguous (${counts?.ambiguous ?? 0})` },
@@ -191,7 +196,7 @@ function MappingTab() {
 
   return (
     <div className="space-y-4">
-      <div className="premium-card p-4 space-y-3">
+      <div className="premium-card space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => syncEmployees.mutate('employees')} disabled={syncEmployees.isPending} className={btnPrimary}>
             {syncEmployees.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
@@ -203,7 +208,7 @@ function MappingTab() {
           </button>
         </div>
 
-        <p className="text-[11px] text-neutral-500">
+        <p className="text-xs text-neutral-500">
           BioTime device codes are enrolment numbers, not HR employee codes, so they have to be
           matched to people once. Suggestions are ranked by name similarity — confirming one also
           attaches every punch already stored under that code and recomputes those dates.
@@ -219,7 +224,7 @@ function MappingTab() {
             <button
               key={f.id || 'all'}
               onClick={() => setStatus(f.id)}
-              className={`chip text-[11px] ${status === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
+              className={`chip text-xs ${status === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
             >
               {f.label}
             </button>
@@ -236,7 +241,7 @@ function MappingTab() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Code</th>
@@ -248,29 +253,30 @@ function MappingTab() {
                 </tr>
               </thead>
               <tbody>
-                {mappings.map((m) => (
+                {pager.slice.map((m) => (
                   <SuggestionRow key={m.id} mapping={m} onLink={link.mutate} isPending={link.isPending} />
                 ))}
+                <Pagination {...pager} noun="mappings" />
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
 
-      <div className="premium-card p-4 space-y-3">
+      <div className="premium-card space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200 flex items-center gap-1.5">
           <Server size={13} /> Terminals
         </h3>
-        <p className="text-[11px] text-neutral-500">
+        <p className="text-xs text-neutral-500">
           Mapping a terminal to a branch is what lets the system tell two people apart if the same
           device code ever exists in more than one company.
         </p>
 
         {devices.length === 0 ? (
-          <p className="text-[11px] text-neutral-500">No terminals seen yet.</p>
+          <p className="text-xs text-neutral-500">No terminals seen yet.</p>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Serial</th>
@@ -284,7 +290,7 @@ function MappingTab() {
               <tbody>
                 {devices.map((d) => (
                   <tr key={d.id}>
-                    <td className="font-mono text-[10px]">{d.serial_number}</td>
+                    <td className="font-mono text-2xs">{d.serial_number}</td>
                     <td>{d.alias ?? '—'}</td>
                     <td className="text-neutral-500">{d.area_name ?? '—'}</td>
                     <td>
@@ -297,7 +303,7 @@ function MappingTab() {
                             entity_id: branches.find((b) => b.id === e.target.value)?.entity_id ?? null,
                           })
                         }
-                        className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1 rounded-lg text-[11px]"
+                        className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1 rounded-lg text-xs"
                       >
                         <option value="">— unmapped —</option>
                         {branches.map((b) => (
@@ -316,7 +322,7 @@ function MappingTab() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -364,7 +370,7 @@ function ShiftsTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-[11px] text-neutral-500 max-w-2xl">
+        <p className="text-xs text-neutral-500 max-w-2xl">
           A shift defines the scheduled window, the grace either side, the unpaid break, and the
           weekly offs. Employees without an explicit assignment fall back to the default shift.
         </p>
@@ -374,7 +380,7 @@ function ShiftsTab() {
       </div>
 
       {form && (
-        <form onSubmit={submit} className="premium-card p-4 space-y-3 animate-fade-in">
+        <form onSubmit={submit} className="premium-card space-y-3 animate-fade-in">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <label className={label}>Code
               <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} className={input} />
@@ -427,7 +433,7 @@ function ShiftsTab() {
                       ...form,
                       weekly_offs: on ? form.weekly_offs.filter((x) => x !== i) : [...(form.weekly_offs ?? []), i].sort(),
                     })}
-                    className={`chip text-[11px] ${on ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}>
+                    className={`chip text-xs ${on ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}>
                     {d}
                   </button>
                 );
@@ -456,7 +462,7 @@ function ShiftsTab() {
           <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Code</th>
@@ -479,7 +485,7 @@ function ShiftsTab() {
                     <td>{s.name}</td>
                     <td className="font-mono">
                       {String(s.start_time).slice(0, 5)}–{String(s.end_time).slice(0, 5)}
-                      {s.crosses_midnight ? <span className="text-[9px] text-amber-600 ml-1">+1d</span> : null}
+                      {s.crosses_midnight ? <span className="text-2xs text-amber-600 ml-1">+1d</span> : null}
                     </td>
                     <td className="font-mono">{s.grace_in_minutes}/{s.grace_out_minutes}m</td>
                     <td className="font-mono">{s.break_minutes}m</td>
@@ -487,16 +493,16 @@ function ShiftsTab() {
                     <td className="font-mono">{s.full_day_minutes}m</td>
                     <td className="text-right whitespace-nowrap">
                       <button onClick={() => setForm({ ...s, start_time: String(s.start_time).slice(0, 5), end_time: String(s.end_time).slice(0, 5) })}
-                        className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold mr-1">Edit</button>
+                        className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold mr-1">Edit</button>
                       <button onClick={() => { if (confirm(`Delete shift ${s.code}?`)) remove.mutate(s.id); }}
-                        className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-[10px] font-bold">
+                        className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-2xs font-bold">
                         <Trash2 size={10} />
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
         <Note error={remove.error} />
@@ -528,7 +534,7 @@ function HolidaysTab() {
 
   return (
     <div className="space-y-4">
-      <div className="premium-card p-4 flex flex-wrap items-end gap-3">
+      <div className="premium-card flex flex-wrap items-end gap-3">
         <label className={label}>Calendar
           <select value={effectiveCalendar} onChange={(e) => setCalendarId(e.target.value)} className={`${input} min-w-50`}>
             {calendars.map((c) => (
@@ -545,7 +551,7 @@ function HolidaysTab() {
       </div>
 
       {form && (
-        <form onSubmit={submit} className="premium-card p-4 space-y-3 animate-fade-in">
+        <form onSubmit={submit} className="premium-card space-y-3 animate-fade-in">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <label className={label}>Date
               <input required type="date" value={form.holiday_date} onChange={(e) => setForm({ ...form, holiday_date: e.target.value })} className={input} />
@@ -558,7 +564,7 @@ function HolidaysTab() {
               Optional / restricted
             </label>
           </div>
-          <p className="text-[10px] text-neutral-500">
+          <p className="text-2xs text-neutral-500">
             Optional holidays are treated as normal working days by the engine unless the employee
             takes leave for them.
           </p>
@@ -579,7 +585,7 @@ function HolidaysTab() {
           <div className="p-10 text-center text-xs text-neutral-500">No holidays defined for {activeYear}.</div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Date</th>
@@ -603,16 +609,16 @@ function HolidaysTab() {
                       </span>
                     </td>
                     <td className="text-right">
-                      <button onClick={() => setForm(h)} className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold mr-1">Edit</button>
+                      <button onClick={() => setForm(h)} className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold mr-1">Edit</button>
                       <button onClick={() => { if (confirm(`Delete ${h.name}?`)) remove.mutate(h.id); }}
-                        className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-[10px] font-bold">
+                        className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-2xs font-bold">
                         <Trash2 size={10} />
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -643,7 +649,7 @@ function LeaveTypesTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <p className="text-[11px] text-neutral-500 max-w-2xl">
+        <p className="text-xs text-neutral-500 max-w-2xl">
           When an approved leave exceeds the available balance, the excess automatically becomes
           loss of pay rather than being rejected.
         </p>
@@ -651,7 +657,7 @@ function LeaveTypesTab() {
       </div>
 
       {form && (
-        <form onSubmit={submit} className="premium-card p-4 space-y-3 animate-fade-in">
+        <form onSubmit={submit} className="premium-card space-y-3 animate-fade-in">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <label className={label}>Code
               <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} className={input} />
@@ -695,7 +701,7 @@ function LeaveTypesTab() {
           <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Code</th>
@@ -717,12 +723,12 @@ function LeaveTypesTab() {
                     <td>{t.allow_half_day ? 'Yes' : 'No'}</td>
                     <td>{t.carry_forward ? `Up to ${t.max_carry_forward}` : 'No'}</td>
                     <td className="text-right">
-                      <button onClick={() => setForm(t)} className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-[10px] font-bold">Edit</button>
+                      <button onClick={() => setForm(t)} className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold">Edit</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -741,9 +747,12 @@ function SyncTab() {
   const trigger = useTriggerSync();
   const backfill = useTriggerBackfill();
 
-  const [range, setRange] = useState({
-    from: new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10),
-    to: new Date().toISOString().slice(0, 10),
+  // Dates in IST, not toISOString() (UTC): between 00:00 and 05:30 IST the UTC date is yesterday.
+  const [range, setRange] = useState(() => {
+    const to = todayIso();
+    const from = new Date(`${to}T00:00:00Z`);
+    from.setUTCDate(from.getUTCDate() - 30);
+    return { from: from.toISOString().slice(0, 10), to };
   });
 
   const punchState = state.find((s) => s.key === 'transactions');
@@ -752,26 +761,26 @@ function SyncTab() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="premium-card p-4">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">BioTime</div>
+        <div className="premium-card">
+          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">BioTime</div>
           <div className={`mt-2 text-sm font-bold ${status?.biotime?.reachable ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
             {status?.biotime?.reachable ? 'Connected' : statusError ? 'Service offline' : 'Unreachable'}
           </div>
-          <div className="text-[10px] text-neutral-400 mt-0.5 truncate">{status?.biotime?.url ?? ''}</div>
+          <div className="text-2xs text-neutral-400 mt-0.5 truncate">{status?.biotime?.url ?? ''}</div>
         </div>
-        <div className="premium-card p-4">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Last punch sync</div>
+        <div className="premium-card">
+          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Last punch sync</div>
           <div className="mt-2 text-sm font-bold">{relativeTime(punchState?.last_success_at)}</div>
           {punchState?.consecutive_failures > 0 ? (
-            <div className="text-[10px] text-red-500 mt-0.5">{punchState.consecutive_failures} consecutive failures</div>
+            <div className="text-2xs text-red-500 mt-0.5">{punchState.consecutive_failures} consecutive failures</div>
           ) : null}
         </div>
-        <div className="premium-card p-4">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Punches today</div>
+        <div className="premium-card">
+          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Punches today</div>
           <div className="mt-2 text-2xl font-black font-mono">{metrics.punches_today ?? '—'}</div>
         </div>
-        <div className="premium-card p-4">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">Unmapped punches</div>
+        <div className="premium-card">
+          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Unmapped punches</div>
           <div className={`mt-2 text-2xl font-black font-mono ${metrics.punches_unmapped ? 'text-amber-600 dark:text-amber-400' : ''}`}>
             {metrics.punches_unmapped ?? '—'}
           </div>
@@ -779,13 +788,13 @@ function SyncTab() {
       </div>
 
       {punchState?.last_error ? (
-        <div className="premium-card p-4 border-red-300 dark:border-red-900/60">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-1">Last error</div>
-          <p className="text-[11px] font-mono text-red-700 dark:text-red-300 break-words">{punchState.last_error}</p>
+        <div className="premium-card border-red-300 dark:border-red-900/60">
+          <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-1">Last error</div>
+          <p className="text-xs font-mono text-red-700 dark:text-red-300 break-words">{punchState.last_error}</p>
         </div>
       ) : null}
 
-      <div className="premium-card p-4 space-y-3">
+      <div className="premium-card space-y-3">
         <div className="flex flex-wrap gap-2">
           <button onClick={() => trigger.mutate('transactions')} disabled={trigger.isPending} className={btnPrimary}>
             {trigger.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync punches now
@@ -811,7 +820,17 @@ function SyncTab() {
 
         <Note error={trigger.error || backfill.error} />
         {backfill.isSuccess ? <Note success={backfill.data?.message} /> : null}
-        {trigger.isSuccess ? <Note success={`Synced: ${trigger.data?.inserted ?? 0} new punches.`} /> : null}
+        {trigger.isSuccess ? (
+          <Note
+            success={
+              // /api/sync/transactions returns {inserted}; /api/sync/employees returns
+              // {fetched, created, updated, autoLinked, ...} — show whichever came back.
+              trigger.data?.inserted != null
+                ? `Synced: ${trigger.data.inserted} new punches.`
+                : `Roster synced: ${trigger.data?.created ?? 0} new, ${trigger.data?.updated ?? 0} updated, ${trigger.data?.autoLinked ?? 0} auto-linked.`
+            }
+          />
+        ) : null}
       </div>
 
       <div className="premium-card overflow-hidden">
@@ -822,7 +841,7 @@ function SyncTab() {
           <div className="p-10 text-center text-xs text-neutral-500">No runs recorded yet.</div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Started</th>
@@ -845,13 +864,13 @@ function SyncTab() {
                     <td className="font-mono text-emerald-600 dark:text-emerald-400">{r.records_inserted}</td>
                     <td className="font-mono text-neutral-400">{r.records_skipped}</td>
                     <td className="font-mono">{r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : '—'}</td>
-                    <td className="max-w-55 truncate text-red-600 dark:text-red-400" title={r.error_message ?? ''}>
+                    <td className="max-w-55 truncate text-red-600 dark:text-red-400" title={r.error_message ?? ''} aria-label={r.error_message ?? ''}>
                       {r.error_message ?? ''}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         )}
       </div>
@@ -877,8 +896,8 @@ export default function AttendanceAdmin() {
   return (
     <div className="page-shell space-y-5 animate-slide-up">
       <div>
-        <h2 className="text-xl font-bold text-neutral-900 dark:text-slate-100 font-sans">Attendance setup</h2>
-        <p className="text-xs text-neutral-500 dark:text-slate-400">
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Attendance setup</h1>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           Shifts, holidays, leave types, and the BioTime device connection.
         </p>
       </div>

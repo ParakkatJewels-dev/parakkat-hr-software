@@ -191,6 +191,7 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
 
   let maxPunchTime: Date | null = null;
   let maxBiotimeId: bigint | null = null;
+  let totalMalformed = 0;
 
   try {
     for await (const batch of streamTransactions(
@@ -204,6 +205,7 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
     )) {
       run.counters.pagesFetched += 1;
       run.counters.recordsFetched += batch.received;
+      totalMalformed += batch.malformed;
 
       const ingested = await ingestPunches(batch.punches, employeeMap);
 
@@ -226,6 +228,16 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
       logger.warn(
         { count: allUnmatched.size, sample: [...allUnmatched].slice(0, 10) },
         'punches stored for emp_codes with no linked employee — map them in HR > Devices'
+      );
+    }
+
+    // A run that fetches thousands of records and can parse none of them must not look like a
+    // healthy "success, 0 inserted" — surface the drop count where the admin screen can see it.
+    if (totalMalformed > 0) {
+      run.addDetail({ malformedTimestamps: totalMalformed });
+      logger.warn(
+        { count: totalMalformed },
+        'records with unparseable punch_time were skipped — check the BioTime date format setting'
       );
     }
 
