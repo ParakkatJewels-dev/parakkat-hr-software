@@ -15,8 +15,10 @@ const SELECT = `
   worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
   is_late, is_early_exit, is_missing_punch, is_lop, day_fraction,
   leave_type, remarks, punch_count, scheduled_in, scheduled_out, computed_at,
+  punches, break_minutes, breaks_incomplete,
   employee:employees!attendance_employee_id_fkey(
-    id, full_name, employee_code,
+    id, full_name, employee_code, entity_id,
+    entity:entities(id, code, name),
     branch:branches(id, name, code),
     department:departments(id, name)
   ),

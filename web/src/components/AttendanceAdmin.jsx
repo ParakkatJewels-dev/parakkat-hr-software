@@ -18,7 +18,7 @@ import {
 } from '../data/devices';
 import {
   useServiceStatus, useSyncState, useSyncRuns, useTriggerSync, useTriggerBackfill,
-  RUN_STATUS_STYLES, relativeTime,
+  useSyncHealth, useServiceCommands, SYNC_LEVEL, RUN_STATUS_STYLES, relativeTime,
 } from '../data/syncStatus';
 import { useOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
@@ -183,6 +183,11 @@ function MappingTab() {
   const { data: org } = useOrg();
   const branches = org?.branches ?? [];
 
+  // Branch mapping only decides something when two terminals could report the same device code.
+  // With one terminal it is a 48-option dropdown whose every answer is equally meaningless — so
+  // show it once a second terminal appears, or if somebody has already mapped one.
+  const showBranchMapping = devices.length > 1 || devices.some((d) => d.branch_id);
+
   // Device mappings scale with headcount — 242 people means 242 rows to reconcile.
   const pager = usePagination(mappings);
 
@@ -267,9 +272,14 @@ function MappingTab() {
         <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200 flex items-center gap-1.5">
           <Server size={13} /> Terminals
         </h3>
+        {/* Everything here is reported by the terminal itself. The branch column is ours, not the
+            device's, and a dropdown of 48 branches against a single terminal is 47 wrong answers
+            and a lot of noise — so it only appears once there is more than one terminal, which is
+            the only situation where mapping one to a branch decides anything. */}
         <p className="text-xs text-neutral-500">
-          Mapping a terminal to a branch is what lets the system tell two people apart if the same
-          device code ever exists in more than one company.
+          {showBranchMapping
+            ? 'As reported by Easy Time Pro. Map each terminal to its branch so the same device code in two companies cannot be confused for one person.'
+            : 'As reported by Easy Time Pro. Connect a second terminal and a branch column appears here for telling them apart.'}
         </p>
 
         {devices.length === 0 ? (
@@ -282,8 +292,10 @@ function MappingTab() {
                   <th className="text-left">Serial</th>
                   <th className="text-left">Name</th>
                   <th className="text-left">Area</th>
-                  <th className="text-left">Branch</th>
+                  <th className="text-left">Address</th>
                   <th className="text-left">Last punch</th>
+                  <th className="text-left">Last seen</th>
+                  {showBranchMapping && <th className="text-left">Branch</th>}
                   <th className="text-left">State</th>
                 </tr>
               </thead>
@@ -293,25 +305,30 @@ function MappingTab() {
                     <td className="font-mono text-2xs">{d.serial_number}</td>
                     <td>{d.alias ?? '—'}</td>
                     <td className="text-neutral-500">{d.area_name ?? '—'}</td>
-                    <td>
-                      <select
-                        value={d.branch_id ?? ''}
-                        onChange={(e) =>
-                          saveDevice.mutate({
-                            id: d.id,
-                            branch_id: e.target.value || null,
-                            entity_id: branches.find((b) => b.id === e.target.value)?.entity_id ?? null,
-                          })
-                        }
-                        className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1 rounded-lg text-xs"
-                      >
-                        <option value="">— unmapped —</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>{b.name ?? b.code}</option>
-                        ))}
-                      </select>
-                    </td>
+                    <td className="font-mono text-2xs text-neutral-500">{d.ip_address ?? '—'}</td>
                     <td className="text-neutral-500">{relativeTime(d.last_punch_at)}</td>
+                    <td className="text-neutral-500">{relativeTime(d.last_seen_at)}</td>
+                    {showBranchMapping && (
+                      <td>
+                        <select
+                          value={d.branch_id ?? ''}
+                          aria-label={`Branch for terminal ${d.serial_number}`}
+                          onChange={(e) =>
+                            saveDevice.mutate({
+                              id: d.id,
+                              branch_id: e.target.value || null,
+                              entity_id: branches.find((b) => b.id === e.target.value)?.entity_id ?? null,
+                            })
+                          }
+                          className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1 rounded-lg text-xs"
+                        >
+                          <option value="">— unmapped —</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>{b.name ?? b.code}</option>
+                          ))}
+                        </select>
+                      </td>
+                    )}
                     <td>
                       {d.is_active ? (
                         <span className="badge badge-green flex items-center gap-1 w-fit"><Wifi size={10} /> active</span>
@@ -740,10 +757,30 @@ function LeaveTypesTab() {
 // Sync status
 // ---------------------------------------------------------------------------
 
+/** One readable line from a command's result, whatever shape that command returns. */
+function summariseResult(r) {
+  if (!r || typeof r !== 'object') return '';
+  const bits = [];
+  if (r.inserted != null) bits.push(`${r.inserted} new punches`);
+  if (r.fetched != null && r.inserted == null) bits.push(`${r.fetched} fetched`);
+  if (r.created != null) bits.push(`${r.created} created`);
+  if (r.updated != null) bits.push(`${r.updated} updated`);
+  if (r.autoLinked != null) bits.push(`${r.autoLinked} auto-linked`);
+  if (r.rowsWritten != null) bits.push(`${r.rowsWritten} days rebuilt`);
+  if (r.employees != null) bits.push(`${r.employees} employees`);
+  // A kind whose result shape nothing above recognises still deserves to show something.
+  return bits.join(' · ') || JSON.stringify(r).slice(0, 120);
+}
+
 function SyncTab() {
   const { data: status, error: statusError } = useServiceStatus();
+  const { data: health } = useSyncHealth();
+  const { data: commands = [] } = useServiceCommands(6);
   const { data: state = [] } = useSyncState();
   const { data: runs = [] } = useSyncRuns(25);
+  const level = SYNC_LEVEL[health?.level] ?? {
+    label: 'Checking…', tone: 'text-neutral-400', hint: '',
+  };
   const trigger = useTriggerSync();
   const backfill = useTriggerBackfill();
 
@@ -756,38 +793,59 @@ function SyncTab() {
   });
 
   const punchState = state.find((s) => s.key === 'transactions');
-  const metrics = status?.metrics ?? {};
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {/* Judged from what reached the database, not from whether this browser can reach the HR
+            laptop. The two are different questions and only one of them matters. */}
         <div className="premium-card">
-          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">BioTime</div>
-          <div className={`mt-2 text-sm font-bold ${status?.biotime?.reachable ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-            {status?.biotime?.reachable ? 'Connected' : statusError ? 'Service offline' : 'Unreachable'}
-          </div>
-          <div className="text-2xs text-neutral-400 mt-0.5 truncate">{status?.biotime?.url ?? ''}</div>
+          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Easy Time Pro sync</div>
+          <div className={`mt-2 text-sm font-bold ${level.tone}`}>{level.label}</div>
+          <div className="text-2xs text-neutral-400 mt-0.5">{level.hint}</div>
         </div>
         <div className="premium-card">
           <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Last punch sync</div>
-          <div className="mt-2 text-sm font-bold">{relativeTime(punchState?.last_success_at)}</div>
-          {punchState?.consecutive_failures > 0 ? (
-            <div className="text-2xs text-red-500 mt-0.5">{punchState.consecutive_failures} consecutive failures</div>
+          <div className="mt-2 text-sm font-bold">{relativeTime(health?.lastSuccess)}</div>
+          {health?.consecutiveFailures > 0 ? (
+            <div className="text-2xs text-red-500 mt-0.5">{health.consecutiveFailures} consecutive failures</div>
+          ) : health?.lastPunchTime ? (
+            <div className="text-2xs text-neutral-400 mt-0.5">newest punch {relativeTime(health.lastPunchTime)}</div>
           ) : null}
         </div>
         <div className="premium-card">
           <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Punches today</div>
-          <div className="mt-2 text-2xl font-black font-mono">{metrics.punches_today ?? '—'}</div>
+          <div className="mt-2 text-2xl font-black font-mono">{health?.punchesToday ?? '—'}</div>
         </div>
         <div className="premium-card">
           <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Unmapped punches</div>
-          <div className={`mt-2 text-2xl font-black font-mono ${metrics.punches_unmapped ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-            {metrics.punches_unmapped ?? '—'}
+          <div className={`mt-2 text-2xl font-black font-mono ${health?.punchesUnmapped ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+            {health?.punchesUnmapped ?? '—'}
           </div>
         </div>
       </div>
 
-      {punchState?.last_error ? (
+      {/* The buttons below post to the service directly, which needs to be on the same network.
+          Say so once, here, instead of letting every button fail with a bare network error. */}
+      {statusError && health?.level === 'ok' ? (
+        <div className="premium-card border-amber-300 dark:border-amber-900/60">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            Syncing normally, but this browser cannot reach the sync service directly
+            {status?.biotime?.url ? '' : ''} — so the manual buttons below (sync now, backfill,
+            recompute) will not work from here. They need a browser on the office network. Nothing
+            is broken: punches are arriving on their own.
+          </p>
+        </div>
+      ) : null}
+
+      {health?.lastError ? (
+        <div className="premium-card border-red-300 dark:border-red-900/60">
+          <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-1">Last error</div>
+          <p className="text-xs font-mono text-red-700 dark:text-red-300 break-words">{health.lastError}</p>
+        </div>
+      ) : null}
+
+      {punchState?.last_error && punchState.last_error !== health?.lastError ? (
         <div className="premium-card border-red-300 dark:border-red-900/60">
           <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-1">Last error</div>
           <p className="text-xs font-mono text-red-700 dark:text-red-300 break-words">{punchState.last_error}</p>
@@ -819,18 +877,51 @@ function SyncTab() {
         </div>
 
         <Note error={trigger.error || backfill.error} />
-        {backfill.isSuccess ? <Note success={backfill.data?.message} /> : null}
-        {trigger.isSuccess ? (
-          <Note
-            success={
-              // /api/sync/transactions returns {inserted}; /api/sync/employees returns
-              // {fetched, created, updated, autoLinked, ...} — show whichever came back.
-              trigger.data?.inserted != null
-                ? `Synced: ${trigger.data.inserted} new punches.`
-                : `Roster synced: ${trigger.data?.created ?? 0} new, ${trigger.data?.updated ?? 0} updated, ${trigger.data?.autoLinked ?? 0} auto-linked.`
-            }
-          />
-        ) : null}
+        {/* These no longer run in the request — they are queued for the service, which collects
+            them within about twenty seconds. So the confirmation says "asked for", and the outcome
+            arrives in the list below rather than here. */}
+        {(trigger.isSuccess || backfill.isSuccess) && (
+          <Note success="Queued. The service picks this up within about 20 seconds — the result appears below." />
+        )}
+      </div>
+
+      {/* Requests and what became of them.
+          Without this the queue was invisible: three commands sat pending for forty minutes because
+          the service was running a build with no command worker, and the only symptom anyone saw
+          was the button refusing to work with "already queued or running". */}
+      <div className="premium-card space-y-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
+          Requests
+        </h3>
+        {commands.length === 0 ? (
+          <p className="text-xs text-neutral-500">Nothing requested yet.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {commands.map((c) => {
+              const waiting = c.status === 'pending' || c.status === 'running';
+              return (
+                <li key={c.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-xs">
+                  <span className={`badge ${RUN_STATUS_STYLES[c.status === 'done' ? 'success' : c.status === 'failed' ? 'failed' : 'running']}`}>
+                    {c.status === 'pending' ? 'queued' : c.status}
+                  </span>
+                  <span className="font-semibold text-neutral-800 dark:text-neutral-100">
+                    {c.kind.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-neutral-400">{relativeTime(c.requested_at)}</span>
+                  {waiting && <Loader2 size={11} className="animate-spin text-neutral-400" />}
+                  {c.error_message && (
+                    <span className="text-red-600 dark:text-red-400 basis-full">{c.error_message}</span>
+                  )}
+                  {c.status === 'done' && c.result && (
+                    <span className="text-neutral-500 basis-full font-mono text-2xs">
+                      {summariseResult(c.result)}
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       <div className="premium-card overflow-hidden">
@@ -894,7 +985,7 @@ export default function AttendanceAdmin() {
   }
 
   return (
-    <div className="page-shell space-y-5 animate-slide-up">
+    <div className="page-shell space-y-5 animate-slide-up py-3">
       <div>
         <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Attendance setup</h1>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">

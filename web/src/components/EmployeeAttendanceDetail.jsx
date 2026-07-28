@@ -1,0 +1,407 @@
+// One person's attendance, in detail.
+//
+// The day view answers "who is in today" across the company. This answers the question a manager
+// actually asks at appraisal time or when signing off payroll: "what does this person's month
+// look like, and is there a pattern?"
+//
+// Everything is filterable by date range and by what happened, because the useful queries are
+// specific — "show me only the late days in June" — not "show me everything".
+import React, { useState, useMemo } from 'react';
+import {
+  CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search,
+} from 'lucide-react';
+import { useEmployeeAttendanceSummary, clockLabel } from '../data/employeeAttendance';
+import { useEmployees } from '../data/employees';
+import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
+import Pagination, { usePagination } from './ui/Pagination';
+import FilterSelect from './ui/FilterSelect';
+import PageHeader from './ui/PageHeader';
+import { btnClass } from './ui/Btn';
+import { SkeletonRows } from './ui/Skeleton';
+
+const iso = (d) => d.toISOString().slice(0, 10);
+const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
+
+const RANGES = [
+  { key: '30', label: 'Last 30 days', from: () => daysAgo(30) },
+  { key: '60', label: 'Last 60 days', from: () => daysAgo(60) },
+  { key: '90', label: 'Last 90 days', from: () => daysAgo(90) },
+  { key: 'custom', label: 'Custom…', from: null },
+];
+
+const SHOW = [
+  { key: 'all', label: 'Every day' },
+  { key: 'late', label: 'Late only' },
+  { key: 'absent', label: 'Absent only' },
+  { key: 'leave', label: 'Leave only' },
+  { key: 'ot', label: 'Overtime only' },
+  { key: 'exceptions', label: 'Exceptions' },
+];
+
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const statusTone = (r) =>
+  r.status === 'Present' ? 'text-[#0c9765] dark:text-[#10b981]'
+  : r.status === 'Absent' ? 'text-rose-600 dark:text-rose-400'
+  : r.status === 'On Leave' ? 'text-blue-600 dark:text-blue-400'
+  : 'text-neutral-400';
+
+const fmtTime = (ts) =>
+  ts ? new Date(ts).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
+const fmtDate = (d) =>
+  new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+
+export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }) {
+  const { data: employees = [] } = useEmployees();
+  const [employeeId, setEmployeeId] = useState(fixedId ?? '');
+  const [rangeKey, setRangeKey] = useState('30');
+  const [from, setFrom] = useState(daysAgo(30));
+  const [to, setTo] = useState(iso(new Date()));
+  const [show, setShow] = useState('all');
+  const [q, setQ] = useState('');
+  // Which day's punch timeline is open. One at a time — the table stays scannable.
+  const [openDay, setOpenDay] = useState(null);
+  // "Show" answers what happened; this answers what the day was scored as. They are not the same
+  // question — Half Day, Missing Punch and Weekly Off have no entry in SHOW and were unreachable.
+  const [status, setStatus] = useState('All statuses');
+
+  const person = employees.find((e) => e.id === employeeId) ?? null;
+  const { data: rows = [], isLoading, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
+
+  const setRange = (key) => {
+    setRangeKey(key);
+    const r = RANGES.find((x) => x.key === key);
+    if (r?.from) { setFrom(r.from()); setTo(iso(new Date())); }
+  };
+
+  // Only the statuses this person actually has in the range, so the list never offers a dead end.
+  const statusOptions = useMemo(() => {
+    const ORDER = ['Present', 'Absent', 'Half Day', 'Missing Punch', 'On Leave', 'No Shift', 'Weekly Off', 'Holiday'];
+    const seen = [...new Set(rows.map((r) => r.status).filter(Boolean))].sort((a, b) => {
+      const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
+      return (ia === -1 ? ORDER.length : ia) - (ib === -1 ? ORDER.length : ib) || a.localeCompare(b);
+    });
+    return ['All statuses', ...seen];
+  }, [rows]);
+
+  const filtered = useMemo(() => rows.filter((r) => {
+    if (status !== 'All statuses' && r.status !== status) return false;
+    if (show === 'late' && !r.is_late) return false;
+    if (show === 'absent' && r.status !== 'Absent') return false;
+    if (show === 'leave' && r.status !== 'On Leave') return false;
+    if (show === 'ot' && !(r.ot_minutes > 0)) return false;
+    if (show === 'exceptions' && !(r.is_late || r.is_early_exit || r.is_missing_punch || r.status === 'Absent')) return false;
+    return true;
+  }), [rows, show, status]);
+
+  const pager = usePagination(filtered, 31);
+
+  // Who to look at. At 242 people a dropdown is unusable, so it is a search.
+  const matches = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    if (!t) return [];
+    return employees.filter((e) =>
+      (e.full_name || '').toLowerCase().includes(t) || (e.employee_code || '').toLowerCase().includes(t)
+    ).slice(0, 8);
+  }, [employees, q]);
+
+  const exportCsv = () => {
+    const head = ['Date', 'Day', 'Status', 'In', 'Out', 'Worked (h)', 'Breaks', 'Break (min)',
+      'Break complete', 'Late (min)', 'Early (min)', 'OT (min)', 'Leave', 'All punches'];
+    const body = filtered.map((r) => {
+      const punches = Array.isArray(r.punches) ? r.punches : [];
+      const breaks = punches.length >= 4 ? Math.floor((punches.length - 2) / 2) : 0;
+      return [
+        r.work_date, DOW[new Date(`${r.work_date}T00:00:00`).getDay()], r.status,
+        fmtTime(r.check_in), fmtTime(r.check_out),
+        ((r.worked_minutes || 0) / 60).toFixed(2),
+        breaks, r.break_minutes || 0, r.breaks_incomplete ? 'no' : 'yes',
+        r.late_minutes || 0, r.early_exit_minutes || 0, r.ot_minutes || 0, r.leave_type || '',
+        // Quoted: a space-separated list would otherwise split across columns.
+        `"${punches.map((p) => new Date(p).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })).join(' ')}"`,
+      ];
+    });
+    const csv = [head, ...body].map((line) => line.join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${person?.employee_code || 'attendance'}_${from}_to_${to}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="page-shell space-y-4 animate-fade-in">
+      <PageHeader
+        eyebrow="Time & Attendance"
+        icon={CalendarDays}
+        title={person ? person.full_name : 'Attendance detail'}
+        subtitle={
+          person
+            ? [person.employee_code, person.designation?.title, person.branch?.name || person.branch?.code]
+                .filter(Boolean).join(' · ')
+            : 'Pick a person to see their record.'
+        }
+        actions={
+          <>
+            {rows.length > 0 && (
+              <button onClick={exportCsv} className={btnClass('ghost')}>
+                <Download size={13} /> Export
+              </button>
+            )}
+            {onBack && (
+              <button onClick={onBack} className={btnClass('ghost')}>
+                <ArrowLeft size={13} /> Back
+              </button>
+            )}
+          </>
+        }
+      />
+
+      {/* ---- who ---------------------------------------------------------------------- */}
+      {!fixedId && (
+        <div className="premium-card">
+          <label htmlFor="att-person" className="block text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-1">
+            Person
+          </label>
+          <div className="relative max-w-md">
+            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <input
+              id="att-person"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search by name or employee code…"
+              className="w-full text-sm rounded-lg pl-8 pr-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20"
+            />
+            {matches.length > 0 && (
+              <ul className="absolute z-20 mt-1 w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-charcoal-900 shadow-2xl overflow-hidden">
+                {matches.map((e) => (
+                  <li key={e.id}>
+                    <button
+                      onClick={() => { setEmployeeId(e.id); setQ(''); }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-charcoal-800 flex justify-between gap-2 cursor-pointer"
+                    >
+                      <span className="font-semibold truncate">{e.full_name}</span>
+                      <span className="text-2xs font-mono text-neutral-450 shrink-0">{e.employee_code}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!employeeId ? (
+        <div className="premium-card p-10 text-center">
+          <CalendarDays size={26} className="mx-auto text-neutral-300 dark:text-neutral-700" />
+          <p className="text-sm text-neutral-500 mt-2.5">Search for someone above to see their attendance.</p>
+        </div>
+      ) : (
+        <>
+          {/* ---- when and what ---------------------------------------------------------- */}
+          <div className="premium-card space-y-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {RANGES.map((r) => (
+                <button
+                  key={r.key}
+                  onClick={() => setRange(r.key)}
+                  className={`rounded-lg px-2.5 py-1.5 text-sm font-bold cursor-pointer transition-colors ${
+                    rangeKey === r.key
+                      ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981]'
+                      : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+              {rangeKey === 'custom' && (
+                <span className="flex items-center gap-1.5">
+                  <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From"
+                    className="text-sm rounded-lg px-2 py-1.5 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800" />
+                  <span className="text-xs text-neutral-400">to</span>
+                  <input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To"
+                    className="text-sm rounded-lg px-2 py-1.5 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800" />
+                </span>
+              )}
+              <span className="ml-auto">
+                <FilterSelect label="Show" value={show} options={SHOW.map((s) => s.key)} allValue="all"
+                  onChange={setShow} />
+              </span>
+              <span>
+                <FilterSelect label="Status" value={status} options={statusOptions}
+                  onChange={setStatus} allValue="All statuses" />
+              </span>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="premium-card"><SkeletonRows rows={6} /></div>
+          ) : (
+            <>
+              {/* ---- the numbers --------------------------------------------------------- */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                {/* Each sub-line states the arithmetic behind the number above it. They drifted
+                    apart once before — the rate counted half days as half while the caption
+                    counted only whole ones — and a percentage nobody can reconcile is worse than
+                    no percentage. */}
+                <Stat label="Attendance" value={summary.attendanceRate != null ? `${summary.attendanceRate}%` : '—'}
+                  sub={summary.halfDays
+                    ? `${summary.present} full + ${summary.halfDays} half of ${summary.workingDays} working days`
+                    : `${summary.present} of ${summary.workingDays} working days`}
+                  tone="green" icon={TrendingUp} />
+                <Stat label="Punctuality" value={summary.punctualityRate != null ? `${summary.punctualityRate}%` : '—'}
+                  sub={`${summary.lateDays} late of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
+                  tone={summary.punctualityRate != null && summary.punctualityRate < 85 ? 'amber' : 'green'} icon={Clock} />
+                <Stat label="Avg arrival" value={clockLabel(summary.avgArrival)}
+                  sub={summary.avgLatePerLateDay ? `${summary.avgLatePerLateDay} min late when late` : 'on time'} />
+                <Stat label="Hours worked" value={summary.workedHours}
+                  sub={summary.offDays ? `${summary.workingDays} working days` : 'in this range'} />
+                <Stat label="Overtime" value={`${summary.otHours} h`}
+                  sub={summary.offDayOtHours
+                    ? `plus ${summary.offDayOtHours} h on days off`
+                    : 'beyond a full day'}
+                  tone={summary.otHours > 0 ? 'green' : undefined} />
+                <Stat label="Exceptions" value={summary.missing + summary.earlyDays}
+                  sub={`${summary.missing} missing punch · ${summary.earlyDays} early`}
+                  tone={summary.missing + summary.earlyDays > 0 ? 'amber' : undefined} icon={AlertTriangle} />
+              </div>
+
+              {/* ---- pattern by weekday -------------------------------------------------- */}
+              {summary.workingDays > 0 && (
+                <div className="premium-card">
+                  <p className="text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-2">
+                    Lateness by weekday
+                  </p>
+                  <div className="flex items-end gap-2">
+                    {summary.byDow.map((d, i) => {
+                      const pct = d.total ? Math.round((d.late / d.total) * 100) : 0;
+                      return (
+                        <div key={i} className="flex-1 text-center">
+                          <div className="h-16 flex items-end justify-center">
+                            <div
+                              className={`w-full rounded-t ${pct > 40 ? 'bg-amber-500' : 'bg-[#0ea971]'}`}
+                              style={{ height: `${Math.max(pct, d.total ? 4 : 0)}%` }}
+                              title={`${d.late} of ${d.total} late`}
+                            />
+                          </div>
+                          <p className="text-2xs text-neutral-500 mt-1">{DOW[i]}</p>
+                          <p className="text-2xs font-bold tabular-nums text-neutral-700 dark:text-neutral-300">
+                            {d.total ? `${pct}%` : '—'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ---- the days ------------------------------------------------------------ */}
+              <div className="premium-card p-0 overflow-hidden">
+                <div className="table-scroll">
+                  <table className="premium-table">
+                    <thead>
+                      <tr>
+                        <th className="w-24">Date</th>
+                        <th className="w-14">Day</th>
+                        <th>Status</th>
+                        <th>In</th>
+                        <th>Out</th>
+                        <th className="hidden sm:table-cell">Worked</th>
+                        <th className="hidden lg:table-cell" title="Breaks taken, and total time out of office">
+                          Breaks
+                        </th>
+                        <th className="hidden md:table-cell">Late</th>
+                        <th className="hidden md:table-cell">OT</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pager.slice.map((r) => {
+                        const dow = new Date(`${r.work_date}T00:00:00`).getDay();
+                        const punches = Array.isArray(r.punches) ? r.punches : [];
+                        // Two punches are just in and out — there is no timeline worth opening.
+                        const hasTimeline = punches.length > 2;
+                        const open = openDay === r.id;
+                        return (
+                          <React.Fragment key={r.id}>
+                          <tr
+                            className={hasTimeline ? 'cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/40' : ''}
+                            onClick={hasTimeline ? () => setOpenDay(open ? null : r.id) : undefined}>
+                            <td className="font-semibold text-neutral-900 dark:text-white">{fmtDate(r.work_date)}</td>
+                            <td className="text-neutral-450 text-xs">{DOW[dow]}</td>
+                            <td className={`font-semibold ${statusTone(r)}`}>
+                              {r.status}
+                              {r.leave_type && <span className="text-neutral-450 font-normal"> · {r.leave_type}</span>}
+                              {r.is_missing_punch && <span className="ml-1.5 text-2xs text-amber-600 dark:text-amber-400">no punch out</span>}
+                            </td>
+                            <td className={`font-mono ${r.is_late ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                              {fmtTime(r.check_in)}
+                            </td>
+                            <td className={`font-mono ${r.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                              {fmtTime(r.check_out)}
+                            </td>
+                            <td className="hidden sm:table-cell tabular-nums">
+                              {r.worked_minutes ? `${(r.worked_minutes / 60).toFixed(1)} h` : '—'}
+                            </td>
+                            <td className="hidden lg:table-cell tabular-nums text-xs">
+                              <BreakSummary row={r} />
+                            </td>
+                            <td className="hidden md:table-cell tabular-nums text-amber-600 dark:text-amber-400">
+                              {r.late_minutes ? `${r.late_minutes}m` : '—'}
+                            </td>
+                            <td className="hidden md:table-cell tabular-nums text-[#0c9765] dark:text-[#10b981]">
+                              {r.ot_minutes ? `${r.ot_minutes}m` : '—'}
+                            </td>
+                          </tr>
+                          {open && (
+                            <tr>
+                              <td colSpan={9} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
+                                <PunchTimeline
+                                  punches={punches}
+                                  breakMinutes={r.break_minutes}
+                                  incomplete={r.breaks_incomplete}
+                                />
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
+                        );
+                      })}
+                      {filtered.length === 0 && (
+                        <tr>
+                          <td colSpan={9} className="py-8 text-center text-sm text-neutral-500">
+                            {rows.length === 0
+                              ? 'No attendance recorded in this range.'
+                              : `No ${SHOW.find((s) => s.key === show)?.label.toLowerCase()} in this range.`}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <Pagination {...pager} noun="days" sizes={[31, 62, 93, 366]} />
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, sub, tone, icon: Icon }) {
+  const toneCls = tone === 'green' ? 'text-[#0c9765] dark:text-[#10b981]'
+    : tone === 'amber' ? 'text-amber-600 dark:text-amber-400'
+    : 'text-neutral-900 dark:text-white';
+  return (
+    <div className="premium-card">
+      <div className="flex items-center gap-1.5">
+        {Icon && <Icon size={12} className="text-neutral-400" />}
+        <p className="text-2xs font-bold uppercase tracking-wider text-neutral-450">{label}</p>
+      </div>
+      <p className={`text-xl font-bold tabular-nums mt-1 ${toneCls}`}>{value}</p>
+      {sub && <p className="text-2xs text-neutral-500 mt-0.5">{sub}</p>}
+    </div>
+  );
+}

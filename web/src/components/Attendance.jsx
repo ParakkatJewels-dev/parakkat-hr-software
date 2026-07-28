@@ -19,7 +19,9 @@ import {
 } from '../data/regularizations';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
+import { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
+import FilterSelect from './ui/FilterSelect';
 
 const TABS = [
   { id: 'today', label: 'Today', icon: Users },
@@ -32,9 +34,6 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
 function StatusBadge({ status, isLop }) {
-  // Rows scale with headcount — 242 people means 242 rows.
-  const pager = usePagination(filtered);
-
   return (
     <span className={`badge ${STATUS_STYLES[status] ?? 'badge-muted'}`}>
       {isLop ? 'LOP' : status}
@@ -80,6 +79,39 @@ function TodayView({ workDate, setWorkDate }) {
   const { data = [], isLoading, error, summary, refetch, isFetching } = useAttendanceSummary(workDate);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  // Where, as well as what. A day is 242 rows across 4 companies and 46 branches; a shop manager
+  // asking "who is in at Chalakudy today" could not get there from a status filter alone.
+  const [company, setCompany] = useState('All companies');
+  const [branch, setBranch] = useState('All branches');
+  const [dept, setDept] = useState('All departments');
+  // The chips above cover the three questions asked every morning. This covers the rest —
+  // Half Day, On Leave, Missing Punch, No Shift — which have no chip and were unreachable.
+  const [status, setStatus] = useState('All statuses');
+
+  // Options come from the day's own rows, so they never offer a branch with nobody in it.
+  const { companyOptions, branchOptions, deptOptions, statusOptions } = useMemo(() => {
+    const c = new Set(), b = new Set(), d = new Set(), st = new Set();
+    for (const row of data) {
+      if (row.employee?.entity?.name) c.add(row.employee.entity.name);
+      const bn = row.employee?.branch?.name || row.employee?.branch?.code;
+      if (bn) b.add(bn);
+      if (row.employee?.department?.name) d.add(row.employee.department.name);
+      if (row.status) st.add(row.status);
+    }
+    // Ordered by how often it is looked for, not alphabetically: the exceptions belong near the
+    // top because they are the reason somebody opens this filter at all.
+    const ORDER = ['Present', 'Absent', 'Half Day', 'Missing Punch', 'On Leave', 'No Shift', 'Weekly Off', 'Holiday'];
+    const ranked = [...st].sort((x, y) => {
+      const ix = ORDER.indexOf(x), iy = ORDER.indexOf(y);
+      return (ix === -1 ? ORDER.length : ix) - (iy === -1 ? ORDER.length : iy) || x.localeCompare(y);
+    });
+    return {
+      companyOptions: ['All companies', ...[...c].sort()],
+      branchOptions: ['All branches', ...[...b].sort()],
+      deptOptions: ['All departments', ...[...d].sort()],
+      statusOptions: ['All statuses', ...ranked],
+    };
+  }, [data]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -88,6 +120,11 @@ function TodayView({ workDate, setWorkDate }) {
       if (filter === 'absent' && row.status !== 'Absent') return false;
       if (filter === 'late' && !row.is_late) return false;
       if (filter === 'exceptions' && !(row.is_late || row.is_missing_punch || row.is_early_exit)) return false;
+      if (company !== 'All companies' && row.employee?.entity?.name !== company) return false;
+      if (branch !== 'All branches'
+          && (row.employee?.branch?.name || row.employee?.branch?.code) !== branch) return false;
+      if (dept !== 'All departments' && row.employee?.department?.name !== dept) return false;
+      if (status !== 'All statuses' && row.status !== status) return false;
       if (!term) return true;
       return (
         row.employee?.full_name?.toLowerCase().includes(term) ||
@@ -95,7 +132,20 @@ function TodayView({ workDate, setWorkDate }) {
         row.employee?.branch?.name?.toLowerCase().includes(term)
       );
     });
-  }, [data, query, filter]);
+  }, [data, query, filter, company, branch, dept, status]);
+
+  // 242 people is 242 rows a day, so the table pages. Declared after `filtered` and before any
+  // early return, so the hook order is identical on every render.
+  const pager = usePagination(filtered);
+
+  const activeFilters =
+    (query ? 1 : 0) + (company !== 'All companies' ? 1 : 0) +
+    (branch !== 'All branches' ? 1 : 0) + (dept !== 'All departments' ? 1 : 0) +
+    (status !== 'All statuses' ? 1 : 0);
+  const clearFilters = () => {
+    setQuery(''); setCompany('All companies'); setBranch('All branches');
+    setDept('All departments'); setStatus('All statuses');
+  };
 
   const filters = [
     { id: 'all', label: `All (${summary.total})` },
@@ -142,6 +192,24 @@ function TodayView({ workDate, setWorkDate }) {
           </button>
         </div>
 
+        {/* Where — company, branch, department. The status chips below answer "what". */}
+        <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850">
+          <FilterSelect label="Company" value={company} options={companyOptions}
+            onChange={setCompany} allValue="All companies" />
+          <FilterSelect label="Branch" value={branch} options={branchOptions}
+            onChange={setBranch} allValue="All branches" />
+          <FilterSelect label="Dept" value={dept} options={deptOptions}
+            onChange={setDept} allValue="All departments" />
+          <FilterSelect label="Status" value={status} options={statusOptions}
+            onChange={setStatus} allValue="All statuses" />
+          {activeFilters > 0 && (
+            <button onClick={clearFilters}
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-red-600 dark:hover:text-red-400 cursor-pointer sm:ml-auto py-1.5">
+              <XCircle size={12} /> Clear {activeFilters} filter{activeFilters === 1 ? '' : 's'}
+            </button>
+          )}
+        </div>
+
         <div className="flex flex-wrap gap-1.5">
           {filters.map((f) => (
             <button
@@ -180,6 +248,7 @@ function TodayView({ workDate, setWorkDate }) {
                   <th className="text-left">In</th>
                   <th className="text-left">Out</th>
                   <th className="text-left">Worked</th>
+                  <th className="text-left hidden lg:table-cell" title="Breaks taken today and total time out">Breaks</th>
                   <th className="text-left">OT</th>
                   <th className="text-left">Status</th>
                 </tr>
@@ -205,6 +274,7 @@ function TodayView({ workDate, setWorkDate }) {
                       {fmtTime(row.check_out)}
                     </td>
                     <td className="font-mono">{fmtMinutes(row.worked_minutes)}</td>
+                    <td className="hidden lg:table-cell font-mono"><BreakSummary row={row} /></td>
                     <td className="font-mono text-emerald-600 dark:text-emerald-400">
                       {fmtMinutes(row.ot_minutes)}
                     </td>
@@ -724,7 +794,7 @@ export default function Attendance() {
   const canApprove = canAny('regularization.approve');
 
   return (
-    <div className="page-shell space-y-5 animate-slide-up">
+    <div className="page-shell space-y-5 animate-slide-up py-3">
       <div>
         <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Attendance</h1>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
