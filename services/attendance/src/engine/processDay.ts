@@ -282,17 +282,47 @@ export function processDay(input: DayInput): DayResult {
 
   // --- exactly one punch --------------------------------------------------------
   // Deliberately NOT treated as present-with-zero-hours, and not as absent either: the person
-  // demonstrably came in. It is an exception for HR to regularize.
+  // demonstrably was here. It is an exception for HR to regularize.
+  //
+  // But WHICH end of the day is it? Treating every lone punch as an arrival is wrong half the
+  // time. People here forget to punch out in the morning group and forget to punch in in the
+  // evening group, and both happen a lot: of 184 such days, 101 held a morning punch and 75 an
+  // evening one. Recording an evening punch as an arrival produced things like
+  //
+  //   Narayanan.C.K  17:31  ->  "arrived, 466 minutes late"
+  //
+  // on four separate days. He was not late; that punch is him going home. All 75 were flagged
+  // late, averaging 473 minutes, which is a fabricated disciplinary record.
+  //
+  // The scheduled midpoint separates the two cleanly — the real punches cluster around 08:00-09:00
+  // and 17:00-18:00, nowhere near it — and where there is no shift to compare against, the old
+  // assumption stands rather than a guess.
   if (!checkOut) {
+    const midpoint = new Date(
+      (result.scheduledIn!.getTime() + result.scheduledOut!.getTime()) / 2
+    );
+    const isDeparture = checkIn.getTime() > midpoint.getTime();
+
     result.status = 'Missing Punch';
     result.isMissingPunch = true;
-    result.remarks = 'Only one punch recorded';
 
-    const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
-    if (lateBy > 0) {
-      result.lateMinutes = lateBy;
-      result.isLate = true;
+    if (isDeparture) {
+      // The one thing known is when they left. When they arrived is not recorded, so no lateness
+      // is asserted — claiming someone was eight hours late for forgetting to punch in is worse
+      // than recording nothing.
+      result.checkIn = null;
+      result.checkOut = checkIn;
+      result.remarks = 'Only one punch recorded — no check-in';
+    } else {
+      result.remarks = 'Only one punch recorded — no check-out';
+
+      const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
+      if (lateBy > 0) {
+        result.lateMinutes = lateBy;
+        result.isLate = true;
+      }
     }
+
     // Half credit pending regularization — HR adjusts by approving one.
     result.dayFraction = Math.max(result.dayFraction, 0.5);
     return result;

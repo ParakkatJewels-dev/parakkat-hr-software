@@ -483,3 +483,60 @@ test('the two bases agree when the extra time is all at the end of the day', () 
   assert.equal(a.otMinutes, b.otMinutes);
   assert.equal(a.otMinutes, 90 - GENERAL.otAfterMinutes);
 });
+
+// ---------------------------------------------------------------------------
+// a lone punch: which end of the day is it?
+//
+// People forget to punch out in the morning and forget to punch in in the evening, and both are
+// common here — 101 morning and 75 evening days out of 184. Treating every lone punch as an
+// arrival marked all 75 as late by an average of 473 minutes.
+// ---------------------------------------------------------------------------
+
+test('a lone morning punch is an arrival, and lateness still applies', () => {
+  const r = processDay(day({ punches: [punchAt('2026-07-15', '10:05')] }));
+
+  assert.equal(r.status, 'Missing Punch');
+  assert.equal(r.checkIn?.getHours(), 10, 'recorded as when they arrived');
+  assert.equal(r.checkOut, null);
+  assert.equal(r.isLate, true, '35 minutes past a 09:30 start, less 15 grace');
+  assert.equal(r.lateMinutes, 20);
+  assert.equal(r.dayFraction, 0.5);
+  assert.match(r.remarks ?? '', /no check-out/);
+});
+
+test('a lone evening punch is a departure, and asserts no lateness', () => {
+  // Narayanan.C.K's real 17:31, which used to read as "arrived, 466 minutes late".
+  const r = processDay(day({ punches: [punchAt('2026-07-15', '17:31')] }));
+
+  assert.equal(r.status, 'Missing Punch');
+  assert.equal(r.checkIn, null, 'we do not know when he arrived');
+  assert.equal(r.checkOut?.getHours(), 17, 'we do know when he left');
+  assert.equal(r.isLate, false, 'the whole point — he was not late, he forgot to punch in');
+  assert.equal(r.lateMinutes, 0);
+  assert.equal(r.dayFraction, 0.5, 'still an exception for HR, still half credit');
+  assert.match(r.remarks ?? '', /no check-in/);
+});
+
+test('the split is the scheduled midpoint, not midday', () => {
+  // GENERAL is 09:30-18:30, so the midpoint is 14:00.
+  const before = processDay(day({ punches: [punchAt('2026-07-15', '13:59')] }));
+  assert.ok(before.checkIn, 'just before the midpoint is still an arrival');
+  assert.equal(before.checkOut, null);
+
+  const after = processDay(day({ punches: [punchAt('2026-07-15', '14:01')] }));
+  assert.equal(after.checkIn, null);
+  assert.ok(after.checkOut, 'just after it is a departure');
+});
+
+test('a night shift splits on its own midpoint, not the clock', () => {
+  // NIGHT runs 22:00 -> 06:00, so its midpoint is 02:00 the next morning. A 23:00 punch is an
+  // arrival even though it is late at night, and a 05:00 punch is a departure even though it is
+  // early in the morning.
+  const arrival = processDay(day({ shift: NIGHT, punches: [punchAt('2026-07-15', '23:00')] }));
+  assert.ok(arrival.checkIn, 'start of a night shift');
+  assert.equal(arrival.checkOut, null);
+
+  const departure = processDay(day({ shift: NIGHT, punches: [punchAt('2026-07-15', '05:00', 1)] }));
+  assert.equal(departure.checkIn, null);
+  assert.ok(departure.checkOut, 'end of a night shift');
+});
