@@ -3,7 +3,10 @@ import { createRoot } from 'react-dom/client';
 // HashRouter (not BrowserRouter): the native webview serves from a local origin where
 // history/path routing is fragile — hash routes work identically on web and in Capacitor.
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { supabase } from './lib/supabaseClient';
 import { Loader2, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 import './index.css';
 import App from './App.jsx';
@@ -36,8 +39,83 @@ const queryClient = new QueryClient({
       refetchOnMount: true,
       refetchInterval: 300_000,
       refetchIntervalInBackground: false,
+      // Restored cache is only useful if the queries that read it will accept it. Anything older
+      // than this is refetched rather than shown.
+      gcTime: 24 * 60 * 60_000,
     },
   },
+});
+
+// --- surviving a refresh ----------------------------------------------------------------------
+// Without this the whole cache dies on every reload: the sync card, the roster, the day's
+// attendance all render empty and refetch from zero, which on a slow connection is several seconds
+// of blank screen for data that was on screen a moment ago. Persisting it means a refresh paints
+// the previous answer immediately and revalidates behind it.
+//
+// The version string is the safety catch. Restoring a cache whose shape no longer matches the code
+// reading it is worse than having no cache, so any change to the queries bumps this and every
+// stored cache is discarded.
+const CACHE_VERSION = 'v1';
+const CACHE_KEY = 'parakkat-hr-cache';
+
+/**
+ * localStorage, but a damaged or unreadable cache can never stop the app starting.
+ *
+ * The persister's restore does a bare JSON.parse, so a truncated entry — a tab killed mid-write,
+ * a full storage quota, a half-finished write on a laptop that lost power — throws during startup
+ * and the app renders nothing. There is no way out of that for the user except clearing site data,
+ * which nobody in an HR office is going to work out. So a value that will not parse is treated as
+ * absent and deleted, and the app carries on and refetches.
+ *
+ * Storage being unavailable entirely (private browsing, a locked-down policy) is handled the same
+ * way: no persistence, everything else works.
+ */
+const safeStorage = {
+  getItem: (key) => {
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return null;
+      JSON.parse(raw); // validate before handing it over
+      return raw;
+    } catch {
+      try { window.localStorage.removeItem(key); } catch { /* nothing to clean up */ }
+      return null;
+    }
+  },
+  setItem: (key, value) => {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      // Quota exceeded, most likely. Losing the cache is not worth failing a render over.
+    }
+  },
+  removeItem: (key) => {
+    try { window.localStorage.removeItem(key); } catch { /* already gone */ }
+  },
+};
+
+const persister = createSyncStoragePersister({
+  storage: safeStorage,
+  key: CACHE_KEY,
+  // A write per query result would thrash localStorage during the morning rush; batch them.
+  throttleTime: 2_000,
+});
+
+// One user's cached attendance must never be shown to the next person to sign in on this machine —
+// a shared HR laptop is exactly the situation this app is deployed into. The cache is therefore
+// keyed by user, and torn down the moment the signed-in identity changes.
+let cachedUserId = null;
+supabase.auth.onAuthStateChange((event, session) => {
+  const uid = session?.user?.id ?? null;
+  if (event === 'SIGNED_OUT' || (cachedUserId && uid && uid !== cachedUserId)) {
+    queryClient.clear();
+    try {
+      window.localStorage.removeItem(CACHE_KEY);
+    } catch {
+      // A browser with storage disabled simply has nothing to clear.
+    }
+  }
+  cachedUserId = uid;
 });
 
 function FullScreenLoader() {
@@ -104,12 +182,24 @@ function RootRoutes() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister,
+        maxAge: 24 * 60 * 60_000,
+        buster: CACHE_VERSION,
+        dehydrateOptions: {
+          // Only successful results are worth keeping. Persisting an error would show a stale
+          // failure on next load for a request that would now succeed.
+          shouldDehydrateQuery: (q) => q.state.status === 'success',
+        },
+      }}
+    >
       <HashRouter>
         <AuthProvider>
           <RootRoutes />
         </AuthProvider>
       </HashRouter>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>
 );
