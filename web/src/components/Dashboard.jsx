@@ -467,7 +467,7 @@ export default function Dashboard({ onNavigate }) {
   const Preset = PRESETS[role];
 
   return (
-    <div className="page-shell space-y-5 animate-slide-up">
+    <div className="page-shell space-y-5 animate-slide-up py-3">
       <Greeting role={role} />
       <NotificationsStrip onNavigate={onNavigate} />
       <Preset onNavigate={onNavigate} actions={actions} />

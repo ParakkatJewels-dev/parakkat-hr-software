@@ -7,6 +7,7 @@ import {
 import Dashboard from './components/Dashboard';
 const Directory = lazy(() => import('./components/Directory'));
 const EmployeeImport = lazy(() => import('./components/EmployeeImport'));
+const EmployeeAttendanceDetail = lazy(() => import('./components/EmployeeAttendanceDetail'));
 const Attendance = lazy(() => import('./components/Attendance'));
 const AttendanceAdmin = lazy(() => import('./components/AttendanceAdmin'));
 const Leave = lazy(() => import('./components/Leave'));
@@ -186,6 +187,7 @@ export default function App() {
       icon: Clock,
       tabs: [
         { id: 'attendance', label: 'Attendance', perm: 'attendance.read' },
+        { id: 'attendance-person', label: 'By person', perm: 'attendance.read', scoped: true },
         { id: 'leave', label: 'Leave', perm: 'leave.read' },
         { id: 'attendance-admin', label: 'Shifts & Devices', perm: 'device.manage' },
       ],
@@ -558,7 +560,7 @@ export default function App() {
           </nav>
         )}
 
-        <main id="main-content" tabIndex={-1} className="app-main flex-1 min-h-0 overflow-y-auto">
+        <main id="main-content" tabIndex={-1} className="app-main flex-1 min-h-0 overflow-y-auto py-4">
           <Suspense fallback={<div className="page-shell py-24 flex justify-center text-neutral-400 text-xs">Loading…</div>}>
           {(() => {
             if (!canViewTab(activeTab)) {
@@ -573,6 +575,8 @@ export default function App() {
                 return <Directory />;
               case 'organization':
                 return <Organization />;
+              case 'attendance-person':
+                return <EmployeeAttendanceDetail onBack={() => setActiveTab('attendance')} />;
               case 'attendance':
                 return <Attendance />;
               case 'attendance-admin':
