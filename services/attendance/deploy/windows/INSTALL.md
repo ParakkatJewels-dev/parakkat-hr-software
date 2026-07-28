@@ -65,6 +65,39 @@ It says exactly what is wrong — wrong password, Easy Time Pro not running, no 
 unreachable. Fix it, then double-click `Install.bat` again; it is safe to re-run any number of
 times and skips whatever is already done.
 
+### "EPERM: operation not permitted, rename ... query_engine-windows.dll.node"
+
+The installer is trying to replace a file that the running service has open. It is not a
+permissions problem, and **nothing is broken** — the service carries on running with the copy it
+already has, so punches keep syncing while you sort this out.
+
+`Install.bat` now stops the service before touching those files, so this should not recur. If it
+still appears, something else is holding the folder:
+
+1. `services.msc` → stop **Parakkat Attendance Sync**
+2. Close any PowerShell window running `npm run dev` in this folder
+3. Run `Install.bat` again
+
+### The device was switched off, or the network changed, and nothing syncs any more
+
+This used to need a manual restart. A run that was mid-request when the network vanished could sit
+there forever — the socket stays open as far as Windows is concerned even though the packets go
+nowhere — and while it sat there, every later run was skipped because one was "already in
+progress". The symptom was silence: the service looked healthy and collected nothing.
+
+Each job now has a deadline (10 minutes for the punch sync). Past it, the run is abandoned, the
+connection pool is thrown away so the next attempt dials fresh, and the following tick retries. A
+network switch costs you one cycle, not the rest of the day.
+
+To confirm it recovered, check that the newest run is recent and not `running`:
+
+```powershell
+npm run doctor
+```
+
+Runs interrupted by a shutdown or a lost connection are marked `failed` the next time the service
+starts, so a stale `running` row never hides a real outage again.
+
 ## Everyday commands
 
 | To do this | Do that |
