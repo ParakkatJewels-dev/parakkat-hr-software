@@ -21,6 +21,9 @@ const TABLE_KEYS = {
   // screen — during the morning rush that is a refetch per person walking in. Attendance is
   // derived from punches by the engine, and the engine's own write emits an `attendance` event.
   raw_punches: [['punches']],
+  // Queued work for the sync service. Pushed rather than polled so a button press shows its
+  // outcome the moment the service writes it back, instead of on the next 5-second tick.
+  service_commands: [['service-commands'], ['sync-runs'], ['sync-health']],
   tickets: [['tickets']],
   assets: [['assets']],
   employees: [['employees']],

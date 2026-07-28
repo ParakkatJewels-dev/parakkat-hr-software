@@ -5,7 +5,6 @@
 // who. The sync worker ranks candidates by name similarity; this is where a human confirms.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { apiPost } from '../lib/attendanceApi';
 
 export function useDevices() {
   return useQuery({
@@ -90,17 +89,30 @@ export function useMappingCounts() {
 /**
  * Confirm a mapping.
  *
- * Routed through the service API rather than a direct table update, because linking a code is not
- * just one column: the service also adopts the punches already stored under that code and queues
- * the affected dates for recompute. Doing it client-side would leave months of punches orphaned.
+ * Linking a code is not just one column — the punches already stored under it have to be adopted
+ * and the days they touch queued for recompute, or months of attendance stay orphaned. That used to
+ * mean routing through the service's HTTP API, which put this screen behind the HR laptop's LAN:
+ * unusable from the hosted app, because a browser will not let an HTTPS page call
+ * http://192.168.1.45:8091 at all. All three steps are database work, so they now happen in one
+ * transaction inside Postgres (see migration 0050), gated on device.manage exactly as the table's
+ * RLS is. The service still drains the recompute queue within five minutes; nothing about the
+ * outcome changed except that it works from anywhere.
  */
 export function useLinkDeviceCode() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ empCode, employeeId, ignore = false }) =>
-      apiPost('/api/mapping/link', { empCode, employeeId, ignore }),
+    mutationFn: async ({ empCode, employeeId, ignore = false }) => {
+      const { data, error } = await supabase.rpc('link_device_code', {
+        _emp_code: empCode,
+        _employee_id: employeeId ?? null,
+        _ignore: ignore,
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['device-mappings'] });
+      qc.invalidateQueries({ queryKey: ['mapping-counts'] });
       qc.invalidateQueries({ queryKey: ['attendance'] });
     },
   });
@@ -109,7 +121,15 @@ export function useLinkDeviceCode() {
 export function useRefreshSuggestions() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => apiPost('/api/mapping/suggest'),
+    // Through Supabase for the same reason as linking: this screen must work from anywhere.
+    mutationFn: async () => {
+      const { data, error } = await supabase.rpc('request_service_command', {
+        _kind: 'refresh_suggestions',
+        _params: {},
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['device-mappings'] }),
   });
 }

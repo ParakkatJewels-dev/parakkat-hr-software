@@ -52,11 +52,36 @@ async function parse(response) {
   return body;
 }
 
-/** Network failures get a message that names the likely cause, not "Failed to fetch". */
+/**
+ * Network failures get a message that names the likely cause, not "Failed to fetch".
+ *
+ * The mixed-content case is called out first because it is the one that looks like a bug and
+ * isn't: an HTTPS page is not permitted to call a plain-HTTP address, and the browser blocks it
+ * before any request leaves — so the service being up, the firewall being open and CORS being
+ * correct all make no difference. Listing "check CORS" for that case sends people to fix three
+ * things that were never broken.
+ */
 function wrapNetworkError(err) {
   if (err instanceof ApiError) return err;
+
+  const pageIsHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const targetIsHttp = BASE_URL.startsWith('http://');
+
+  if (pageIsHttps && targetIsHttp) {
+    return new ApiError(
+      `This page is served over HTTPS and the attendance service at ${BASE_URL} is plain HTTP, ` +
+        `so the browser blocks the request before it is sent. Nothing is broken — punch collection ` +
+        `does not use this connection. Use these actions from a browser on the office network over ` +
+        `http://, or run them on the HR laptop directly.`,
+      0,
+      null
+    );
+  }
+
   return new ApiError(
-    `Cannot reach the attendance service at ${BASE_URL}. It may be switched off, on a network this device cannot reach, or blocking this website's origin (CORS).`,
+    `Cannot reach the attendance service at ${BASE_URL}. Punch collection is unaffected — this ` +
+      `only stops the manual buttons. Check the HR laptop is on, this device is on the same ` +
+      `network, and port ${BASE_URL.split(':').pop()} is open on its firewall.`,
     0,
     null
   );
