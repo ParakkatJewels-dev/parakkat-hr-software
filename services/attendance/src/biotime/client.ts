@@ -6,6 +6,8 @@
 //   3. retry transient transport failures with backoff, so a BioTime restart is a pause not an outage
 //   4. walk paginated endpoints lazily, so a 400k-row backfill never sits in memory at once
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
+import { Agent as HttpAgent } from 'node:http';
+import { Agent as HttpsAgent } from 'node:https';
 import { env, requireBiotimeConfig } from '../config/env';
 import { logger } from '../lib/logger';
 import { withRetry, isRetryable } from '../lib/retry';
@@ -40,20 +42,53 @@ export class BiotimeClient {
   // the API routes, and a missing BIOTIME_* var should surface as a clear error from the call
   // that needed it — not as an exception thrown while loading a module.
   private httpInstance: AxiosInstance | null = null;
+  private httpAgent: HttpAgent | null = null;
+  private httpsAgent: HttpsAgent | null = null;
   private authInstance: BiotimeAuth | null = null;
 
   private get http(): AxiosInstance {
     if (!this.httpInstance) {
+      // Fresh agents, not Node's global ones. Owning the pool is what makes resetConnection()
+      // possible: destroying a shared global agent would break every other caller in the process.
+      const agentOpts = {
+        keepAlive: true,
+        // Idle sockets are cheap to re-open on a LAN and are the ones most likely to have died
+        // quietly while nothing was using them. Recycling them often costs nothing here.
+        keepAliveMsecs: 15_000,
+        maxSockets: 8,
+        timeout: env.BIOTIME_TIMEOUT_MS,
+      };
+      this.httpAgent = new HttpAgent(agentOpts);
+      this.httpsAgent = new HttpsAgent(agentOpts);
+
       this.httpInstance = axios.create({
         baseURL: requireBiotimeConfig().baseUrl,
         timeout: env.BIOTIME_TIMEOUT_MS,
         headers: { Accept: 'application/json' },
+        httpAgent: this.httpAgent,
+        httpsAgent: this.httpsAgent,
         // BioTime can return a large page; keep axios from truncating it.
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
       });
     }
     return this.httpInstance;
+  }
+
+  /**
+   * Drop the connection pool so the next request dials from scratch.
+   *
+   * `destroy()` on the agent tears down every pooled socket, including any that the OS still
+   * believes are established but that lead nowhere after a network change. Clearing the axios
+   * instance too means the next call through `get http()` builds a new agent as well.
+   */
+  resetConnection(): void {
+    this.httpAgent?.destroy();
+    this.httpsAgent?.destroy();
+    this.httpAgent = null;
+    this.httpsAgent = null;
+    this.httpInstance = null;
+    logger.warn('dropped the BioTime connection pool — the next request will reconnect');
   }
 
   get auth(): BiotimeAuth {
@@ -122,6 +157,14 @@ export class BiotimeClient {
           // credentials risks locking the BioTime account.
           const status = (err as AxiosError)?.response?.status;
           if (status === 401 || status === 403) return false;
+
+          // A transport failure means the connection pool may be holding sockets that are open as
+          // far as this process is concerned and dead as far as the network is concerned — which is
+          // exactly what a Wi-Fi/LAN switch or a rebooted terminal leaves behind. Retrying over the
+          // same agent would reuse those corpses and hang again. Throw the agent away so the retry
+          // dials fresh.
+          if (!status) this.resetConnection();
+
           return isRetryable(err);
         },
       }

@@ -106,3 +106,31 @@ export async function pruneRuns(keepDays = 90): Promise<number> {
   if (count > 0) logger.info({ count, keepDays }, 'pruned old sync_runs');
   return count;
 }
+
+/**
+ * Close out runs that were still 'running' when the process last stopped.
+ *
+ * A run row is opened before the work starts and closed in a `finally`. That covers a job that
+ * throws, but not a process that is killed, put to sleep with the laptop lid, or cut off mid-request
+ * and restarted — those leave a row that says 'running' forever. One such row sat open from 13:18
+ * until the next morning and made the health endpoint report a sync in progress while nothing was
+ * happening at all, which is worse than reporting a failure.
+ *
+ * Called once at startup: by definition nothing this process started can be in flight yet, so any
+ * row still marked running belongs to a previous life and is over whatever happened to it.
+ */
+export async function reconcileStaleRuns(): Promise<number> {
+  const { count } = await prisma.syncRun.updateMany({
+    where: { status: 'running' },
+    data: {
+      status: 'failed',
+      finishedAt: new Date(),
+      errorMessage: 'interrupted — the service stopped or lost its connection before this run finished',
+    },
+  });
+
+  if (count > 0) {
+    logger.warn({ count }, 'marked interrupted sync runs as failed (the service did not shut down cleanly)');
+  }
+  return count;
+}

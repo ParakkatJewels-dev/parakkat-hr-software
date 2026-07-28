@@ -8,6 +8,8 @@ import { logger } from './lib/logger';
 import { assertDbReachable, disconnectDb } from './lib/db';
 import { createServer } from './api/server';
 import { startScheduler, stopScheduler, jobsInFlight } from './jobs/scheduler';
+import { reconcileStaleRuns } from './sync/runLog';
+import { reconcileStaleCommands } from './jobs/commands';
 import { biotime } from './biotime/client';
 import { syncEmployees } from './sync/syncEmployees';
 
@@ -55,6 +57,17 @@ async function main(): Promise<void> {
       logger.warn({ error: ping.error }, 'BioTime not reachable at startup — the worker will keep retrying');
     }
   });
+
+  // Anything still marked 'running' belongs to a previous process that did not shut down cleanly.
+  // Settle it before scheduling, so the health endpoint never shows a phantom sync in progress.
+  void reconcileStaleRuns().catch((err) =>
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale sync runs')
+  );
+  // A command stuck on 'running' blocks every future request of that kind, because the duplicate
+  // guard treats it as still in flight.
+  void reconcileStaleCommands().catch((err) =>
+    logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale commands')
+  );
 
   startScheduler();
 

@@ -14,6 +14,8 @@ import { env } from '../config/env';
 import { streamTransactions, type NormalizedPunch } from '../biotime/transactions';
 import { advanceCursor, computeStartTime, getCursor, markSuccess, recordFailure } from './cursor';
 import { SyncRun, type RunKind } from './runLog';
+import { toWorkDate } from '../lib/time';
+import { enqueueRecompute } from '../engine/recompute';
 
 /** Insert chunk size. Large enough to be efficient, small enough to keep statements sane. */
 const INSERT_CHUNK = 500;
@@ -87,6 +89,8 @@ export interface IngestResult {
   maxPunchTime: Date | null;
   maxBiotimeId: bigint | null;
   unmatchedCodes: Set<string>;
+  /** `${employeeId}|${workDate}` for every punch that landed on a linked employee. */
+  touchedDays: Set<string>;
 }
 
 /** Write one batch of normalized punches. Idempotent by construction. */
@@ -102,6 +106,7 @@ export async function ingestPunches(
     maxPunchTime: null,
     maxBiotimeId: null,
     unmatchedCodes: new Set(),
+    touchedDays: new Set(),
   };
 
   if (punches.length === 0) return result;
@@ -112,6 +117,11 @@ export async function ingestPunches(
     if (!employeeId) {
       result.unmatched += 1;
       result.unmatchedCodes.add(p.empCode);
+    } else {
+      // Remember which day this punch belongs to so attendance can be rebuilt for it. The work
+      // date is the IST calendar day; a night shift is re-pointed at the day it started when the
+      // engine runs, so recomputing the calendar day is enough to reach it.
+      result.touchedDays.add(`${employeeId}|${toWorkDate(p.punchTime)}`);
     }
     if (!result.maxPunchTime || p.punchTime > result.maxPunchTime) {
       result.maxPunchTime = p.punchTime;
@@ -148,6 +158,34 @@ export async function ingestPunches(
   await upsertDevicesFromPunches(punches);
 
   return result;
+}
+
+/**
+ * Ask the engine to rebuild the days a sync just delivered punches for.
+ *
+ * Best-effort on purpose: the punches are already stored and the cursor is about to advance, so a
+ * failure to queue must not fail the run and cause the same window to be re-downloaded. The
+ * nightly pass is the backstop.
+ */
+async function queueTouchedDays(touched: Set<string>): Promise<void> {
+  if (touched.size === 0) return;
+
+  let queued = 0;
+  for (const key of touched) {
+    const sep = key.indexOf('|');
+    const employeeId = key.slice(0, sep);
+    const workDate = key.slice(sep + 1);
+    try {
+      await enqueueRecompute(employeeId, workDate, workDate, 'punches arrived from the terminal');
+      queued += 1;
+    } catch (err) {
+      logger.warn(
+        { employeeId, workDate, err: err instanceof Error ? err.message : String(err) },
+        'could not queue a recompute for a synced day — the nightly pass will cover it'
+      );
+    }
+  }
+  if (queued > 0) logger.info({ days: queued }, 'queued recomputes for days with new punches');
 }
 
 export interface SyncOptions {
@@ -188,6 +226,7 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
 
   const employeeMap = await loadEmployeeMap();
   const allUnmatched = new Set<string>();
+  const touchedDays = new Set<string>();
 
   let maxPunchTime: Date | null = null;
   let maxBiotimeId: bigint | null = null;
@@ -212,6 +251,7 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
       run.counters.recordsInserted += ingested.inserted;
       run.counters.recordsSkipped += ingested.skipped;
       for (const code of ingested.unmatchedCodes) allUnmatched.add(code);
+      for (const day of ingested.touchedDays) touchedDays.add(day);
 
       if (ingested.maxPunchTime && (!maxPunchTime || ingested.maxPunchTime > maxPunchTime)) {
         maxPunchTime = ingested.maxPunchTime;
@@ -243,6 +283,16 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
 
     // Only now, with every page written, does the watermark move.
     if (advance && maxPunchTime) {
+      // Rebuild attendance for every day this run brought punches for.
+      //
+      // Without this, a day only gets recomputed if it happens to fall inside the two scheduled
+      // windows: today (every 15 minutes) and the trailing ENGINE_LOOKBACK_DAYS at 02:30. Punches
+      // that arrive for anything older land in raw_punches and are never turned into attendance —
+      // so a machine that was off for a long weekend would come back, faithfully download every
+      // missed punch, and still show everybody as Absent for those days. The queue is drained
+      // every five minutes, so the correction follows the download by minutes.
+      await queueTouchedDays(touchedDays);
+
       await advanceCursor('transactions', { lastPunchTime: maxPunchTime, lastTransactionId: maxBiotimeId });
     } else if (advance) {
       await markSuccess('transactions');
