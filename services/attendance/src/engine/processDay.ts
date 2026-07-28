@@ -71,6 +71,46 @@ export function dedupePunches(punches: PunchRecord[], withinSeconds = env.PUNCH_
   return out;
 }
 
+/**
+ * Split a day's punches into the stretches worked and the stretches away.
+ *
+ * The terminals here report punch_state 255 on every record — the face readers are not configured
+ * to distinguish an entry from an exit — so direction cannot be read off the punch. Order is all
+ * there is: the first punch is arrival, the last is departure, and the ones between alternate
+ * out, in, out, in. That matches the observed shape of a day exactly:
+ *
+ *   09:39 [10:38-10:53] [13:02-13:36] [15:36-16:05] 18:33   ->  3 breaks, 78 minutes away
+ *
+ * An odd number of middle punches means one was missed. The breaks that can still be paired are
+ * measured, and `incomplete` is set so nobody treats the total as the whole truth — under-counting
+ * break time silently would overpay, which is the failure worth being loud about.
+ */
+export function splitSessions(punches: Date[]): {
+  breaks: { from: Date; to: Date; minutes: number }[];
+  breakMinutes: number;
+  incomplete: boolean;
+} {
+  const breaks: { from: Date; to: Date; minutes: number }[] = [];
+  if (punches.length < 4) {
+    // Fewer than four punches cannot describe a break: two is in/out, three is in/out with one
+    // stray that we cannot place.
+    return { breaks: [], breakMinutes: 0, incomplete: punches.length === 3 };
+  }
+
+  const middle = punches.slice(1, -1);
+  for (let i = 0; i + 1 < middle.length; i += 2) {
+    const from = middle[i]!;
+    const to = middle[i + 1]!;
+    breaks.push({ from, to, minutes: Math.max(0, minutesBetween(from, to)) });
+  }
+
+  return {
+    breaks,
+    breakMinutes: breaks.reduce((sum, b) => sum + b.minutes, 0),
+    incomplete: middle.length % 2 === 1,
+  };
+}
+
 function emptyResult(input: DayInput): DayResult {
   return {
     employeeId: input.employeeId,
@@ -78,6 +118,9 @@ function emptyResult(input: DayInput): DayResult {
     shiftId: input.shift?.id ?? null,
     status: 'Absent',
     dayType: input.dayType,
+    punches: [],
+    breakMinutes: 0,
+    breaksIncomplete: false,
     checkIn: null,
     checkOut: null,
     firstPunchAt: null,
@@ -125,6 +168,12 @@ export function processDay(input: DayInput): DayResult {
   result.firstPunchAt = deduped[0]?.punchTime ?? null;
   result.lastPunchAt = deduped.length ? deduped[deduped.length - 1]!.punchTime : null;
 
+  // Keep the whole timeline, not just the ends. Everything after this can explain itself.
+  result.punches = deduped.map((p) => p.punchTime);
+  const sessions = splitSessions(result.punches);
+  result.breakMinutes = sessions.breakMinutes;
+  result.breaksIncomplete = sessions.incomplete;
+
   // An approved regularization supplies what the device missed. It wins over the raw punches for
   // the times it specifies, and only for those.
   let checkIn = result.firstPunchAt;
@@ -154,9 +203,36 @@ export function processDay(input: DayInput): DayResult {
   }
 
   // --- worked time ------------------------------------------------------------
+  // How the break is costed is a company decision, not this function's:
+  //
+  //   fixed                 deduct the standard allowance whatever actually happened.
+  //   actual                deduct the measured time away.
+  //   actual_over_allowance deduct the greater of the two — the standard break is theirs whether
+  //                         they use it or not, and only an overrun is charged.
+  //
+  // The third is what this company runs. Note the difference in how each treats an unreliable
+  // measurement. `actual` deducts a number it knows is short, so it falls back to the allowance
+  // rather than overpaying quietly. `actual_over_allowance` can use the measurement even when a
+  // punch is missing: what was measured is genuinely time away, and since it can only ever
+  // understate the truth, taking the greater of it and the allowance never over-deducts. That also
+  // closes the obvious hole — skipping a punch would otherwise buy back a long lunch.
   if (checkIn && checkOut) {
     const gross = Math.max(0, minutesBetween(checkIn, checkOut));
-    result.workedMinutes = Math.max(0, gross - shift.breakMinutes);
+    const measured = result.punches.length >= 4 ? result.breakMinutes : 0;
+
+    let deduction: number;
+    switch (shift.breakPolicy) {
+      case 'actual':
+        deduction = measured > 0 && !result.breaksIncomplete ? measured : shift.breakMinutes;
+        break;
+      case 'actual_over_allowance':
+        deduction = Math.max(shift.breakMinutes, measured);
+        break;
+      default:
+        deduction = shift.breakMinutes;
+    }
+
+    result.workedMinutes = Math.max(0, gross - deduction);
     result.hours = minutesToHours(result.workedMinutes);
   }
 
@@ -236,7 +312,16 @@ export function processDay(input: DayInput): DayResult {
   }
 
   // --- overtime -------------------------------------------------------------------
-  const overBy = minutesBetween(result.scheduledOut!, checkOut) - shift.otAfterMinutes;
+  // 'schedule' counts time visible after the shift ends; 'worked' counts work beyond a full day,
+  // which is the only one of the two that notices somebody who started ninety minutes early.
+  // Whichever basis, the same two thresholds apply: otAfterMinutes is grace before the meter
+  // starts, minOtMinutes is the floor below which a claim is not worth recording.
+  const beyond =
+    shift.otBasis === 'worked'
+      ? result.workedMinutes - shift.fullDayMinutes
+      : minutesBetween(result.scheduledOut!, checkOut);
+
+  const overBy = beyond - shift.otAfterMinutes;
   if (overBy >= shift.minOtMinutes) {
     result.otMinutes = overBy;
   }

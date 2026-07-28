@@ -37,6 +37,8 @@ interface EmployeeRow {
   id: string;
   entity_id: string;
   branch_id: string | null;
+  /** 'yyyy-MM-dd', or null when nobody has recorded when this person started. */
+  join_date: string | null;
 }
 
 interface AssignmentRow {
@@ -62,18 +64,20 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       grace_in_minutes: number;
       grace_out_minutes: number;
       break_minutes: number;
+      break_policy: string;
       weekly_offs: number[];
       full_day_minutes: number;
       half_day_minutes: number;
       ot_after_minutes: number;
       min_ot_minutes: number;
+      ot_basis: string;
     }>
   >`
     select id, code, name,
            start_time::text  as start_time,
            end_time::text    as end_time,
-           crosses_midnight, grace_in_minutes, grace_out_minutes, break_minutes,
-           weekly_offs, full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes
+           crosses_midnight, grace_in_minutes, grace_out_minutes, break_minutes, break_policy,
+           weekly_offs, full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes, ot_basis
       from public.shifts
      where is_active
   `;
@@ -90,11 +94,16 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       graceInMinutes: r.grace_in_minutes,
       graceOutMinutes: r.grace_out_minutes,
       breakMinutes: r.break_minutes,
+      breakPolicy:
+        r.break_policy === 'actual' || r.break_policy === 'actual_over_allowance'
+          ? r.break_policy
+          : 'fixed',
       weeklyOffs: Array.isArray(r.weekly_offs) ? r.weekly_offs : [],
       fullDayMinutes: r.full_day_minutes,
       halfDayMinutes: r.half_day_minutes,
       otAfterMinutes: r.ot_after_minutes,
       minOtMinutes: r.min_ot_minutes,
+      otBasis: r.ot_basis === 'worked' ? 'worked' : 'schedule',
     });
   }
   return map;
@@ -105,11 +114,13 @@ async function loadEmployees(employeeIds?: string[]): Promise<EmployeeRow[]> {
 
   return employeeIds && employeeIds.length
     ? prisma.$queryRaw<EmployeeRow[]>`
-        select id, entity_id, branch_id from public.employees
+        select id, entity_id, branch_id, to_char(join_date, 'YYYY-MM-DD') as join_date
+          from public.employees
          where id = any(${employeeIds}::uuid[])
       `
     : prisma.$queryRaw<EmployeeRow[]>`
-        select id, entity_id, branch_id from public.employees
+        select id, entity_id, branch_id, to_char(join_date, 'YYYY-MM-DD') as join_date
+          from public.employees
          where status = 'Active'
       `;
 }
@@ -325,7 +336,9 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
         ${r.workedMinutes}, ${r.lateMinutes}, ${r.earlyExitMinutes}, ${r.otMinutes},
         ${r.isLate}, ${r.isEarlyExit}, ${r.isMissingPunch},
         ${r.leaveId}::uuid, ${r.leaveType}, ${r.isLop}, ${r.dayFraction},
-        ${r.regularizationId}::uuid, ${r.source}, ${r.remarks}, now()
+        ${r.regularizationId}::uuid, ${r.source}, ${r.remarks}, now(),
+        ${JSON.stringify(r.punches.map((d) => d.toISOString()))}::jsonb,
+        ${r.breakMinutes}, ${r.breaksIncomplete}
       )`
     );
 
@@ -337,7 +350,8 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
         first_punch_at, last_punch_at, punch_count, scheduled_in, scheduled_out, hours,
         worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
         is_late, is_early_exit, is_missing_punch,
-        leave_id, leave_type, is_lop, day_fraction, regularization_id, source, remarks, computed_at
+        leave_id, leave_type, is_lop, day_fraction, regularization_id, source, remarks, computed_at,
+        punches, break_minutes, breaks_incomplete
       )
       values ${Prisma.join(values)}
       on conflict (employee_id, work_date) do update set
@@ -367,7 +381,10 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
         regularization_id  = excluded.regularization_id,
         source             = excluded.source,
         remarks            = excluded.remarks,
-        computed_at        = excluded.computed_at
+        computed_at        = excluded.computed_at,
+        punches            = excluded.punches,
+        break_minutes      = excluded.break_minutes,
+        breaks_incomplete  = excluded.breaks_incomplete
       ${lockGuard}
     `;
 
@@ -459,6 +476,16 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
       const calendarId = calendars.get(employee.id);
 
       for (const workDate of dates) {
+        // Nobody is absent before they were hired.
+        //
+        // This only bites on a long backfill. The engine computes every active employee across the
+        // requested range, so pulling a year of history would otherwise open an Absent row for
+        // each of today's staff on every day back to the start — months of invented absence for
+        // someone who joined in March, dragging their attendance rate down and filling the
+        // exceptions list with days that never existed. A null join_date means we genuinely do not
+        // know, and guessing a start date would be worse than computing the day.
+        if (employee.join_date && workDate < employee.join_date) continue;
+
         // shift in force: assignment, else entity default, else global default
         const assignment = empAssignments.find(
           (a) =>

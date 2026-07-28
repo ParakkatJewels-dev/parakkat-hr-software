@@ -21,11 +21,13 @@ const GENERAL: ShiftDefinition = {
   graceInMinutes: 15,
   graceOutMinutes: 15,
   breakMinutes: 60,
+  breakPolicy: 'fixed',
   weeklyOffs: [0],
   fullDayMinutes: 480,
   halfDayMinutes: 240,
   otAfterMinutes: 30,
   minOtMinutes: 30,
+  otBasis: 'schedule',
 };
 
 // 22:00 -> 06:00 is 480 scheduled minutes; a 30-minute unpaid break leaves 450 workable. Setting
@@ -302,4 +304,182 @@ test('an approved regularization supplies the missing check-out', () => {
 test('the same input always produces the same result', () => {
   const input = day({ punches: [punchAt('2026-07-15', '09:47'), punchAt('2026-07-15', '19:20')] });
   assert.deepEqual(processDay(input), processDay(input));
+});
+
+// ---------------------------------------------------------------------------
+// breaks
+//
+// The terminals report punch_state 255 on every record, so a punch never says whether it is an
+// entry or an exit. Pairing is by order alone. The day below is a real shape from the Kalamassery
+// terminal — arrive, tea, lunch, tea, leave.
+// ---------------------------------------------------------------------------
+
+test('middle punches are measured as breaks', () => {
+  const r = processDay(
+    day({
+      punches: [
+        punchAt('2026-07-15', '09:39'),
+        punchAt('2026-07-15', '10:38'), punchAt('2026-07-15', '10:53'), // 15m
+        punchAt('2026-07-15', '13:02'), punchAt('2026-07-15', '13:36'), // 34m
+        punchAt('2026-07-15', '15:36'), punchAt('2026-07-15', '16:05'), // 29m
+        punchAt('2026-07-15', '18:33'),
+      ],
+    })
+  );
+
+  assert.equal(r.punchCount, 8);
+  assert.equal(r.breakMinutes, 15 + 34 + 29);
+  assert.equal(r.breaksIncomplete, false);
+  assert.equal(r.checkIn?.getHours(), 9);
+  assert.equal(r.checkOut?.getHours(), 18);
+});
+
+test("'fixed' costs the allowance, 'actual' costs what was measured", () => {
+  const punches = [
+    punchAt('2026-07-15', '09:00'),
+    punchAt('2026-07-15', '12:00'), punchAt('2026-07-15', '14:00'), // a 120-minute lunch
+    punchAt('2026-07-15', '18:00'),
+  ];
+  const span = 9 * 60; // 09:00 -> 18:00
+
+  const fixed = processDay(day({ punches }));
+  assert.equal(fixed.breakMinutes, 120, 'measured either way');
+  assert.equal(fixed.workedMinutes, span - GENERAL.breakMinutes, 'but only the allowance is deducted');
+
+  const actual = processDay(day({ punches, shift: { ...GENERAL, breakPolicy: 'actual' } }));
+  assert.equal(actual.workedMinutes, span - 120);
+  // 420 is a full day, 360 is not — this is exactly the kind of day the policy switch moves.
+  assert.equal(fixed.status, 'Present');
+  assert.equal(actual.status, 'Half Day');
+});
+
+test('an unpaired middle punch is flagged and does not reduce pay', () => {
+  const r = processDay(
+    day({
+      shift: { ...GENERAL, breakPolicy: 'actual' },
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '12:00'), punchAt('2026-07-15', '13:00'), punchAt('2026-07-15', '15:00'),
+        punchAt('2026-07-15', '18:00'),
+      ],
+    })
+  );
+
+  assert.equal(r.breaksIncomplete, true, 'three middle punches cannot pair');
+  assert.equal(r.breakMinutes, 60, 'measures the pair it can see');
+  // Deducting a break total we know is short would overpay, so fall back to the allowance.
+  assert.equal(r.workedMinutes, 9 * 60 - GENERAL.breakMinutes);
+});
+
+test('two punches describe no break at all', () => {
+  const r = processDay({
+    ...day({ punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '18:00')] }),
+  });
+  assert.equal(r.breakMinutes, 0);
+  assert.equal(r.breaksIncomplete, false);
+  assert.deepEqual(r.punches.length, 2);
+});
+
+test("'actual_over_allowance' protects the standard break and charges only the overrun", () => {
+  const span = 9 * 60; // 09:00 -> 18:00 in every case below
+  const shift = { ...GENERAL, breakPolicy: 'actual_over_allowance' as const };
+
+  // A short break does NOT become extra credit — the hour is theirs either way.
+  const short = processDay(
+    day({
+      shift,
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '13:00'), punchAt('2026-07-15', '13:30'), // 30m
+        punchAt('2026-07-15', '18:00'),
+      ],
+    })
+  );
+  assert.equal(short.breakMinutes, 30);
+  assert.equal(short.workedMinutes, span - GENERAL.breakMinutes, 'still the 60m allowance');
+
+  // An overrun is charged in full.
+  const long = processDay(
+    day({
+      shift,
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '12:00'), punchAt('2026-07-15', '14:53'), // 173m
+        punchAt('2026-07-15', '18:00'),
+      ],
+    })
+  );
+  assert.equal(long.breakMinutes, 173);
+  assert.equal(long.workedMinutes, span - 173);
+});
+
+test('a missing punch cannot buy back a long lunch', () => {
+  // Five punches: the measured 120m is a floor, but it is real time away and exceeds the
+  // allowance, so it is still charged. Skipping a punch must not be cheaper than taking the break.
+  const r = processDay(
+    day({
+      shift: { ...GENERAL, breakPolicy: 'actual_over_allowance' },
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '12:00'), punchAt('2026-07-15', '14:00'), punchAt('2026-07-15', '15:00'),
+        punchAt('2026-07-15', '18:00'),
+      ],
+    })
+  );
+  assert.equal(r.breaksIncomplete, true);
+  assert.equal(r.breakMinutes, 120);
+  assert.equal(r.workedMinutes, 9 * 60 - 120, 'the measured floor still beats the allowance');
+});
+
+// ---------------------------------------------------------------------------
+// overtime basis
+//
+// The real shape of a day here is an early start and a 17:30-ish finish. Measuring overtime from
+// the scheduled end awarded it on 15 days out of 594 while 419 of those days were over seven
+// hours of work.
+// ---------------------------------------------------------------------------
+
+test("'worked' basis pays an early start that a schedule basis ignores", () => {
+  // Murukan K B, 07-22: in at 07:56, out at 17:29. Eight and a half hours, finished before the
+  // configured 18:30, so the schedule basis sees a short day and no overtime at all.
+  // The live shift treats 420 minutes as a full day, not the 480 this file's fixture uses.
+  const REAL = { ...GENERAL, fullDayMinutes: 420 };
+  const punches = [punchAt('2026-07-15', '07:56'), punchAt('2026-07-15', '17:29')];
+  const worked = 573 - GENERAL.breakMinutes; // 07:56 -> 17:29, less the break allowance
+
+  const bySchedule = processDay(day({ punches, shift: REAL }));
+  assert.equal(bySchedule.otMinutes, 0, 'left before the shift ended, so nothing counts');
+  assert.equal(bySchedule.isEarlyExit, true);
+
+  const byWorked = processDay(day({ punches, shift: { ...REAL, otBasis: 'worked' } }));
+  assert.equal(byWorked.workedMinutes, worked);
+  assert.equal(byWorked.otMinutes, worked - REAL.fullDayMinutes - REAL.otAfterMinutes);
+  assert.ok(byWorked.otMinutes >= REAL.minOtMinutes, 'and it clears the floor, so it is recorded');
+});
+
+test("'worked' basis still refuses trivial overtime", () => {
+  // Ten minutes past a full day is not an overtime claim.
+  const shift = { ...GENERAL, otBasis: 'worked' as const };
+  const r = processDay(
+    day({
+      shift,
+      // 09:30 -> 18:10 is 520 gross, 460 worked: 40 beyond a full day, which is under
+      // otAfterMinutes + minOtMinutes.
+      punches: [punchAt('2026-07-15', '09:30'), punchAt('2026-07-15', '18:10')],
+    })
+  );
+  assert.equal(r.workedMinutes, 460);
+  assert.equal(r.otMinutes, 0);
+});
+
+test('the two bases agree when the extra time is all at the end of the day', () => {
+  // Starting on time and staying late is the one case both rules describe identically — provided
+  // the shift's net scheduled time equals a full day, which is what makes them comparable.
+  const shift = { ...GENERAL, endTime: '17:30:00', fullDayMinutes: 420 };
+  const punches = [punchAt('2026-07-15', '09:30'), punchAt('2026-07-15', '19:00')];
+
+  const a = processDay(day({ punches, shift }));
+  const b = processDay(day({ punches, shift: { ...shift, otBasis: 'worked' } }));
+  assert.equal(a.otMinutes, b.otMinutes);
+  assert.equal(a.otMinutes, 90 - GENERAL.otAfterMinutes);
 });

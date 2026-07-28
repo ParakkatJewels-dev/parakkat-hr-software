@@ -31,12 +31,19 @@ export interface ShiftDefinition {
   graceInMinutes: number;
   graceOutMinutes: number;
   breakMinutes: number;
+  /**
+   * How the break is charged. 'fixed' always deducts breakMinutes; 'actual' deducts what was
+   * measured; 'actual_over_allowance' deducts the greater of the two.
+   */
+  breakPolicy: 'fixed' | 'actual' | 'actual_over_allowance';
   /** 0 = Sunday … 6 = Saturday. */
   weeklyOffs: number[];
   fullDayMinutes: number;
   halfDayMinutes: number;
   otAfterMinutes: number;
   minOtMinutes: number;
+  /** 'schedule' = past the shift end; 'worked' = beyond fullDayMinutes. */
+  otBasis: 'schedule' | 'worked';
 }
 
 export interface PunchRecord {
@@ -81,6 +88,12 @@ export interface DayResult {
   firstPunchAt: Date | null;
   lastPunchAt: Date | null;
   punchCount: number;
+  /** Every punch of the day, oldest first, after de-duplication. */
+  punches: Date[];
+  /** Measured minutes away, from the paired middle punches. Not the shift allowance. */
+  breakMinutes: number;
+  /** The middle punches did not pair up, so breakMinutes is a floor. */
+  breaksIncomplete: boolean;
 
   scheduledIn: Date | null;
   scheduledOut: Date | null;
