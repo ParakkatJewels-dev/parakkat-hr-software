@@ -38,35 +38,9 @@ import { recompute } from '../engine/recompute';
 import { todayWorkDate, DateTime, APP_TZ } from '../lib/time';
 import { parseArgs, flag } from './args';
 import { weeks } from './fetchAll';
+import { earliestPunchDate } from '../sync/earliest';
 
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'backups');
-
-/** BioTime's punch payload, only the field we need. */
-interface RawTxn { punch_time?: string }
-
-/**
- * The date of the oldest transaction Easy Time Pro holds.
- *
- * Asked for rather than assumed: "all time" is whatever the terminal actually has, and starting a
- * year earlier than that means fifty pointless requests while starting a year later silently loses
- * history. Falls back to a wide window if the endpoint will not say.
- */
-async function earliestPunchDate(): Promise<string | null> {
-  for (const ordering of ['punch_time', 'id']) {
-    try {
-      const body = await biotime.get<{ data?: RawTxn[]; results?: RawTxn[] }>(
-        '/iclock/api/transactions/',
-        { page: 1, page_size: 1, ordering }
-      );
-      const first = (body?.data ?? body?.results ?? [])[0];
-      const t = first?.punch_time;
-      if (t) return String(t).slice(0, 10);
-    } catch {
-      // This build may not accept `ordering`; try the next spelling, then give up gracefully.
-    }
-  }
-  return null;
-}
 
 async function main(): Promise<void> {
   const args = parseArgs();

@@ -31,6 +31,7 @@ import { recompute } from '../engine/recompute';
 import { itemsOf, mapRecord } from '../sync/shiftMapping';
 import { todayWorkDate, DateTime, APP_TZ } from '../lib/time';
 import { parseArgs, flag } from './args';
+import { earliestPunchDate } from '../sync/earliest';
 
 const CHUNK_DAYS = 7;
 
@@ -89,12 +90,18 @@ async function main(): Promise<void> {
   const resume = flag(args, 'resume');
 
   const to = todayWorkDate();
+  // Ask the terminal how far back it goes rather than assuming. Only fall back to a wide window
+  // if it will not say.
+  const discovered = typeof args.from === 'string' ? null : await earliestPunchDate();
   const from = typeof args.from === 'string'
     ? args.from
-    : DateTime.fromISO(to, { zone: APP_TZ }).minus({ months: 12 }).toFormat('yyyy-MM-dd');
+    : discovered ?? DateTime.fromISO(to, { zone: APP_TZ }).minus({ months: 12 }).toFormat('yyyy-MM-dd');
 
   console.log(`\n  Fetching everything from ${biotime.baseUrl}`);
-  console.log(`  Range ${from} .. ${to}${dry ? '   (DRY RUN — nothing written)' : ''}\n`);
+  console.log(`  Range ${from} .. ${to}${dry ? '   (DRY RUN — nothing written)' : ''}`);
+  console.log(discovered
+    ? `  ${from} is the oldest transaction Easy Time Pro holds.\n`
+    : `  (the oldest transaction could not be read; using a 12-month window)\n`);
 
   const ping = await biotime.ping();
   if (!ping.ok) {

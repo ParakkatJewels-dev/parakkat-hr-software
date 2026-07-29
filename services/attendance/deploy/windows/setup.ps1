@@ -285,6 +285,42 @@ powercfg /change hibernate-timeout-ac 0    2>$null
 powercfg /change disk-timeout-ac 0         2>$null
 Write-Host 'Sleep disabled on mains power (the screen can still turn off).' -ForegroundColor Green
 
+# --- 7. Offer to fetch the history -------------------------------------------
+# The service only ever collects punches newer than the bookmark it keeps in the database, and a
+# first-time install looks back seven days. Neither ever reaches the years already sitting in Easy
+# Time Pro. Asking here is the only moment somebody is definitely at the machine that can read it.
+#
+# Default is No: a routine reinstall should not silently start an hour-long download, and this
+# should never be something that happens by pressing Enter too fast.
+Write-Host ""
+Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
+Write-Host " Easy Time Pro holds years of attendance. The sync only picks" -ForegroundColor Cyan
+Write-Host " up new punches from now on, so that history stays behind"      -ForegroundColor Cyan
+Write-Host " unless it is fetched once, deliberately."                      -ForegroundColor Cyan
+Write-Host "-------------------------------------------------------------" -ForegroundColor Cyan
+Write-Host ""
+Write-Host " It downloads a week at a time, oldest first, and can take" -ForegroundColor Yellow
+Write-Host "30-60 minutes on a large history. Best run after hours -"   -ForegroundColor Yellow
+Write-Host " it is steady load on the Easy Time Pro machine."           -ForegroundColor Yellow
+Write-Host ""
+Write-Host " Nothing is deleted. It only adds the punches that are missing." -ForegroundColor Green
+Write-Host ""
+
+$fetch = Read-Host ' Fetch all past attendance now? (y/N)'
+if ($fetch -match '^[Yy]') {
+  Write-Host "`nFetching. Leave this window open until it finishes.`n" -ForegroundColor Cyan
+  npm run fetch:all
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "`nThe fetch did not finish. Nothing is lost - run it again any time with:" -ForegroundColor Yellow
+    Write-Host "  npm run fetch:all -- --resume" -ForegroundColor Yellow
+    Write-Host "It skips the weeks already collected." -ForegroundColor Yellow
+  }
+} else {
+  Write-Host "`nSkipped. Run it whenever you like:" -ForegroundColor Green
+  Write-Host "  cd $ServiceRoot" -ForegroundColor Green
+  Write-Host "  npm run fetch:all" -ForegroundColor Green
+}
+
 Write-Host "`n=== ALL GOOD ===" -ForegroundColor Green
 Write-Host 'The attendance sync is running as a Windows Service.'
 Write-Host 'It starts by itself every time this machine boots - nobody needs to log in.'
