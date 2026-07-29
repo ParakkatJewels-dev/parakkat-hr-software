@@ -57,6 +57,38 @@ export class SyncRun {
     const errorMessage =
       opts.error instanceof Error ? opts.error.message : opts.error ? String(opts.error) : null;
 
+    // A routine poll that found nothing is not worth a row.
+    //
+    // The punch sync runs every two minutes, so this is ~720 rows a day, and 81% of them said
+    // "success, 0 inserted": of 206 runs in a day, 8 brought punches, 30 failed, 167 found
+    // nothing. On 29 July that wall of green is what made a dead terminal look healthy — every
+    // row said success and not one had a punch behind it. Dropping them is not tidying, it is
+    // making the log legible: what remains is punches arriving and things going wrong.
+    //
+    // Only the routine poll qualifies. A backfill or catch-up that finds nothing is a deliberate
+    // act somebody is waiting on, and its absence from the log would read as never having run.
+    // Failures are always kept, whatever the kind.
+    //
+    // Safe to drop only because the liveness signal moved elsewhere: sync_state.last_poll_at beats
+    // on every attempt (see migration 0063). Before that column existed, "no runs recently" was
+    // the only way to tell a stopped service from a quiet one, and removing these rows would have
+    // made those two indistinguishable.
+    const uneventful =
+      status === 'success' && this.kind === 'transactions' && this.counters.recordsInserted === 0;
+
+    if (uneventful) {
+      try {
+        await prisma.syncRun.delete({ where: { id: this.id } });
+      } catch (err) {
+        logger.debug({ err, runId: Number(this.id) }, 'could not drop an uneventful sync_run row');
+      }
+      logger.debug(
+        { kind: this.kind, durationMs, fetched: this.counters.recordsFetched },
+        'poll found nothing new'
+      );
+      return;
+    }
+
     try {
       await prisma.syncRun.update({
         where: { id: this.id },

@@ -158,6 +158,10 @@ model SyncState {
   lastTransactionId   BigInt?   @map("last_transaction_id")
   lastPunchTime       DateTime? @map("last_punch_time") @db.Timestamptz(6)
   lastSuccessAt       DateTime? @map("last_success_at") @db.Timestamptz(6)
+  /// Every attempt, whatever the outcome — the liveness signal. lastSuccessAt stops moving when
+  /// Easy Time Pro stops answering, which is exactly when the service still needs to be reported
+  /// as running. See migration 0063.
+  lastPollAt          DateTime? @map("last_poll_at") @db.Timestamptz(6)
   lastError           String?   @map("last_error")
   consecutiveFailures Int       @default(0) @map("consecutive_failures")
   updatedAt           DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)

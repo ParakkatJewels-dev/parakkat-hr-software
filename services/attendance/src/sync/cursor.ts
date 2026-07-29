@@ -124,3 +124,31 @@ export async function resetCursor(key: SyncKey, to: Date | null = null): Promise
   });
   logger.warn({ key, to }, 'cursor reset');
 }
+
+/**
+ * Record that a sync was ATTEMPTED, whatever came of it.
+ *
+ * The liveness signal, and deliberately separate from the two next to it:
+ *
+ *   last_poll_at     every attempt          -> is the SERVICE running?
+ *   last_success_at  the pull worked        -> is EASY TIME PRO answering?
+ *   last_punch_time  punches came back      -> is the MACHINE delivering?
+ *
+ * last_success_at cannot do this job, which is why this exists. It stops the moment Easy Time Pro
+ * stops answering — and at that moment the service is still running perfectly well and still needs
+ * to be reported as running, so that somebody goes and looks at Easy Time Pro rather than at the
+ * laptop. Telling those two apart is the whole point of the three-link status.
+ *
+ * Best-effort: a heartbeat that fails must never fail the sync it was reporting on.
+ */
+export async function markPoll(key: SyncKey): Promise<void> {
+  try {
+    await prisma.syncState.upsert({
+      where: { key },
+      create: { key, lastPollAt: new Date() },
+      update: { lastPollAt: new Date() },
+    });
+  } catch (err) {
+    logger.debug({ key, err: err instanceof Error ? err.message : String(err) }, 'could not record the poll heartbeat');
+  }
+}

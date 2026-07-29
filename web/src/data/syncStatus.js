@@ -164,7 +164,7 @@ export function useSyncHealth() {
       const [state, lastRun, newestRun, today, unmapped] = await Promise.all([
         supabase
           .from('sync_state')
-          .select('key, last_punch_time, last_success_at, last_error, consecutive_failures')
+          .select('key, last_punch_time, last_success_at, last_poll_at, last_error, consecutive_failures')
           .eq('key', 'transactions')
           .maybeSingle(),
         supabase
@@ -201,9 +201,21 @@ export function useSyncHealth() {
 
       // Which of the three links is broken, if any. The rules and the reasoning live in
       // lib/syncDiagnosis.js, away from React so they can be tested.
+      // The liveness signal, taken as the later of two things on purpose.
+      //
+      // last_poll_at beats on every attempt and is the right answer — but only a service running
+      // the build that sets it will have one, and the HR laptop is not always on the newest build.
+      // Falling back to the newest sync_run keeps the status honest during that gap, and once the
+      // laptop is updated the column takes over on its own. Taking the LATER of the two means
+      // neither can drag the reading backwards.
+      const heartbeat = [state.data?.last_poll_at ?? null, newestRun.data?.started_at ?? null]
+        .filter(Boolean)
+        .sort()
+        .pop() ?? null;
+
       const dx = diagnose({
         nowMs: Date.now(),
-        newestRunAt: newestRun.data?.started_at ?? null,
+        newestRunAt: heartbeat,
         lastSuccessAt: lastSuccess,
         lastPunchAt: lastPunchTime,
       });
@@ -214,7 +226,7 @@ export function useSyncHealth() {
         minutes: dx.minutes,
         lastSuccess,
         lastPunchTime,
-        newestRunAt: newestRun.data?.started_at ?? null,
+        newestRunAt: heartbeat,
         lastError: state.data?.last_error ?? null,
         consecutiveFailures: failures,
         lastRun: lastRun.data ?? null,

@@ -12,7 +12,7 @@ import { prisma } from '../lib/db';
 import { logger } from '../lib/logger';
 import { env } from '../config/env';
 import { streamTransactions, type NormalizedPunch } from '../biotime/transactions';
-import { advanceCursor, computeStartTime, getCursor, markSuccess, recordFailure } from './cursor';
+import { advanceCursor, computeStartTime, getCursor, markPoll, markSuccess, recordFailure } from './cursor';
 import { SyncRun, type RunKind } from './runLog';
 import { toWorkDate } from '../lib/time';
 import { enqueueRecompute } from '../engine/recompute';
@@ -216,6 +216,11 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
 
   const cursor = await getCursor('transactions');
   const startTime = opts.startTime ?? computeStartTime(cursor);
+
+  // Before anything can go wrong: the service is alive and it is trying. This is what keeps the
+  // status screen able to say "running, but Easy Time Pro is not answering" instead of collapsing
+  // that into "not running".
+  if (advance) await markPoll('transactions');
 
   const run = await SyncRun.start(kind, {
     lastPunchTime: cursor.lastPunchTime,
