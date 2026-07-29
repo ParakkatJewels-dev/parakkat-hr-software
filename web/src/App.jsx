@@ -1,4 +1,5 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks,
 } from 'lucide-react';
@@ -71,7 +72,25 @@ export default function App() {
     ? 'Super Admin'
     : prettyRole(primaryRole) + (extraRoles ? ` +${extraRoles}` : '');
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // --- which screen is on show -----------------------------------------------------------------
+  // It lives in the URL, not in component state.
+  //
+  // This was useState('dashboard'), which meant every refresh — and every restart of the native
+  // app — threw the user back to the dashboard from wherever they had been working. The query
+  // cache already survives a reload (see the persister in main.jsx), so the effect was an app that
+  // repainted the right data on the wrong screen.
+  //
+  // Putting it in the route fixes that and two things next to it: the browser's Back button now
+  // steps through screens instead of leaving the app, and a screen can be linked to or bookmarked
+  // — /#/payroll opens payroll. HashRouter is already the router here because the native webview
+  // serves from a local origin, so these URLs work identically on the web and in Capacitor.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const activeTab = location.pathname.replace(/^\/+|\/+$/g, '') || 'dashboard';
+  // Deliberately the same shape as the setState it replaces, so every onNavigate / onBack /
+  // command-palette caller keeps working untouched.
+  const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Sidebar collapsed state
@@ -612,7 +631,11 @@ export default function App() {
               case 'settings':
                 return <SettingsPage />;
               default:
-                return null;
+                // A screen name in the URL that this build does not have: a stale bookmark, a
+                // typo, a link from an older version. Now that the address bar can name a screen,
+                // this is reachable — send them home rather than painting a blank page they have
+                // no way out of.
+                return <Navigate to="/" replace />;
             }
           })()}
           </Suspense>
