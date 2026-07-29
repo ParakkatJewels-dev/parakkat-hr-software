@@ -9,6 +9,7 @@ import { useAuth } from '../auth/AuthContext';
 import FormSection from './ui/FormSection';
 import { btnClass } from './ui/Btn';
 import { usePermissions } from '../auth/usePermissions';
+import { useUrlTab } from '../lib/useUrlTab';
 
 const STATUSES = ['To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
@@ -55,7 +56,8 @@ export default function TaskManagement() {
   const canUpdate = canAny('task.update') || canAny('task.manage');
   const canManage = canAny('task.manage');
 
-  const [view, setView] = useState('flow'); // 'flow' | 'people'
+  // In the URL, so a refresh comes back to the view you were reading.
+  const [view, setView] = useUrlTab('flow', ['flow', 'people']);
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | <status>
   const [mineOnly, setMineOnly] = useState(false);
   const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | null

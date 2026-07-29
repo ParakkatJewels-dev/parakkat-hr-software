@@ -23,6 +23,7 @@ import { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
+import { useUrlTab } from '../lib/useUrlTab';
 
 const TABS = [
   { id: 'today', label: 'Today', icon: Users },
@@ -778,7 +779,8 @@ function RegularizationsView({ employee, canApprove }) {
 export default function Attendance() {
   const { employee } = useAuth();
   const { canAny } = usePermissions();
-  const [tab, setTab] = useState('today');
+  // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
+  const [tab, setTab] = useUrlTab('today', TABS.map((t) => t.id));
   const [workDate, setWorkDate] = useState(todayIso());
 
   const visibleTabs = TABS.filter((t) => !t.perm || canAny(t.perm));

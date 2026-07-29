@@ -21,6 +21,7 @@ import {
 import { useEmployees } from '../data/employees';
 import { useOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
+import { useUrlTab } from '../lib/useUrlTab';
 import { todayIso } from '../data/attendance';
 import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
@@ -50,7 +51,8 @@ const Err = ({ e }) =>
 export default function Payroll() {
   const { canAny } = usePermissions();
   const canManage = canAny('payroll.manage');
-  const [tab, setTab] = useState('payslips');
+  // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
+  const [tab, setTab] = useUrlTab('payslips', ['payslips', 'runs', 'structures', 'reports']);
 
   const TABS = [
     { id: 'payslips', label: 'Payslips', icon: FileText, show: true },

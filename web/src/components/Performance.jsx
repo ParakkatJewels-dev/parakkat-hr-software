@@ -10,6 +10,7 @@ import { useGoals, useSaveGoal, useDeleteGoal } from '../data/goals';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
+import { useUrlTab } from '../lib/useUrlTab';
 import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
@@ -39,7 +40,8 @@ export default function Performance() {
   const del = useDeleteGoal();
 
   const [form, setForm] = useState({ employee_id: '', title: '', target_date: '', weight: '' });
-  const [view, setView] = useState('mine');
+  // In the URL, so a refresh comes back to the view you were reading.
+  const [view, setView] = useUrlTab('mine', ['mine', 'team']);
 
   const mine = useMemo(() => goals.filter((g) => g.employee_id === employee?.id), [goals, employee]);
   const team = useMemo(() => goals.filter((g) => g.employee_id !== employee?.id), [goals, employee]);

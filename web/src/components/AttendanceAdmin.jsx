@@ -25,6 +25,7 @@ import { todayIso } from '../data/attendance';
 import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
+import { useUrlTab } from '../lib/useUrlTab';
 
 const TABS = [
   { id: 'mapping', label: 'Devices & mapping', icon: Fingerprint, perm: 'device.manage' },
@@ -974,7 +975,10 @@ function SyncTab() {
 export default function AttendanceAdmin() {
   const { canAny } = usePermissions();
   const visible = TABS.filter((t) => !t.perm || canAny(t.perm));
-  const [tab, setTab] = useState(visible[0]?.id ?? 'mapping');
+  // In the URL, so a refresh comes back to the tab you were reading. Validated against the
+  // tabs this user can actually see, so a link to one they lack permission for lands on the
+  // first they do rather than on an empty page.
+  const [tab, setTab] = useUrlTab(visible[0]?.id ?? 'mapping', visible.map((t) => t.id));
 
   if (visible.length === 0) {
     return (

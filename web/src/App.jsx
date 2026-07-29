@@ -84,11 +84,16 @@ export default function App() {
   // steps through screens instead of leaving the app, and a screen can be linked to or bookmarked
   // — /#/payroll opens payroll. HashRouter is already the router here because the native webview
   // serves from a local origin, so these URLs work identically on the web and in Capacitor.
+  // Only the FIRST segment names the screen. Anything after it belongs to that screen's own tab
+  // bar — /#/attendance/exceptions, /#/attendance-admin/sync — read there by useUrlTab. Without
+  // this split the whole path was matched against the screen list, so the moment a page put its
+  // inner tab in the URL every one of those addresses fell through to the not-found redirect.
   const location = useLocation();
   const navigate = useNavigate();
-  const activeTab = location.pathname.replace(/^\/+|\/+$/g, '') || 'dashboard';
+  const activeTab = location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || 'dashboard';
   // Deliberately the same shape as the setState it replaces, so every onNavigate / onBack /
-  // command-palette caller keeps working untouched.
+  // command-palette caller keeps working untouched. Switching screens drops the inner tab, which
+  // is right: the exceptions tab of Attendance means nothing on Payroll.
   const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);

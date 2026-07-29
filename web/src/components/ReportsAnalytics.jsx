@@ -19,6 +19,7 @@ import { useAttendanceReport } from '../data/reports';
 import { useExportRegister, useExportPayroll, todayIso, fmtMinutes, monthRange } from '../data/attendance';
 import { useServiceHealth } from '../data/syncStatus';
 import { downloadCsv } from '../lib/csv';
+import { useUrlTab } from '../lib/useUrlTab';
 
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
@@ -81,7 +82,8 @@ export default function ReportsAnalytics() {
   const today = todayIso();
   const [period, setPeriod] = useState(today.slice(0, 7)); // 'YYYY-MM'
   const [branchId, setBranchId] = useState('all');
-  const [tab, setTab] = useState('attendance');
+  // In the URL, so a refresh comes back to the report you were reading.
+  const [tab, setTab] = useUrlTab('attendance', ['attendance', 'payroll', 'headcount', 'leave']);
 
   const year = Number(period.slice(0, 4));
   const month = Number(period.slice(5, 7));
