@@ -188,7 +188,9 @@ test('a day whose only punches are a double-tap is Missing Punch, not a 8-second
   );
 
   assert.equal(r.status, 'Missing Punch');
-  assert.equal(r.workedMinutes, 0);
+  // Deduped to a single arrival, so the day runs to the scheduled 18:30 rather than lasting eight
+  // seconds. Clipped to the 09:30 start, that is 540 minutes less the 60-minute allowance.
+  assert.equal(r.workedMinutes, 540 - 60);
 });
 
 // ---------------------------------------------------------------------------
@@ -549,6 +551,70 @@ test('a lone evening punch is a departure, and asserts no lateness', () => {
   assert.match(r.remarks ?? '', /no check-in/);
 });
 
+// ---------------------------------------------------------------------------
+// what a lone punch is WORTH.
+//
+// Not a full day, and not zero either: the day is measured from the punch that exists to the
+// scheduled boundary on the side that is missing. The expectations below are lifted straight out
+// of Easy Time Pro's own Monthly Status Report for July 2026 — NARAYANAN CK, employee 2020 — so
+// these tests fail if we ever drift from the system the company already reconciles against.
+//
+// Scoring these zero, as the engine did before, left 196 days across 109 people unpaid in July
+// alone.
+// ---------------------------------------------------------------------------
+
+// Easy Time Pro's own General Time Table, inferred from the Late and Early columns of its report:
+// 09:00-17:30, and it deducts no break at all.
+const THEIRS: ShiftDefinition = {
+  ...GENERAL,
+  id: 'shift-etp',
+  code: 'GN',
+  startTime: '09:00:00',
+  endTime: '17:30:00',
+  breakMinutes: 0,
+  breakPolicy: 'excess',
+  fullDayMinutes: 510,
+  halfDayMinutes: 255,
+};
+
+const theirDay = (clock: string) =>
+  processDay(day({ shift: THEIRS, punches: [punchAt('2026-07-15', clock)] }));
+
+test('a lone arrival is worth the time from it to the shift end, not a full day', () => {
+  // Their day 5: clocked in 12:45, never out. Their report says 04:45 — not 08:30.
+  assert.equal(theirDay('12:45').workedMinutes, 285);
+
+  // Their day 28: clocked in 09:16, never out. Their report says 08:14.
+  assert.equal(theirDay('09:16').workedMinutes, 494);
+});
+
+test('a lone departure is worth the time from the shift start to it', () => {
+  // Their day 21: no clock in, clocked out 17:06. Their report says 08:06.
+  assert.equal(theirDay('17:06').workedMinutes, 486);
+});
+
+test('a lone punch at the normal leaving time only looks like a full day', () => {
+  // Their day 1: no clock in, clocked out 17:31, reported 08:30. It reaches the full-day figure
+  // only because he left on time — the same rule gave him 4:45 on day 5.
+  assert.equal(theirDay('17:31').workedMinutes, 510);
+});
+
+test('a forgotten punch never earns overtime, however late the punch is', () => {
+  // Forgetting to punch in must not pay better than remembering. A lone 22:00 punch is 13 hours of
+  // apparent presence off a single press; the schedule caps it and none of it is overtime, because
+  // the other half of the day was never measured.
+  const r = theirDay('22:00');
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.workedMinutes, 510, 'capped at the scheduled day, not 780');
+  assert.equal(r.otMinutes, 0);
+});
+
+test('an early start is not credited on a day that is half assumption', () => {
+  // 08:30 with no departure punch: the half-hour before the shift is real, but paying it while
+  // inventing the entire second half of the day is not a trade worth making.
+  assert.equal(theirDay('08:30').workedMinutes, 510);
+});
+
 test('the split is the scheduled midpoint, not midday', () => {
   // GENERAL is 09:30-18:30, so the midpoint is 14:00.
   const before = processDay(day({ punches: [punchAt('2026-07-15', '13:59')] }));
@@ -679,4 +745,73 @@ test('an early start earns overtime, as stated by the company', () => {
     day({ shift, punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '17:30')] })
   );
   assert.equal(exact.otMinutes, 0);
+});
+
+// ---------------------------------------------------------------------------
+// 'excess': the allowance is free, only an overrun is charged
+//
+// Stated by the company: do not decrease working hours for the break itself; only when a break
+// exceeds the configured time is the excess taken off.
+// ---------------------------------------------------------------------------
+
+test("'excess' charges nothing for a break inside the allowance", () => {
+  const shift = { ...GENERAL, breakMinutes: 30, breakPolicy: 'excess' as const };
+  const r = processDay(
+    day({
+      shift,
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '13:00'), punchAt('2026-07-15', '13:20'), // 20m, inside 30
+        punchAt('2026-07-15', '17:30'),
+      ],
+    })
+  );
+  assert.equal(r.breakMinutes, 20, 'still measured and shown');
+  assert.equal(r.workedMinutes, 8 * 60 + 30, 'but nothing deducted — the whole span is worked');
+});
+
+test("'excess' charges only the minutes beyond the allowance", () => {
+  const shift = { ...GENERAL, breakMinutes: 30, breakPolicy: 'excess' as const };
+  const r = processDay(
+    day({
+      shift,
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '13:00'), punchAt('2026-07-15', '14:02'), // 62m, so 32 over
+        punchAt('2026-07-15', '17:30'),
+      ],
+    })
+  );
+  assert.equal(r.breakMinutes, 62);
+  assert.equal(r.workedMinutes, 8 * 60 + 30 - 32, 'only the 32-minute overrun');
+});
+
+test("'excess' deducts nothing when no break was punched", () => {
+  // 89% of days here carry no break punch. Treating that as "took the full allowance" would dock
+  // tens of thousands of hours on no evidence at all.
+  const shift = { ...GENERAL, breakMinutes: 30, breakPolicy: 'excess' as const };
+  const r = processDay(
+    day({ shift, punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '17:30')] })
+  );
+  assert.equal(r.breakMinutes, 0);
+  assert.equal(r.workedMinutes, 8 * 60 + 30, 'the full span is paid');
+});
+
+test("'excess' with an incomplete break under-deducts rather than over-deducts", () => {
+  // Three middle punches cannot pair, so the measurement is a floor. Charging the excess of a
+  // floor errs downward, which is the right direction when the data is admittedly incomplete.
+  const shift = { ...GENERAL, breakMinutes: 30, breakPolicy: 'excess' as const };
+  const r = processDay(
+    day({
+      shift,
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '12:00'), punchAt('2026-07-15', '13:10'), punchAt('2026-07-15', '15:00'),
+        punchAt('2026-07-15', '17:30'),
+      ],
+    })
+  );
+  assert.equal(r.breaksIncomplete, true);
+  assert.equal(r.breakMinutes, 70, 'the pair it could read');
+  assert.equal(r.workedMinutes, 8 * 60 + 30 - 40, 'charged 40, the excess of what was measurable');
 });

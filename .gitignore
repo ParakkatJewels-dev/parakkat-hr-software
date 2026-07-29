@@ -28,3 +28,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Exports pulled out of Easy Time Pro for reconciliation. Real attendance records for named
+# employees — useful to compare against, not something to publish into the repository.
+easy pro time data/

@@ -146,6 +146,63 @@ function emptyResult(input: DayInput): DayResult {
   };
 }
 
+/**
+ * Minutes to subtract from time-on-site for the break. How the break is costed is a company
+ * decision, not this function's:
+ *
+ *   fixed                 deduct the standard allowance whatever actually happened.
+ *   actual                deduct the measured time away.
+ *   actual_over_allowance deduct the greater of the two — the standard break is theirs whether
+ *                         they use it or not, and only an overrun is charged.
+ *   excess                deduct only what runs past the allowance.
+ *
+ * The last is what this company runs. Note the difference in how each treats an unreliable
+ * measurement. `actual` deducts a number it knows is short, so it falls back to the allowance
+ * rather than overpaying quietly. `actual_over_allowance` can use the measurement even when a
+ * punch is missing: what was measured is genuinely time away, and since it can only ever
+ * understate the truth, taking the greater of it and the allowance never over-deducts. That also
+ * closes the obvious hole — skipping a punch would otherwise buy back a long lunch.
+ *
+ * Lives outside processDay so the reconstructed single-punch day below is costed by exactly the
+ * same rule as a fully punched one, and the two cannot drift apart.
+ */
+function breakDeduction(
+  shift: ShiftDefinition,
+  measurement: { breakMinutes: number; breaksIncomplete: boolean }
+): number {
+  // Two punches — in and out, nothing between — is not a missing measurement. It is a day somebody
+  // worked straight through, and here that is the common case: of 602 completed days, 440 carry
+  // exactly two punches. Charging each the standard hour deducted 440 hours for breaks nobody took.
+  //
+  // A break is only unmeasurable when the punches contradict themselves, i.e. an odd number of
+  // middle punches means one of a pair was missed. Then, and only then, is the allowance the safer
+  // number.
+  const canMeasure = !measurement.breaksIncomplete;
+  const measured = measurement.breakMinutes;
+
+  switch (shift.breakPolicy) {
+    case 'actual':
+      // What the punches say, including nothing.
+      return canMeasure ? measured : shift.breakMinutes;
+
+    case 'actual_over_allowance':
+      return Math.max(shift.breakMinutes, measured);
+
+    case 'excess':
+      // The allowance costs nothing; only the minutes beyond it are charged. A 20-minute tea break
+      // inside a 30-minute allowance is free, a 62-minute lunch costs 32.
+      //
+      // Nothing punched means nothing deducted, deliberately. Only 11% of days here carry a break
+      // punch at all, so treating "no punch" as "took the full allowance" would dock tens of
+      // thousands of hours on no evidence. An incomplete measurement understates the break, so it
+      // can only ever under-deduct — which is the right direction to be wrong in.
+      return Math.max(0, measured - shift.breakMinutes);
+
+    default:
+      return shift.breakMinutes;
+  }
+}
+
 /** Compute one employee-date. Pure. */
 export function processDay(input: DayInput): DayResult {
   const result = emptyResult(input);
@@ -203,51 +260,10 @@ export function processDay(input: DayInput): DayResult {
   }
 
   // --- worked time ------------------------------------------------------------
-  // How the break is costed is a company decision, not this function's:
-  //
-  //   fixed                 deduct the standard allowance whatever actually happened.
-  //   actual                deduct the measured time away.
-  //   actual_over_allowance deduct the greater of the two — the standard break is theirs whether
-  //                         they use it or not, and only an overrun is charged.
-  //
-  // The third is what this company runs. Note the difference in how each treats an unreliable
-  // measurement. `actual` deducts a number it knows is short, so it falls back to the allowance
-  // rather than overpaying quietly. `actual_over_allowance` can use the measurement even when a
-  // punch is missing: what was measured is genuinely time away, and since it can only ever
-  // understate the truth, taking the greater of it and the allowance never over-deducts. That also
-  // closes the obvious hole — skipping a punch would otherwise buy back a long lunch.
+  // Time on site, less the break as the company's policy costs it. See breakDeduction above.
   if (checkIn && checkOut) {
     const gross = Math.max(0, minutesBetween(checkIn, checkOut));
-
-    // Two punches — in and out, nothing between — is not a missing measurement. It is a day
-    // somebody worked straight through, and here that is the common case: of 602 completed days,
-    // 440 carry exactly two punches. Charging each the standard hour deducted 440 hours for
-    // breaks nobody took.
-    //
-    // A break is only unmeasurable when the punches contradict themselves, i.e. an odd number of
-    // middle punches means one of a pair was missed. Then, and only then, is the allowance the
-    // safer number.
-    const canMeasure = !result.breaksIncomplete;
-    const measured = result.breakMinutes;
-
-    let deduction: number;
-    switch (shift.breakPolicy) {
-      case 'actual':
-        // What the punches say, including nothing.
-        deduction = canMeasure ? measured : shift.breakMinutes;
-        break;
-      case 'actual_over_allowance':
-        // The standard break is theirs whether taken or not; only an overrun is charged. Safe to
-        // use an incomplete measurement here because it can only understate time away, so the
-        // greater of the two never over-deducts — and skipping a punch cannot buy back a long
-        // lunch.
-        deduction = Math.max(shift.breakMinutes, measured);
-        break;
-      default:
-        deduction = shift.breakMinutes;
-    }
-
-    result.workedMinutes = Math.max(0, gross - deduction);
+    result.workedMinutes = Math.max(0, gross - breakDeduction(shift, result));
     result.hours = minutesToHours(result.workedMinutes);
   }
 
@@ -328,15 +344,49 @@ export function processDay(input: DayInput): DayResult {
     const creditAsPresent = shift.missedPunchPolicy === 'present';
     result.status = creditAsPresent ? 'Present' : 'Missing Punch';
 
+    // The hours are measured from the punch that exists to the scheduled boundary on the side that
+    // is missing. This is Easy Time Pro's rule, verified against its own Monthly Status Report:
+    // clipping the punch window to the 09:00-17:30 schedule reproduces its Total WK on 2703 of 2703
+    // employee-days, single-punch days included. It is emphatically NOT "credit a full day" —
+    //
+    //   Narayanan CK  day 5   in 12:45, never out  ->  4:45
+    //   Narayanan CK  day 28  in 09:16, never out  ->  8:14
+    //   Narayanan CK  day 21  out 17:06, never in  ->  8:06
+    //
+    // — the day is worth what the real punch says. Day 1's 8:30 only looks like a full day because
+    // he happened to leave at the normal time.
+    //
+    // This is the one place the engine adopts their model wholesale instead of its own. Everywhere
+    // else we count real time on site and pay the overflow as overtime; here we cannot, because
+    // half the interval was never measured.
+    //
+    // Scoring these zero, as this did before, silently left 196 days across 109 people unpaid in
+    // July alone.
+    //
+    // The schedule supplies the missing side, and it also bounds the recorded one. Without that
+    // second clamp a lone 22:00 punch would credit thirteen hours off a single press of the
+    // button — a bigger hole than the one being closed. On a day that is half assumption, nothing
+    // outside the scheduled window is payable.
+    const from = isDeparture
+      ? result.scheduledIn!
+      : new Date(Math.max(checkIn.getTime(), result.scheduledIn!.getTime()));
+    const to = isDeparture
+      ? new Date(Math.min(checkIn.getTime(), result.scheduledOut!.getTime()))
+      : result.scheduledOut!;
+
+    const gross = Math.max(0, minutesBetween(from, to));
+    result.workedMinutes = Math.max(0, gross - breakDeduction(shift, result));
+    result.hours = minutesToHours(result.workedMinutes);
+
     if (isDeparture) {
       // The one thing known is when they left. When they arrived is not recorded, so no lateness
       // is asserted — claiming someone was eight hours late for forgetting to punch in is worse
       // than recording nothing.
       result.checkIn = null;
       result.checkOut = checkIn;
-      result.remarks = 'Only one punch recorded — no check-in';
+      result.remarks = 'Only one punch recorded — no check-in, hours counted from the shift start';
     } else {
-      result.remarks = 'Only one punch recorded — no check-out';
+      result.remarks = 'Only one punch recorded — no check-out, hours counted to the shift end';
 
       const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
       if (lateBy > 0) {
@@ -345,6 +395,10 @@ export function processDay(input: DayInput): DayResult {
       }
     }
 
+    // No overtime, whatever the numbers say. Half of this day is an assumption, and an assumption
+    // must not generate a payable claim — otherwise forgetting to punch out becomes profitable.
+    // Falling out of this branch before the overtime block is what enforces that.
+    //
     // A full day under Easy Time Pro's rule; half pending regularization under ours.
     result.dayFraction = Math.max(result.dayFraction, creditAsPresent ? 1 : 0.5);
     return result;
