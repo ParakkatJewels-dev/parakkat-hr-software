@@ -136,9 +136,20 @@ export function startScheduler(): void {
     await pruneRuns(90);
   });
 
-  // 4. Drain the recompute queue often, so an approved leave or regularization shows up in the
-  //    calendar within minutes rather than overnight.
-  schedule('engine:queue', '*/5 * * * *', () => drainRecomputeQueue());
+  // 4. Drain the recompute queue, so an approved leave or regularization shows up in the calendar
+  //    within minutes rather than overnight — and so today's punch detail keeps up with the day.
+  //
+  //    Matched to the punch poll above rather than left at five minutes, because the two are one
+  //    pipeline and the slower half sets the pace. A punch reaches raw_punches within one poll,
+  //    the sync queues that day, and this turns it into attendance; at five minutes the second
+  //    step was usually the longer wait. Aligned, somebody watching today's timeline sees a new
+  //    punch appear in about two to four minutes instead of up to seven.
+  //
+  //    Cheap when there is nothing to do: one indexed lookup that returns no rows and exits. It is
+  //    deliberately NOT folded into the punch sync itself — a large queue (the tail of a backfill)
+  //    would then run inside the sync job and could push it past its ten-minute deadline, stalling
+  //    punch collection to make attendance a little fresher. Wrong trade.
+  schedule('engine:queue', '*/2 * * * *', () => drainRecomputeQueue());
 
   // 5. Work asked for from the admin screen. Every 20 seconds, because somebody is watching a
   //    spinner when they press one of those buttons — unlike the other jobs here, this one has a
