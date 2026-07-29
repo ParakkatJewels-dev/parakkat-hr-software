@@ -42,6 +42,12 @@ export interface ShiftDefinition {
   halfDayMinutes: number;
   otAfterMinutes: number;
   minOtMinutes: number;
+  /** 'exception' = Missing Punch at half a day; 'present' = full credit (Easy Time Pro's rule). */
+  missedPunchPolicy: 'exception' | 'present';
+  /** Lateness beyond this is an absence, not a late mark. */
+  lateAbsentMinutes: number;
+  /** Leaving this early is an absence, not an early exit. */
+  earlyAbsentMinutes: number;
   /** 'schedule' = past the shift end; 'worked' = beyond fullDayMinutes. */
   otBasis: 'schedule' | 'worked';
 }

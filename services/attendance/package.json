@@ -20,7 +20,8 @@
     "test": "tsx --test --experimental-test-module-mocks src",
     "probe:rules": "tsx src/scripts/probeRules.ts",
     "shift:from-device": "tsx src/scripts/shiftFromDevice.ts",
-    "fetch:all": "tsx src/scripts/fetchAll.ts"
+    "fetch:all": "tsx src/scripts/fetchAll.ts",
+    "reset:from-device": "tsx src/scripts/resetFromDevice.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

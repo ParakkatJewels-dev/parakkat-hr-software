@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import {
   Plus, Pencil, Power, Loader2, Network, X, Search, Trash2,
 } from 'lucide-react';
-import { useOrg, useOrgMutation, useQuickSetup } from '../data/org';
+import { useOrgAll, useOrgMutation, useQuickSetup } from '../data/org';
 import FormSection, { Field, FIELD } from './ui/FormSection';
 import InlineRowForm from './ui/InlineRowForm';
 import ConfirmDialog from './ui/ConfirmDialog';
@@ -83,7 +83,9 @@ const labelOf = (row) => row?.name || row?.title || row?.code || '—';
 const BTN_PRIMARY = btnClass('primary');
 const ICON_BTN = btnClass('subtle', 'sm', true);
 export default function Organization() {
-  const { data: org, isLoading, error } = useOrg();
+  // The management screen, so it sees switched-off rows too — otherwise an inactive branch
+  // could never be found to switch back on.
+  const { data: org, isLoading, error } = useOrgAll();
   const { data: allEmployees = [] } = useEmployees();
   const mutation = useOrgMutation();
   const { canAny, isSuperAdmin } = usePermissions();
@@ -644,18 +646,31 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
   // 50+ branches is normal here, so a section needs finding as well as listing. The box only
   // appears once a list is long enough to need it.
   const [q, setQ] = useState('');
+  // Switched-off rows are hidden by default. This screen is the only place they can be switched
+  // back on, so they must stay reachable — but 46 branches reading INACTIVE, one per site with no
+  // terminal yet, buries the two that are in use.
+  const [showInactive, setShowInactive] = useState(false);
   const colSpan = columns.length + (canManage ? 1 : 0);
-  const searchable = rows.length > 8;
+
+  const inactiveCount = useMemo(() => rows.filter((r) => r.is_active === false).length, [rows]);
+  const visible = useMemo(
+    () => (showInactive ? rows : rows.filter((r) => r.is_active !== false)),
+    [rows, showInactive]
+  );
+  const searchable = visible.length > 8;
 
   // Declared after the state it reads — `const` is not hoisted, so computing this above `q`
   // throws "Cannot access 'q' before initialization" on first render.
   const sorted = useMemo(() => {
     const t = q.trim().toLowerCase();
-    return [...rows]
+    return [...visible]
       .filter((r) => !t || [r.name, r.title, r.code, r.city, r.grade]
         .filter(Boolean).some((v) => String(v).toLowerCase().includes(t)))
-      .sort((a, b) => labelOf(a).localeCompare(labelOf(b)));
-  }, [rows, q]);
+      // Anything switched off sinks below what is in use, so a shown list never opens with rows
+      // nobody can be assigned to.
+      .sort((a, b) => (a.is_active === false) - (b.is_active === false)
+        || labelOf(a).localeCompare(labelOf(b)));
+  }, [visible, q]);
 
   const save = async (form) => {
     await onSave(editing === 'new' ? 'insert' : 'update', form);
@@ -669,8 +684,23 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-md font-bold text-neutral-900 dark:text-white">{section.label}</h2>
             <span className="text-2xs font-bold tabular-nums px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-charcoal-800 text-neutral-500">
-              {q.trim() ? `${sorted.length} / ${rows.length}` : rows.length}
+              {q.trim() ? `${sorted.length} / ${visible.length}` : visible.length}
             </span>
+            {inactiveCount > 0 && (
+              <button
+                onClick={() => setShowInactive((v) => !v)}
+                className={`text-2xs font-bold px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
+                  showInactive
+                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                    : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
+                }`}
+                title={showInactive
+                  ? 'Hide the ones switched off'
+                  : 'Switched off — kept on record, hidden from assignment. Show them to edit or switch back on.'}
+              >
+                {showInactive ? `${inactiveCount} off shown` : `+${inactiveCount} off`}
+              </button>
+            )}
             {section.advanced && (
               <span className="text-2xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-charcoal-800 text-neutral-450">
                 Advanced
@@ -710,10 +740,19 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
 
       {sorted.length === 0 && editing !== 'new' ? (
         <p className="text-sm text-neutral-400 py-5 text-center border-t border-neutral-100 dark:border-neutral-855">
-          {q.trim() ? <>Nothing matches “{q}”.</> : <>
-            No {section.label.toLowerCase()} yet
-            {canManage ? <> — <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add the first one</button>.</> : '.'}
-          </>}
+          {q.trim() ? <>Nothing matches “{q}”.</>
+            : inactiveCount > 0 ? <>
+                {/* Saying "none yet" while rows sit hidden sends people off to create duplicates
+                    of records that already exist. */}
+                All {inactiveCount} {section.label.toLowerCase()} here are switched off
+                {' — '}
+                <button onClick={() => setShowInactive(true)} className="font-bold text-[#0ea971] hover:underline cursor-pointer">show them</button>
+                {canManage ? <> or <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add a new one</button>.</> : '.'}
+              </>
+            : <>
+                No {section.label.toLowerCase()} yet
+                {canManage ? <> — <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add the first one</button>.</> : '.'}
+              </>}
         </p>
       ) : (
         <div className={`border-t border-neutral-100 dark:border-neutral-855 ${sorted.length > 14 ? 'table-scroll' : 'overflow-x-auto'}`}>

@@ -70,6 +70,9 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       half_day_minutes: number;
       ot_after_minutes: number;
       min_ot_minutes: number;
+      missed_punch_policy: string;
+      late_absent_minutes: number;
+      early_absent_minutes: number;
       ot_basis: string;
     }>
   >`
@@ -77,7 +80,8 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
            start_time::text  as start_time,
            end_time::text    as end_time,
            crosses_midnight, grace_in_minutes, grace_out_minutes, break_minutes, break_policy,
-           weekly_offs, full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes, ot_basis
+           weekly_offs, full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes, ot_basis,
+           missed_punch_policy, late_absent_minutes, early_absent_minutes
       from public.shifts
      where is_active
   `;
@@ -103,6 +107,9 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       halfDayMinutes: r.half_day_minutes,
       otAfterMinutes: r.ot_after_minutes,
       minOtMinutes: r.min_ot_minutes,
+      missedPunchPolicy: r.missed_punch_policy === 'present' ? 'present' : 'exception',
+      lateAbsentMinutes: r.late_absent_minutes,
+      earlyAbsentMinutes: r.early_absent_minutes,
       otBasis: r.ot_basis === 'worked' ? 'worked' : 'schedule',
     });
   }

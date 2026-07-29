@@ -28,6 +28,9 @@ const GENERAL: ShiftDefinition = {
   otAfterMinutes: 30,
   minOtMinutes: 30,
   otBasis: 'schedule',
+  missedPunchPolicy: 'exception',
+  lateAbsentMinutes: 540,
+  earlyAbsentMinutes: 540,
 };
 
 // 22:00 -> 06:00 is 480 scheduled minutes; a 30-minute unpaid break leaves 450 workable. Setting
@@ -353,6 +356,35 @@ test("'fixed' costs the allowance, 'actual' costs what was measured", () => {
   assert.equal(actual.status, 'Half Day');
 });
 
+test("'actual' deducts nothing when nobody punched a break", () => {
+  // In and out, nothing between. This is the common shape here — 440 of 602 completed days — and
+  // charging each the standard hour removed 440 hours of worked time for breaks nobody took.
+  const r = processDay(
+    day({
+      shift: { ...GENERAL, breakPolicy: 'actual' },
+      punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '17:30')],
+    })
+  );
+  assert.equal(r.breakMinutes, 0);
+  assert.equal(r.breaksIncomplete, false, 'two punches are complete, not missing anything');
+  assert.equal(r.workedMinutes, 8 * 60 + 30, 'the whole span is worked time');
+});
+
+test("'actual' deducts exactly what was punched when a break was taken", () => {
+  const r = processDay(
+    day({
+      shift: { ...GENERAL, breakPolicy: 'actual' },
+      punches: [
+        punchAt('2026-07-15', '09:00'),
+        punchAt('2026-07-15', '13:00'), punchAt('2026-07-15', '13:40'), // 40m
+        punchAt('2026-07-15', '17:30'),
+      ],
+    })
+  );
+  assert.equal(r.breakMinutes, 40);
+  assert.equal(r.workedMinutes, 8 * 60 + 30 - 40, 'not the 60m allowance');
+});
+
 test('an unpaired middle punch is flagged and does not reduce pay', () => {
   const r = processDay(
     day({
@@ -539,4 +571,112 @@ test('a night shift splits on its own midpoint, not the clock', () => {
   const departure = processDay(day({ shift: NIGHT, punches: [punchAt('2026-07-15', '05:00', 1)] }));
   assert.equal(departure.checkIn, null);
   assert.ok(departure.checkOut, 'end of a night shift');
+});
+
+// ---------------------------------------------------------------------------
+// Easy Time Pro's own calculation rules
+//
+// Read from Attendance > Global Rule > Calculation Settings. Until these were adopted, every one
+// of these numbers was one we picked.
+// ---------------------------------------------------------------------------
+
+const ETP: ShiftDefinition = {
+  ...GENERAL,
+  halfDayMinutes: 270,          // "when work duration is less than 270 minutes, count as half day"
+  missedPunchPolicy: 'present', // "calculate missed check-in / check-out as Present"
+};
+
+test("a forgotten punch is credited as Present, not as half a day", () => {
+  const r = processDay(day({ shift: ETP, punches: [punchAt('2026-07-15', '09:28')] }));
+
+  assert.equal(r.status, 'Present');
+  assert.equal(r.dayFraction, 1, 'full credit — they came to work');
+  assert.equal(r.isMissingPunch, true, 'still flagged, so HR can still correct it');
+});
+
+test('under our own rule the same day is still an exception at half credit', () => {
+  const r = processDay(day({ punches: [punchAt('2026-07-15', '09:28')] }));
+
+  assert.equal(r.status, 'Missing Punch');
+  assert.equal(r.dayFraction, 0.5);
+});
+
+test('the half-day floor is 270 minutes, so 240 no longer earns half a day', () => {
+  // 09:00 -> 14:00 is 300 gross, 240 worked after the 60m break. Under our old 240 floor that was
+  // exactly half a day; under Easy Time Pro's 270 it is not enough to earn one.
+  const short = processDay(
+    day({ shift: ETP, punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '14:00')] })
+  );
+  assert.equal(short.workedMinutes, 240);
+  // Not an absence: the engine keeps a short day on the register as Present and reduces the
+  // payable fraction instead, because marking someone absent on a day they were demonstrably at
+  // work causes more disputes than it settles.
+  assert.equal(short.status, 'Present');
+  assert.equal(short.dayFraction, 0.5, 'half a day of credit either way');
+  assert.match(short.remarks ?? '', /Short hours/);
+
+  // 09:00 -> 15:00 is 360 gross, 300 worked — clears 270, short of a full day.
+  const half = processDay(
+    day({ shift: ETP, punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '15:00')] })
+  );
+  assert.equal(half.workedMinutes, 300);
+  assert.equal(half.status, 'Half Day');
+});
+
+test('lateness past the absence threshold is an absence, not a large late mark', () => {
+  // 540 minutes past a 09:30 start, less the 15-minute grace, lands at 18:45. A 19:00 arrival is
+  // 555 minutes late — clear of the threshold.
+  const r = processDay(
+    day({ shift: ETP, punches: [punchAt('2026-07-15', '19:00'), punchAt('2026-07-15', '20:30')] })
+  );
+
+  assert.equal(r.status, 'Absent');
+  assert.equal(r.dayFraction, 0);
+  assert.match(r.remarks ?? '', /beyond the absence threshold/);
+});
+
+test('ordinary lateness is unaffected by the threshold', () => {
+  const r = processDay(
+    day({ shift: ETP, punches: [punchAt('2026-07-15', '10:05'), punchAt('2026-07-15', '18:35')] })
+  );
+  assert.equal(r.isLate, true);
+  assert.equal(r.lateMinutes, 20);
+  assert.notEqual(r.status, 'Absent');
+});
+
+test('an early start earns overtime, as stated by the company', () => {
+  // "General shift 9 to 5:30. In at 8, out at 5:30 — that is an hour of overtime."
+  const shift: ShiftDefinition = {
+    ...GENERAL,
+    startTime: '09:00:00', endTime: '17:30:00',
+    breakMinutes: 30, breakPolicy: 'fixed',
+    graceInMinutes: 0, graceOutMinutes: 0,
+    fullDayMinutes: 480, halfDayMinutes: 270,
+    otAfterMinutes: 0, minOtMinutes: 0,
+    otBasis: 'worked',
+  };
+
+  const early = processDay(
+    day({ shift, punches: [punchAt('2026-07-15', '08:00'), punchAt('2026-07-15', '17:30')] })
+  );
+  assert.equal(early.workedMinutes, 540, '9.5 hours on site, less the 30-minute break');
+  assert.equal(early.otMinutes, 60, 'the hour before the shift started');
+
+  // The same hour at the other end is worth the same.
+  const late = processDay(
+    day({ shift, punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '18:30')] })
+  );
+  assert.equal(late.otMinutes, 60);
+
+  // An hour at each end is two.
+  const both = processDay(
+    day({ shift, punches: [punchAt('2026-07-15', '08:00'), punchAt('2026-07-15', '18:30')] })
+  );
+  assert.equal(both.otMinutes, 120);
+
+  // Working exactly the shift earns none.
+  const exact = processDay(
+    day({ shift, punches: [punchAt('2026-07-15', '09:00'), punchAt('2026-07-15', '17:30')] })
+  );
+  assert.equal(exact.otMinutes, 0);
 });

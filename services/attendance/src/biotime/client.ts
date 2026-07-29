@@ -13,6 +13,7 @@ import { logger } from '../lib/logger';
 import { withRetry, isRetryable } from '../lib/retry';
 import { BiotimeAuth, createAuthHttp } from './auth';
 import { pageItems, type BiotimePage } from './types';
+import { enforceReadOnly } from './readOnly';
 
 export class BiotimeApiError extends Error {
   readonly status?: number;
@@ -61,7 +62,8 @@ export class BiotimeClient {
       this.httpAgent = new HttpAgent(agentOpts);
       this.httpsAgent = new HttpsAgent(agentOpts);
 
-      this.httpInstance = axios.create({
+      // Data calls only — not even the login goes through this instance.
+      this.httpInstance = enforceReadOnly(axios.create({
         baseURL: requireBiotimeConfig().baseUrl,
         timeout: env.BIOTIME_TIMEOUT_MS,
         headers: { Accept: 'application/json' },
@@ -70,7 +72,7 @@ export class BiotimeClient {
         // BioTime can return a large page; keep axios from truncating it.
         maxContentLength: Infinity,
         maxBodyLength: Infinity,
-      });
+      }));
     }
     return this.httpInstance;
   }

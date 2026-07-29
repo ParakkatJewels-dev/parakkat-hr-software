@@ -11,6 +11,7 @@ import axios, { AxiosInstance, AxiosError } from 'axios';
 import { env, requireBiotimeConfig } from '../config/env';
 import { logger } from '../lib/logger';
 import { withRetry, isRetryable } from '../lib/retry';
+import { enforceReadOnly } from './readOnly';
 import type { AuthMode, AuthResult } from './types';
 
 const ROUTES: Record<AuthMode, string> = {
@@ -198,9 +199,13 @@ export class BiotimeAuth {
 
 /** Bare axios instance used only for the auth calls (no auth interceptor, so no recursion). */
 export function createAuthHttp(): AxiosInstance {
-  return axios.create({
-    baseURL: requireBiotimeConfig().baseUrl,
-    timeout: env.BIOTIME_TIMEOUT_MS,
-    headers: { Accept: 'application/json' },
-  });
+  // allowAuth: the login POST is permitted here and nowhere else.
+  return enforceReadOnly(
+    axios.create({
+      baseURL: requireBiotimeConfig().baseUrl,
+      timeout: env.BIOTIME_TIMEOUT_MS,
+      headers: { Accept: 'application/json' },
+    }),
+    { allowAuth: true }
+  );
 }

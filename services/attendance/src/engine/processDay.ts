@@ -218,14 +218,29 @@ export function processDay(input: DayInput): DayResult {
   // closes the obvious hole — skipping a punch would otherwise buy back a long lunch.
   if (checkIn && checkOut) {
     const gross = Math.max(0, minutesBetween(checkIn, checkOut));
-    const measured = result.punches.length >= 4 ? result.breakMinutes : 0;
+
+    // Two punches — in and out, nothing between — is not a missing measurement. It is a day
+    // somebody worked straight through, and here that is the common case: of 602 completed days,
+    // 440 carry exactly two punches. Charging each the standard hour deducted 440 hours for
+    // breaks nobody took.
+    //
+    // A break is only unmeasurable when the punches contradict themselves, i.e. an odd number of
+    // middle punches means one of a pair was missed. Then, and only then, is the allowance the
+    // safer number.
+    const canMeasure = !result.breaksIncomplete;
+    const measured = result.breakMinutes;
 
     let deduction: number;
     switch (shift.breakPolicy) {
       case 'actual':
-        deduction = measured > 0 && !result.breaksIncomplete ? measured : shift.breakMinutes;
+        // What the punches say, including nothing.
+        deduction = canMeasure ? measured : shift.breakMinutes;
         break;
       case 'actual_over_allowance':
+        // The standard break is theirs whether taken or not; only an overrun is charged. Safe to
+        // use an incomplete measurement here because it can only understate time away, so the
+        // greater of the two never over-deducts — and skipping a punch cannot buy back a long
+        // lunch.
         deduction = Math.max(shift.breakMinutes, measured);
         break;
       default:
@@ -303,8 +318,15 @@ export function processDay(input: DayInput): DayResult {
     );
     const isDeparture = checkIn.getTime() > midpoint.getTime();
 
-    result.status = 'Missing Punch';
     result.isMissingPunch = true;
+
+    // Easy Time Pro credits a forgotten punch as Present ("Calculate Missed Check-In/Out as
+    // Present"), and that is the rule this company runs on. The person demonstrably came to work;
+    // pressing the button once instead of twice is an administrative slip, not half a day off.
+    // The day stays flagged either way, so HR can still see and correct it — only the credit and
+    // the label differ.
+    const creditAsPresent = shift.missedPunchPolicy === 'present';
+    result.status = creditAsPresent ? 'Present' : 'Missing Punch';
 
     if (isDeparture) {
       // The one thing known is when they left. When they arrived is not recorded, so no lateness
@@ -323,8 +345,8 @@ export function processDay(input: DayInput): DayResult {
       }
     }
 
-    // Half credit pending regularization — HR adjusts by approving one.
-    result.dayFraction = Math.max(result.dayFraction, 0.5);
+    // A full day under Easy Time Pro's rule; half pending regularization under ours.
+    result.dayFraction = Math.max(result.dayFraction, creditAsPresent ? 1 : 0.5);
     return result;
   }
 
@@ -354,6 +376,18 @@ export function processDay(input: DayInput): DayResult {
   const overBy = beyond - shift.otAfterMinutes;
   if (overBy >= shift.minOtMinutes) {
     result.otMinutes = overBy;
+  }
+
+  // --- past a point, late is not late any more --------------------------------------
+  // Easy Time Pro escalates rather than accumulating: beyond these the day is an absence, not a
+  // very large late mark. Someone who appears three hours before closing did not work that day.
+  if (result.lateMinutes > shift.lateAbsentMinutes || result.earlyExitMinutes > shift.earlyAbsentMinutes) {
+    result.status = 'Absent';
+    result.dayFraction = 0;
+    result.remarks = [result.remarks,
+      result.lateMinutes > shift.lateAbsentMinutes ? 'Late beyond the absence threshold' : 'Left beyond the absence threshold',
+    ].filter(Boolean).join(' — ');
+    return result;
   }
 
   // --- the verdict ------------------------------------------------------------------
