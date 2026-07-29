@@ -23,6 +23,7 @@ import { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
+import { useSyncHealth } from '../data/syncStatus';
 import { useUrlTab } from '../lib/useUrlTab';
 
 const TABS = [
@@ -79,6 +80,9 @@ function ErrorNote({ error }) {
 
 function TodayView({ workDate, setWorkDate }) {
   const { data = [], isLoading, error, summary, refetch, isFetching } = useAttendanceSummary(workDate);
+  // Only meaningful while looking at today: a stalled terminal cannot explain a gap in last March.
+  const { data: health } = useSyncHealth();
+  const isToday = workDate === todayIso();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   // Where, as well as what. A day is 242 rows across 4 companies and 46 branches; a shop manager
@@ -159,6 +163,27 @@ function TodayView({ workDate, setWorkDate }) {
 
   return (
     <div className="space-y-4">
+      {/* Shown here, and not only on the sync screen, because this is where a stalled terminal is
+          actually noticed: everyone reads as "no punch out" and the day looks like mass absence.
+          On 29 July the machine stopped uploading at 13:07 and nothing said so for five hours. */}
+      {isToday && health?.terminalLevel === 'stalled' ? (
+        <div className="premium-card border-amber-300 dark:border-amber-900/60">
+          <div className="flex items-start gap-2">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="text-xs text-amber-800 dark:text-amber-200">
+              <span className="font-bold">
+                No punch has arrived for {Math.floor(health.minutesSincePunch / 60)}h{' '}
+                {health.minutesSincePunch % 60}m.
+              </span>{' '}
+              The figures below stop at that point, so people who are still at work will show as
+              having no punch out. The punching machine can show "connected" and still be stuck —
+              that light is a heartbeat, not an upload. Try <em>Get Transactions</em> in Easy Time
+              Pro, then reboot the terminal. Nothing is lost: it stores punches and re-sends them.
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <Kpi icon={Users} label="Roster" value={summary.total} />
         <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green" />

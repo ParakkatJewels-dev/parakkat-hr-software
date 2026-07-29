@@ -197,16 +197,52 @@ export function useSyncHealth() {
         : ageMin <= 60 ? 'stale'
         : 'down';
 
+      // --- and, separately, is the TERMINAL still handing over punches? -----------------------
+      //
+      // These are two different questions and answering only the first is how a whole afternoon
+      // went missing. On 29 July the terminal stopped uploading at 13:07. Our service carried on
+      // polling every two minutes and every poll succeeded — there was simply nothing new to
+      // fetch — so this card read "Connected" for five hours while no punch reached the system.
+      // Nobody had any reason to look.
+      //
+      // "Connected" on the terminal is no better a signal: it reflects a heartbeat, and a ZKTeco
+      // device will hold that up quite happily while its upload queue is jammed.
+      //
+      // The only trustworthy evidence is arrival. The threshold is measured, not guessed: over
+      // thirty days of working hours the median gap between punches is 0 minutes, the 99th
+      // percentile is 30, and the longest legitimate silence ever recorded is 74. Ninety minutes
+      // therefore sits clear of anything normal, and would have raised this at 14:37.
+      const lastPunchTime = state.data?.last_punch_time ?? null;
+      const punchAgeMin = lastPunchTime
+        ? (Date.now() - new Date(lastPunchTime).getTime()) / 60_000
+        : Infinity;
+
+      // Silence outside working hours means everyone went home, so no alarm then — an alert that
+      // fires every single night is one nobody reads by the end of the week.
+      const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
+      const istHour = istNow.getUTCHours();
+      const istDow = istNow.getUTCDay();
+      const withinWorkingHours = istDow !== 0 && istHour >= 8 && istHour < 20;
+
+      const terminalLevel =
+        !withinWorkingHours ? 'off-hours'
+        : punchAgeMin <= 45 ? 'ok'
+        : punchAgeMin <= 90 ? 'quiet'
+        : 'stalled';
+
       return {
         level,
         lastSuccess,
-        lastPunchTime: state.data?.last_punch_time ?? null,
+        lastPunchTime,
         lastError: state.data?.last_error ?? null,
         consecutiveFailures: failures,
         lastRun: lastRun.data ?? null,
         punchesToday: today.count ?? null,
         punchesUnmapped: unmapped.count ?? null,
         minutesSinceSuccess: Number.isFinite(ageMin) ? Math.round(ageMin) : null,
+        terminalLevel,
+        minutesSincePunch: Number.isFinite(punchAgeMin) ? Math.round(punchAgeMin) : null,
+        withinWorkingHours,
       };
     },
   });
@@ -232,5 +268,35 @@ export const SYNC_LEVEL = {
     label: 'Not syncing',
     tone: 'text-red-600 dark:text-red-400',
     hint: 'Nothing has synced for over an hour — check the HR laptop is on and on the office network.',
+  },
+};
+
+/**
+ * The other half of the answer: is the punching machine still handing punches over?
+ *
+ * Kept apart from SYNC_LEVEL on purpose. "Our service is running" and "the terminal is delivering"
+ * are separate facts, and reading only the first is how five hours of punches went missing without
+ * anything on screen looking wrong.
+ */
+export const TERMINAL_LEVEL = {
+  ok: {
+    label: 'Delivering',
+    tone: 'text-emerald-600 dark:text-emerald-400',
+    hint: 'The punching machine is handing punches over normally.',
+  },
+  quiet: {
+    label: 'Quiet',
+    tone: 'text-neutral-500 dark:text-neutral-400',
+    hint: 'No punch for a while. Normal in a lull — the longest ordinary gap here is about an hour.',
+  },
+  stalled: {
+    label: 'Not delivering',
+    tone: 'text-red-600 dark:text-red-400',
+    hint: 'Longer than any normal gap. The machine may show "connected" and still be stuck: that light is a heartbeat, not an upload. Try Get Transactions in Easy Time Pro, then reboot the terminal.',
+  },
+  'off-hours': {
+    label: 'Outside working hours',
+    tone: 'text-neutral-450',
+    hint: 'Nobody is expected to be punching, so silence here means nothing.',
   },
 };

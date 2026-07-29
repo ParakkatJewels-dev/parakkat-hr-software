@@ -18,7 +18,7 @@ import {
 } from '../data/devices';
 import {
   useServiceStatus, useSyncState, useSyncRuns, useTriggerSync, useTriggerBackfill,
-  useSyncHealth, useServiceCommands, SYNC_LEVEL, RUN_STATUS_STYLES, relativeTime,
+  useSyncHealth, useServiceCommands, SYNC_LEVEL, TERMINAL_LEVEL, RUN_STATUS_STYLES, relativeTime,
 } from '../data/syncStatus';
 import { useOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
@@ -782,6 +782,9 @@ function SyncTab() {
   const level = SYNC_LEVEL[health?.level] ?? {
     label: 'Checking…', tone: 'text-neutral-400', hint: '',
   };
+  const terminal = TERMINAL_LEVEL[health?.terminalLevel] ?? {
+    label: 'Checking…', tone: 'text-neutral-400', hint: '',
+  };
   const trigger = useTriggerSync();
   const backfill = useTriggerBackfill();
 
@@ -797,7 +800,7 @@ function SyncTab() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Judged from what reached the database, not from whether this browser can reach the HR
             laptop. The two are different questions and only one of them matters. */}
         <div className="premium-card">
@@ -805,14 +808,24 @@ function SyncTab() {
           <div className={`mt-2 text-sm font-bold ${level.tone}`}>{level.label}</div>
           <div className="text-2xs text-neutral-400 mt-0.5">{level.hint}</div>
         </div>
+        {/* The second half of the answer. Our service polling successfully says nothing about
+            whether the machine on the wall is still handing anything over — on 29 July it read
+            "Connected" for five hours after the terminal had stopped. */}
+        <div className="premium-card">
+          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Punching machine</div>
+          <div className={`mt-2 text-sm font-bold ${terminal.tone}`}>{terminal.label}</div>
+          <div className="text-2xs text-neutral-400 mt-0.5">
+            {health?.lastPunchTime ? `last punch ${relativeTime(health.lastPunchTime)}` : 'no punch recorded yet'}
+          </div>
+        </div>
         <div className="premium-card">
           <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Last punch sync</div>
           <div className="mt-2 text-sm font-bold">{relativeTime(health?.lastSuccess)}</div>
           {health?.consecutiveFailures > 0 ? (
             <div className="text-2xs text-red-500 mt-0.5">{health.consecutiveFailures} consecutive failures</div>
-          ) : health?.lastPunchTime ? (
-            <div className="text-2xs text-neutral-400 mt-0.5">newest punch {relativeTime(health.lastPunchTime)}</div>
-          ) : null}
+          ) : (
+            <div className="text-2xs text-neutral-400 mt-0.5">service polls every 2 minutes</div>
+          )}
         </div>
         <div className="premium-card">
           <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Punches today</div>
