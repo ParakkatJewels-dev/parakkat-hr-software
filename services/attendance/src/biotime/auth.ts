@@ -12,6 +12,7 @@ import { env, requireBiotimeConfig } from '../config/env';
 import { logger } from '../lib/logger';
 import { withRetry, isRetryable } from '../lib/retry';
 import { enforceReadOnly } from './readOnly';
+import { currentBaseUrl } from './endpoint';
 import type { AuthMode, AuthResult } from './types';
 
 const ROUTES: Record<AuthMode, string> = {
@@ -202,7 +203,7 @@ export function createAuthHttp(): AxiosInstance {
   // allowAuth: the login POST is permitted here and nowhere else.
   return enforceReadOnly(
     axios.create({
-      baseURL: requireBiotimeConfig().baseUrl,
+      baseURL: currentBaseUrl(),
       timeout: env.BIOTIME_TIMEOUT_MS,
       headers: { Accept: 'application/json' },
     }),

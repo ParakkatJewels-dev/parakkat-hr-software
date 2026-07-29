@@ -14,6 +14,7 @@ import { withRetry, isRetryable } from '../lib/retry';
 import { BiotimeAuth, createAuthHttp } from './auth';
 import { pageItems, type BiotimePage } from './types';
 import { enforceReadOnly } from './readOnly';
+import { currentBaseUrl, rotateEndpoint, confirmEndpoint } from './endpoint';
 
 export class BiotimeApiError extends Error {
   readonly status?: number;
@@ -64,7 +65,9 @@ export class BiotimeClient {
 
       // Data calls only — not even the login goes through this instance.
       this.httpInstance = enforceReadOnly(axios.create({
-        baseURL: requireBiotimeConfig().baseUrl,
+        // Resolved, not configured: if the LAN address stops answering this follows the same
+        // server to loopback rather than failing until somebody edits a file.
+        baseURL: currentBaseUrl(),
         timeout: env.BIOTIME_TIMEOUT_MS,
         headers: { Accept: 'application/json' },
         httpAgent: this.httpAgent,
@@ -90,6 +93,9 @@ export class BiotimeClient {
     this.httpAgent = null;
     this.httpsAgent = null;
     this.httpInstance = null;
+    // The auth client holds its own baseURL, captured when it was built. Left alone, a rotation
+    // would move the data calls to the new address while the login kept going to the dead one.
+    this.authInstance = null;
     logger.warn('dropped the BioTime connection pool — the next request will reconnect');
   }
 
@@ -127,6 +133,7 @@ export class BiotimeClient {
           if (response.status === 401) {
             return { __unauthorized: true } as unknown as T;
           }
+          confirmEndpoint();
           return response.data as T;
         };
 
@@ -165,7 +172,13 @@ export class BiotimeClient {
           // exactly what a Wi-Fi/LAN switch or a rebooted terminal leaves behind. Retrying over the
           // same agent would reuse those corpses and hang again. Throw the agent away so the retry
           // dials fresh.
-          if (!status) this.resetConnection();
+          if (!status) {
+            // A transport failure may be this address rather than the server. Try the next route
+            // to the same box before giving up on it.
+            rotateEndpoint(err instanceof Error ? err.message : 'transport failure');
+            this.resetConnection();
+            this.auth.invalidate();
+          }
 
           return isRetryable(err);
         },
