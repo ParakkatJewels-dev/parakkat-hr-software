@@ -59,15 +59,26 @@ async function main(): Promise<void> {
   });
 
   // Anything still marked 'running' belongs to a previous process that did not shut down cleanly.
-  // Settle it before scheduling, so the health endpoint never shows a phantom sync in progress.
-  void reconcileStaleRuns().catch((err) =>
-    logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale sync runs')
-  );
-  // A command stuck on 'running' blocks every future request of that kind, because the duplicate
-  // guard treats it as still in flight.
-  void reconcileStaleCommands().catch((err) =>
-    logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale commands')
-  );
+  // Settle it before scheduling, so the health endpoint never shows a phantom sync in progress, and
+  // so a command stuck on 'running' stops blocking every future request of its kind — the duplicate
+  // guard in request_service_command() treats it as still in flight.
+  //
+  // AWAITED, and that matters. Both of these settle EVERY open row, which is only sound while
+  // nothing of ours can be running. Fired and forgotten, they raced the scheduler below: the
+  // command drain ticks every 20 seconds, and this database has already produced "Timed out
+  // fetching a new connection" under load, so a slow reconcile could land after the first drain had
+  // claimed a command — marking work that was actively running as failed, and opening the duplicate
+  // guard so a second copy of the same sync could be queued alongside it.
+  //
+  // Neither is fatal if it fails; the periodic maint:overdue job settles the same rows later.
+  await Promise.allSettled([
+    reconcileStaleRuns().catch((err) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale sync runs');
+    }),
+    reconcileStaleCommands().catch((err) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale commands');
+    }),
+  ]);
 
   startScheduler();
 

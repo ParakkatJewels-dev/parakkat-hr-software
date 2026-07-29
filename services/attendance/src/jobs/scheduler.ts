@@ -10,8 +10,8 @@ import { logger } from '../lib/logger';
 import { syncTransactions, catchUpTransactions } from '../sync/syncTransactions';
 import { syncEmployees } from '../sync/syncEmployees';
 import { drainRecomputeQueue, recompute } from '../engine/recompute';
-import { pruneRuns } from '../sync/runLog';
-import { drainServiceCommands } from './commands';
+import { pruneRuns, expireOverdueRuns } from '../sync/runLog';
+import { drainServiceCommands, expireStaleCommands } from './commands';
 import { todayWorkDate, DateTime, APP_TZ } from '../lib/time';
 
 const running = new Map<string, { since: number; abort: AbortController }>();
@@ -145,7 +145,18 @@ export function startScheduler(): void {
   //    person waiting on it.
   schedule('service:commands', '*/20 * * * * *', (signal) => drainServiceCommands(signal));
 
-  // 6. Keep today's attendance current through the day, so the "who's in today" view and the
+  // 6. Housekeeping. When a job exceeds its deadline the scheduler abandons it and releases the
+  //    lock, but the abandoned work never reaches its own `finally` — so the sync_runs row it
+  //    opened stays 'running' for good, and the admin screen shows a sync in progress that stopped
+  //    existing an hour ago. reconcileStaleRuns only covers this at startup, which left three such
+  //    rows open here, the oldest at 73 minutes against a 10-minute deadline. Same treatment for a
+  //    command nothing is going to collect.
+  schedule('maint:overdue', '*/15 * * * *', async () => {
+    await expireOverdueRuns();
+    await expireStaleCommands();
+  });
+
+  // 7. Keep today's attendance current through the day, so the "who's in today" view and the
   //    exceptions list reflect punches as they arrive rather than only after the nightly pass.
   schedule('engine:today', '*/15 * * * *', () => {
     const today = todayWorkDate();

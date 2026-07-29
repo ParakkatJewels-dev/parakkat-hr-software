@@ -131,3 +131,24 @@ export async function reconcileStaleCommands(): Promise<number> {
   if (n > 0) logger.warn({ count: n }, 'marked interrupted commands as failed');
   return n;
 }
+
+/**
+ * Settle abandoned commands on a timer, rather than only when somebody presses a button.
+ *
+ * expire_stale_service_commands() already exists in the database and request_service_command()
+ * calls it before deciding whether a request is a duplicate — which self-heals the button, but only
+ * at the moment it is next pressed. Until then the admin screen lists a command as pending or
+ * running that nothing is going to collect. Calling the same function on a schedule means the list
+ * tells the truth without anyone having to poke it.
+ *
+ * Deliberately the database's function and not a second copy of the rule here: two expiry policies
+ * that disagree about what counts as abandoned would be worse than none.
+ */
+export async function expireStaleCommands(): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ n: number }>>`
+    select public.expire_stale_service_commands() as n
+  `;
+  const n = Number(rows[0]?.n ?? 0);
+  if (n > 0) logger.warn({ count: n }, 'settled abandoned service commands');
+  return n;
+}

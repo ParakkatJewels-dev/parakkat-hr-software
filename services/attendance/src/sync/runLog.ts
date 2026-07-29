@@ -134,3 +134,48 @@ export async function reconcileStaleRuns(): Promise<number> {
   }
   return count;
 }
+
+/**
+ * Settle runs that outlived their deadline, without waiting for a restart.
+ *
+ * reconcileStaleRuns only runs at startup, and that leaves a real gap. When a job exceeds its
+ * deadline the scheduler abandons it and releases the lock — deliberately, because a black-holed
+ * socket will not return however politely it is asked — but the abandoned work never reaches its
+ * own `finally`, so the sync_runs row it opened stays 'running' for good. Three such rows were
+ * sitting open here, the oldest at 73 minutes against a 10-minute deadline, each showing on the
+ * admin screen as a sync in progress that had not existed for over an hour.
+ *
+ * Safe to run WHILE jobs are in flight, which is the whole difference from reconcileStaleRuns —
+ * that one settles every open row and is only sound at startup, when nothing of ours can be
+ * running yet. Here each kind waits out its own scheduler deadline several times over:
+ *
+ *   transactions  10-minute deadline  ->  30
+ *   employees     15                  ->  45
+ *   engine        60                  ->  90
+ *   backfill / catchup                ->  240, because those also run from the CLI, where nothing
+ *                                          imposes a deadline and a genuine multi-month pull can
+ *                                          take hours. Calling one of those failed while it is
+ *                                          still downloading would be a worse lie than the phantom.
+ *
+ * A row this touches therefore cannot belong to work that is still legitimately running under the
+ * scheduler.
+ */
+export async function expireOverdueRuns(): Promise<number> {
+  const count = await prisma.$executeRaw`
+    update public.sync_runs
+       set status = 'failed',
+           finished_at = now(),
+           error_message = 'abandoned — still open long past the deadline for this job'
+     where status = 'running'
+       and started_at < now() - (
+             case kind
+               when 'transactions' then interval '30 minutes'
+               when 'employees'    then interval '45 minutes'
+               when 'engine'       then interval '90 minutes'
+               else                     interval '240 minutes'
+             end)
+  `;
+
+  if (count > 0) logger.warn({ count }, 'settled sync runs that outlived their deadline');
+  return count;
+}
