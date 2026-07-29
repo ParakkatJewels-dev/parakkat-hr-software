@@ -223,10 +223,36 @@ async function main() {
       const key = String(e.department_name ?? '').toUpperCase();
       const deptId = deptMap.get(key) ?? null;
       await db.query(
+        // designation goes with branch and zone: the device records a position, but positions were
+        // never imported as designations, so every value here came from the spreadsheet. Leaving
+        // them set would also block the cascade — employees.designation_id is NO ACTION.
         `update public.employees
-            set entity_id = $2, department_id = $3, branch_id = null, zone_id = null, updated_at = now()
+            set entity_id = $2, department_id = $3,
+                branch_id = null, zone_id = null, designation_id = null, updated_at = now()
           where id = $1`,
         [e.id, entityId, deptId]
+      );
+    }
+
+    // Payroll runs are unique per (company, period). Once every run shares one company, two runs
+    // for the same month collide — here a PKT draft and an HO90 published run, both for 2026-07.
+    //
+    // An empty draft is scaffolding, not a record: no employees, nothing paid. Those are removed so
+    // the real run survives. If two runs that both did something would still collide, stop rather
+    // than pick one, because deciding which payroll to discard is not this script's call.
+    const emptied = await db.query(
+      `delete from public.payroll_runs
+        where coalesce(employees, 0) = 0 and coalesce(total_gross, 0) = 0 and status <> 'Published'`
+    );
+    if (emptied.rowCount) console.log(`  Removed ${emptied.rowCount} empty draft payroll run(s)`);
+
+    const clash = await db.query(
+      `select period, count(*)::int n from public.payroll_runs group by period having count(*) > 1`
+    );
+    if (clash.rows.length) {
+      throw new Error(
+        `two payroll runs that both hold data cover the same period (${clash.rows.map((r) => r.period).join(', ')}). ` +
+        `Merging companies would violate one run per company per period — resolve those first.`
       );
     }
 
