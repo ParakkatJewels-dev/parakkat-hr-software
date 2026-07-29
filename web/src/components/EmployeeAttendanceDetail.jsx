@@ -15,19 +15,10 @@ import { useEmployees } from '../data/employees';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
+import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import PageHeader from './ui/PageHeader';
 import { btnClass } from './ui/Btn';
 import { SkeletonRows } from './ui/Skeleton';
-
-const iso = (d) => d.toISOString().slice(0, 10);
-const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return iso(d); };
-
-const RANGES = [
-  { key: '30', label: 'Last 30 days', from: () => daysAgo(30) },
-  { key: '60', label: 'Last 60 days', from: () => daysAgo(60) },
-  { key: '90', label: 'Last 90 days', from: () => daysAgo(90) },
-  { key: 'custom', label: 'Custom…', from: null },
-];
 
 const SHOW = [
   { key: 'all', label: 'Every day' },
@@ -54,9 +45,10 @@ const fmtDate = (d) =>
 export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }) {
   const { data: employees = [] } = useEmployees();
   const [employeeId, setEmployeeId] = useState(fixedId ?? '');
-  const [rangeKey, setRangeKey] = useState('30');
-  const [from, setFrom] = useState(daysAgo(30));
-  const [to, setTo] = useState(iso(new Date()));
+  // Defaults to the current month: the period anyone asking about someone's attendance means
+  // first, and the one payroll is run against.
+  const range = useDateRange('month');
+  const { from, to } = range;
   const [show, setShow] = useState('all');
   const [q, setQ] = useState('');
   // Which day's punch timeline is open. One at a time — the table stays scannable.
@@ -67,12 +59,6 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
 
   const person = employees.find((e) => e.id === employeeId) ?? null;
   const { data: rows = [], isLoading, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
-
-  const setRange = (key) => {
-    setRangeKey(key);
-    const r = RANGES.find((x) => x.key === key);
-    if (r?.from) { setFrom(r.from()); setTo(iso(new Date())); }
-  };
 
   // Only the statuses this person actually has in the range, so the list never offers a dead end.
   const statusOptions = useMemo(() => {
@@ -202,28 +188,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
           {/* ---- when and what ---------------------------------------------------------- */}
           <div className="premium-card space-y-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
-              {RANGES.map((r) => (
-                <button
-                  key={r.key}
-                  onClick={() => setRange(r.key)}
-                  className={`rounded-lg px-2.5 py-1.5 text-sm font-bold cursor-pointer transition-colors ${
-                    rangeKey === r.key
-                      ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981]'
-                      : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-              {rangeKey === 'custom' && (
-                <span className="flex items-center gap-1.5">
-                  <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="From"
-                    className="text-sm rounded-lg px-2 py-1.5 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800" />
-                  <span className="text-xs text-neutral-400">to</span>
-                  <input type="date" value={to} onChange={(e) => setTo(e.target.value)} aria-label="To"
-                    className="text-sm rounded-lg px-2 py-1.5 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800" />
-                </span>
-              )}
+              <DateRangeFilter {...range} />
               <span className="ml-auto">
                 <FilterSelect label="Show" value={show} options={SHOW.map((s) => s.key)} allValue="all"
                   onChange={setShow} />

@@ -22,6 +22,7 @@ import { usePermissions } from '../auth/usePermissions';
 import { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
+import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 
 const TABS = [
   { id: 'today', label: 'Today', icon: Users },
@@ -476,10 +477,9 @@ function CalendarView({ employeeId, employeeName }) {
 // ---------------------------------------------------------------------------
 
 function ExceptionsView() {
-  const today = todayIso();
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
-  const [from, setFrom] = useState(weekAgo);
-  const [to, setTo] = useState(today);
+  // Exceptions are chased down while they are fresh, so the last week is the useful default.
+  const range = useDateRange('week');
+  const { from, to } = range;
 
   const { data = [], isLoading, error, refetch } = useAttendanceExceptions(from, to);
   const recompute = useRecompute();
@@ -492,17 +492,8 @@ function ExceptionsView() {
   return (
     <div className="space-y-4">
       <div className="premium-card space-y-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-2xs uppercase tracking-wider text-neutral-500">
-            From
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)}
-              className="block mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
-          </label>
-          <label className="text-2xs uppercase tracking-wider text-neutral-500">
-            To
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)}
-              className="block mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
-          </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <DateRangeFilter {...range} />
 
           <button
             onClick={() => recompute.mutate({ from, to }, { onSuccess: () => refetch() })}
