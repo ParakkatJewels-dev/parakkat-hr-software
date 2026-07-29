@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { apiGet, apiHealth } from '../lib/attendanceApi';
+import { diagnose } from '../lib/syncDiagnosis';
 
 /** Live view from the service. Fails soft — the service may simply not be running. */
 export function useServiceStatus() {
@@ -160,7 +161,7 @@ export function useSyncHealth() {
         Date.UTC(nowIst.getUTCFullYear(), nowIst.getUTCMonth(), nowIst.getUTCDate()) - 5.5 * 3600 * 1000
       ).toISOString();
 
-      const [state, lastRun, today, unmapped] = await Promise.all([
+      const [state, lastRun, newestRun, today, unmapped] = await Promise.all([
         supabase
           .from('sync_state')
           .select('key, last_punch_time, last_success_at, last_error, consecutive_failures')
@@ -170,6 +171,15 @@ export function useSyncHealth() {
           .from('sync_runs')
           .select('id, kind, status, started_at, finished_at, error_message')
           .eq('kind', 'transactions')
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        // ANY kind, not just transactions. This is the heartbeat that separates "the service is
+        // dead" from "the service is fine and there is nothing to fetch" — the two looked
+        // identical before, and the second is what happened on 29 July.
+        supabase
+          .from('sync_runs')
+          .select('started_at')
           .order('started_at', { ascending: false })
           .limit(1)
           .maybeSingle(),
@@ -186,117 +196,39 @@ export function useSyncHealth() {
       if (state.error) throw state.error;
 
       const lastSuccess = state.data?.last_success_at ?? null;
-      const ageMin = lastSuccess ? (Date.now() - new Date(lastSuccess).getTime()) / 60_000 : Infinity;
+      const lastPunchTime = state.data?.last_punch_time ?? null;
       const failures = state.data?.consecutive_failures ?? 0;
 
-      // The punch poll runs every two minutes. Ten allows for a slow run plus a skipped tick
-      // without crying wolf; an hour means somebody needs to look at the laptop.
-      const level =
-        failures > 0 && ageMin > 10 ? 'failing'
-        : ageMin <= 10 ? 'ok'
-        : ageMin <= 60 ? 'stale'
-        : 'down';
-
-      // --- and, separately, is the TERMINAL still handing over punches? -----------------------
-      //
-      // These are two different questions and answering only the first is how a whole afternoon
-      // went missing. On 29 July the terminal stopped uploading at 13:07. Our service carried on
-      // polling every two minutes and every poll succeeded — there was simply nothing new to
-      // fetch — so this card read "Connected" for five hours while no punch reached the system.
-      // Nobody had any reason to look.
-      //
-      // "Connected" on the terminal is no better a signal: it reflects a heartbeat, and a ZKTeco
-      // device will hold that up quite happily while its upload queue is jammed.
-      //
-      // The only trustworthy evidence is arrival. The threshold is measured, not guessed: over
-      // thirty days of working hours the median gap between punches is 0 minutes, the 99th
-      // percentile is 30, and the longest legitimate silence ever recorded is 74. Ninety minutes
-      // therefore sits clear of anything normal, and would have raised this at 14:37.
-      const lastPunchTime = state.data?.last_punch_time ?? null;
-      const punchAgeMin = lastPunchTime
-        ? (Date.now() - new Date(lastPunchTime).getTime()) / 60_000
-        : Infinity;
-
-      // Silence outside working hours means everyone went home, so no alarm then — an alert that
-      // fires every single night is one nobody reads by the end of the week.
-      const istNow = new Date(Date.now() + 5.5 * 3600 * 1000);
-      const istHour = istNow.getUTCHours();
-      const istDow = istNow.getUTCDay();
-      const withinWorkingHours = istDow !== 0 && istHour >= 8 && istHour < 20;
-
-      const terminalLevel =
-        !withinWorkingHours ? 'off-hours'
-        : punchAgeMin <= 45 ? 'ok'
-        : punchAgeMin <= 90 ? 'quiet'
-        : 'stalled';
+      // Which of the three links is broken, if any. The rules and the reasoning live in
+      // lib/syncDiagnosis.js, away from React so they can be tested.
+      const dx = diagnose({
+        nowMs: Date.now(),
+        newestRunAt: newestRun.data?.started_at ?? null,
+        lastSuccessAt: lastSuccess,
+        lastPunchAt: lastPunchTime,
+      });
 
       return {
-        level,
+        level: dx.level,
+        brokenHop: dx.brokenHop,
+        minutes: dx.minutes,
         lastSuccess,
         lastPunchTime,
+        newestRunAt: newestRun.data?.started_at ?? null,
         lastError: state.data?.last_error ?? null,
         consecutiveFailures: failures,
         lastRun: lastRun.data ?? null,
         punchesToday: today.count ?? null,
         punchesUnmapped: unmapped.count ?? null,
-        minutesSinceSuccess: Number.isFinite(ageMin) ? Math.round(ageMin) : null,
-        terminalLevel,
-        minutesSincePunch: Number.isFinite(punchAgeMin) ? Math.round(punchAgeMin) : null,
-        withinWorkingHours,
+        minutesSinceSuccess: Number.isFinite(
+          lastSuccess ? (Date.now() - new Date(lastSuccess).getTime()) / 60_000 : Infinity
+        ) ? Math.round((Date.now() - new Date(lastSuccess).getTime()) / 60_000) : null,
+        minutesSincePunch: Number.isFinite(dx.minutes) ? Math.round(dx.minutes) : null,
       };
     },
   });
 }
 
-export const SYNC_LEVEL = {
-  ok: {
-    label: 'Connected',
-    tone: 'text-emerald-600 dark:text-emerald-400',
-    hint: 'Punches are arriving from Easy Time Pro.',
-  },
-  stale: {
-    label: 'Falling behind',
-    tone: 'text-amber-600 dark:text-amber-400',
-    hint: 'The last successful pull is over 10 minutes old. Usually recovers by itself.',
-  },
-  failing: {
-    label: 'Failing',
-    tone: 'text-red-600 dark:text-red-400',
-    hint: 'Runs are erroring. See the last error below.',
-  },
-  down: {
-    label: 'Not syncing',
-    tone: 'text-red-600 dark:text-red-400',
-    hint: 'Nothing has synced for over an hour — check the HR laptop is on and on the office network.',
-  },
-};
-
-/**
- * The other half of the answer: is the punching machine still handing punches over?
- *
- * Kept apart from SYNC_LEVEL on purpose. "Our service is running" and "the terminal is delivering"
- * are separate facts, and reading only the first is how five hours of punches went missing without
- * anything on screen looking wrong.
- */
-export const TERMINAL_LEVEL = {
-  ok: {
-    label: 'Delivering',
-    tone: 'text-emerald-600 dark:text-emerald-400',
-    hint: 'The punching machine is handing punches over normally.',
-  },
-  quiet: {
-    label: 'Quiet',
-    tone: 'text-neutral-500 dark:text-neutral-400',
-    hint: 'No punch for a while. Normal in a lull — the longest ordinary gap here is about an hour.',
-  },
-  stalled: {
-    label: 'Not delivering',
-    tone: 'text-red-600 dark:text-red-400',
-    hint: 'Longer than any normal gap. The machine may show "connected" and still be stuck: that light is a heartbeat, not an upload. Try Get Transactions in Easy Time Pro, then reboot the terminal.',
-  },
-  'off-hours': {
-    label: 'Outside working hours',
-    tone: 'text-neutral-450',
-    hint: 'Nobody is expected to be punching, so silence here means nothing.',
-  },
-};
+// The status table now lives with the rules that choose it, so a level can never exist without a
+// message or vice versa. Re-exported here because every screen already imports from this module.
+export { DIAGNOSIS, forHumans } from '../lib/syncDiagnosis';

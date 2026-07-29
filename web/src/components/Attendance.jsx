@@ -23,7 +23,7 @@ import { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
-import { useSyncHealth } from '../data/syncStatus';
+import { useSyncHealth, DIAGNOSIS, forHumans } from '../data/syncStatus';
 import { useUrlTab } from '../lib/useUrlTab';
 
 const TABS = [
@@ -166,19 +166,16 @@ function TodayView({ workDate, setWorkDate }) {
       {/* Shown here, and not only on the sync screen, because this is where a stalled terminal is
           actually noticed: everyone reads as "no punch out" and the day looks like mass absence.
           On 29 July the machine stopped uploading at 13:07 and nothing said so for five hours. */}
-      {isToday && health?.terminalLevel === 'stalled' ? (
+      {isToday && health?.brokenHop ? (
         <div className="premium-card border-amber-300 dark:border-amber-900/60">
           <div className="flex items-start gap-2">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="text-xs text-amber-800 dark:text-amber-200">
               <span className="font-bold">
-                No punch has arrived for {Math.floor(health.minutesSincePunch / 60)}h{' '}
-                {health.minutesSincePunch % 60}m.
+                {DIAGNOSIS[health.level].label} — nothing has arrived for {forHumans(health.minutes)}.
               </span>{' '}
-              The figures below stop at that point, so people who are still at work will show as
-              having no punch out. The punching machine can show "connected" and still be stuck —
-              that light is a heartbeat, not an upload. Try <em>Get Transactions</em> in Easy Time
-              Pro, then reboot the terminal. Nothing is lost: it stores punches and re-sends them.
+              {DIAGNOSIS[health.level].hint} The figures below stop at that point, so people still
+              at work will show as having no punch out.
             </div>
           </div>
         </div>

@@ -18,7 +18,7 @@ import {
 } from '../data/devices';
 import {
   useServiceStatus, useSyncState, useSyncRuns, useTriggerSync, useTriggerBackfill,
-  useSyncHealth, useServiceCommands, SYNC_LEVEL, TERMINAL_LEVEL, RUN_STATUS_STYLES, relativeTime,
+  useSyncHealth, useServiceCommands, DIAGNOSIS, forHumans, RUN_STATUS_STYLES, relativeTime,
 } from '../data/syncStatus';
 import { useOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
@@ -779,11 +779,8 @@ function SyncTab() {
   const { data: commands = [] } = useServiceCommands(6);
   const { data: state = [] } = useSyncState();
   const { data: runs = [] } = useSyncRuns(25);
-  const level = SYNC_LEVEL[health?.level] ?? {
-    label: 'Checking…', tone: 'text-neutral-400', hint: '',
-  };
-  const terminal = TERMINAL_LEVEL[health?.terminalLevel] ?? {
-    label: 'Checking…', tone: 'text-neutral-400', hint: '',
+  const dx = DIAGNOSIS[health?.level] ?? {
+    label: 'Checking…', tone: 'text-neutral-400', chain: '', hint: '',
   };
   const trigger = useTriggerSync();
   const backfill = useTriggerBackfill();
@@ -803,29 +800,21 @@ function SyncTab() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Judged from what reached the database, not from whether this browser can reach the HR
             laptop. The two are different questions and only one of them matters. */}
-        <div className="premium-card">
+        {/* One status, naming the link that is broken. Three cards each saying "fine" was how an
+            afternoon went missing: every hop was reported separately and none of them owned the
+            question "so is it working?". This spans the row and answers it. */}
+        <div className={`premium-card col-span-2 md:col-span-3 lg:col-span-3 ${
+          health?.brokenHop ? 'border-red-300 dark:border-red-900/60' : ''
+        }`}>
           <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Easy Time Pro sync</div>
-          <div className={`mt-2 text-sm font-bold ${level.tone}`}>{level.label}</div>
-          <div className="text-2xs text-neutral-400 mt-0.5">{level.hint}</div>
-        </div>
-        {/* The second half of the answer. Our service polling successfully says nothing about
-            whether the machine on the wall is still handing anything over — on 29 July it read
-            "Connected" for five hours after the terminal had stopped. */}
-        <div className="premium-card">
-          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Punching machine</div>
-          <div className={`mt-2 text-sm font-bold ${terminal.tone}`}>{terminal.label}</div>
-          <div className="text-2xs text-neutral-400 mt-0.5">
-            {health?.lastPunchTime ? `last punch ${relativeTime(health.lastPunchTime)}` : 'no punch recorded yet'}
+          <div className={`mt-2 text-sm font-bold ${dx.tone}`}>{dx.label}</div>
+          <div className="text-2xs font-mono text-neutral-450 mt-1">{dx.chain}</div>
+          <div className="text-2xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed">{dx.hint}</div>
+          <div className="text-2xs text-neutral-400 mt-1.5">
+            last punch {health?.lastPunchTime ? relativeTime(health.lastPunchTime) : 'never'}
+            {' · '}last successful pull {relativeTime(health?.lastSuccess)}
+            {' · '}service last reported {relativeTime(health?.newestRunAt)}
           </div>
-        </div>
-        <div className="premium-card">
-          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Last punch sync</div>
-          <div className="mt-2 text-sm font-bold">{relativeTime(health?.lastSuccess)}</div>
-          {health?.consecutiveFailures > 0 ? (
-            <div className="text-2xs text-red-500 mt-0.5">{health.consecutiveFailures} consecutive failures</div>
-          ) : (
-            <div className="text-2xs text-neutral-400 mt-0.5">service polls every 2 minutes</div>
-          )}
         </div>
         <div className="premium-card">
           <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Punches today</div>
