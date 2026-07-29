@@ -9,7 +9,8 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 import { logger } from '../lib/logger';
-import { eachWorkDate, punchWindowBounds, toWorkDate } from './windows';
+import { eachWorkDate, punchWindowBounds, toWorkDate, resolveRecomputeRange } from './windows';
+import { todayWorkDate } from '../lib/time';
 import { processDay } from './processDay';
 import { punchWindow } from './processDay';
 import type { DayInput, DayResult, LeaveOverlay, PunchRecord, ShiftDefinition } from './types';
@@ -409,13 +410,25 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
 
 export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary> {
   const startedAt = Date.now();
-  const dates = eachWorkDate(scope.from, scope.to);
 
+  // A day that has not happened cannot be attendance, and must never be scored as an absence.
+  //
+  // Nothing stopped it before: asking for `--month 2026-07` on the 29th wrote two more days of
+  // "Absent" for all 162 employees, because a future date has no punches and no punches on a
+  // working day is an absence. 324 rows saying the whole company failed to turn up tomorrow —
+  // which then drag down every attendance rate that counts them.
+  //
+  // Clamped here rather than in processDay: the engine is pure, and giving it a hidden dependency
+  // on the current time would make the same input stop producing the same result. The ordering and
+  // clamping rules, and the two ways they have already gone wrong, live in resolveRecomputeRange.
+  const { from, to } = resolveRecomputeRange(scope.from, scope.to, todayWorkDate());
+
+  const dates = eachWorkDate(from, to);
   if (dates.length === 0) {
     throw new Error(`invalid date range: ${scope.from} .. ${scope.to}`);
   }
 
-  const run = await SyncRun.start('engine', { from: scope.from, to: scope.to });
+  const run = await SyncRun.start('engine', { from, to });
 
   try {
     const employees = await loadEmployees(scope.employeeIds);
@@ -436,16 +449,16 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
     const [shifts, assignments, defaultShifts, calendars, holidays, leaves, regularizations] =
       await Promise.all([
         loadShifts(),
-        loadAssignments(scope.from, scope.to),
+        loadAssignments(from, to),
         loadDefaultShifts(),
         loadCalendarByEmployee(employeeIds),
-        loadHolidays(scope.from, scope.to),
-        loadLeaves(scope.from, scope.to, employeeIds),
-        loadRegularizations(scope.from, scope.to, employeeIds),
+        loadHolidays(from, to),
+        loadLeaves(from, to, employeeIds),
+        loadRegularizations(from, to, employeeIds),
       ]);
 
     // Widen the punch query to cover night shifts spilling past either end of the range.
-    const { from: punchFrom, to: punchTo } = punchWindowBounds(scope.from, scope.to);
+    const { from: punchFrom, to: punchTo } = punchWindowBounds(from, to);
     const punchesByEmployee = await loadPunches(punchFrom, punchTo, employeeIds);
 
     // Results are flushed in batches: a full-year recompute would otherwise hold 264 x 365
@@ -540,7 +553,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
     run.counters.recordsFetched = totalProcessed;
     run.counters.recordsInserted = written;
     run.counters.recordsSkipped = skippedLocked;
-    run.addDetail({ from: scope.from, to: scope.to, employees: employees.length, statusCounts });
+    run.addDetail({ from, to, employees: employees.length, statusCounts });
 
     await run.finish('success');
 

@@ -26,3 +26,37 @@ export function punchWindowBounds(from: string, to: string): { from: Date; to: D
 }
 
 export { eachWorkDate, toWorkDate, workDateStart, workDateEnd };
+
+/**
+ * The range a recompute should actually process: ordered, and never reaching past today.
+ *
+ * Pure and separate from recompute() so it can be tested, because getting it wrong is silent and
+ * expensive. Two ways it has already gone wrong here:
+ *
+ *   1. NOT CLAMPING. `--month 2026-07` run on the 29th wrote two further days of "Absent" for all
+ *      162 employees. A future date has no punches, and no punches on a working day is an absence.
+ *
+ *   2. CLAMPING WITHOUT ORDERING FIRST. Pulling `to` back to today while `from` stays in the
+ *      future leaves from > to. That looks harmless because eachWorkDate quietly swaps a backwards
+ *      pair — but the loaders do not swap. They query `between '2026-09-01' and '2026-07-29'`,
+ *      find nothing, and score a real day as a company-wide absence. On 2026-07-29 that turned 138
+ *      punches into 162 people marked absent.
+ *
+ * So the order is: order the pair, clamp the end, then refuse what is left if it is empty.
+ */
+export function resolveRecomputeRange(
+  from: string,
+  to: string,
+  today: string
+): { from: string; to: string } {
+  const lo = from <= to ? from : to;
+  const requestedHi = from <= to ? to : from;
+  const hi = requestedHi > today ? today : requestedHi;
+
+  if (lo > hi) {
+    throw new Error(
+      `nothing to recompute: ${from} .. ${to} is entirely in the future (today is ${today})`
+    );
+  }
+  return { from: lo, to: hi };
+}
