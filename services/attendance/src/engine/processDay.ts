@@ -388,10 +388,13 @@ export function processDay(input: DayInput): DayResult {
     } else {
       result.remarks = 'Only one punch recorded — no check-out, hours counted to the shift end';
 
-      const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
-      if (lateBy > 0) {
-        result.lateMinutes = lateBy;
-        result.isLate = true;
+      // No lateness on a flexible shift; see the lateness block further down.
+      if (!shift.isFlexible) {
+        const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
+        if (lateBy > 0) {
+          result.lateMinutes = lateBy;
+          result.isLate = true;
+        }
       }
     }
 
@@ -405,16 +408,26 @@ export function processDay(input: DayInput): DayResult {
   }
 
   // --- lateness and early exit ---------------------------------------------------
-  const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
-  if (lateBy > 0) {
-    result.lateMinutes = lateBy;
-    result.isLate = true;
-  }
+  // Neither exists on a flexible shift. What is owed is the daily hours, and the verdict below
+  // already measures exactly that; arriving at 10:00 and leaving at 18:30 is a full day, not a
+  // late mark and an overtime claim.
+  //
+  // This is where our answer and Easy Time Pro's part company on purpose. Every employee sits on
+  // its General Time Table, so it grades all 163 against a 09:00 start and reported 1780 late days
+  // in July — 1113 hours of "lateness" that is not lateness under the policy the company actually
+  // runs. Recording it anyway would build a disciplinary record out of a setting nobody chose.
+  if (!shift.isFlexible) {
+    const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
+    if (lateBy > 0) {
+      result.lateMinutes = lateBy;
+      result.isLate = true;
+    }
 
-  const earlyBy = minutesBetween(checkOut, result.scheduledOut!) - shift.graceOutMinutes;
-  if (earlyBy > 0) {
-    result.earlyExitMinutes = earlyBy;
-    result.isEarlyExit = true;
+    const earlyBy = minutesBetween(checkOut, result.scheduledOut!) - shift.graceOutMinutes;
+    if (earlyBy > 0) {
+      result.earlyExitMinutes = earlyBy;
+      result.isEarlyExit = true;
+    }
   }
 
   // --- overtime -------------------------------------------------------------------
@@ -422,8 +435,12 @@ export function processDay(input: DayInput): DayResult {
   // which is the only one of the two that notices somebody who started ninety minutes early.
   // Whichever basis, the same two thresholds apply: otAfterMinutes is grace before the meter
   // starts, minOtMinutes is the floor below which a claim is not worth recording.
+  // A flexible shift can only be measured against hours worked. A schedule basis would pay the
+  // person who drifts in late and stays late, and pay nothing to the person who starts at 07:00
+  // and leaves at 17:00 having worked longer — on a shift whose whole premise is that the start
+  // time is theirs to choose.
   const beyond =
-    shift.otBasis === 'worked'
+    shift.otBasis === 'worked' || shift.isFlexible
       ? result.workedMinutes - shift.fullDayMinutes
       : minutesBetween(result.scheduledOut!, checkOut);
 
@@ -435,7 +452,14 @@ export function processDay(input: DayInput): DayResult {
   // --- past a point, late is not late any more --------------------------------------
   // Easy Time Pro escalates rather than accumulating: beyond these the day is an absence, not a
   // very large late mark. Someone who appears three hours before closing did not work that day.
-  if (result.lateMinutes > shift.lateAbsentMinutes || result.earlyExitMinutes > shift.earlyAbsentMinutes) {
+  //
+  // Skipped outright on a flexible shift rather than left to fall through on zeroed counters: a
+  // threshold of 0 would otherwise turn every day into an absence, and there is no lateness here
+  // to escalate in the first place. Turning up for two hours is already scored by the hours.
+  if (
+    !shift.isFlexible &&
+    (result.lateMinutes > shift.lateAbsentMinutes || result.earlyExitMinutes > shift.earlyAbsentMinutes)
+  ) {
     result.status = 'Absent';
     result.dayFraction = 0;
     result.remarks = [result.remarks,
@@ -445,7 +469,29 @@ export function processDay(input: DayInput): DayResult {
   }
 
   // --- the verdict ------------------------------------------------------------------
-  if (result.workedMinutes >= shift.fullDayMinutes) {
+  // On a flexible shift, turning up is what settles the day. Short hours are recorded and stay
+  // visible, but they do not dock the day — which is Easy Time Pro's rule, and the company's.
+  //
+  // Verified against its report rather than assumed: NARAYANAN CK's July header reads
+  // "Present: 24, Absent: 4" across 28 days, and his day 5 — clocked in 12:45, 4:45 worked — is
+  // one of the 24. Nothing but an empty day counts against him.
+  //
+  // The alternative demoted 11,230 days to Half Day across 15 months, most of them for finishing
+  // a few minutes under 8:30, because the median day here is 8:31 and a hard threshold sits right
+  // on top of the distribution. A rule that pays or docks on which side of the median a day lands
+  // is a coin toss, not a policy.
+  if (shift.isFlexible) {
+    result.status = 'Present';
+    result.dayFraction = Math.max(result.dayFraction, 1);
+
+    const short = shift.fullDayMinutes - result.workedMinutes;
+    if (short > 0) {
+      const h = Math.floor(short / 60);
+      result.remarks = [result.remarks, `Short of the daily hours by ${h ? `${h}:` : ''}${String(short % 60).padStart(h ? 2 : 1, '0')}${h ? '' : ' min'}`]
+        .filter(Boolean)
+        .join(' — ');
+    }
+  } else if (result.workedMinutes >= shift.fullDayMinutes) {
     result.status = 'Present';
     result.dayFraction = Math.max(result.dayFraction, 1);
   } else if (result.workedMinutes >= shift.halfDayMinutes) {

@@ -35,7 +35,7 @@ export interface ShiftDefinition {
    * How the break is charged. 'fixed' always deducts breakMinutes; 'actual' deducts what was
    * measured; 'actual_over_allowance' deducts the greater of the two.
    */
-  breakPolicy: 'fixed' | 'actual' | 'actual_over_allowance';
+  breakPolicy: 'fixed' | 'actual' | 'actual_over_allowance' | 'excess';
   /** 0 = Sunday … 6 = Saturday. */
   weeklyOffs: number[];
   fullDayMinutes: number;
@@ -50,6 +50,15 @@ export interface ShiftDefinition {
   earlyAbsentMinutes: number;
   /** 'schedule' = past the shift end; 'worked' = beyond fullDayMinutes. */
   otBasis: 'schedule' | 'worked';
+  /**
+   * The employee owes the daily hours, not a fixed start and end.
+   *
+   * Lateness and early exit are not recorded and the absence escalation does not apply — there is
+   * no start time to be late for. startTime and endTime remain meaningful as a frame of reference:
+   * they decide which work date a punch belongs to, which end of the day a lone punch is, and what
+   * to assume for the unrecorded half of a forgotten punch.
+   */
+  isFlexible: boolean;
 }
 
 export interface PunchRecord {

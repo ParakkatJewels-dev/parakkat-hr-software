@@ -74,6 +74,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       late_absent_minutes: number;
       early_absent_minutes: number;
       ot_basis: string;
+      is_flexible: boolean;
     }>
   >`
     select id, code, name,
@@ -81,7 +82,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
            end_time::text    as end_time,
            crosses_midnight, grace_in_minutes, grace_out_minutes, break_minutes, break_policy,
            weekly_offs, full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes, ot_basis,
-           missed_punch_policy, late_absent_minutes, early_absent_minutes
+           missed_punch_policy, late_absent_minutes, early_absent_minutes, is_flexible
       from public.shifts
      where is_active
   `;
@@ -99,7 +100,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       graceOutMinutes: r.grace_out_minutes,
       breakMinutes: r.break_minutes,
       breakPolicy:
-        r.break_policy === 'actual' || r.break_policy === 'actual_over_allowance'
+        r.break_policy === 'actual' || r.break_policy === 'actual_over_allowance' || r.break_policy === 'excess'
           ? r.break_policy
           : 'fixed',
       weeklyOffs: Array.isArray(r.weekly_offs) ? r.weekly_offs : [],
@@ -111,6 +112,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       lateAbsentMinutes: r.late_absent_minutes,
       earlyAbsentMinutes: r.early_absent_minutes,
       otBasis: r.ot_basis === 'worked' ? 'worked' : 'schedule',
+      isFlexible: r.is_flexible === true,
     });
   }
   return map;

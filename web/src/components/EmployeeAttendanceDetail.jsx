@@ -250,18 +250,35 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                     ? `${summary.present} full + ${summary.halfDays} half of ${summary.workingDays} working days`
                     : `${summary.present} of ${summary.workingDays} working days`}
                   tone="green" icon={TrendingUp} />
-                <Stat label="Punctuality" value={summary.punctualityRate != null ? `${summary.punctualityRate}%` : '—'}
-                  sub={`${summary.lateDays} late of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
-                  tone={summary.punctualityRate != null && summary.punctualityRate < 85 ? 'amber' : 'green'} icon={Clock} />
+                {/* A flexible shift has no start time to be late for, so punctuality would read
+                    100% for everyone forever. What is owed there is the daily hours, so that is
+                    what gets measured. */}
+                {summary.flexible ? (
+                  <Stat label="Hours completed" value={summary.hoursMetRate != null ? `${summary.hoursMetRate}%` : '—'}
+                    sub={`${summary.shortDays} short of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
+                    tone={summary.hoursMetRate != null && summary.hoursMetRate < 85 ? 'amber' : 'green'} icon={Clock} />
+                ) : (
+                  <Stat label="Punctuality" value={summary.punctualityRate != null ? `${summary.punctualityRate}%` : '—'}
+                    sub={`${summary.lateDays} late of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
+                    tone={summary.punctualityRate != null && summary.punctualityRate < 85 ? 'amber' : 'green'} icon={Clock} />
+                )}
                 <Stat label="Avg arrival" value={clockLabel(summary.avgArrival)}
-                  sub={summary.avgLatePerLateDay ? `${summary.avgLatePerLateDay} min late when late` : 'on time'} />
-                <Stat label="Hours worked" value={summary.workedHours}
-                  sub={summary.offDays ? `${summary.workingDays} working days` : 'in this range'} />
+                  sub={summary.flexible
+                    ? 'no fixed start on this shift'
+                    : summary.avgLatePerLateDay ? `${summary.avgLatePerLateDay} min late when late` : 'on time'} />
+                {/* Three figures that visibly add up, rather than two that might.
+                    "Total hours, of which some is overtime" kept reading as though the overtime
+                    was extra on top. Regular and Overtime are disjoint, Total is their sum, and
+                    nobody has to work out which contains which. */}
+                <Stat label="Regular hours" value={`${summary.normalHours} h`}
+                  sub="not counting overtime" />
                 <Stat label="Overtime" value={`${summary.otHours} h`}
                   sub={summary.offDayOtHours
                     ? `plus ${summary.offDayOtHours} h on days off`
                     : 'beyond a full day'}
                   tone={summary.otHours > 0 ? 'green' : undefined} />
+                <Stat label="Total hours" value={`${summary.workedHours} h`}
+                  sub={`${summary.normalHours} + ${summary.otHours}`} tone="green" />
                 <Stat label="Exceptions" value={summary.missing + summary.earlyDays}
                   sub={`${summary.missing} missing punch · ${summary.earlyDays} early`}
                   tone={summary.missing + summary.earlyDays > 0 ? 'amber' : undefined} icon={AlertTriangle} />
@@ -271,18 +288,19 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
               {summary.workingDays > 0 && (
                 <div className="premium-card">
                   <p className="text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-2">
-                    Lateness by weekday
+                    {summary.flexible ? 'Short days by weekday' : 'Lateness by weekday'}
                   </p>
                   <div className="flex items-end gap-2">
                     {summary.byDow.map((d, i) => {
-                      const pct = d.total ? Math.round((d.late / d.total) * 100) : 0;
+                      const n = summary.flexible ? d.short : d.late;
+                      const pct = d.total ? Math.round((n / d.total) * 100) : 0;
                       return (
                         <div key={i} className="flex-1 text-center">
                           <div className="h-16 flex items-end justify-center">
                             <div
                               className={`w-full rounded-t ${pct > 40 ? 'bg-amber-500' : 'bg-[#0ea971]'}`}
                               style={{ height: `${Math.max(pct, d.total ? 4 : 0)}%` }}
-                              title={`${d.late} of ${d.total} late`}
+                              title={`${n} of ${d.total} ${summary.flexible ? 'short of the hours' : 'late'}`}
                             />
                           </div>
                           <p className="text-2xs text-neutral-500 mt-1">{DOW[i]}</p>

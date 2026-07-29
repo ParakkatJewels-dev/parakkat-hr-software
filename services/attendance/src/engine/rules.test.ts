@@ -31,6 +31,27 @@ const GENERAL: ShiftDefinition = {
   missedPunchPolicy: 'exception',
   lateAbsentMinutes: 540,
   earlyAbsentMinutes: 540,
+  isFlexible: false,
+};
+
+/**
+ * What the company actually runs, as of migration 0062: Easy Time Pro's own General Time Table
+ * window, a 40-minute allowance charged only on the overrun, and no fixed start — the employee
+ * owes the daily hours and chooses when to work them.
+ */
+const FLEXIBLE: ShiftDefinition = {
+  ...GENERAL,
+  id: 'shift-flexible',
+  code: 'GN',
+  name: 'General (flexible)',
+  startTime: '09:00:00',
+  endTime: '17:30:00',
+  breakMinutes: 40,
+  breakPolicy: 'excess',
+  fullDayMinutes: 510,
+  halfDayMinutes: 255,
+  otBasis: 'worked',
+  isFlexible: true,
 };
 
 // 22:00 -> 06:00 is 480 scheduled minutes; a 30-minute unpaid break leaves 450 workable. Setting
@@ -814,4 +835,119 @@ test("'excess' with an incomplete break under-deducts rather than over-deducts",
   assert.equal(r.breaksIncomplete, true);
   assert.equal(r.breakMinutes, 70, 'the pair it could read');
   assert.equal(r.workedMinutes, 8 * 60 + 30 - 40, 'charged 40, the excess of what was measurable');
+});
+
+// ---------------------------------------------------------------------------
+// the flexible shift
+//
+// There is no fixed start here: what is owed is the daily hours. Easy Time Pro cannot express
+// that — all 163 employees sit on its General Time Table — so it graded every one of them against
+// a 09:00 start and reported 1780 late days in July, 1113 hours of "lateness" that is not
+// lateness under the policy the company runs. These tests pin the difference deliberately.
+// ---------------------------------------------------------------------------
+
+const flexDay = (inAt: string, outAt: string) =>
+  processDay(day({
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-15', inAt), punchAt('2026-07-15', outAt)],
+  }));
+
+test('arriving late is not late on a flexible shift', () => {
+  // 10:30 is ninety minutes past Easy Time Pro's 09:00 and well past any grace period.
+  const r = flexDay('10:30', '19:00');
+
+  assert.equal(r.isLate, false);
+  assert.equal(r.lateMinutes, 0);
+  assert.equal(r.status, 'Present');
+  assert.equal(r.dayFraction, 1, 'a full day: 510 minutes worked, whenever they were worked');
+});
+
+test('leaving before the shift end is not an early exit if the hours are complete', () => {
+  // 07:00 -> 15:30 finishes two hours before Easy Time Pro's 17:30 and is still a full day.
+  const r = flexDay('07:00', '15:30');
+
+  assert.equal(r.isEarlyExit, false);
+  assert.equal(r.earlyExitMinutes, 0);
+  assert.equal(r.workedMinutes, 510);
+  assert.equal(r.dayFraction, 1);
+});
+
+test('short hours are recorded but do not dock the day', () => {
+  // Easy Time Pro's rule, which the company runs: attendance settles the day, hours are reported.
+  // NARAYANAN CK's 4:45 day in July is counted inside his "Present: 24".
+  const r = flexDay('11:00', '17:00');
+
+  assert.equal(r.workedMinutes, 360);
+  assert.equal(r.status, 'Present');
+  assert.equal(r.dayFraction, 1, 'turning up settles the day');
+  assert.match(r.remarks ?? '', /Short of the daily hours by 2:30/, 'but the shortfall stays visible');
+  assert.equal(r.isLate, false);
+});
+
+test('a day that meets the hours carries no shortfall remark', () => {
+  const r = flexDay('09:00', '17:30');
+
+  assert.equal(r.workedMinutes, 510);
+  assert.equal(r.dayFraction, 1);
+  assert.doesNotMatch(r.remarks ?? '', /Short of the daily hours/);
+});
+
+test('a flexible day with no punch at all is still an absence', () => {
+  // The one thing that does count against you. Without this, "never demote" would quietly pay
+  // people for days they were not there.
+  const r = processDay(day({ shift: FLEXIBLE }));
+
+  assert.equal(r.status, 'Absent');
+  assert.equal(r.dayFraction, 0);
+});
+
+test('overtime is measured from the hours worked, not from the shift end', () => {
+  // Two days of identical length, one shifted two hours later. A schedule basis would pay the
+  // second and not the first; on a flexible shift they must pay the same.
+  const early = flexDay('07:00', '17:00'); // 600 minutes
+  const late = flexDay('09:00', '19:00'); // 600 minutes
+
+  assert.equal(early.workedMinutes, 600);
+  assert.equal(late.workedMinutes, 600);
+  assert.equal(early.otMinutes, late.otMinutes);
+  assert.equal(early.otMinutes, 600 - 510 - FLEXIBLE.otAfterMinutes);
+});
+
+test('the 40-minute allowance is free, and only the overrun is charged', () => {
+  // On site 09:00-18:10 with a 40-minute break punched out and back in: 550 minutes on site, and
+  // the allowance costs nothing, so the day is a full one plus nothing.
+  const within = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['09:00', '13:00', '13:40', '18:10'].map((t) => punchAt('2026-07-15', t)),
+  }));
+  assert.equal(within.breakMinutes, 40);
+  assert.equal(within.workedMinutes, 550, 'nothing deducted for a break inside the allowance');
+
+  // The same day with a 70-minute break costs the 30 minutes of overrun.
+  const over = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['09:00', '13:00', '14:10', '18:10'].map((t) => punchAt('2026-07-15', t)),
+  }));
+  assert.equal(over.breakMinutes, 70);
+  assert.equal(over.workedMinutes, 550 - 30);
+});
+
+test('a flexible shift never escalates a late arrival into an absence', () => {
+  // Arriving at 16:00 is 420 minutes past a 09:00 start. On a fixed shift that is an absence once
+  // it passes the threshold; here it is simply a short day, and the hours say so.
+  const r = flexDay('16:00', '18:00');
+
+  assert.notEqual(r.status, 'Absent');
+  assert.equal(r.workedMinutes, 120);
+  assert.equal(r.isLate, false);
+});
+
+test('the scheduled window still frames the day even though nobody is graded on it', () => {
+  // A forgotten punch is still reconstructed against 09:00-17:30 — the window remains the frame of
+  // reference for what to assume, it just stopped being a judgement.
+  const r = processDay(day({ shift: FLEXIBLE, punches: [punchAt('2026-07-15', '09:16')] }));
+
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.workedMinutes, 494, 'as Easy Time Pro reports it: 09:16 to 17:30');
+  assert.equal(r.isLate, false, 'but no late mark for the 16 minutes');
 });
