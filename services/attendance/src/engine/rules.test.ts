@@ -965,9 +965,9 @@ test('the scheduled window still frames the day even though nobody is graded on 
 // ---------------------------------------------------------------------------
 
 /** 'HH:MM' on the test's work date, as an instant. */
-const clockAt = (hhmm) => workDateAtTime('2026-07-15', hhmm);
+const clockAt = (hhmm: string): Date => workDateAtTime('2026-07-15', hhmm);
 
-const inProgress = (arrival, now) =>
+const inProgress = (arrival: string, now: string) =>
   processDay(day({
     shift: FLEXIBLE,
     punches: [punchAt('2026-07-15', arrival)],
