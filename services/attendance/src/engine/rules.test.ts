@@ -951,3 +951,90 @@ test('the scheduled window still frames the day even though nobody is graded on 
   assert.equal(r.workedMinutes, 494, 'as Easy Time Pro reports it: 09:16 to 17:30');
   assert.equal(r.isLate, false, 'but no late mark for the 16 minutes');
 });
+
+// ---------------------------------------------------------------------------
+// a day that is not over yet
+//
+// Somebody who punched in at 09:37 and not since has not forgotten to punch out at 10am — they are
+// at work. Judging an unfinished day by the rules for a finished one got two things wrong at once:
+// it put every person currently on site into the exceptions list, and it credited them to the
+// shift end, booking 473 minutes at ten in the morning.
+//
+// asOf is what tells the two apart, and it is passed in rather than read from a clock so the
+// engine stays pure — every test below fixes it explicitly.
+// ---------------------------------------------------------------------------
+
+/** 'HH:MM' on the test's work date, as an instant. */
+const clockAt = (hhmm) => workDateAtTime('2026-07-15', hhmm);
+
+const inProgress = (arrival, now) =>
+  processDay(day({
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-15', arrival)],
+    asOf: clockAt(now),
+  }));
+
+test('mid-morning, a lone arrival is on site — not an exception', () => {
+  const r = inProgress('09:37', '10:00');
+
+  assert.equal(r.isMissingPunch, false, 'nothing has gone wrong yet');
+  assert.equal(r.status, 'Present');
+  assert.match(r.remarks ?? '', /has not punched out yet/);
+});
+
+test('the hours are what has been worked, not what is expected', () => {
+  // The bug in one number: this used to be 473 — the whole day, at ten in the morning.
+  const r = inProgress('09:37', '10:00');
+
+  assert.equal(r.workedMinutes, 23, '09:37 to 10:00');
+  assert.equal(r.otMinutes, 0, 'and no overtime on a projection');
+});
+
+test('as the day goes on the hours grow', () => {
+  assert.equal(inProgress('09:00', '11:00').workedMinutes, 120);
+  assert.equal(inProgress('09:00', '15:00').workedMinutes, 360);
+});
+
+test('once the shift ends it becomes a missing punch, as it always did', () => {
+  // 17:30 is the scheduled end. One minute past it, the second punch is not coming.
+  const r = inProgress('09:16', '17:31');
+
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.workedMinutes, 494, 'reconstructed to the shift end, as Easy Time Pro does');
+  assert.match(r.remarks ?? '', /Only one punch recorded/);
+});
+
+test('exactly at the shift end the day is over', () => {
+  // The boundary is the whole rule, so it is pinned rather than left to chance.
+  assert.equal(inProgress('09:16', '17:29').isMissingPunch, false, 'a minute before: still working');
+  assert.equal(inProgress('09:16', '17:30').isMissingPunch, true, 'at the end: now it is missing');
+});
+
+test('a lone evening punch is a missing check-IN even mid-shift', () => {
+  // Only an arrival can be "still here". A punch past the midpoint is somebody leaving, and their
+  // arrival is genuinely missing whatever the time is.
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-15', '14:00')],
+    asOf: clockAt('14:05'),
+  }));
+
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.checkIn, null);
+});
+
+test('without asOf a day is judged as finished, which is right for history', () => {
+  // Every historical recompute omits it. The old behaviour has to be exactly preserved there, or
+  // re-deriving last March would quietly produce different numbers than it did at the time.
+  const r = processDay(day({ shift: FLEXIBLE, punches: [punchAt('2026-07-15', '09:16')] }));
+
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.workedMinutes, 494);
+});
+
+test('the same input still produces the same result, asOf included', () => {
+  const make = () => day({
+    shift: FLEXIBLE, punches: [punchAt('2026-07-15', '09:37')], asOf: clockAt('10:00'),
+  });
+  assert.deepEqual(processDay(make()), processDay(make()));
+});

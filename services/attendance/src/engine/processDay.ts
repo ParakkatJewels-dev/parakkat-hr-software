@@ -334,6 +334,49 @@ export function processDay(input: DayInput): DayResult {
     );
     const isDeparture = checkIn.getTime() > midpoint.getTime();
 
+    // --- is the day simply not over yet? -----------------------------------------------------
+    //
+    // Somebody who punched in at 09:37 and not since has not forgotten to punch out at 10am. They
+    // are at work. Everything below this point assumes the day is finished and the second punch is
+    // never coming, and applying it to a day still in progress got two things wrong at once:
+    //
+    //   it called every person currently on site an exception, so the exceptions list filled up
+    //   with the whole company every morning and emptied itself by evening
+    //
+    //   it credited them to the shift end — 09:37 with one punch was booked as 473 minutes, a
+    //   full day's hours, at ten in the morning
+    //
+    // The rule the company asked for, and the obvious one: it is only a missing punch once the
+    // shift has ended. Until then the hours are what they have actually been here, and the day is
+    // not an exception because nothing has gone wrong yet.
+    const asOf = input.asOf;
+    const stillInShift =
+      asOf !== undefined && !isDeparture && asOf.getTime() < result.scheduledOut!.getTime();
+
+    if (stillInShift && asOf) {
+      result.status = 'Present';
+      result.isMissingPunch = false;
+      result.checkOut = null;
+
+      // Time on site so far, not time they are expected to put in. Overtime is deliberately left
+      // at zero: nobody has worked beyond a full day until the day is done, and paying it out
+      // mid-morning on a projection would be inventing a claim.
+      const soFar = Math.max(0, minutesBetween(checkIn, asOf));
+      result.workedMinutes = Math.max(0, soFar - breakDeduction(shift, result));
+      result.hours = minutesToHours(result.workedMinutes);
+      result.dayFraction = Math.max(result.dayFraction, 1);
+      result.remarks = 'On site — has not punched out yet';
+
+      if (!shift.isFlexible) {
+        const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
+        if (lateBy > 0) {
+          result.lateMinutes = lateBy;
+          result.isLate = true;
+        }
+      }
+      return result;
+    }
+
     result.isMissingPunch = true;
 
     // Easy Time Pro credits a forgotten punch as Present ("Calculate Missed Check-In/Out as

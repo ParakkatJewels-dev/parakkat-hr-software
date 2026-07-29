@@ -89,6 +89,18 @@ export interface DayInput {
   leave: LeaveOverlay | null;
   /** An approved regularization supplies the missing punch(es) for this date. */
   regularization: { id: string; checkIn: Date | null; checkOut: Date | null } | null;
+  /**
+   * The instant this result describes. Supplied by the caller, never read from the clock here, so
+   * the engine stays pure — the same input still produces the same output.
+   *
+   * It exists because a day in progress is genuinely a different thing from a finished one. At
+   * 10am, somebody who punched in at 09:37 and not since has not forgotten to punch out; they are
+   * at work. Without this the engine could not tell the two apart and called both a missing punch,
+   * which put every person currently on site into the exceptions list every morning.
+   *
+   * Omit it for a day that is over, which is the usual case.
+   */
+  asOf?: Date;
 }
 
 export interface DayResult {

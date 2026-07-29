@@ -410,6 +410,9 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
 
 export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary> {
   const startedAt = Date.now();
+  // The instant this whole run describes. Taken once so that a recompute spanning several minutes
+  // does not have its first employee judged against a different "now" than its last.
+  const runStartedAt = new Date(startedAt);
 
   // A day that has not happened cannot be attendance, and must never be scored as an absence.
   //
@@ -538,6 +541,9 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
           punches: dayPunches,
           leave: leaves.get(`${employee.id}|${workDate}`) ?? null,
           regularization: regularizations.get(`${employee.id}|${workDate}`) ?? null,
+          // Read once per run, not per day, so every row in one recompute describes the same
+          // instant. The engine never reads a clock itself — see DayInput.asOf.
+          asOf: runStartedAt,
         };
 
         const result = processDay(input);
