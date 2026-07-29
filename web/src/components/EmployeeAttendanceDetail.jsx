@@ -237,9 +237,11 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                     nobody has to work out which contains which. */}
                 <Stat label="Regular hours" value={`${summary.normalHours} h`}
                   sub="not counting overtime" />
+                {/* "plus N h on days off" was accurate only while the total excluded them. Now
+                    that it does not, "plus" would read as extra on top and count Sunday twice. */}
                 <Stat label="Overtime" value={`${summary.otHours} h`}
                   sub={summary.offDayOtHours
-                    ? `plus ${summary.offDayOtHours} h on days off`
+                    ? `includes ${summary.offDayOtHours} h worked on days off`
                     : 'beyond a full day'}
                   tone={summary.otHours > 0 ? 'green' : undefined} />
                 <Stat label="Total hours" value={`${summary.workedHours} h`}
