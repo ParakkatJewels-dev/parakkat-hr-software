@@ -188,3 +188,36 @@ export function useOrgMutation() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['org'] }),
   });
 }
+
+/**
+ * How many employees fall outside a scope level, and so are invisible to anyone granted at it.
+ *
+ * The permission system will happily enforce department scope over an org chart that is only partly
+ * filled in, and the result is silent: a department head sees a short list and has no way to know
+ * anybody is missing from it. 53 of 162 employees here carry no department, so a department-scoped
+ * role reaches 109 people and says nothing about the rest.
+ *
+ * Counted at the point of granting rather than reported somewhere nobody looks, because that is the
+ * moment the decision is being made.
+ */
+export function useScopeCoverage() {
+  return useQuery({
+    queryKey: ['scope-coverage'],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const [total, dept, branch, zone] = await Promise.all([
+        supabase.from('employees').select('id', { count: 'exact', head: true }).eq('status', 'Active'),
+        supabase.from('employees').select('id', { count: 'exact', head: true }).eq('status', 'Active').not('department_id', 'is', null),
+        supabase.from('employees').select('id', { count: 'exact', head: true }).eq('status', 'Active').not('branch_id', 'is', null),
+        supabase.from('employees').select('id', { count: 'exact', head: true }).eq('status', 'Active').not('zone_id', 'is', null),
+      ]);
+      const n = total.count ?? 0;
+      return {
+        total: n,
+        department: { placed: dept.count ?? 0, missing: n - (dept.count ?? 0) },
+        branch: { placed: branch.count ?? 0, missing: n - (branch.count ?? 0) },
+        zone: { placed: zone.count ?? 0, missing: n - (zone.count ?? 0) },
+      };
+    },
+  });
+}

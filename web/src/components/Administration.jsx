@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ShieldCheck, Clipboard, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Search } from 'lucide-react';
 import { useAuditLog } from '../data/audit';
 import { relativeTime } from '../lib/dates';
-import { useOrg } from '../data/org';
+import { useOrg, useScopeCoverage } from '../data/org';
 import { useEmployees } from '../data/employees';
 import {
   useManagedUsers, useRoles, useRolesWithPermissions, useAssignRole, useRevokeRole, useLinkEmployee,
@@ -635,6 +635,8 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
   const [roleId, setRoleId] = useState('');
   const [scopeType, setScopeType] = useState('');
   const [scopeId, setScopeId] = useState('');
+  // How many people each scope level actually reaches — see the warning below the scope picker.
+  const { data: coverage } = useScopeCoverage();
 
   const role = assignableRoles.find((r) => r.id === roleId) || null;
 
@@ -722,6 +724,22 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
             Scope <span className="font-semibold text-neutral-700 dark:text-neutral-300">{scopeDef?.label ?? scopeType}</span> — fixed for this role.
           </p>
         ))}
+
+        {/* A scope level nobody is assigned to grants access to nobody, and the failure is silent:
+            the person you granted it to just sees a short list. Said here, at the moment of the
+            decision, rather than reported somewhere nobody looks. */}
+        {role && scopeDef?.needsId && coverage?.[scopeType]?.missing > 0 && (
+          <p className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 rounded-xl px-2.5 py-2">
+            {coverage[scopeType].placed === 0 ? (
+              <>No employee has a {scopeType} yet, so a role granted at this level will reach nobody.
+                Assign people to a {scopeType} first.</>
+            ) : (
+              <><span className="font-semibold">{coverage[scopeType].missing} of {coverage.total} employees</span>{' '}
+                have no {scopeType}. They stay invisible to anyone granted at this level — only
+                entity-wide and global roles can see them.</>
+            )}
+          </p>
+        )}
 
         {role && scopeDef?.needsId && (
           <Field label={`Which ${scopeType}?`}>
