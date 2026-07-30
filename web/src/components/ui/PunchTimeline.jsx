@@ -9,6 +9,7 @@
 // out/in. See splitSessions() in services/attendance/src/engine/processDay.ts. The terminals send
 // punch_state 255 on every record, so there is no direction flag to read; order is all there is.
 import React from 'react';
+import { labelLayout, rowCount } from '../../lib/punchLayout';
 
 const time = (ts) =>
   new Date(ts).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -88,6 +89,8 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
   const total = new Date(punches[punches.length - 1]).getTime() - start;
   const pct = (ts) => (total > 0 ? ((new Date(ts).getTime() - start) / total) * 100 : 0);
   const worked = segs.filter((s) => !s.away && !s.unknown).reduce((a, s) => a + s.minutes, 0);
+  const layout = labelLayout(punches);
+  const rows = rowCount(layout);
 
   return (
     <div className={className}>
@@ -138,30 +141,44 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
         ))}
       </div>
 
-      {/* Each punch, in order. The times are what HR will read back to an employee who disputes a day. */}
-      <div className="flex flex-wrap gap-x-1 gap-y-0.5 mt-1.5 text-2xs tabular-nums">
-        {punches.map((p, i) => {
+      {/* Each punch under its own point on the bar.
+          These used to be a wrapped list in reading order — "09:37 ─ 13:23 ·19m· 13:42 …" — with no
+          relationship to the bar above, so matching a time to a stretch meant counting along.
+          Labels that would overlap drop to a lower row with a leader line back to their point;
+          see lib/punchLayout.js. */}
+      <div className="relative mt-1" style={{ height: `${rows * 15 + 4}px` }}>
+        {layout.map(({ punch, pct, row, align }, i) => {
           const first = i === 0;
           const last = i === punches.length - 1;
           const leaving = segs[i]?.away === true; // this punch starts a break
           return (
-            <React.Fragment key={p}>
+            <span
+              key={`${punch}-${i}`}
+              className="absolute top-0 flex flex-col items-center"
+              style={{
+                left: align === 'end' ? undefined : `${pct}%`,
+                right: align === 'end' ? 0 : undefined,
+                transform: align === 'middle' ? 'translateX(-50%)' : undefined,
+              }}
+            >
+              {/* Leader line: as tall as the row is deep, so a stacked label still points at its
+                  own moment rather than floating free. */}
               <span
-                className={`px-1 rounded font-semibold ${
+                aria-hidden="true"
+                className="w-px bg-neutral-300 dark:bg-neutral-700"
+                style={{ height: `${row * 15 + 3}px` }}
+              />
+              <span
+                className={`px-1 rounded text-2xs font-semibold tabular-nums leading-none py-0.5 ${
                   first || last
                     ? 'bg-[#0c9765]/10 text-[#0c9765] dark:bg-[#10b981]/15 dark:text-[#10b981]'
                     : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
                 }`}
                 title={first ? 'Arrived' : last ? 'Left' : leaving ? 'Went out' : 'Came back'}
               >
-                {clock(p)}
+                {clock(punch)}
               </span>
-              {!last && (
-                <span className="text-neutral-400 self-center">
-                  {segs[i]?.away ? `·${segs[i].minutes}m·` : segs[i]?.unknown ? '·?·' : '─'}
-                </span>
-              )}
-            </React.Fragment>
+            </span>
           );
         })}
       </div>
