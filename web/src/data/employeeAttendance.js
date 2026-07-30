@@ -9,7 +9,8 @@ import { supabase } from '../lib/supabaseClient';
 import { summarise } from '../lib/attendanceSummary';
 
 // Re-exported so the screen keeps importing its data and its arithmetic from one place.
-export { summarise, clockLabel } from '../lib/attendanceSummary';
+// clockLabel is gone: lib/clock.js formats a time of day in whichever shape the reader chose.
+export { summarise } from '../lib/attendanceSummary';
 
 const SELECT = `
   id, work_date, status, day_type, check_in, check_out, hours,

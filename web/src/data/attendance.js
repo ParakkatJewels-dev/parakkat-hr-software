@@ -8,6 +8,8 @@
 // their own. The client never filters for security, only for presentation.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { formatClock } from '../lib/clock';
+import { getHour12 } from '../lib/timeFormat';
 import { apiPost, apiDownload } from '../lib/attendanceApi';
 
 const SELECT = `
@@ -222,15 +224,10 @@ export const STATUS_CODES = {
   'No Shift': '?',
 };
 
-export const fmtTime = (iso) =>
-  iso
-    ? new Date(iso).toLocaleTimeString('en-IN', {
-        timeZone: 'Asia/Kolkata',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      })
-    : '—';
+// Kept as a plain function so the dozen existing `fmtTime(row.check_in)` calls are untouched; the
+// reader's 12-or-24-hour choice is picked up by default. Components that print times subscribe with
+// useClockFormat() so a change to the setting shows immediately.
+export const fmtTime = (iso, hour12 = getHour12()) => formatClock(iso, hour12);
 
 export const fmtMinutes = (m) => {
   if (!m || m <= 0) return '—';

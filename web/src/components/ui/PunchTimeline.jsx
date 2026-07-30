@@ -10,12 +10,11 @@
 // punch_state 255 on every record, so there is no direction flag to read; order is all there is.
 import React from 'react';
 import { labelLayout, rowCount, spanLabels } from '../../lib/punchLayout';
+import { formatClock } from '../../lib/clock';
+import { useClockFormat } from '../../lib/timeFormat';
 
-const time = (ts) =>
-  new Date(ts).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
-
-const clock = (ts) =>
-  new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+// One shape for the whole component. It used to print "9:37 am" in the header and "09:37" on the
+// bar immediately below — the same punch, twice, differently.
 
 const mins = (a, b) => Math.max(0, Math.round((new Date(b) - new Date(a)) / 60000));
 
@@ -76,6 +75,8 @@ export function BreakSummary({ row }) {
  * and a 22:00-06:00 night shift both need to read well and a shared axis would squash one of them.
  */
 export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = false, className = '' }) {
+  const { hour12 } = useClockFormat();
+  const time = (ts) => formatClock(ts, hour12);
   const segs = segments(punches);
   if (!segs.length) {
     return (
@@ -171,7 +172,7 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
         {segs.map((s, i) => (
           <div
             key={i}
-            title={`${s.unknown ? 'Unknown — a punch is missing' : s.away ? 'Away' : 'Present'} ${clock(s.from)}–${clock(s.to)} · ${s.minutes}m`}
+            title={`${s.unknown ? 'Unknown — a punch is missing' : s.away ? 'Away' : 'Present'} ${time(s.from)}–${time(s.to)} · ${s.minutes}m`}
             className={`absolute inset-y-0 ${
               s.unknown
                 ? 'bg-[repeating-linear-gradient(45deg,transparent,transparent_3px,rgb(120_120_120/0.4)_3px,rgb(120_120_120/0.4)_6px)]'
@@ -219,7 +220,7 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
                 }`}
                 title={first ? 'Arrived' : last ? 'Left' : leaving ? 'Went out' : 'Came back'}
               >
-                {clock(punch)}
+                {time(punch)}
               </span>
             </span>
           );

@@ -10,7 +10,10 @@ import React, { useState, useMemo } from 'react';
 import {
   CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search,
 } from 'lucide-react';
-import { useEmployeeAttendanceSummary, clockLabel } from '../data/employeeAttendance';
+import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
+import { fmtTime } from '../data/attendance';
+import { formatMinutesOfDay } from '../lib/clock';
+import { useClockFormat } from '../lib/timeFormat';
 import { explainDay, asHoursMinutes } from '../lib/attendanceSummary';
 import { useEmployees } from '../data/employees';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
@@ -38,8 +41,6 @@ const statusTone = (r) =>
   : r.status === 'On Leave' ? 'text-blue-600 dark:text-blue-400'
   : 'text-neutral-400';
 
-const fmtTime = (ts) =>
-  ts ? new Date(ts).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }) : '—';
 const fmtDate = (d) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
@@ -48,6 +49,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
   const [employeeId, setEmployeeId] = useState(fixedId ?? '');
   // Defaults to the current month: the period anyone asking about someone's attendance means
   // first, and the one payroll is run against.
+  // Subscribed so switching the clock format repaints these times at once.
+  const { hour12 } = useClockFormat();
   const range = useDateRange('month');
   const { from, to } = range;
   const [show, setShow] = useState('all');
@@ -108,7 +111,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
         breaks, r.break_minutes || 0, r.breaks_incomplete ? 'no' : 'yes',
         r.late_minutes || 0, r.early_exit_minutes || 0, r.ot_minutes || 0, r.leave_type || '',
         // Quoted: a space-separated list would otherwise split across columns.
-        `"${punches.map((p) => new Date(p).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })).join(' ')}"`,
+        `"${punches.map((p) => fmtTime(p, hour12)).join(' ')}"`,
       ];
     });
     const csv = [head, ...body].map((line) => line.join(',')).join('\n');
@@ -231,7 +234,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                     sub={`${summary.lateDays} late of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
                     tone={summary.punctualityRate != null && summary.punctualityRate < 85 ? 'amber' : 'green'} icon={Clock} />
                 )}
-                <Stat label="Avg arrival" value={clockLabel(summary.avgArrival)}
+                <Stat label="Avg arrival" value={formatMinutesOfDay(summary.avgArrival, hour12)}
                   sub={summary.flexible
                     ? 'no fixed start on this shift'
                     : summary.avgLatePerLateDay ? `${summary.avgLatePerLateDay} min late when late` : 'on time'} />

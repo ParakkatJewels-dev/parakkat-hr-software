@@ -4,11 +4,13 @@
 // are managed by HR. Workspace settings are editable by super admins only — everyone else sees
 // them read-only (RLS enforces this server-side too).
 import React, { useEffect, useState } from 'react';
-import { UserRound, Building2, Check, Loader2 } from 'lucide-react';
+import { UserRound, Building2, Check, Loader2, Clock } from 'lucide-react';
 import ChangePassword from './ChangePassword';
 import { useAuth } from '../auth/AuthContext';
 import { useEmployees } from '../data/employees';
 import { useWorkspaceSettings, useSaveWorkspaceSettings, useUpdateMyProfile } from '../data/settings';
+import { useClockFormat } from '../lib/timeFormat';
+import { CLOCK_FORMATS } from '../lib/clock';
 
 const inputClass =
   'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-1.5 rounded-xl text-neutral-805 dark:text-neutral-200 text-xs focus:outline-none focus:border-[#0ea971]/50 disabled:bg-neutral-100 dark:disabled:bg-neutral-905 disabled:text-neutral-500 dark:disabled:text-neutral-400';
@@ -139,6 +141,59 @@ function WorkspaceCard() {
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
+
+/**
+ * The reader's own display preferences.
+ *
+ * Kept apart from Workspace, which is company configuration an administrator owns. This is one
+ * person's choice on one device, stored beside the theme rather than in the database — nobody should
+ * need permission to read a clock the way they prefer.
+ */
+function DisplayPreferences() {
+  const { hour12, setHour12 } = useClockFormat();
+
+  return (
+    <div className="premium-card space-y-4">
+      <div className="flex items-center gap-2">
+        <Clock size={15} className="text-[#0ea971]" />
+        <h3 className="font-semibold text-base text-neutral-800 dark:text-white">Display</h3>
+      </div>
+
+      <fieldset className="max-w-md">
+        <legend className="text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-2">
+          Time format
+        </legend>
+        <div className="flex flex-wrap gap-2">
+          {CLOCK_FORMATS.map((f) => {
+            const on = f.value === hour12;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setHour12(f.value)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                  on
+                    ? 'border-[#0ea971] bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981]'
+                    : 'border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900'
+                }`}
+              >
+                {f.label}
+                <span className="ml-2 font-mono font-normal text-neutral-450">{f.example}</span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-2xs text-neutral-450 mt-2">
+          Applies everywhere times are shown, including the exported spreadsheets. Saved on this
+          device only. Easy Time Pro prints 24-hour, so that setting matches its reports without
+          translating.
+        </p>
+      </fieldset>
+    </div>
+  );
+}
+
   return (
     <div className="premium-card space-y-4">
       <div className="flex items-center justify-between">
@@ -181,6 +236,7 @@ export default function SettingsPage() {
       <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">System Settings</h1>
       <ChangePassword />
       <MyProfileCard />
+      <DisplayPreferences />
       <WorkspaceCard />
     </div>
   );

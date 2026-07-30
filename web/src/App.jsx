@@ -30,6 +30,7 @@ import { useAuth } from './auth/AuthContext';
 import { usePermissions } from './auth/usePermissions';
 import { resolvePrimaryRole } from './lib/roles';
 import { useRealtimeSync } from './lib/realtime';
+import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
 
 // Prettify a role key like 'branch_manager' -> 'Branch Manager'.
@@ -54,6 +55,12 @@ export default function App() {
   const { employee, user, isSuperAdmin, signOut, assignments } = useAuth();
   const { canAny, canBeyondSelf } = usePermissions();
   useRealtimeSync(); // live-sync data across devices via Supabase Realtime
+  // Subscribed at the root so switching the clock format repaints every screen at once. Times are
+  // printed in a dozen places, several through a plain imported helper rather than a hook, and
+  // hunting each one down would leave whichever was missed showing the old format until something
+  // unrelated re-rendered it. A format change is a once-in-a-while action; one full repaint is the
+  // cheaper mistake.
+  useClockFormat();
   useVersionCheck(); // auto-reload when a new build is deployed to the hosted web app
 
   // Real signed-in identity (replaces the old hardcoded "Aditya Parakkat").

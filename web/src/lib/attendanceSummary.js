@@ -160,16 +160,6 @@ export function summarise(rows) {
   };
 }
 
-/** "9:42 am" from minutes past midnight. */
-export function clockLabel(minsPastMidnight) {
-  if (minsPastMidnight == null) return '—';
-  const h = Math.floor(minsPastMidnight / 60);
-  const m = minsPastMidnight % 60;
-  const ampm = h >= 12 ? 'pm' : 'am';
-  const h12 = h % 12 === 0 ? 12 : h % 12;
-  return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
-}
-
 /**
  * How one day's hours were arrived at, step by step.
  *
