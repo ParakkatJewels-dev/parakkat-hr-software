@@ -8,7 +8,7 @@
 // has been wrong at least once.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarise } from './attendanceSummary.js';
+import { summarise, explainDay, asHoursMinutes } from './attendanceSummary.js';
 
 const shift = { is_flexible: true, full_day_minutes: 510 };
 
@@ -98,4 +98,70 @@ test('a month of nothing but days off reports its hours rather than dropping the
   assert.equal(s.workedHours, 4.5);
   assert.equal(s.otHours, 4.5);
   assert.equal(s.workingDays, 0);
+});
+
+// ---------------------------------------------------------------------------
+// explainDay — why the overtime is not the number you expected
+// ---------------------------------------------------------------------------
+
+const GN = { break_minutes: 40, full_day_minutes: 510, is_flexible: true };
+
+/** Kasinath, 29 July 2026 — the day that prompted this. */
+const REAL_DAY = {
+  work_date: '2026-07-29',
+  status: 'Present',
+  day_type: 'working',
+  worked_minutes: 515,
+  ot_minutes: 5,
+  break_minutes: 79,
+  breaks_incomplete: false,
+  punches: [
+    '2026-07-29T09:37:00+05:30', '2026-07-29T13:23:00+05:30', '2026-07-29T13:42:00+05:30',
+    '2026-07-29T13:48:00+05:30', '2026-07-29T14:14:00+05:30', '2026-07-29T15:47:00+05:30',
+    '2026-07-29T16:21:00+05:30', '2026-07-29T18:51:00+05:30',
+  ],
+  shift: GN,
+};
+
+test('the day shows the whole subtraction, not just the answer', () => {
+  const x = explainDay(REAL_DAY, GN);
+  const byLabel = (frag) => x.lines.find((l) => l.label.includes(frag));
+
+  assert.equal(byLabel('On site').minutes, 554, '09:37 to 18:51');
+  assert.equal(byLabel('Breaks measured').minutes, -39, '79 taken, 40 free, 39 charged');
+  assert.equal(byLabel('Counted as worked').minutes, 515);
+  assert.equal(byLabel('Overtime').minutes, 5);
+});
+
+test('and says in one sentence why the overtime is smaller than it looks', () => {
+  const x = explainDay(REAL_DAY, GN);
+  assert.match(x.note, /39 min of break beyond the 40-minute allowance/);
+});
+
+test('a break inside the allowance costs nothing and is shown as costing nothing', () => {
+  const x = explainDay({ ...REAL_DAY, break_minutes: 30, worked_minutes: 554, ot_minutes: 44 }, GN);
+  const b = x.lines.find((l) => l.label.includes('Breaks measured'));
+  assert.equal(b.minutes, 0);
+  assert.equal(b.muted, true, 'shown, but visibly not charged');
+  assert.equal(x.note, null, 'nothing needs explaining away');
+});
+
+test('a short day says short, not negative overtime', () => {
+  const x = explainDay({ ...REAL_DAY, break_minutes: 0, worked_minutes: 400, ot_minutes: 0 }, GN);
+  const last = x.lines[x.lines.length - 1];
+  assert.match(last.label, /Short of a full day/);
+  assert.equal(last.minutes, 400 - 510);
+});
+
+test('nothing to explain when there is no pair of punches', () => {
+  assert.equal(explainDay({ punches: [] }, GN), null);
+  assert.equal(explainDay({ punches: ['2026-07-29T09:37:00+05:30'] }, GN), null);
+  assert.equal(explainDay(null, GN), null);
+});
+
+test('durations read as hours and minutes, signed', () => {
+  assert.equal(asHoursMinutes(515), '8h 35m');
+  assert.equal(asHoursMinutes(-39), '−39m');
+  assert.equal(asHoursMinutes(5), '5m');
+  assert.equal(asHoursMinutes(0), '0m');
 });

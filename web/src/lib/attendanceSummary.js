@@ -169,3 +169,66 @@ export function clockLabel(minsPastMidnight) {
   const h12 = h % 12 === 0 ? 12 : h % 12;
   return `${h12}:${String(m).padStart(2, '0')} ${ampm}`;
 }
+
+/**
+ * How one day's hours were arrived at, step by step.
+ *
+ * Asked for after a day read "in 09:37, out 18:51, overtime 5m" and looked wrong. It was not — he
+ * was on site 555 minutes, 45 past a full day, and took 79 minutes of break, 39 of them beyond the
+ * 40-minute allowance. Net 5. Every number was right and the screen showed none of the ones that
+ * mattered, so the only way to check it was to add the punches up by hand.
+ *
+ * Returns the subtraction as lines, so the day can show its own working. Null when there is nothing
+ * to explain — a day off, an absence, or a day with no pair of punches to measure.
+ */
+export function explainDay(row, shift) {
+  const punches = Array.isArray(row?.punches) ? row.punches : [];
+  if (punches.length < 2) return null;
+
+  const first = new Date(punches[0]).getTime();
+  const last = new Date(punches[punches.length - 1]).getTime();
+  const onSite = Math.max(0, Math.round((last - first) / 60_000));
+
+  const allowance = Number(shift?.break_minutes) || 0;
+  const measured = mins(row.break_minutes);
+  const charged = Math.max(0, measured - allowance);
+  const worked = mins(row.worked_minutes);
+  const fullDay = Number(shift?.full_day_minutes) || 0;
+  const ot = mins(row.ot_minutes);
+
+  const lines = [{ label: 'On site, first punch to last', minutes: onSite }];
+
+  if (measured > 0) {
+    lines.push({
+      label: `Breaks measured (${measured} min), of which ${Math.min(measured, allowance)} is free`,
+      // Negating zero gives -0, which renders as "−0m" and reads like a bug.
+      minutes: charged === 0 ? 0 : -charged,
+      muted: charged === 0,
+    });
+  }
+
+  lines.push({ label: 'Counted as worked', minutes: worked, total: true });
+
+  if (fullDay > 0) {
+    lines.push({ label: 'A full day', minutes: fullDay, muted: true });
+    lines.push({ label: ot > 0 ? 'Overtime, beyond a full day' : 'Short of a full day', minutes: ot > 0 ? ot : worked - fullDay, total: true });
+  }
+
+  return {
+    lines,
+    // The one sentence that answers "why is the overtime not bigger?".
+    note:
+      charged > 0 && ot >= 0
+        ? `${charged} min of break beyond the ${allowance}-minute allowance came off, so the overtime is ${charged} min lower than the time on site suggests.`
+        : null,
+  };
+}
+
+/** "8h 35m" / "-39m" — signed, for a column of subtractions. */
+export function asHoursMinutes(minutes) {
+  const n = Math.round(Number(minutes) || 0);
+  const sign = n < 0 ? '−' : '';
+  const a = Math.abs(n);
+  if (a < 60) return `${sign}${a}m`;
+  return `${sign}${Math.floor(a / 60)}h ${a % 60}m`;
+}

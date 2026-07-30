@@ -11,6 +11,7 @@ import {
   CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search,
 } from 'lucide-react';
 import { useEmployeeAttendanceSummary, clockLabel } from '../data/employeeAttendance';
+import { explainDay, asHoursMinutes } from '../lib/attendanceSummary';
 import { useEmployees } from '../data/employees';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
@@ -346,6 +347,38 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                                   breakMinutes={r.break_minutes}
                                   incomplete={r.breaks_incomplete}
                                 />
+                                {/* The subtraction, spelled out. A day reading "in 09:37, out 18:51,
+                                    overtime 5m" is arithmetically right and impossible to check:
+                                    the 79 minutes of break that account for the difference are
+                                    nowhere on the row. */}
+                                {(() => {
+                                  const x = explainDay(r, r.shift);
+                                  if (!x) return null;
+                                  return (
+                                    <div className="mt-3 pt-2.5 border-t border-neutral-200 dark:border-neutral-800">
+                                      <dl className="max-w-md space-y-0.5">
+                                        {x.lines.map((l, i) => (
+                                          <div
+                                            key={i}
+                                            className={`flex items-baseline justify-between gap-3 text-2xs ${
+                                              l.total ? 'font-semibold text-neutral-900 dark:text-white pt-0.5' : ''
+                                            } ${l.muted ? 'text-neutral-450' : 'text-neutral-600 dark:text-neutral-300'}`}
+                                          >
+                                            <dt className={l.total ? 'border-t border-neutral-200 dark:border-neutral-800 pt-1 flex-1' : 'flex-1'}>
+                                              {l.label}
+                                            </dt>
+                                            <dd className={`tabular-nums shrink-0 ${l.total ? 'border-t border-neutral-200 dark:border-neutral-800 pt-1' : ''}`}>
+                                              {asHoursMinutes(l.minutes)}
+                                            </dd>
+                                          </div>
+                                        ))}
+                                      </dl>
+                                      {x.note && (
+                                        <p className="mt-1.5 text-2xs text-amber-700 dark:text-amber-400 max-w-md">{x.note}</p>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           )}
