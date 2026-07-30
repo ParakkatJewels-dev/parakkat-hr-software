@@ -125,7 +125,13 @@ function TodayView({ workDate, setWorkDate }) {
       if (filter === 'in' && !(row.check_in && !row.check_out)) return false;
       if (filter === 'absent' && row.status !== 'Absent') return false;
       if (filter === 'late' && !row.is_late) return false;
-      if (filter === 'exceptions' && !(row.is_late || row.is_missing_punch || row.is_early_exit)) return false;
+      // Same definition as the Exceptions tab, or the two disagree about the same day. On a
+      // flexible shift late and early never fire, so without the first three this chip matched
+      // almost nothing.
+      if (filter === 'exceptions' && !(
+        row.is_missing_punch || row.is_short_day || row.is_long_break || row.breaks_incomplete
+        || row.is_late || row.is_early_exit
+      )) return false;
       if (company !== 'All companies' && row.employee?.entity?.name !== company) return false;
       if (branch !== 'All branches'
           && (row.employee?.branch?.name || row.employee?.branch?.code) !== branch) return false;
@@ -599,12 +605,25 @@ function ExceptionsView() {
               </thead>
               <tbody>
                 {data.map((row) => {
+                  // Ordered by how much somebody needs to act on it, not by column order: an
+                  // absence is a question for a manager, a long break is only an explanation for
+                  // why the overtime looks small.
+                  const shortBy = row.shift?.full_day_minutes
+                    ? row.shift.full_day_minutes - (row.worked_minutes ?? 0)
+                    : null;
                   const issues = [
                     row.status === 'Absent' ? 'Absent' : null,
+                    row.status === 'No Shift' ? 'No shift assigned' : null,
                     row.is_missing_punch ? 'Missing punch' : null,
+                    // The headline exception on a flexible shift — left early, and nothing else
+                    // records it. Still paid in full by policy, which is why it needs saying.
+                    row.is_short_day
+                      ? `Short${shortBy > 0 ? ` by ${fmtMinutes(shortBy)}` : ''}`
+                      : null,
+                    row.breaks_incomplete ? 'Break punch missing' : null,
+                    row.is_long_break ? `Break ${row.break_minutes}m` : null,
                     row.is_late ? `Late ${row.late_minutes}m` : null,
                     row.is_early_exit ? `Early ${row.early_exit_minutes}m` : null,
-                    row.status === 'No Shift' ? 'No shift assigned' : null,
                   ].filter(Boolean);
 
                   return (

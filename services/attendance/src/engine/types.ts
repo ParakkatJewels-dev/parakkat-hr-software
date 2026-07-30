@@ -46,6 +46,14 @@ export interface ShiftDefinition {
   missedPunchPolicy: 'exception' | 'present';
   /** Lateness beyond this is an absence, not a late mark. */
   lateAbsentMinutes: number;
+  /**
+   * How far under the daily hours a day may fall before it counts as short.
+   *
+   * Being four minutes short is not an exception. The median day here runs 8h 31m against a
+   * 510-minute requirement, so an exact threshold would flag half the company every day and the
+   * exceptions list would be ignored inside a week.
+   */
+  shortDayToleranceMinutes: number;
   /** Leaving this early is an absence, not an early exit. */
   earlyAbsentMinutes: number;
   /** 'schedule' = past the shift end; 'worked' = beyond fullDayMinutes. */
@@ -133,6 +141,17 @@ export interface DayResult {
   isLate: boolean;
   isEarlyExit: boolean;
   isMissingPunch: boolean;
+  /**
+   * Attended, finished, and worked more than the tolerance under the daily hours.
+   *
+   * The headline exception on a flexible shift. Leaving early is otherwise invisible there: no early
+   * exit is recorded because there is no fixed end, and short hours do not demote the day, so the
+   * only trace was that the hours were low — which nothing was looking at. 7708 such days existed
+   * with no flag on any of them.
+   */
+  isShortDay: boolean;
+  /** The break ran past the allowance, so the excess was deducted from worked time. */
+  isLongBreak: boolean;
 
   leaveId: string | null;
   leaveType: string | null;

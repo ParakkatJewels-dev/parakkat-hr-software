@@ -31,6 +31,7 @@ const GENERAL: ShiftDefinition = {
   missedPunchPolicy: 'exception',
   lateAbsentMinutes: 540,
   earlyAbsentMinutes: 540,
+  shortDayToleranceMinutes: 30,
   isFlexible: false,
 };
 
@@ -1037,4 +1038,87 @@ test('the same input still produces the same result, asOf included', () => {
     shift: FLEXIBLE, punches: [punchAt('2026-07-15', '09:37')], asOf: clockAt('10:00'),
   });
   assert.deepEqual(processDay(make()), processDay(make()));
+});
+
+// ---------------------------------------------------------------------------
+// short days and long breaks
+//
+// On a flexible shift these are the only exceptions there are. No lateness is recorded because
+// there is no fixed start; no early exit because there is no fixed end; and short hours do not
+// demote the day, by policy. So somebody who worked three hours and went home was flagged as
+// nothing at all — 7708 such days existed, every one of them looking like a normal full day.
+// ---------------------------------------------------------------------------
+
+const flexRange = (inAt: string, outAt: string) =>
+  processDay(day({
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-15', inAt), punchAt('2026-07-15', outAt)],
+  }));
+
+test('a day well under the daily hours is flagged short, though still paid in full', () => {
+  // 11:00 to 17:00 is 360 minutes against a 510-minute day: 150 short.
+  const r = flexRange('11:00', '17:00');
+
+  assert.equal(r.isShortDay, true);
+  assert.equal(r.dayFraction, 1, 'policy is unchanged — it still pays');
+  assert.equal(r.status, 'Present');
+});
+
+test('the tolerance stops it flagging half the company every day', () => {
+  // The median day here runs a few minutes over; an exact threshold would flag ordinary variation.
+  assert.equal(flexRange('09:00', '17:30').isShortDay, false, 'exactly a full day');
+  assert.equal(flexRange('09:00', '17:05').isShortDay, false, '25 short, inside the 30 tolerance');
+  assert.equal(flexRange('09:00', '17:00').isShortDay, false, 'exactly 30 short, still inside');
+  assert.equal(flexRange('09:00', '16:59').isShortDay, true, '31 short, now outside');
+});
+
+test('a break past the allowance is flagged, on either kind of shift', () => {
+  // 79 minutes of break against a 40-minute allowance — Kasinath's real day.
+  const over = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['09:37', '13:23', '13:42', '18:51'].map((t) => punchAt('2026-07-15', t)),
+  }));
+  assert.equal(over.breakMinutes, 19);
+  assert.equal(over.isLongBreak, false, '19 minutes is inside the allowance');
+
+  const longer = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['09:00', '12:00', '13:30', '18:00'].map((t) => punchAt('2026-07-15', t)),
+  }));
+  assert.equal(longer.breakMinutes, 90);
+  assert.equal(longer.isLongBreak, true, '90 minutes is 50 past the allowance');
+});
+
+test('a day with no break punched is not a long break', () => {
+  const r = flexRange('09:00', '17:30');
+  assert.equal(r.breakMinutes, 0);
+  assert.equal(r.isLongBreak, false);
+});
+
+test('an absence is not a short day — it has its own category', () => {
+  const r = processDay(day({ shift: FLEXIBLE }));
+  assert.equal(r.status, 'Absent');
+  assert.equal(r.isShortDay, false, 'counting it twice would double every absence in the report');
+});
+
+test('a day still in progress is not short — it is unfinished', () => {
+  // Somebody two hours into their day has not worked a short day yet.
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-15', '09:00')],
+    asOf: workDateAtTime('2026-07-15', '11:00'),
+  }));
+  assert.equal(r.isMissingPunch, false);
+  assert.equal(r.isShortDay, false);
+});
+
+test('a weekly off worked briefly is not a short day', () => {
+  // Sunday: every minute is overtime and there is no requirement to fall short of.
+  const r = processDay(day({
+    workDate: '2026-07-19', // a Sunday
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-19', '09:00'), punchAt('2026-07-19', '11:00')],
+  }));
+  assert.equal(r.dayType, 'weekly_off');
+  assert.equal(r.isShortDay, false);
 });

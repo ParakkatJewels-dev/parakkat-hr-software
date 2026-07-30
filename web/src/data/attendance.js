@@ -15,7 +15,7 @@ const SELECT = `
   worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
   is_late, is_early_exit, is_missing_punch, is_lop, day_fraction,
   leave_type, remarks, punch_count, scheduled_in, scheduled_out, computed_at,
-  punches, break_minutes, breaks_incomplete,
+  punches, break_minutes, breaks_incomplete, is_short_day, is_long_break,
   employee:employees!attendance_employee_id_fkey(
     id, full_name, employee_code, entity_id,
     entity:entities(id, code, name),
@@ -96,7 +96,24 @@ export function useAttendanceExceptions(from, to) {
         .select(SELECT)
         .gte('work_date', from)
         .lte('work_date', to)
-        .or('is_late.eq.true,is_missing_punch.eq.true,is_early_exit.eq.true,status.eq.Absent,status.eq.No Shift')
+        // What counts as an exception depends on the shift, and on a flexible one three of the old
+        // five never happen: no lateness (no fixed start), no early exit (no fixed end), and short
+        // hours stopped demoting the day in 0062. That left "worked three hours and went home"
+        // matching nothing at all — 7708 such days, none of them flagged.
+        //
+        // is_short_day and is_long_break are set by the engine (0069) because both compare a row
+        // against its own shift, which a PostgREST filter cannot do. is_late and is_early_exit stay
+        // in the list: they read false on a flexible shift and are still correct on a fixed one.
+        .or([
+          'is_missing_punch.eq.true',
+          'is_short_day.eq.true',
+          'is_long_break.eq.true',
+          'breaks_incomplete.eq.true',
+          'is_late.eq.true',
+          'is_early_exit.eq.true',
+          'status.eq.Absent',
+          'status.eq.No Shift',
+        ].join(','))
         .order('work_date', { ascending: false })
         // A full month of exceptions across a large entity exceeds 1000; the health tile would
         // silently under-report. 20k covers a month for ~700 staff.

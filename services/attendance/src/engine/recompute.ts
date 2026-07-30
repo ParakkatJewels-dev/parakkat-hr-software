@@ -76,6 +76,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       early_absent_minutes: number;
       ot_basis: string;
       is_flexible: boolean;
+      short_day_tolerance_minutes: number;
     }>
   >`
     select id, code, name,
@@ -83,7 +84,8 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
            end_time::text    as end_time,
            crosses_midnight, grace_in_minutes, grace_out_minutes, break_minutes, break_policy,
            weekly_offs, full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes, ot_basis,
-           missed_punch_policy, late_absent_minutes, early_absent_minutes, is_flexible
+           missed_punch_policy, late_absent_minutes, early_absent_minutes, is_flexible,
+           short_day_tolerance_minutes
       from public.shifts
      where is_active
   `;
@@ -114,6 +116,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       earlyAbsentMinutes: r.early_absent_minutes,
       otBasis: r.ot_basis === 'worked' ? 'worked' : 'schedule',
       isFlexible: r.is_flexible === true,
+      shortDayToleranceMinutes: r.short_day_tolerance_minutes ?? 30,
     });
   }
   return map;
@@ -348,7 +351,8 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
         ${r.leaveId}::uuid, ${r.leaveType}, ${r.isLop}, ${r.dayFraction},
         ${r.regularizationId}::uuid, ${r.source}, ${r.remarks}, now(),
         ${JSON.stringify(r.punches.map((d) => d.toISOString()))}::jsonb,
-        ${r.breakMinutes}, ${r.breaksIncomplete}
+        ${r.breakMinutes}, ${r.breaksIncomplete},
+        ${r.isShortDay}, ${r.isLongBreak}
       )`
     );
 
@@ -361,7 +365,8 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
         worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
         is_late, is_early_exit, is_missing_punch,
         leave_id, leave_type, is_lop, day_fraction, regularization_id, source, remarks, computed_at,
-        punches, break_minutes, breaks_incomplete
+        punches, break_minutes, breaks_incomplete,
+        is_short_day, is_long_break
       )
       values ${Prisma.join(values)}
       on conflict (employee_id, work_date) do update set
@@ -394,7 +399,9 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
         computed_at        = excluded.computed_at,
         punches            = excluded.punches,
         break_minutes      = excluded.break_minutes,
-        breaks_incomplete  = excluded.breaks_incomplete
+        breaks_incomplete  = excluded.breaks_incomplete,
+        is_short_day       = excluded.is_short_day,
+        is_long_break      = excluded.is_long_break
       ${lockGuard}
     `;
 

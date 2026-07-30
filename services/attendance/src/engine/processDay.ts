@@ -135,6 +135,8 @@ function emptyResult(input: DayInput): DayResult {
     isLate: false,
     isEarlyExit: false,
     isMissingPunch: false,
+    isShortDay: false,
+    isLongBreak: false,
     leaveId: null,
     leaveType: null,
     isLop: false,
@@ -511,6 +513,10 @@ export function processDay(input: DayInput): DayResult {
     return result;
   }
 
+  // A break past the allowance had time deducted for it — true on any shift, and the figure people
+  // query when overtime is smaller than the clock suggests.
+  result.isLongBreak = result.breakMinutes > shift.breakMinutes;
+
   // --- the verdict ------------------------------------------------------------------
   // On a flexible shift, turning up is what settles the day. Short hours are recorded and stay
   // visible, but they do not dock the day — which is Easy Time Pro's rule, and the company's.
@@ -528,6 +534,9 @@ export function processDay(input: DayInput): DayResult {
     result.dayFraction = Math.max(result.dayFraction, 1);
 
     const short = shift.fullDayMinutes - result.workedMinutes;
+    // Recorded even though the day is not docked. The two are separate questions: policy says a
+    // short day still pays in full, and somebody still needs to see that it happened.
+    result.isShortDay = short > shift.shortDayToleranceMinutes;
     if (short > 0) {
       const h = Math.floor(short / 60);
       result.remarks = [result.remarks, `Short of the daily hours by ${h ? `${h}:` : ''}${String(short % 60).padStart(h ? 2 : 1, '0')}${h ? '' : ' min'}`]
@@ -547,6 +556,10 @@ export function processDay(input: DayInput): DayResult {
     result.status = 'Present';
     result.dayFraction = Math.max(result.dayFraction, 0.5);
     result.remarks = [result.remarks, 'Short hours'].filter(Boolean).join(' — ');
+  }
+
+  if (!shift.isFlexible) {
+    result.isShortDay = result.workedMinutes < shift.fullDayMinutes - shift.shortDayToleranceMinutes;
   }
 
   // A half-day leave plus a worked half is a full paid day.
