@@ -114,34 +114,6 @@ function MyProfileCard() {
 }
 
 /** Workspace-level settings from org_settings; editable only by super admins. */
-function WorkspaceCard() {
-  const { isSuperAdmin } = useAuth();
-  const { data: settings = {} } = useWorkspaceSettings();
-  const saveSettings = useSaveWorkspaceSettings();
-
-  const [form, setForm] = useState({ company_name: '', domain: '', locale: '' });
-  const [saved, setSaved] = useState(false);
-  useEffect(() => {
-    setForm({
-      company_name: settings.company_name || '',
-      domain: settings.domain || '',
-      locale: settings.locale || '',
-    });
-  }, [settings.company_name, settings.domain, settings.locale]);
-
-  const dirty =
-    form.company_name !== (settings.company_name || '') ||
-    form.domain !== (settings.domain || '') ||
-    form.locale !== (settings.locale || '');
-
-  const save = () =>
-    saveSettings.mutate(form, {
-      onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2000); },
-    });
-
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
-
 /**
  * The reader's own display preferences.
  *
@@ -193,6 +165,34 @@ function DisplayPreferences() {
     </div>
   );
 }
+
+function WorkspaceCard() {
+  const { isSuperAdmin } = useAuth();
+  const { data: settings = {} } = useWorkspaceSettings();
+  const saveSettings = useSaveWorkspaceSettings();
+
+  const [form, setForm] = useState({ company_name: '', domain: '', locale: '' });
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    setForm({
+      company_name: settings.company_name || '',
+      domain: settings.domain || '',
+      locale: settings.locale || '',
+    });
+  }, [settings.company_name, settings.domain, settings.locale]);
+
+  const dirty =
+    form.company_name !== (settings.company_name || '') ||
+    form.domain !== (settings.domain || '') ||
+    form.locale !== (settings.locale || '');
+
+  const save = () =>
+    saveSettings.mutate(form, {
+      onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2000); },
+    });
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
 
   return (
     <div className="premium-card space-y-4">
