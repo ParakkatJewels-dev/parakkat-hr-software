@@ -9,7 +9,7 @@
 // out/in. See splitSessions() in services/attendance/src/engine/processDay.ts. The terminals send
 // punch_state 255 on every record, so there is no direction flag to read; order is all there is.
 import React from 'react';
-import { labelLayout, rowCount } from '../../lib/punchLayout';
+import { labelLayout, rowCount, spanLabels } from '../../lib/punchLayout';
 
 const time = (ts) =>
   new Date(ts).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -91,6 +91,10 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
   const worked = segs.filter((s) => !s.away && !s.unknown).reduce((a, s) => a + s.minutes, 0);
   const layout = labelLayout(punches);
   const rows = rowCount(layout);
+  // How long each stretch lasted, over the stretch itself. Durations describe spans and go above
+  // the bar; punch times describe moments and go below it, so which is which is never in doubt.
+  const spans = spanLabels(segs, punches);
+  const spanRows = rowCount(spans);
 
   return (
     <div className={className}>
@@ -115,6 +119,45 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
             a punch is missing — time out is at least this much
           </span>
         )}
+      </div>
+
+      {/* How long each stretch lasted, above the stretch it measures. The wrapped list this
+          replaced carried these between the times — "13:23 ·19m· 13:42" — and positioning the times
+          lost them, leaving a visible gap in the bar with no measurement anywhere near it. A label
+          too narrow for its own stretch moves up a row rather than being dropped: 19 minutes is
+          3.4% of a nine-hour bar and "19m" needs about 4.5%, which is the commonest break there
+          is. */}
+      <div className="relative" style={{ height: `${spanRows * 14 + 2}px` }}>
+        {spans.map((sp, i) => (
+          <span
+            key={i}
+            className="absolute bottom-0 flex flex-col items-center"
+            style={{ left: `${sp.pct}%`, transform: 'translateX(-50%)' }}
+          >
+            <span
+              className={`px-1 rounded text-2xs tabular-nums leading-none py-px whitespace-nowrap ${
+                sp.unknown
+                  ? 'text-neutral-450'
+                  : sp.away
+                    ? 'text-amber-700 dark:text-amber-400 font-semibold'
+                    : 'text-neutral-500 dark:text-neutral-400'
+              }`}
+              title={sp.unknown ? 'A punch is missing — this stretch cannot be classified'
+                : sp.away ? `Away ${sp.minutes} minutes` : `Present ${sp.minutes} minutes`}
+            >
+              {sp.text}
+            </span>
+            {/* Only the moved labels need pointing back at their stretch; one sitting over its own
+                span already points at it. */}
+            {!sp.inline && (
+              <span
+                aria-hidden="true"
+                className="w-px bg-neutral-300 dark:bg-neutral-700"
+                style={{ height: `${sp.row * 14 + 2}px` }}
+              />
+            )}
+          </span>
+        ))}
       </div>
 
       {/* The bar itself. role=img with a written-out label so this is not purely visual. */}
