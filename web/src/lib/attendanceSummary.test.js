@@ -165,3 +165,28 @@ test('durations read as hours and minutes, signed', () => {
   assert.equal(asHoursMinutes(5), '5m');
   assert.equal(asHoursMinutes(0), '0m');
 });
+
+test('an odd punch count says a stretch is unaccounted for, and that the total is a floor', () => {
+  // The reported case: in, out for break, back from break, home without punching.
+  const x = explainDay({
+    worked_minutes: 270, ot_minutes: 0, break_minutes: 0, breaks_incomplete: true,
+    punches: [
+      '2026-07-15T09:00:00+05:30', '2026-07-15T13:00:00+05:30', '2026-07-15T13:30:00+05:30',
+    ],
+  }, { break_minutes: 40, full_day_minutes: 510 });
+
+  assert.ok(x.incomplete);
+  assert.ok(x.lines.some((l) => l.label.includes('unaccounted for') && l.minutes === null),
+    'the unknown stretch has no number, and must not be shown as zero');
+  assert.match(x.lines.find((l) => l.total).label, /at least/,
+    'the total is labelled a floor, not a measurement');
+  assert.match(x.note, /either the last punch is a break/, 'names both readings');
+  assert.match(x.note, /Raise a correction/, 'and says what to do');
+});
+
+test('a complete day says none of that', () => {
+  const x = explainDay(REAL_DAY, GN);
+  assert.equal(x.incomplete, false);
+  assert.equal(x.lines.some((l) => l.minutes === null), false);
+  assert.doesNotMatch(x.lines.find((l) => l.total).label, /at least/);
+});

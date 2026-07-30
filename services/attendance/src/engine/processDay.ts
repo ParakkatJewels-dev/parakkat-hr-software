@@ -517,6 +517,24 @@ export function processDay(input: DayInput): DayResult {
   // query when overtime is smaller than the clock suggests.
   result.isLongBreak = result.breakMinutes > shift.breakMinutes;
 
+  // An odd number of punches means one was missed, and the day was not saying so.
+  //
+  // isMissingPunch only covered the single-punch case, so a day like 09:00 / 13:00 / 13:30 read as a
+  // complete four-and-a-half hour day — indistinguishable from somebody who genuinely worked those
+  // hours and went home. 618 days across the history have an odd count.
+  //
+  // Which punch is missing cannot be known from the record: 62% of these days have more than two
+  // hours between the last two punches, so the final punch is a departure and a break-return was
+  // missed; 28% have under an hour, so the final punch is a break-return and the departure was
+  // missed. Both leave one span of the day unaccounted for, and the flag says so without pretending
+  // to know which. The hours are unchanged — what changes is that the day now admits it is a floor.
+  if (result.punchCount >= 3 && result.punchCount % 2 === 1) {
+    result.isMissingPunch = true;
+    result.remarks = [result.remarks, 'A punch is missing — one stretch of the day is unaccounted for']
+      .filter(Boolean)
+      .join(' — ');
+  }
+
   // --- the verdict ------------------------------------------------------------------
   // On a flexible shift, turning up is what settles the day. Short hours are recorded and stay
   // visible, but they do not dock the day — which is Easy Time Pro's rule, and the company's.

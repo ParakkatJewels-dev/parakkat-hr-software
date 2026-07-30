@@ -368,13 +368,19 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                                               {l.label}
                                             </dt>
                                             <dd className={`tabular-nums shrink-0 ${l.total ? 'border-t border-neutral-200 dark:border-neutral-800 pt-1' : ''}`}>
-                                              {asHoursMinutes(l.minutes)}
+                                              {l.minutes === null ? '?' : asHoursMinutes(l.minutes)}
                                             </dd>
                                           </div>
                                         ))}
                                       </dl>
                                       {x.note && (
-                                        <p className="mt-1.5 text-2xs text-amber-700 dark:text-amber-400 max-w-md">{x.note}</p>
+                                        <p className={`mt-1.5 text-2xs max-w-md ${
+                                          x.incomplete
+                                            ? 'text-amber-700 dark:text-amber-400 font-medium'
+                                            : 'text-amber-700 dark:text-amber-400'
+                                        }`}>
+                                          {x.note}
+                                        </p>
                                       )}
                                     </div>
                                   );

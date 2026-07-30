@@ -1122,3 +1122,58 @@ test('a weekly off worked briefly is not a short day', () => {
   assert.equal(r.dayType, 'weekly_off');
   assert.equal(r.isShortDay, false);
 });
+
+// ---------------------------------------------------------------------------
+// an odd number of punches
+//
+// Reported: "if I punch for a break, punch back, then forget to punch out at home time, the time
+// after the break is not calculated." True — and the day did not say so either. 09:00 / 13:00 /
+// 13:30 read as a complete four-and-a-half hour day, indistinguishable from somebody who worked
+// those hours and left. 618 days across the history have an odd count.
+//
+// Which punch is missing cannot be recovered from the record. 62% of these days have over two hours
+// between the last two punches (final punch is a departure, a break-return was missed) and 28% have
+// under an hour (final punch is a break-return, the departure was missed). The flag says a punch is
+// missing without pretending to know which.
+// ---------------------------------------------------------------------------
+
+const oddDay = (clocks: string[]) =>
+  processDay(day({ shift: FLEXIBLE, punches: clocks.map((t) => punchAt('2026-07-15', t)) }));
+
+test('three punches is a missing punch, not a complete short day', () => {
+  // The reported case: in, out for break, back from break, then home without punching.
+  const r = oddDay(['09:00', '13:00', '13:30']);
+
+  assert.equal(r.punchCount, 3);
+  assert.equal(r.isMissingPunch, true, 'this is the whole fix — it used to read false');
+  assert.match(r.remarks ?? '', /one stretch of the day is unaccounted for/);
+});
+
+test('five and seven punches too — any odd count means one was missed', () => {
+  assert.equal(oddDay(['09:00', '11:00', '11:15', '13:00', '13:30']).isMissingPunch, true);
+  assert.equal(oddDay(['09:00', '11:00', '11:15', '13:00', '13:30', '15:00', '15:20']).isMissingPunch, true);
+});
+
+test('an even count is complete and stays unflagged', () => {
+  const r = oddDay(['09:00', '13:00', '13:30', '18:00']);
+
+  assert.equal(r.isMissingPunch, false);
+  assert.equal(r.breakMinutes, 30, 'the break pairs cleanly');
+  assert.equal(r.workedMinutes, 540, '09:00 to 18:00, the 30-minute break inside the allowance');
+});
+
+test('the hours are deliberately unchanged — only the honesty about them is', () => {
+  // Correcting the hours needs a decision about which reading to believe, and that moves money on
+  // 618 days. Flagging it does not, so the flag lands first.
+  const three = oddDay(['09:00', '13:00', '13:30']);
+  assert.equal(three.workedMinutes, 270, 'still first punch to last');
+  assert.equal(three.breaksIncomplete, true, 'and still says the break could not be measured');
+});
+
+test('a single punch keeps its own handling, which is more specific', () => {
+  // One punch has its own branch: the missing side is reconstructed from the schedule. That is
+  // possible there because there is only one candidate for what the punch means.
+  const r = oddDay(['09:16']);
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.workedMinutes, 494, 'reconstructed to the shift end, unchanged by this');
+});

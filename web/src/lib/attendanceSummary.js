@@ -207,20 +207,46 @@ export function explainDay(row, shift) {
     });
   }
 
-  lines.push({ label: 'Counted as worked', minutes: worked, total: true });
+  // An odd punch count leaves one stretch of the day unclassifiable, and the total is then a floor
+  // rather than a measurement. Saying so next to the number is the point: without it, a day where
+  // somebody punched for a break and then went home without punching reads as a complete short day.
+  if (row.breaks_incomplete) {
+    lines.push({
+      label: 'A punch is missing, so one stretch is unaccounted for',
+      minutes: null,
+      muted: true,
+    });
+  }
+
+  lines.push({
+    label: row.breaks_incomplete ? 'Counted as worked (at least)' : 'Counted as worked',
+    minutes: worked,
+    total: true,
+  });
 
   if (fullDay > 0) {
     lines.push({ label: 'A full day', minutes: fullDay, muted: true });
     lines.push({ label: ot > 0 ? 'Overtime, beyond a full day' : 'Short of a full day', minutes: ot > 0 ? ot : worked - fullDay, total: true });
   }
 
+  // Which punch is missing cannot be recovered from the record, so the note names both readings
+  // rather than picking one. It matters which: one means the hours are too low, the other means the
+  // break was never measured and they may be too high.
+  const missingPunchNote = row.breaks_incomplete
+    ? 'An odd number of punches: either the last punch is a break you returned from and the '
+      + 'home-time punch is missing — so the hours are lower than the day worked — or it is the '
+      + 'home-time punch and a return-from-break is missing, so a break went unmeasured. Raise a '
+      + 'correction to set the real time.'
+    : null;
+
   return {
     lines,
-    // The one sentence that answers "why is the overtime not bigger?".
     note:
-      charged > 0 && ot >= 0
+      missingPunchNote
+      ?? (charged > 0 && ot >= 0
         ? `${charged} min of break beyond the ${allowance}-minute allowance came off, so the overtime is ${charged} min lower than the time on site suggests.`
-        : null,
+        : null),
+    incomplete: Boolean(row.breaks_incomplete),
   };
 }
 
