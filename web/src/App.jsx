@@ -648,8 +648,6 @@ export default function App() {
 
       </div>
 
-      {/* NAVOS AI and REST Integrations are hidden until they do something real — a shell that
-          looks finished costs more trust than a missing menu item. */}
 
 
 

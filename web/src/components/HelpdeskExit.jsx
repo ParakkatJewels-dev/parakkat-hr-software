@@ -123,7 +123,8 @@ export default function HelpdeskExit() {
           )}
         </div>
 
-        {/* exits (sample data for now) */}
+        {/* Exit clearances, from public.exits — the note that used to say "sample data"
+            outlived the sample data by some months. */}
         <div className="space-y-4">
           <div className="premium-card space-y-3.5">
             <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-850 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2 flex items-center">
