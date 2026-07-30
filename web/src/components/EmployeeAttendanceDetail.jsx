@@ -93,7 +93,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
   }, [employees, q]);
 
   const exportCsv = () => {
-    const head = ['Date', 'Day', 'Status', 'In', 'Out', 'Worked (h)', 'Breaks', 'Break (min)',
+    const head = ['Date', 'Day', 'Status', 'In', 'Out', 'Worked (h)', 'On site (h)', 'Breaks', 'Break (min)',
       'Break complete', 'Late (min)', 'Early (min)', 'OT (min)', 'Leave', 'All punches'];
     const body = filtered.map((r) => {
       const punches = Array.isArray(r.punches) ? r.punches : [];
@@ -102,6 +102,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
         r.work_date, DOW[new Date(`${r.work_date}T00:00:00`).getDay()], r.status,
         fmtTime(r.check_in), fmtTime(r.check_out),
         ((r.worked_minutes || 0) / 60).toFixed(2),
+        punches.length >= 2
+          ? ((new Date(punches[punches.length - 1]) - new Date(punches[0])) / 3600000).toFixed(2)
+          : '',
         breaks, r.break_minutes || 0, r.breaks_incomplete ? 'no' : 'yes',
         r.late_minutes || 0, r.early_exit_minutes || 0, r.ot_minutes || 0, r.leave_type || '',
         // Quoted: a space-separated list would otherwise split across columns.
@@ -293,7 +296,12 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                         <th>Status</th>
                         <th>In</th>
                         <th>Out</th>
-                        <th className="hidden sm:table-cell">Worked</th>
+                        <th className="hidden sm:table-cell" title="Payable hours: time on site less any break beyond the allowance">
+                          Worked
+                        </th>
+                        <th className="hidden md:table-cell" title="First punch to last punch — the whole day, break included">
+                          On site
+                        </th>
                         <th className="hidden lg:table-cell" title="Breaks taken, and total time out of office">
                           Breaks
                         </th>
@@ -308,6 +316,13 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                         // Two punches are just in and out — there is no timeline worth opening.
                         const hasTimeline = punches.length > 2;
                         const open = openDay === r.id;
+                        // First punch to last. Not check_in/check_out: on a day with a
+                        // reconstructed punch those are the assumed times, and this column is meant
+                        // to be only what the terminal actually recorded.
+                        const onSite = punches.length >= 2
+                          ? Math.max(0, Math.round(
+                              (new Date(punches[punches.length - 1]) - new Date(punches[0])) / 60000))
+                          : null;
                         return (
                           <React.Fragment key={r.id}>
                           <tr
@@ -329,6 +344,13 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                             <td className="hidden sm:table-cell tabular-nums">
                               {r.worked_minutes ? `${(r.worked_minutes / 60).toFixed(1)} h` : '—'}
                             </td>
+                            {/* The whole day, break included. Worked is the payable figure and it
+                                already contains the break when that break sat inside the
+                                allowance — so on its own it reads as though nobody ever stopped.
+                                Side by side with Breaks, these three account for each other. */}
+                            <td className="hidden md:table-cell tabular-nums text-neutral-500 dark:text-neutral-400">
+                              {onSite != null ? `${(onSite / 60).toFixed(1)} h` : '—'}
+                            </td>
                             <td className="hidden lg:table-cell tabular-nums text-xs">
                               <BreakSummary row={r} />
                             </td>
@@ -341,7 +363,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                           </tr>
                           {open && (
                             <tr>
-                              <td colSpan={9} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
+                              <td colSpan={10} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
                                 <PunchTimeline
                                   punches={punches}
                                   breakMinutes={r.break_minutes}
@@ -393,7 +415,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                       })}
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={9} className="py-8 text-center text-sm text-neutral-500">
+                          <td colSpan={10} className="py-8 text-center text-sm text-neutral-500">
                             {rows.length === 0
                               ? 'No attendance recorded in this range.'
                               : `No ${SHOW.find((s) => s.key === show)?.label.toLowerCase()} in this range.`}
