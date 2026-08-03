@@ -261,7 +261,11 @@ export default function App() {
       tabs: [
         { id: 'administration', label: 'Users & Access', perm: 'rbac.manage' },
         { id: 'admin-roles', label: 'Roles', perm: 'rbac.manage' },
-        { id: 'admin-audit', label: 'Audit Log', perm: 'rbac.manage' },
+        // audit.read, not rbac.manage. The audit_log policy requires audit.read, which only
+          // entity_admin and super_admin hold — gating the tab on rbac.manage handed it to
+          // dept_head, branch_manager, zonal_manager and hr_manager, all of whom then saw a
+          // permanently empty screen.
+          { id: 'admin-audit', label: 'Audit Log', perm: 'audit.read' },
         { id: 'settings', label: 'Settings', perm: null },
       ],
     },

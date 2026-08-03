@@ -19,7 +19,8 @@ export function useRoles() {
   return useQuery({
     queryKey: ['roles'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('roles').select('id,key,name,description').order('key');
+      // rank comes too: the assign-role form filters by seniority, mirroring app.can_grant.
+      const { data, error } = await supabase.from('roles').select('id,key,name,description,rank').order('key');
       if (error) throw error;
       return data ?? [];
     },

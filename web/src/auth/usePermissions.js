@@ -3,6 +3,7 @@
 // (A user who bypasses these checks still gets nothing back from the database.)
 import { useMemo } from 'react';
 import { useAuth } from './AuthContext';
+import { hasPerm } from '../lib/permissionMatch';
 
 export function usePermissions() {
   const { permissions, isSuperAdmin, employee } = useAuth();
@@ -21,29 +22,12 @@ export function usePermissions() {
       isSuperAdmin || list.some((p) => p.permission === perm && p.scope_type !== 'self');
 
     // Precise check against one resource's ancestry — mirrors app.has_perm(perm, entity, zone, branch, dept, employee).
-    const can = (perm, scope = {}) => {
-      if (isSuperAdmin) return true;
-      const { entityId, zoneId, branchId, deptId, employeeId } = scope;
-      return list.some((p) => {
-        if (p.permission !== perm) return false;
-        switch (p.scope_type) {
-          case 'global':
-            return true;
-          case 'entity':
-            return p.scope_id === entityId;
-          case 'zone':
-            return p.scope_id === zoneId;
-          case 'branch':
-            return p.scope_id === branchId;
-          case 'department':
-            return p.scope_id === deptId;
-          case 'self':
-            return employeeId != null && employeeId === myEmployeeId;
-          default:
-            return false;
-        }
-      });
-    };
+    //
+    // The matching itself lives in lib/permissionMatch.js so it can be tested: this file imports
+    // useAuth, which imports Supabase, which the test runner cannot load. The version that used to
+    // be inlined here compared scope ids with ===, which reads null === null as a match where
+    // Postgres reads NULL = NULL as NULL. See permissionMatch.test.js.
+    const can = (perm, scope = {}) => hasPerm(list, perm, scope, { isSuperAdmin, myEmployeeId });
 
     return { can, canAny, canBeyondSelf, isSuperAdmin };
   }, [permissions, isSuperAdmin, employee]);

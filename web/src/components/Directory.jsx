@@ -805,8 +805,22 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const patch = (p) => setForm((f) => ({ ...f, ...p }));
 
   // App access, folded into this form so adding a person is one job rather than two screens.
-  const { rank: myRank } = useAuth();
+  const { rank: myRank, permissions } = useAuth();
+  const { can } = usePermissions();
   const roleOptions = useMemo(() => grantableRoles(myRank), [myRank]);
+
+  // The narrowest placement this user can file someone under, for the blocker wording below. A
+  // department head has to name a department; an entity admin only has to name the company.
+  const placementNoun = useMemo(() => {
+    const scopes = new Set(
+      (permissions ?? []).filter((p) => p.permission === 'employee.create').map((p) => p.scope_type)
+    );
+    if (scopes.has('global') || scopes.has('entity')) return 'company';
+    if (scopes.has('zone')) return 'zone';
+    if (scopes.has('branch')) return 'branch';
+    if (scopes.has('department')) return 'department';
+    return 'placement';
+  }, [permissions]);
   const [access, setAccess] = useState(() => ({
     // Every new person gets a login; Employee (self-service) is the default because it is what
     // most of them need — it exposes only their own attendance, leave and payslips.
@@ -834,7 +848,30 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const wantsAccess = !isEdit && roleOptions.length > 0;
   const accessReady =
     !wantsAccess || (accessEmail && access.password.length >= 6 && !accessScope.missing);
-  const canSubmit = form.full_name.trim() && form.entity_id && accessReady;
+
+  // Will the database accept this placement from THIS user?
+  //
+  // The employees INSERT policy is app.has_perm('employee.create', entity, zone, branch, dept, id),
+  // and has_perm matches a department-scoped grant with `scope_id = _dept` — which is NULL-blind.
+  // So a department head who left the department field empty (it is optional on this form) sent
+  // department_id: null, matched no grant, and got back the raw
+  //   new row violates row-level security policy for table "employees"
+  // after filling in the whole form. Same for a branch manager who left the branch empty.
+  //
+  // can() is the UI mirror of that same function, so asking it here turns a Postgres error into a
+  // blocker line next to the others. It is not the security boundary — RLS still is — it just
+  // means the form stops asking for something the database is going to refuse.
+  const derivedZoneId =
+    (org?.branches ?? []).find((b) => b.id === form.branch_id)?.zone_id ?? null;
+  const placementAllowed = can('employee.create', {
+    entityId: form.entity_id || null,
+    zoneId: derivedZoneId,
+    branchId: form.branch_id || null,
+    deptId: form.department_id || null,
+    employeeId: null,
+  });
+
+  const canSubmit = form.full_name.trim() && form.entity_id && accessReady && placementAllowed;
 
   const submit = (e) => {
     e.preventDefault();
@@ -902,6 +939,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   if (wantsAccess && !accessEmail) blockers.push('a login email');
   if (wantsAccess && access.password.length < 6) blockers.push('a longer password');
   if (wantsAccess && accessScope.missing) blockers.push(`a ${accessScope.noun} for that role`);
+  if (form.entity_id && !placementAllowed) blockers.push(`a ${placementNoun} you have access to`);
 
   return (
     // Two columns: the form on the left, and on the right a card that fills in as you type. A

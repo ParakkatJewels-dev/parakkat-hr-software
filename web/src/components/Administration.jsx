@@ -630,7 +630,16 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
   }, []);
 
   // Super admin is granted via the star toggle, not here — keep it out of the role list.
-  const assignableRoles = useMemo(() => roles.filter((r) => r.key !== 'super_admin'), [roles]);
+  // Only what this admin may actually hand out. app.can_grant refuses any role ranked at or above
+  // the granter's own (migration 0044), so offering the rest produced a dropdown where five of six
+  // choices failed with the raw "not authorized to grant this role at this scope" — a dept_head was
+  // shown Entity Admin. GrantAccessPanel already filtered correctly; this list did not, so the two
+  // grant paths disagreed about the same rule.
+  const { rank: myRank } = useAuth();
+  const assignableRoles = useMemo(
+    () => roles.filter((r) => r.key !== 'super_admin' && (r.rank ?? 0) < myRank),
+    [roles, myRank]
+  );
 
   const [roleId, setRoleId] = useState('');
   const [scopeType, setScopeType] = useState('');
