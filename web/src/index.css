@@ -195,6 +195,7 @@
 
   button, input, select, textarea { font: inherit; }
   button:not(:disabled), [role="button"] { cursor: pointer; }
+  button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
   button:focus-visible, input:focus-visible, select:focus-visible,
   textarea:focus-visible, [tabindex]:focus-visible {
     outline: 2px solid var(--accent);
@@ -488,6 +489,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   :root {
     --radius-card: 10px;
     --radius-control: 9px;
+    --mobile-nav-height: 3.25rem;
   }
 
   body { font-size: 13.5px; }
@@ -499,13 +501,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
      replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
      .page-shell so screens keep exactly one gutter, not two stacked. */
   .app-main {
-    padding: .65rem var(--space-shell) calc(4.25rem + env(safe-area-inset-bottom));
-    scroll-padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+    padding: .65rem var(--space-shell) calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
   }
   /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
      bottom edge instead of stopping flush against it. */
-  .app-main::after { content: ''; display: block; height: calc(1.25rem + env(safe-area-inset-bottom)); }
+  .app-main::after { content: ''; display: block; height: .35rem; }
   .page-shell > :first-child:has(h1),
   .page-shell > :first-child:has(h2) {
     padding: .7rem .8rem;
@@ -600,6 +602,19 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   main textarea {
     width: 100%;
     max-width: 100%;
+  }
+
+  /* iOS Safari zooms the whole page when focusing form controls below 16px. The app's mobile
+     typography is intentionally compact, so fix the browser behaviour at the control layer instead
+     of disabling user zoom in the viewport meta tag. Scoped to touch devices so desktop density
+     stays unchanged. */
+  @supports (-webkit-touch-callout: none) {
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+      line-height: 1.2;
+    }
   }
 
   main .premium-card {
@@ -1119,30 +1134,32 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .mobile-bottom-nav {
     position: fixed;
-    left: max(.55rem, env(safe-area-inset-left));
-    right: max(.55rem, env(safe-area-inset-right));
-    bottom: max(.55rem, env(safe-area-inset-bottom));
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: 40;
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    gap: .18rem;
-    width: auto;
-    padding: .28rem;
+    gap: .2rem;
+    width: 100%;
+    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    padding: .32rem max(.55rem, env(safe-area-inset-left)) calc(.32rem + env(safe-area-inset-bottom)) max(.55rem, env(safe-area-inset-right));
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
-    border-radius: 999px;
+    border-width: 1px 0 0;
+    border-radius: 1.25rem 1.25rem 0 0;
     background:
-      linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.16)),
-      color-mix(in srgb, var(--surface-elevated) 62%, transparent);
+      linear-gradient(135deg, rgba(255,255,255,.62), rgba(255,255,255,.2)),
+      color-mix(in srgb, var(--surface-elevated) 76%, transparent);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.42),
-      0 12px 34px rgba(16, 32, 26, .18);
+      0 -12px 34px rgba(16, 32, 26, .14);
     backdrop-filter: blur(24px) saturate(1.35);
   }
 
   .mobile-bottom-nav-item {
     min-width: 0;
-    min-height: 2.55rem !important;
+    min-height: 2.35rem !important;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1166,7 +1183,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       color-mix(in srgb, var(--surface-elevated) 62%, transparent);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.08),
-      0 18px 50px rgba(0, 0, 0, .52);
+      0 -18px 50px rgba(0, 0, 0, .5);
   }
 
   .dark .mobile-bottom-nav-item-active {
