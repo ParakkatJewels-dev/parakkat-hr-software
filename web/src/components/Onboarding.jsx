@@ -41,7 +41,7 @@ export default function Onboarding() {
               <div className="space-y-3">
                 {list.map((c) => (
                   <div key={c.id} onClick={() => setSelectedId(c.id)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selected?.id === c.id ? 'bg-neutral-50 dark:bg-neutral-900 border-black dark:border-neutral-700' : 'bg-white dark:bg-neutral-950/20 border-neutral-200 dark:border-neutral-900 hover:border-neutral-350 dark:hover:border-neutral-800'}`}>
-                    <div className="flex justify-between items-start">
+                    <div className="mobile-list-row flex justify-between items-start">
                       <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200">{c.name}</h4>
                       <span className="text-2xs text-neutral-500 font-mono">{c.entity?.code}{c.branch?.code ? `·${c.branch.code}` : ''}</span>
                     </div>
@@ -60,7 +60,7 @@ export default function Onboarding() {
           <div className="lg:col-span-2">
             {selected ? (
               <div className="premium-card space-y-5">
-                <div className="flex justify-between items-start border-b border-neutral-100 dark:border-neutral-900 pb-4">
+                <div className="mobile-list-row flex justify-between items-start border-b border-neutral-100 dark:border-neutral-900 pb-4">
                   <div>
                     <h3 className="font-extrabold text-base text-neutral-850 dark:text-slate-100">{selected.name}</h3>
                     <span className="text-xs text-neutral-500">{selected.job_title || '—'} · Joining: {selected.join_date || '—'}</span>

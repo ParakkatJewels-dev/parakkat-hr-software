@@ -19,7 +19,7 @@ export default function FilterSelect({ label, value, options, onChange, allValue
   const id = `filter-${label.toLowerCase()}`;
   return (
     <div
-      className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 w-full sm:w-auto transition-colors ${
+      className={`filter-select flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 rounded-xl border px-3 py-2 sm:py-1.5 w-full sm:w-auto transition-colors ${
         active
           ? 'border-[#0ea971]/40 bg-[#0ea971]/10'
           : 'border-neutral-200 dark:border-neutral-855 bg-neutral-50/80 dark:bg-charcoal-900/50'

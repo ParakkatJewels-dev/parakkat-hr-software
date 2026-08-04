@@ -195,9 +195,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
         <>
           {/* ---- when and what ---------------------------------------------------------- */}
           <div className="premium-card space-y-2.5">
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="mobile-toolbar flex flex-wrap items-center gap-1.5">
               <DateRangeFilter {...range} />
-              <span className="ml-auto">
+              <span className="sm:ml-auto">
                 <FilterSelect label="Show" value={show} options={SHOW.map((s) => s.key)} allValue="all"
                   onChange={setShow} />
               </span>
@@ -352,27 +352,27 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                           <tr
                             className={hasTimeline ? 'cursor-pointer hover:bg-neutral-50 dark:hover:bg-neutral-800/40' : ''}
                             onClick={hasTimeline ? () => setOpenDay(open ? null : r.id) : undefined}>
-                            <td className="font-semibold text-neutral-900 dark:text-white">{fmtDate(r.work_date)}</td>
-                            <td className="text-neutral-450 text-xs">{DOW[dow]}</td>
-                            <td className={`font-semibold ${statusTone(r)}`}>
+                            <td data-label="Date" className="font-semibold text-neutral-900 dark:text-white">{fmtDate(r.work_date)}</td>
+                            <td data-label="Day" className="text-neutral-450 text-xs">{DOW[dow]}</td>
+                            <td data-label="Status" className={`font-semibold ${statusTone(r)}`}>
                               {r.status}
                               {r.leave_type && <span className="text-neutral-450 font-normal"> · {r.leave_type}</span>}
                               {r.is_missing_punch && <span className="ml-1.5 text-2xs text-amber-600 dark:text-amber-400">no punch out</span>}
                             </td>
-                            <td className={`font-mono ${r.is_late ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                            <td data-label="In" className={`font-mono ${r.is_late ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                               {fmtTime(r.check_in)}
                             </td>
-                            <td className={`font-mono ${r.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                            <td data-label="Out" className={`font-mono ${r.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                               {fmtTime(r.check_out)}
                             </td>
-                            <td className="hidden sm:table-cell tabular-nums">
+                            <td data-label="Payable" className="hidden sm:table-cell tabular-nums">
                               {r.worked_minutes ? `${(r.worked_minutes / 60).toFixed(1)} h` : '—'}
                             </td>
                             {/* The whole day, break included. Worked is the payable figure and it
                                 already contains the break when that break sat inside the
                                 allowance — so on its own it reads as though nobody ever stopped.
                                 Side by side with Breaks, these three account for each other. */}
-                            <td className="hidden md:table-cell tabular-nums text-neutral-500 dark:text-neutral-400">
+                            <td data-label="Worked" className="hidden md:table-cell tabular-nums text-neutral-500 dark:text-neutral-400">
                               {onSite != null ? `${(onSite / 60).toFixed(1)} h` : '—'}
                             </td>
                             {/* What the clock saw them inside for. Worked is the payable figure and
@@ -380,16 +380,16 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                                 a 60-minute lunch is 8h inside and 8h40m worked. Both are true; the
                                 screen used to show only the payable one, so "how long was I
                                 actually here" had no answer on the page. */}
-                            <td className="hidden lg:table-cell tabular-nums text-neutral-500 dark:text-neutral-400">
+                            <td data-label="Actual" className="hidden lg:table-cell tabular-nums text-neutral-500 dark:text-neutral-400">
                               {inside != null ? `${(inside / 60).toFixed(1)} h` : '—'}
                             </td>
-                            <td className="hidden lg:table-cell tabular-nums text-xs">
+                            <td data-label="Breaks" className="hidden lg:table-cell tabular-nums text-xs">
                               <BreakSummary row={r} />
                             </td>
-                            <td className="hidden md:table-cell tabular-nums text-amber-600 dark:text-amber-400">
+                            <td data-label="Late" className="hidden md:table-cell tabular-nums text-amber-600 dark:text-amber-400">
                               {r.late_minutes ? `${r.late_minutes}m` : '—'}
                             </td>
-                            <td className="hidden md:table-cell tabular-nums text-[#0c9765] dark:text-[#10b981]">
+                            <td data-label="OT" className="hidden md:table-cell tabular-nums text-[#0c9765] dark:text-[#10b981]">
                               {r.ot_minutes ? `${r.ot_minutes}m` : '—'}
                             </td>
                           </tr>

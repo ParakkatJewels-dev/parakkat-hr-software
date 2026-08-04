@@ -94,7 +94,7 @@ export default function HelpdeskExit() {
               ) : (
                 <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                   {pager.slice.map((t) => (
-                    <div key={t.id} className="p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
+                    <div key={t.id} className="mobile-list-row p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-neutral-850 dark:text-slate-205">{t.category}</span>
@@ -103,7 +103,7 @@ export default function HelpdeskExit() {
                         <p className="text-xs text-neutral-800 dark:text-slate-300 truncate max-w-[240px]">{t.subject}</p>
                         <span className="text-2xs text-neutral-500 block">{t.employee?.full_name || 'Unknown'}{t.employee?.branch?.code ? ` · ${t.employee.branch.code}` : ''}</span>
                       </div>
-                      <div className="shrink-0 flex items-center gap-1.5">
+                      <div className="mobile-list-actions shrink-0 flex items-center gap-1.5">
                         <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase border ${statusClass(t.status)}`}>{t.status}</span>
                         {canHandle && t.status !== 'Resolved' && (
                           <select
@@ -136,7 +136,7 @@ export default function HelpdeskExit() {
             <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
               {exits.map((ext) => (
                 <div key={ext.id} className="p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl space-y-3">
-                  <div className="flex justify-between items-start">
+                  <div className="mobile-list-row flex justify-between items-start">
                     <div>
                       <h4 className="font-bold text-xs text-neutral-805 dark:text-slate-200">{ext.employee?.full_name || '—'}</h4>
                       <span className="text-2xs text-neutral-500 block">Dept: {ext.employee?.department?.name || '—'} · Last Day: {ext.last_day || '—'}</span>

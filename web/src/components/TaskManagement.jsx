@@ -153,8 +153,8 @@ export default function TaskManagement() {
       </div>
 
       {/* controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="mobile-toolbar flex flex-wrap items-center justify-between gap-3">
+        <div className="mobile-segmented flex flex-wrap items-center gap-1.5">
           {['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'All'].map((s) => (
             <button
               key={s}
@@ -169,7 +169,7 @@ export default function TaskManagement() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="mobile-toolbar-actions flex items-center gap-2">
           {employee?.id && (
             <button
               onClick={() => setMineOnly((v) => !v)}
@@ -261,7 +261,7 @@ function TaskTree({ task, childrenOf, depth, actions }) {
       <TaskCard task={task} actions={actions} subCount={kids.length} nested={depth > 0} />
       {kids.length > 0 && (
         <div className="mt-2.5 space-y-2.5"> {kids.map((k) => ( <TaskTree key={k.id} task={k} childrenOf={childrenOf} depth={depth + 1} actions={actions} /> ))} </div> )} </div> );
-} function TaskCard({ task, actions, subCount = 0, nested = false }) { const pm = priorityMeta(task.priority); const overdue = isOverdue(task); return ( <div className={`premium-card ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}> <div className="flex items-start justify-between gap-3">
+} function TaskCard({ task, actions, subCount = 0, nested = false }) { const pm = priorityMeta(task.priority); const overdue = isOverdue(task); return ( <div className={`premium-card ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}> <div className="mobile-list-row flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
             {nested && <CornerDownRight size={13} className="text-neutral-400 shrink-0" />}
@@ -296,7 +296,7 @@ function TaskTree({ task, childrenOf, depth, actions }) {
           </div>
         </div>
 
-        <div className="flex flex-col items-end gap-2 shrink-0">
+        <div className="mobile-list-actions flex flex-col items-end gap-2 shrink-0">
           {actions.canUpdate ? (
             <select
               value={task.status}

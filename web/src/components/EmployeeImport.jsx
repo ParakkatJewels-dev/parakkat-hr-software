@@ -257,17 +257,17 @@ export default function EmployeeImport({ onDone }) {
                         <tbody>
                           {plan.rows.map((r) => (
                             <tr key={`${r._row}-${r.full_name}`}>
-                              <td className="text-2xs font-mono text-neutral-400">{r._row}</td>
-                              <td className="font-semibold text-neutral-900 dark:text-white">{r.full_name}</td>
-                              <td className="hidden sm:table-cell text-neutral-500">
+                              <td data-label="Row" className="text-2xs font-mono text-neutral-400">{r._row}</td>
+                              <td data-label="Name" className="font-semibold text-neutral-900 dark:text-white">{r.full_name}</td>
+                              <td data-label="Designation" className="hidden sm:table-cell text-neutral-500">
                                 {r.designation || '—'}
                                 {r.newDesignation && <span className="ml-1.5 text-2xs text-[#0ea971]">new</span>}
                               </td>
-                              <td className="hidden md:table-cell text-neutral-500">
+                              <td data-label="Branch" className="hidden md:table-cell text-neutral-500">
                                 {r.branch || '—'}
                                 {r.newBranch && <span className="ml-1.5 text-2xs text-[#0ea971]">new</span>}
                               </td>
-                              <td className={`text-xs font-semibold ${STATUS_STYLE[r.status]}`}>
+                              <td data-label="Status" className={`text-xs font-semibold ${STATUS_STYLE[r.status]}`}>
                                 {r.status === 'new' ? 'Will be created' : r.note}
                               </td>
                             </tr>

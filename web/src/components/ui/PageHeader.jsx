@@ -16,7 +16,7 @@ import React from 'react';
 export default function PageHeader({ eyebrow, icon: Icon, title, subtitle, actions, meta }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         {eyebrow && (
           <p className="text-2xs font-bold uppercase tracking-wider text-[#0ea971] flex items-center gap-1.5">
             {Icon && <Icon size={11} />}
@@ -34,7 +34,7 @@ export default function PageHeader({ eyebrow, icon: Icon, title, subtitle, actio
       {/* Counts and other at-a-glance facts sit with the actions, not under the title, so the
           header height does not grow with them. */}
       {(actions || meta) && (
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="page-header-actions flex flex-wrap items-center gap-2 shrink-0">
           {meta}
           {actions}
         </div>

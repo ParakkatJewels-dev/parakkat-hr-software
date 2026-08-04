@@ -56,7 +56,7 @@ function pageWindow(current, total) {
 }
 
 const NUM =
-  'min-w-[1.75rem] px-1.5 py-1 rounded-md text-sm font-bold tabular-nums cursor-pointer transition-colors';
+  'pagination-number min-w-[2rem] sm:min-w-[1.75rem] px-2 sm:px-1.5 py-1.5 sm:py-1 rounded-md text-sm font-bold tabular-nums cursor-pointer transition-colors';
 
 /**
  * Renders nothing when everything fits on one page — a pager under a five-row list is noise.
@@ -69,12 +69,12 @@ export default function Pagination({
   if (count <= Math.min(...sizes)) return null;
 
   return (
-    <div className={`premium-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${className}`}>
-      <span className="text-sm text-neutral-500 dark:text-neutral-400 tabular-nums">
+    <div className={`premium-card pagination-shell flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${className}`}>
+      <span className="text-sm text-neutral-500 dark:text-neutral-400 tabular-nums text-center sm:text-left">
         <b className="text-neutral-800 dark:text-neutral-200">{from}–{to}</b> of {count} {noun}
       </span>
 
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="pagination-pages flex items-center justify-center gap-1 flex-wrap">
         <button
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1}
@@ -114,7 +114,7 @@ export default function Pagination({
         </button>
       </div>
 
-      <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+      <label className="pagination-size flex items-center justify-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
         <span className="hidden sm:inline">Per page</span>
         <select
           value={pageSize}

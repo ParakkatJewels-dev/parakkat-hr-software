@@ -196,7 +196,7 @@ function WorkspaceCard() {
 
   return (
     <div className="premium-card space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="mobile-list-row flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Building2 size={15} className="text-[#0ea971]" />
           <h3 className="font-semibold text-base text-neutral-800 dark:text-white">Workspace</h3>

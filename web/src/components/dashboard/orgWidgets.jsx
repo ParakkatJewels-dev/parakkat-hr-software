@@ -99,7 +99,7 @@ export function OnboardingPipeline({ onNavigate }) {
               onClick={() => onNavigate?.('onboarding')}
               className="w-full text-left rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-2 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
             >
-              <div className="flex items-center justify-between">
+              <div className="mobile-list-row flex items-center justify-between">
                 <span className="text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
                   {r.name}
                 </span>
@@ -399,8 +399,8 @@ export function BranchComparison({ onNavigate }) {
       {rows.length === 0 ? (
         <EmptyNote>No branch data in your scope.</EmptyNote>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="table-scroll">
+          <table className="premium-table w-full text-left">
             <thead>
               <tr className="text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500 border-b border-neutral-200/70 dark:border-neutral-850">
                 <th className="py-1.5 pr-2">Branch</th>
@@ -418,12 +418,12 @@ export function BranchComparison({ onNavigate }) {
                   onClick={() => onNavigate?.('attendance')}
                   className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs cursor-pointer hover:bg-neutral-50 dark:hover:bg-charcoal-800/40 transition-colors"
                 >
-                  <td className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100 font-mono">{b.code}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-neutral-600 dark:text-neutral-300">{b.headcount}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-emerald-600 dark:text-emerald-400">{b.present}</td>
-                  <td className={`py-1.5 px-2 text-right font-mono ${b.late ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-400'}`}>{b.late}</td>
-                  <td className={`py-1.5 px-2 text-right font-mono ${b.absent ? 'text-rose-500 font-bold' : 'text-neutral-400'}`}>{b.absent}</td>
-                  <td className={`py-1.5 pl-2 text-right font-mono ${b.pending ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-400'}`}>{b.pending}</td>
+                  <td data-label="Branch" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100 font-mono">{b.code}</td>
+                  <td data-label="Staff" className="py-1.5 px-2 text-right font-mono text-neutral-600 dark:text-neutral-300">{b.headcount}</td>
+                  <td data-label="In" className="py-1.5 px-2 text-right font-mono text-emerald-600 dark:text-emerald-400">{b.present}</td>
+                  <td data-label="Late" className={`py-1.5 px-2 text-right font-mono ${b.late ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-400'}`}>{b.late}</td>
+                  <td data-label="Absent" className={`py-1.5 px-2 text-right font-mono ${b.absent ? 'text-rose-500 font-bold' : 'text-neutral-400'}`}>{b.absent}</td>
+                  <td data-label="Pending" className={`py-1.5 pl-2 text-right font-mono ${b.pending ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-400'}`}>{b.pending}</td>
                 </tr>
               ))}
             </tbody>
@@ -461,8 +461,8 @@ export function EntityComparison({ onNavigate }) {
       {rows.length === 0 ? (
         <EmptyNote>No entities visible.</EmptyNote>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
+        <div className="table-scroll">
+          <table className="premium-table w-full text-left">
             <thead>
               <tr className="text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500 border-b border-neutral-200/70 dark:border-neutral-850">
                 <th className="py-1.5 pr-2">Entity</th>
@@ -479,11 +479,11 @@ export function EntityComparison({ onNavigate }) {
                   onClick={() => onNavigate?.('organization')}
                   className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs cursor-pointer hover:bg-neutral-50 dark:hover:bg-charcoal-800/40 transition-colors"
                 >
-                  <td className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100 font-mono">{e.code}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-neutral-600 dark:text-neutral-300">{e.headcount}</td>
-                  <td className="py-1.5 px-2 text-right font-mono text-emerald-600 dark:text-emerald-400">{e.present}</td>
-                  <td className={`py-1.5 px-2 text-right font-mono ${e.absent ? 'text-rose-500 font-bold' : 'text-neutral-400'}`}>{e.absent}</td>
-                  <td className="py-1.5 pl-2 text-right font-mono text-blue-500">{e.onLeave}</td>
+                  <td data-label="Entity" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100 font-mono">{e.code}</td>
+                  <td data-label="Headcount" className="py-1.5 px-2 text-right font-mono text-neutral-600 dark:text-neutral-300">{e.headcount}</td>
+                  <td data-label="Present" className="py-1.5 px-2 text-right font-mono text-emerald-600 dark:text-emerald-400">{e.present}</td>
+                  <td data-label="Absent" className={`py-1.5 px-2 text-right font-mono ${e.absent ? 'text-rose-500 font-bold' : 'text-neutral-400'}`}>{e.absent}</td>
+                  <td data-label="On leave" className="py-1.5 pl-2 text-right font-mono text-blue-500">{e.onLeave}</td>
                 </tr>
               ))}
             </tbody>

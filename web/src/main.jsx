@@ -13,8 +13,10 @@ import App from './App.jsx';
 import Login from './pages/Login.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import { initNative } from './mobile/native';
+import { registerServiceWorker } from './lib/pwa';
 
 initNative();
+registerServiceWorker();
 
 // Apply the saved theme before first paint (App owns the toggle, but login/loader render outside it).
 if (localStorage.getItem('theme') !== 'light') {

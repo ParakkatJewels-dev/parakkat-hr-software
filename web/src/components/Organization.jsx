@@ -557,7 +557,7 @@ function QuickSetup({ onDone, onCancel }) {
           2 · Branches <span className="font-normal normal-case tracking-normal">— code, name, city. Zones come later, in the Zones section.</span>
         </legend>
         {branches.map((b, i) => (
-          <div key={i} className="grid grid-cols-[5rem_1fr_1fr_auto] gap-2 items-center">
+          <div key={i} className="grid grid-cols-1 sm:grid-cols-[5rem_1fr_1fr_auto] gap-2 items-center">
             <input aria-label={`Branch ${i + 1} code`} className={rowInput + ' font-mono uppercase'} value={b.code}
               onChange={(e) => setRow(branches, setBranches)(i, { code: e.target.value })} placeholder="CDA" />
             <input aria-label={`Branch ${i + 1} name`} className={rowInput} value={b.name}
@@ -582,7 +582,7 @@ function QuickSetup({ onDone, onCancel }) {
           3 · Departments <span className="font-normal normal-case tracking-normal">— optional. Leave the branch as "Whole company" if it spans all of them.</span>
         </legend>
         {departments.map((d, i) => (
-          <div key={i} className="grid grid-cols-[1fr_6rem_1fr_auto] gap-2 items-center">
+          <div key={i} className="grid grid-cols-1 sm:grid-cols-[1fr_6rem_1fr_auto] gap-2 items-center">
             <input aria-label={`Department ${i + 1} name`} className={rowInput} value={d.name}
               onChange={(e) => setRow(departments, setDepartments)(i, { name: e.target.value })} placeholder="Sales" />
             <input aria-label={`Department ${i + 1} code`} className={rowInput + ' font-mono uppercase'} value={d.code}
@@ -755,8 +755,8 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
               </>}
         </p>
       ) : (
-        <div className={`border-t border-neutral-100 dark:border-neutral-855 ${sorted.length > 14 ? 'table-scroll' : 'overflow-x-auto'}`}>
-          <table className="w-full text-left">
+        <div className="table-scroll border-t border-neutral-100 dark:border-neutral-855">
+          <table className="premium-table w-full text-left">
             <thead>
               <tr className="text-neutral-500 text-2xs uppercase tracking-widest font-bold">
                 {columns.map((col) => <th key={col.h} className="py-2.5 font-bold">{col.h}</th>)}
@@ -797,7 +797,7 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
                 ) : (
                 <tr key={r.id} className={`group transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/30 ${r.is_active ? '' : 'opacity-55'}`}>
                   {columns.map((col, ci) => (
-                    <td key={col.h} className="py-2.5 text-base">
+                    <td key={col.h} data-label={col.h} className="py-2.5 text-base">
                       {col.c(r)}
                       {/* Inactive is the exception, so it is marked where you read the name
                           rather than given a column of its own. */}
@@ -809,7 +809,7 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
                     </td>
                   ))}
                   {canManage && (
-                    <td className="py-2.5 text-right">
+                    <td data-label="Actions" className="py-2.5 text-right">
                       {/* Always present, not revealed on hover — a control you cannot see is a
                           control you cannot reach with a keyboard or a finger. */}
                       <div className="flex items-center justify-end gap-1">

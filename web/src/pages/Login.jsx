@@ -22,7 +22,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-neutral-900 dark:text-warm-gray-100 px-4">
+    <div className="login-screen min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-neutral-900 dark:text-warm-gray-100 px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center justify-center mb-6 gap-2.5">
           <div className="w-12 h-12 bg-[#0ea971] text-white rounded-2xl flex items-center justify-center shadow-[0_8px_24px_rgba(14,169,113,.28)]">
@@ -34,7 +34,7 @@ export default function Login() {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xl space-y-5">
+        <div className="login-card bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 shadow-xl space-y-5">
           <div className="space-y-1">
             <h1 className="text-lg font-bold flex items-center gap-2">
               <ShieldCheck size={18} className="text-[#0ea971]" /> Sign in

@@ -197,14 +197,14 @@ function TodayView({ workDate, setWorkDate }) {
       </div>
 
       <div className="premium-card space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mobile-toolbar flex flex-wrap items-center gap-2">
           <input
             type="date"
             value={workDate}
             onChange={(e) => setWorkDate(e.target.value || todayIso())}
             className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs"
           />
-          <div className="relative flex-1 min-w-45">
+          <div className="relative flex-1 min-w-0 sm:min-w-45">
             <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
               value={query}
@@ -240,12 +240,12 @@ function TodayView({ workDate, setWorkDate }) {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="mobile-segmented flex flex-wrap gap-1.5">
           {filters.map((f) => (
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`chip text-xs mx-2 ${filter === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
+              className={`chip text-xs ${filter === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
             >
               {f.label}
             </button>
@@ -268,8 +268,9 @@ function TodayView({ workDate, setWorkDate }) {
             </div>
           </div>
         ) : (
-          <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+          <>
+            <div className="table-scroll">
+              <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Employee</th>
@@ -286,7 +287,7 @@ function TodayView({ workDate, setWorkDate }) {
               <tbody>
                 {pager.slice.map((row) => (
                   <tr key={row.id}>
-                    <td>
+                    <td data-label="Employee">
                       <div className="font-semibold text-neutral-800 dark:text-neutral-100">
                         {row.employee?.full_name ?? '—'}
                       </div>
@@ -294,27 +295,28 @@ function TodayView({ workDate, setWorkDate }) {
                         {row.employee?.employee_code ?? ''}
                       </div>
                     </td>
-                    <td className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
-                    <td className="text-neutral-500">{row.shift?.code ?? '—'}</td>
-                    <td className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                    <td data-label="Branch" className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
+                    <td data-label="Shift" className="text-neutral-500">{row.shift?.code ?? '—'}</td>
+                    <td data-label="In" className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
                       {fmtTime(row.check_in)}
                       {row.is_late ? <span className="ml-1 text-2xs">+{row.late_minutes}m</span> : null}
                     </td>
-                    <td className={`font-mono ${row.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                    <td data-label="Out" className={`font-mono ${row.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                       {fmtTime(row.check_out)}
                     </td>
-                    <td className="font-mono">{fmtMinutes(row.worked_minutes)}</td>
-                    <td className="hidden lg:table-cell font-mono"><BreakSummary row={row} /></td>
-                    <td className="font-mono text-emerald-600 dark:text-emerald-400">
+                    <td data-label="Worked" className="font-mono">{fmtMinutes(row.worked_minutes)}</td>
+                    <td data-label="Breaks" className="hidden lg:table-cell font-mono"><BreakSummary row={row} /></td>
+                    <td data-label="OT" className="font-mono text-emerald-600 dark:text-emerald-400">
                       {fmtMinutes(row.ot_minutes)}
                     </td>
-                    <td><StatusBadge status={row.status} isLop={row.is_lop} /></td>
+                    <td data-label="Status"><StatusBadge status={row.status} isLop={row.is_lop} /></td>
                   </tr>
                 ))}
-                <Pagination {...pager} noun="rows" />
               </tbody>
-            </table></div>
-          </div>
+              </table>
+            </div>
+            <Pagination {...pager} noun="rows" />
+          </>
         )}
       </div>
     </div>
@@ -381,8 +383,8 @@ function CalendarView({ employeeId, employeeName }) {
 
   return (
     <div className="space-y-4">
-      <div className="premium-card flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+      <div className="mobile-list-row premium-card flex flex-wrap items-center justify-between gap-3">
+        <div className="mobile-list-actions flex items-center gap-2">
           <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
             <ChevronLeft size={14} />
           </button>
@@ -391,7 +393,7 @@ function CalendarView({ employeeId, employeeName }) {
             <ChevronRight size={14} />
           </button>
         </div>
-        <div className="flex flex-wrap gap-4 text-xs">
+        <div className="mobile-list-actions flex flex-wrap gap-4 text-xs">
           <span><b className="font-mono text-emerald-600 dark:text-emerald-400">{totals.payable.toFixed(1)}</b> payable days</span>
           <span><b className="font-mono">{fmtMinutes(totals.ot)}</b> OT</span>
           <span><b className="font-mono text-red-600 dark:text-red-400">{totals.absent}</b> absent</span>
@@ -521,7 +523,7 @@ function ExceptionsView() {
   return (
     <div className="space-y-4">
       <div className="premium-card space-y-3">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="mobile-toolbar flex flex-wrap items-center gap-3">
           <DateRangeFilter {...range} />
 
           <button
@@ -545,7 +547,7 @@ function ExceptionsView() {
 
         <div className="soft-divider" />
 
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="mobile-toolbar flex flex-wrap items-end gap-3">
           <label className="text-2xs uppercase tracking-wider text-neutral-500">
             Report month
             <div className="flex gap-1.5 mt-1">
@@ -591,7 +593,7 @@ function ExceptionsView() {
           <div className="p-10 text-center text-xs text-neutral-500">No exceptions in this range.</div>
         ) : (
           <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+            <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Date</th>
@@ -628,27 +630,27 @@ function ExceptionsView() {
 
                   return (
                     <tr key={row.id}>
-                      <td className="font-mono">{row.work_date}</td>
-                      <td>
+                      <td data-label="Date" className="font-mono">{row.work_date}</td>
+                      <td data-label="Employee">
                         <div className="font-semibold text-neutral-800 dark:text-neutral-100">{row.employee?.full_name ?? '—'}</div>
                         <div className="text-2xs text-neutral-400 font-mono">{row.employee?.employee_code ?? ''}</div>
                       </td>
-                      <td className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
-                      <td>
+                      <td data-label="Branch" className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
+                      <td data-label="Issue">
                         <div className="flex flex-wrap gap-1">
                           {issues.map((issue) => (
                             <span key={issue} className="badge bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{issue}</span>
                           ))}
                         </div>
                       </td>
-                      <td className="font-mono">{fmtTime(row.check_in)}</td>
-                      <td className="font-mono">{fmtTime(row.check_out)}</td>
-                      <td><StatusBadge status={row.status} isLop={row.is_lop} /></td>
+                      <td data-label="In" className="font-mono">{fmtTime(row.check_in)}</td>
+                      <td data-label="Out" className="font-mono">{fmtTime(row.check_out)}</td>
+                      <td data-label="Status"><StatusBadge status={row.status} isLop={row.is_lop} /></td>
                     </tr>
                   );
                 })}
               </tbody>
-            </table></div>
+            </table>
           </div>
         )}
       </div>
@@ -739,7 +741,7 @@ function RegularizationsView({ employee, canApprove }) {
           ) : (
             <ul className="space-y-1.5">
               {mine.slice(0, 8).map((r) => (
-                <li key={r.id} className="flex items-center justify-between text-xs">
+                <li key={r.id} className="mobile-list-row flex items-center justify-between text-xs">
                   <span className="font-mono">{r.work_date}</span>
                   <span className={`badge ${r.status === 'Approved' ? 'badge-green' : r.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 'badge-muted'}`}>
                     {r.status}
@@ -765,7 +767,7 @@ function RegularizationsView({ employee, canApprove }) {
             <div className="p-10 text-center text-xs text-neutral-500">Nothing waiting.</div>
           ) : (
             <div className="table-scroll">
-              <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+              <table className="premium-table w-full text-xs">
                 <thead>
                   <tr>
                     <th className="text-left">Date</th>
@@ -778,15 +780,15 @@ function RegularizationsView({ employee, canApprove }) {
                 <tbody>
                   {queue.map((r) => (
                     <tr key={r.id}>
-                      <td className="font-mono">{r.work_date}</td>
-                      <td>
+                      <td data-label="Date" className="font-mono">{r.work_date}</td>
+                      <td data-label="Employee">
                         <div className="font-semibold text-neutral-800 dark:text-neutral-100">{r.employee?.full_name ?? '—'}</div>
                         <div className="text-2xs text-neutral-400">{r.employee?.branch?.name ?? ''}</div>
                       </td>
-                      <td className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
-                      <td className="max-w-55 truncate text-neutral-500" title={r.reason} aria-label={r.reason}>{r.reason}</td>
+                      <td data-label="Proposed" className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
+                      <td data-label="Reason" className="max-w-55 truncate text-neutral-500" title={r.reason} aria-label={r.reason}>{r.reason}</td>
                       {canApprove ? (
-                        <td className="text-right whitespace-nowrap">
+                        <td data-label="Decision" className="text-right whitespace-nowrap">
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Approved' })}
                             disabled={decide.isPending}
@@ -806,7 +808,7 @@ function RegularizationsView({ employee, canApprove }) {
                     </tr>
                   ))}
                 </tbody>
-              </table></div>
+              </table>
             </div>
           )}
         </div>
@@ -837,7 +839,7 @@ export default function Attendance() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="mobile-segmented flex flex-wrap gap-1.5">
         {visibleTabs.map((t) => {
           const Icon = t.icon;
           return (

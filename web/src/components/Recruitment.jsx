@@ -33,7 +33,7 @@ export default function Recruitment() {
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
-      <div className="flex justify-between items-center">
+      <div className="mobile-list-row flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Recruitment</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Track candidate pipelines and manage openings within your scope.</p>
@@ -56,14 +56,14 @@ export default function Recruitment() {
                 const list = candidates.filter((c) => c.stage === stage);
                 return (
                   <div key={stage} className="bg-neutral-50/50 dark:bg-neutral-950/40 rounded-xl border border-neutral-200/80 dark:border-neutral-900 p-3.5 space-y-3.5 min-h-[360px]">
-                    <div className="flex justify-between items-center border-b border-neutral-200 dark:border-neutral-850 pb-2">
+                    <div className="mobile-list-row flex justify-between items-center border-b border-neutral-200 dark:border-neutral-850 pb-2">
                       <span className="text-2xs font-bold text-neutral-500 uppercase tracking-widest">{stage}</span>
                       <span className="px-1.5 bg-neutral-200/50 dark:bg-neutral-900 text-neutral-550 dark:text-neutral-450 font-mono text-2xs rounded-md font-bold border border-neutral-300 dark:border-neutral-800">{list.length}</span>
                     </div>
                     <div className="space-y-2">
                       {list.map((can) => (
                         <div key={can.id} className="bg-white dark:bg-neutral-900 p-3 rounded-lg border border-neutral-200/80 dark:border-neutral-850 hover:border-black dark:hover:border-white transition-all group">
-                          <div className="flex justify-between items-start">
+                          <div className="mobile-list-row flex justify-between items-start">
                             <div className="min-w-0">
                               <h4 className="font-bold text-neutral-800 dark:text-slate-200 text-xs truncate">{can.name}</h4>
                               <span className="text-2xs text-neutral-500 truncate block mt-0.5">{can.job?.title || '—'}</span>
@@ -129,11 +129,11 @@ export default function Recruitment() {
                 <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
                   {jobs.map((j) => (
                     <div key={j.id} className="p-3.5 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-850 rounded-xl space-y-2">
-                      <div className="flex justify-between items-start">
+                      <div className="mobile-list-row flex justify-between items-start">
                         <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200 leading-snug">{j.title}</h4>
                         <span className={`text-2xs px-1.5 rounded-md font-bold uppercase font-mono border ${j.status === 'Open' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-900/30' : 'bg-neutral-200 text-neutral-500 border-neutral-300 dark:bg-neutral-900 dark:text-neutral-450 dark:border-neutral-800'}`}>{j.status}</span>
                       </div>
-                      <div className="flex justify-between text-2xs text-neutral-500"><span>{j.entity?.code}{j.branch?.code ? ` · ${j.branch.code}` : ''}</span><span>{j.location || '—'}</span></div>
+                      <div className="mobile-list-row flex justify-between text-2xs text-neutral-500"><span>{j.entity?.code}{j.branch?.code ? ` · ${j.branch.code}` : ''}</span><span>{j.location || '—'}</span></div>
                       <div className="text-2xs text-neutral-450 font-mono border-t border-neutral-100 dark:border-neutral-900/40 pt-2">{j.type} · {j.openings} opening(s)</div>
                     </div>
                   ))}

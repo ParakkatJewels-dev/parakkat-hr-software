@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Parakkat HR">
+  <rect width="1024" height="1024" fill="#0f0f0f"/>
+  <circle cx="512" cy="512" r="360" fill="#0ea971"/>
+  <path fill="#06271c" d="M286 298h306c106 0 174 58 174 151 0 95-71 154-180 154H430v145H286V298Zm144 115v77h141c28 0 45-14 45-38s-17-39-45-39H430Z"/>
+  <path fill="#fff" d="M500 730h76v-88h112v88h76V508h-76v78H576v-78h-76v222Z"/>
+</svg>

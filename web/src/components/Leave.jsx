@@ -67,7 +67,7 @@ export default function Leave() {
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
-      <div className="flex justify-between items-center">
+      <div className="mobile-list-row flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Leave Management</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -111,7 +111,7 @@ export default function Leave() {
             ) : (
               <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
                 {pager.slice.map((req) => (
-                  <div key={req.id} className="p-4 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 text-xs hover:border-neutral-300 dark:hover:border-neutral-800">
+                  <div key={req.id} className="mobile-list-row p-4 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 text-xs hover:border-neutral-300 dark:hover:border-neutral-800">
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center space-x-2">
                         <span className="font-bold text-neutral-855 dark:text-slate-200">{req.type}</span>
@@ -124,7 +124,7 @@ export default function Leave() {
                       {req.reason && <p className="text-2xs text-neutral-450 italic font-mono truncate">"{req.reason}"</p>}
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="mobile-list-actions flex items-center gap-2 shrink-0">
                       <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border ${statusClass(req.status)}`}>
                         {req.status}
                       </span>

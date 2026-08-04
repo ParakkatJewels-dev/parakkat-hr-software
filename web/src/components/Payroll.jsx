@@ -80,6 +80,7 @@ export default function Payroll() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
+              aria-current={tab === t.id ? 'page' : undefined}
               className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
                 tab === t.id
                   ? 'border-[#0ea971] text-[#0ea971]'
@@ -123,7 +124,7 @@ function PayslipsTab() {
         <div key={p.id} className="premium-card">
           <button
             onClick={() => setOpenId(openId === p.id ? null : p.id)}
-            className="w-full flex flex-wrap items-center justify-between gap-3 text-left cursor-pointer"
+            className="mobile-list-row w-full flex flex-wrap items-center justify-between gap-3 text-left cursor-pointer"
           >
             <div className="min-w-0">
               <span className="block text-sm font-bold text-neutral-900 dark:text-white">{p.period}</span>
@@ -133,7 +134,7 @@ function PayslipsTab() {
                 {p.lop_days > 0 ? ` · ${p.lop_days} unpaid day${p.lop_days > 1 ? 's' : ''}` : ''}
               </span>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="mobile-list-actions flex items-center gap-4">
               <div className="text-right">
                 <span className="block text-2xs uppercase tracking-wider text-neutral-400 font-bold">Net pay</span>
                 <span className="block text-sm font-bold font-mono text-neutral-900 dark:text-white">{money(p.net)}</span>
@@ -164,13 +165,13 @@ function PayslipDetail({ payslip }) {
         <p className="text-xs text-neutral-400">—</p>
       ) : (
         rows.map((l) => (
-          <div key={l.id} className="flex justify-between text-xs py-0.5">
+          <div key={l.id} className="mobile-list-row flex justify-between text-xs py-0.5">
             <span className="text-neutral-600 dark:text-neutral-300 truncate pr-2">{l.name}</span>
             <span className="font-mono text-neutral-800 dark:text-neutral-100 shrink-0">{money(l.amount)}</span>
           </div>
         ))
       )}
-      <div className={`flex justify-between text-base font-bold pt-1.5 mt-1 border-t border-neutral-200 dark:border-neutral-800 ${tone}`}>
+      <div className={`mobile-list-row flex justify-between text-base font-bold pt-1.5 mt-1 border-t border-neutral-200 dark:border-neutral-800 ${tone}`}>
         <span>Total</span>
         <span className="font-mono">{money(total)}</span>
       </div>
@@ -183,7 +184,7 @@ function PayslipDetail({ payslip }) {
         <Col title="Earnings" rows={earnings} total={payslip.gross} tone="text-emerald-600 dark:text-emerald-400" />
         <Col title="Deductions" rows={deductions} total={payslip.deductions} tone="text-rose-500" />
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-neutral-50 dark:bg-charcoal-900/40 px-3 py-2.5">
+      <div className="mobile-list-row flex flex-wrap items-center justify-between gap-3 rounded-xl bg-neutral-50 dark:bg-charcoal-900/40 px-3 py-2.5">
         <span className="text-xs text-neutral-500">
           Paid {payslip.paid_days ?? '—'} days{payslip.lop_days > 0 ? ` · ${payslip.lop_days} unpaid` : ''}
         </span>
@@ -279,7 +280,7 @@ function RunTab() {
             {runs.map((r) => (
               <div
                 key={r.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5"
+                className="mobile-list-row flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5"
               >
                 <div className="min-w-0">
                   <span className="block text-xs font-bold text-neutral-800 dark:text-warm-gray-100">
@@ -289,7 +290,7 @@ function RunTab() {
                     {r.employees} employees · net {money(r.total_net)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="mobile-list-actions flex items-center gap-2">
                   <span className={`text-2xs font-bold uppercase px-2 py-1 rounded ${statusClass(r.status)}`}>
                     {r.status}
                   </span>
@@ -390,7 +391,7 @@ function SalaryTab() {
             className={INPUT}
           />
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="form-section-actions flex flex-wrap items-center gap-3">
           <button type="submit" disabled={save.isPending} className={BTN}>
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Save salary
           </button>
@@ -411,7 +412,7 @@ function SalaryTab() {
           </p>
         ) : (
           <div className="table-scroll">
-            <table className="w-full text-left">
+            <table className="premium-table w-full text-left">
               <thead>
                 <tr className="text-xs font-bold uppercase tracking-wider text-neutral-450 border-b border-neutral-200/70 dark:border-neutral-850">
                   <th className="py-1.5 pr-2">Employee</th>
@@ -423,13 +424,13 @@ function SalaryTab() {
               <tbody>
                 {[...latest.values()].map((s) => (
                   <tr key={s.id} className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs">
-                    <td className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100">
+                    <td data-label="Employee" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100">
                       {s.employee?.full_name}{' '}
                       <span className="font-mono text-2xs text-neutral-400">{s.employee?.employee_code}</span>
                     </td>
-                    <td className="py-1.5 px-2 font-mono text-neutral-500">{s.effective_from}</td>
-                    <td className="py-1.5 px-2 text-right font-mono">{money(s.basic)}</td>
-                    <td className="py-1.5 pl-2 text-right font-mono font-bold">{money(s.gross)}</td>
+                    <td data-label="Effective" className="py-1.5 px-2 font-mono text-neutral-500">{s.effective_from}</td>
+                    <td data-label="Basic" className="py-1.5 px-2 text-right font-mono">{money(s.basic)}</td>
+                    <td data-label="Gross" className="py-1.5 pl-2 text-right font-mono font-bold">{money(s.gross)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -517,7 +518,7 @@ function ComponentsTab() {
   return (
     <div className="space-y-4">
       <form onSubmit={submit} className="premium-card space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="mobile-list-row flex items-center justify-between">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
             {editingId ? 'Edit component' : 'Add a deduction or allowance'}
           </h3>
@@ -576,7 +577,7 @@ function ComponentsTab() {
           </label>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="form-section-actions flex flex-wrap items-center gap-3">
           <button type="submit" disabled={save.isPending} className={BTN}>
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />}{' '}
             {editingId ? 'Save changes' : 'Add component'}
@@ -601,7 +602,7 @@ function ComponentsTab() {
             {components.map((c) => (
               <div
                 key={c.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2"
+                className="mobile-list-row flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2"
               >
                 <div className="min-w-0">
                   <span className="text-sm font-bold text-neutral-800 dark:text-warm-gray-100">
@@ -617,7 +618,7 @@ function ComponentsTab() {
                     {c.entity_id || c.branch_id ? ' · scoped' : ''}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="mobile-list-actions flex items-center gap-1.5 shrink-0">
                   <button onClick={() => edit(c)} className={BTN_GHOST}>Edit</button>
                   <button
                     onClick={() => del.mutate(c.id)}

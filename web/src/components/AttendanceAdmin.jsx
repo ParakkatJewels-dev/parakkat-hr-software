@@ -68,19 +68,19 @@ function SuggestionRow({ mapping, onLink, isPending }) {
 
   return (
     <tr>
-      <td className="font-mono font-bold">{mapping.emp_code}</td>
-      <td>
+      <td data-label="Code" className="font-mono font-bold">{mapping.emp_code}</td>
+      <td data-label="BioTime name">
         <div className="font-semibold text-neutral-800 dark:text-neutral-100">{mapping.full_name ?? '—'}</div>
         <div className="text-2xs text-neutral-400">
           {[mapping.department_name, mapping.area_name].filter(Boolean).join(' · ')}
         </div>
       </td>
-      <td>
+      <td data-label="Status">
         <span className={`badge ${LINK_STATUS_STYLES[mapping.link_status] ?? 'badge-muted'}`}>
           {LINK_STATUS_LABELS[mapping.link_status] ?? mapping.link_status}
         </span>
       </td>
-      <td>
+      <td data-label="Mapped to">
         {mapping.employee ? (
           <div>
             <div className="font-semibold text-emerald-700 dark:text-emerald-400">{mapping.employee.full_name}</div>
@@ -90,7 +90,7 @@ function SuggestionRow({ mapping, onLink, isPending }) {
           <span className="text-xs text-neutral-400">Not mapped</span>
         )}
       </td>
-      <td>
+      <td data-label="Suggestions">
         <div className="space-y-1">
           {!showSearch && suggestions.slice(0, 3).map((s) => (
             <button
@@ -145,7 +145,7 @@ function SuggestionRow({ mapping, onLink, isPending }) {
           </button>
         </div>
       </td>
-      <td className="text-right whitespace-nowrap">
+      <td data-label="Actions" className="text-right whitespace-nowrap">
         {mapping.employee_id && (
           <button
             onClick={() => onLink({ empCode: mapping.emp_code, employeeId: null })}
@@ -225,7 +225,7 @@ function MappingTab() {
           <Note success={`Mapped. ${link.data?.punchesAdopted ?? 0} historical punches attached${link.data?.recomputedFrom ? ` (${link.data.recomputedFrom} … ${link.data.recomputedTo} recomputing)` : ''}.`} />
         )}
 
-        <div className="flex flex-wrap gap-1.5">
+        <div className="mobile-segmented flex flex-wrap gap-1.5">
           {filters.map((f) => (
             <button
               key={f.id || 'all'}
@@ -246,8 +246,9 @@ function MappingTab() {
             Nothing here. If this is the first run, pull the roster from BioTime above.
           </div>
         ) : (
-          <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+          <>
+            <div className="table-scroll">
+              <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Code</th>
@@ -262,10 +263,11 @@ function MappingTab() {
                 {pager.slice.map((m) => (
                   <SuggestionRow key={m.id} mapping={m} onLink={link.mutate} isPending={link.isPending} />
                 ))}
-                <Pagination {...pager} noun="mappings" />
               </tbody>
-            </table></div>
-          </div>
+              </table>
+            </div>
+            <Pagination {...pager} noun="mappings" />
+          </>
         )}
       </div>
 
@@ -287,7 +289,7 @@ function MappingTab() {
           <p className="text-xs text-neutral-500">No terminals seen yet.</p>
         ) : (
           <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+            <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Serial</th>
@@ -303,14 +305,14 @@ function MappingTab() {
               <tbody>
                 {devices.map((d) => (
                   <tr key={d.id}>
-                    <td className="font-mono text-2xs">{d.serial_number}</td>
-                    <td>{d.alias ?? '—'}</td>
-                    <td className="text-neutral-500">{d.area_name ?? '—'}</td>
-                    <td className="font-mono text-2xs text-neutral-500">{d.ip_address ?? '—'}</td>
-                    <td className="text-neutral-500">{relativeTime(d.last_punch_at)}</td>
-                    <td className="text-neutral-500">{relativeTime(d.last_seen_at)}</td>
+                    <td data-label="Serial" className="font-mono text-2xs">{d.serial_number}</td>
+                    <td data-label="Name">{d.alias ?? '—'}</td>
+                    <td data-label="Area" className="text-neutral-500">{d.area_name ?? '—'}</td>
+                    <td data-label="Address" className="font-mono text-2xs text-neutral-500">{d.ip_address ?? '—'}</td>
+                    <td data-label="Last punch" className="text-neutral-500">{relativeTime(d.last_punch_at)}</td>
+                    <td data-label="Last seen" className="text-neutral-500">{relativeTime(d.last_seen_at)}</td>
                     {showBranchMapping && (
-                      <td>
+                      <td data-label="Branch">
                         <select
                           value={d.branch_id ?? ''}
                           aria-label={`Branch for terminal ${d.serial_number}`}
@@ -330,7 +332,7 @@ function MappingTab() {
                         </select>
                       </td>
                     )}
-                    <td>
+                    <td data-label="State">
                       {d.is_active ? (
                         <span className="badge badge-green flex items-center gap-1 w-fit"><Wifi size={10} /> active</span>
                       ) : (
@@ -340,7 +342,7 @@ function MappingTab() {
                   </tr>
                 ))}
               </tbody>
-            </table></div>
+            </table>
           </div>
         )}
       </div>
@@ -387,7 +389,7 @@ function ShiftsTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="mobile-list-row flex justify-between items-center">
         <p className="text-xs text-neutral-500 max-w-2xl">
           A shift defines the scheduled window, the grace either side, the unpaid break, and the
           weekly offs. Employees without an explicit assignment fall back to the default shift.
@@ -480,7 +482,7 @@ function ShiftsTab() {
           <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
         ) : (
           <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+            <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Code</th>
@@ -496,20 +498,20 @@ function ShiftsTab() {
               <tbody>
                 {shifts.map((s) => (
                   <tr key={s.id}>
-                    <td className="font-mono font-bold">
+                    <td data-label="Code" className="font-mono font-bold">
                       {s.code}
                       {s.is_default ? <span className="badge badge-green ml-1.5">default</span> : null}
                     </td>
-                    <td>{s.name}</td>
-                    <td className="font-mono">
+                    <td data-label="Name">{s.name}</td>
+                    <td data-label="Window" className="font-mono">
                       {String(s.start_time).slice(0, 5)}–{String(s.end_time).slice(0, 5)}
                       {s.crosses_midnight ? <span className="text-2xs text-amber-600 ml-1">+1d</span> : null}
                     </td>
-                    <td className="font-mono">{s.grace_in_minutes}/{s.grace_out_minutes}m</td>
-                    <td className="font-mono">{s.break_minutes}m</td>
-                    <td>{(s.weekly_offs ?? []).map((d) => WEEKDAYS[d]).join(', ') || '—'}</td>
-                    <td className="font-mono">{s.full_day_minutes}m</td>
-                    <td className="text-right whitespace-nowrap">
+                    <td data-label="Grace" className="font-mono">{s.grace_in_minutes}/{s.grace_out_minutes}m</td>
+                    <td data-label="Break" className="font-mono">{s.break_minutes}m</td>
+                    <td data-label="Weekly offs">{(s.weekly_offs ?? []).map((d) => WEEKDAYS[d]).join(', ') || '—'}</td>
+                    <td data-label="Full day" className="font-mono">{s.full_day_minutes}m</td>
+                    <td data-label="Actions" className="text-right whitespace-nowrap">
                       <button onClick={() => setForm({ ...s, start_time: String(s.start_time).slice(0, 5), end_time: String(s.end_time).slice(0, 5) })}
                         className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold mr-1">Edit</button>
                       <button onClick={() => { if (confirm(`Delete shift ${s.code}?`)) remove.mutate(s.id); }}
@@ -520,7 +522,7 @@ function ShiftsTab() {
                   </tr>
                 ))}
               </tbody>
-            </table></div>
+            </table>
           </div>
         )}
         <Note error={remove.error} />
@@ -552,16 +554,16 @@ function HolidaysTab() {
 
   return (
     <div className="space-y-4">
-      <div className="premium-card flex flex-wrap items-end gap-3">
+      <div className="premium-card mobile-toolbar flex flex-wrap items-end gap-3">
         <label className={label}>Calendar
-          <select value={effectiveCalendar} onChange={(e) => setCalendarId(e.target.value)} className={`${input} min-w-50`}>
+          <select value={effectiveCalendar} onChange={(e) => setCalendarId(e.target.value)} className={`${input} min-w-0 sm:min-w-50`}>
             {calendars.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.entity ? ` (${c.entity.code})` : ''}</option>
             ))}
           </select>
         </label>
         <label className={label}>Year
-          <input type="number" value={activeYear} onChange={(e) => setActiveYear(Number(e.target.value))} className={`${input} w-24`} />
+          <input type="number" value={activeYear} onChange={(e) => setActiveYear(Number(e.target.value))} className={`${input} w-full sm:w-24`} />
         </label>
         <button onClick={() => setForm({ holiday_date: `${activeYear}-01-01`, name: '', is_optional: false })} className={btnPrimary}>
           <Plus size={13} /> Add holiday
@@ -603,7 +605,7 @@ function HolidaysTab() {
           <div className="p-10 text-center text-xs text-neutral-500">No holidays defined for {activeYear}.</div>
         ) : (
           <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+            <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Date</th>
@@ -616,17 +618,17 @@ function HolidaysTab() {
               <tbody>
                 {holidays.map((h) => (
                   <tr key={h.id}>
-                    <td className="font-mono">{h.holiday_date}</td>
-                    <td className="text-neutral-500">
+                    <td data-label="Date" className="font-mono">{h.holiday_date}</td>
+                    <td data-label="Day" className="text-neutral-500">
                       {new Date(`${h.holiday_date}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'short' })}
                     </td>
-                    <td className="font-semibold">{h.name}</td>
-                    <td>
+                    <td data-label="Name" className="font-semibold">{h.name}</td>
+                    <td data-label="Type">
                       <span className={`badge ${h.is_optional ? 'badge-muted' : 'badge-green'}`}>
                         {h.is_optional ? 'Optional' : 'Company'}
                       </span>
                     </td>
-                    <td className="text-right">
+                    <td data-label="Actions" className="text-right">
                       <button onClick={() => setForm(h)} className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold mr-1">Edit</button>
                       <button onClick={() => { if (confirm(`Delete ${h.name}?`)) remove.mutate(h.id); }}
                         className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-2xs font-bold">
@@ -636,7 +638,7 @@ function HolidaysTab() {
                   </tr>
                 ))}
               </tbody>
-            </table></div>
+            </table>
           </div>
         )}
       </div>
@@ -666,7 +668,7 @@ function LeaveTypesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="mobile-list-row flex justify-between items-center">
         <p className="text-xs text-neutral-500 max-w-2xl">
           When an approved leave exceeds the available balance, the excess automatically becomes
           loss of pay rather than being rejected.
@@ -719,7 +721,7 @@ function LeaveTypesTab() {
           <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
         ) : (
           <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+            <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Code</th>
@@ -734,19 +736,19 @@ function LeaveTypesTab() {
               <tbody>
                 {types.map((t) => (
                   <tr key={t.id}>
-                    <td className="font-mono font-bold" style={t.colour ? { color: t.colour } : undefined}>{t.code}</td>
-                    <td>{t.name}</td>
-                    <td className="font-mono">{t.annual_quota}</td>
-                    <td>{t.is_paid ? <span className="badge badge-green">paid</span> : <span className="badge badge-muted">unpaid</span>}</td>
-                    <td>{t.allow_half_day ? 'Yes' : 'No'}</td>
-                    <td>{t.carry_forward ? `Up to ${t.max_carry_forward}` : 'No'}</td>
-                    <td className="text-right">
+                    <td data-label="Code" className="font-mono font-bold" style={t.colour ? { color: t.colour } : undefined}>{t.code}</td>
+                    <td data-label="Name">{t.name}</td>
+                    <td data-label="Quota" className="font-mono">{t.annual_quota}</td>
+                    <td data-label="Paid">{t.is_paid ? <span className="badge badge-green">paid</span> : <span className="badge badge-muted">unpaid</span>}</td>
+                    <td data-label="Half day">{t.allow_half_day ? 'Yes' : 'No'}</td>
+                    <td data-label="Carry fwd">{t.carry_forward ? `Up to ${t.max_carry_forward}` : 'No'}</td>
+                    <td data-label="Actions" className="text-right">
                       <button onClick={() => setForm(t)} className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold">Edit</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table></div>
+            </table>
           </div>
         )}
       </div>
@@ -856,7 +858,7 @@ function SyncTab() {
       ) : null}
 
       <div className="premium-card space-y-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="mobile-toolbar-actions flex flex-wrap gap-2">
           <button onClick={() => trigger.mutate('transactions')} disabled={trigger.isPending} className={btnPrimary}>
             {trigger.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Sync punches now
           </button>
@@ -867,7 +869,7 @@ function SyncTab() {
 
         <div className="soft-divider" />
 
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="mobile-toolbar flex flex-wrap items-end gap-3">
           <label className={label}>Backfill from
             <input type="date" value={range.from} onChange={(e) => setRange({ ...range, from: e.target.value })} className={input} />
           </label>
@@ -935,7 +937,7 @@ function SyncTab() {
           <div className="p-10 text-center text-xs text-neutral-500">No runs recorded yet.</div>
         ) : (
           <div className="table-scroll">
-            <div className="table-scroll -mx-1 px-1"><table className="premium-table w-full text-xs">
+            <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Started</th>
@@ -951,20 +953,20 @@ function SyncTab() {
               <tbody>
                 {runs.map((r) => (
                   <tr key={r.id}>
-                    <td className="text-neutral-500">{relativeTime(r.started_at)}</td>
-                    <td className="font-mono">{r.kind}</td>
-                    <td><span className={`badge ${RUN_STATUS_STYLES[r.status] ?? 'badge-muted'}`}>{r.status}</span></td>
-                    <td className="font-mono">{r.records_fetched}</td>
-                    <td className="font-mono text-emerald-600 dark:text-emerald-400">{r.records_inserted}</td>
-                    <td className="font-mono text-neutral-400">{r.records_skipped}</td>
-                    <td className="font-mono">{r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : '—'}</td>
-                    <td className="max-w-55 truncate text-red-600 dark:text-red-400" title={r.error_message ?? ''} aria-label={r.error_message ?? ''}>
+                    <td data-label="Started" className="text-neutral-500">{relativeTime(r.started_at)}</td>
+                    <td data-label="Kind" className="font-mono">{r.kind}</td>
+                    <td data-label="Status"><span className={`badge ${RUN_STATUS_STYLES[r.status] ?? 'badge-muted'}`}>{r.status}</span></td>
+                    <td data-label="Fetched" className="font-mono">{r.records_fetched}</td>
+                    <td data-label="Inserted" className="font-mono text-emerald-600 dark:text-emerald-400">{r.records_inserted}</td>
+                    <td data-label="Skipped" className="font-mono text-neutral-400">{r.records_skipped}</td>
+                    <td data-label="Duration" className="font-mono">{r.duration_ms ? `${(r.duration_ms / 1000).toFixed(1)}s` : '—'}</td>
+                    <td data-label="Error" className="max-w-55 truncate text-red-600 dark:text-red-400" title={r.error_message ?? ''} aria-label={r.error_message ?? ''}>
                       {r.error_message ?? ''}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table></div>
+            </table>
           </div>
         )}
       </div>
@@ -999,7 +1001,7 @@ export default function AttendanceAdmin() {
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="mobile-segmented flex flex-wrap gap-1.5">
         {visible.map((t) => {
           const Icon = t.icon;
           return (

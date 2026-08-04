@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff,
 } from 'lucide-react';
 
 // Import components
@@ -32,6 +32,7 @@ import { resolvePrimaryRole } from './lib/roles';
 import { useRealtimeSync } from './lib/realtime';
 import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
+import { isStandalonePwa } from './lib/pwa';
 
 // Prettify a role key like 'branch_manager' -> 'Branch Manager'.
 const prettyRole = (key) =>
@@ -105,6 +106,12 @@ export default function App() {
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // A navigation from the drawer may be triggered by links, browser history, or a dashboard
+  // shortcut. Always dismiss the drawer once the route changes so it cannot cover the new page.
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   // Sidebar collapsed state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() =>
     localStorage.getItem('sidebar-collapsed') === 'true'
@@ -116,11 +123,43 @@ export default function App() {
   // Command Palette trigger
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [commandSearch, setCommandSearch] = useState('');
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isPwaInstalled, setIsPwaInstalled] = useState(() => isStandalonePwa());
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+  const [pwaUpdateRegistration, setPwaUpdateRegistration] = useState(null);
 
   // Persist sidebar collapsed state
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', isSidebarCollapsed);
   }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    const onBeforeInstallPrompt = (event) => {
+      event.preventDefault();
+      setInstallPrompt(event);
+    };
+    const onInstalled = () => {
+      setInstallPrompt(null);
+      setIsPwaInstalled(true);
+    };
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    const onUpdateReady = (event) => setPwaUpdateRegistration(event.detail?.registration ?? null);
+
+    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('pwa:update-ready', onUpdateReady);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('pwa:update-ready', onUpdateReady);
+    };
+  }, []);
 
   // Apply Theme class
   useEffect(() => {
@@ -150,6 +189,25 @@ export default function App() {
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
+
+  const installPwa = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    setInstallPrompt(null);
+    if (choice?.outcome === 'accepted') {
+      setIsPwaInstalled(true);
+    }
+  };
+
+  const applyPwaUpdate = () => {
+    const waitingWorker = pwaUpdateRegistration?.waiting;
+    if (waitingWorker) {
+      waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      return;
+    }
+    window.location.reload();
   };
 
   // Grouped Sidebar Sections (Miller's Law / Law of Proximity)
@@ -298,6 +356,7 @@ export default function App() {
   const activeSection =
     visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab)) ?? visibleSections[0];
   const activeTabMeta = allTabs.find((t) => t.id === activeTab);
+  const mobilePrimarySections = visibleSections.slice(0, 4);
 
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {
@@ -457,11 +516,14 @@ export default function App() {
           <div className="flex items-center space-x-3.5">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="lg:hidden p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+              aria-label="Open navigation menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
+              className="mobile-menu-trigger lg:hidden p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
             >
               <Menu size={18} />
             </button>
-            <span className="font-semibold text-xs sm:text-sm tracking-tight text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
+            <span className="font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
               {activeSection?.label || ''}
               {activeSection && activeSection.tabs.length > 1 && activeTabMeta && (
                 <span className="hidden sm:inline text-neutral-400 dark:text-neutral-500 font-normal">
@@ -472,7 +534,7 @@ export default function App() {
           </div>
 
           {/* Quick options */}
-          <div className="flex items-center space-x-1.5 sm:space-x-4">
+          <div className="app-header-actions flex items-center space-x-1.5 sm:space-x-4">
 
             {/* Ctrl + K search bar */}
             <button
@@ -499,6 +561,41 @@ export default function App() {
             </div>
 
             {/* Appearance toggle */}
+            {pwaUpdateRegistration && (
+              <button
+                onClick={applyPwaUpdate}
+                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-[#0ea971] hover:bg-[#0c9765] text-white rounded-xl text-2xs font-bold transition-colors cursor-pointer"
+                title="Update app"
+                aria-label="Update app"
+              >
+                <RefreshCw size={15} />
+                <span className="hidden sm:inline">Update</span>
+              </button>
+            )}
+
+            {installPrompt && !isPwaInstalled && (
+              <button
+                onClick={installPwa}
+                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-neutral-100 dark:bg-charcoal-800/60 hover:bg-neutral-200 dark:hover:bg-charcoal-800 border border-neutral-200/85 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-xl text-2xs font-bold transition-colors cursor-pointer"
+                title="Install app"
+                aria-label="Install app"
+              >
+                <Download size={15} />
+                <span className="hidden sm:inline">Install</span>
+              </button>
+            )}
+
+            {!isOnline && (
+              <div
+                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-amber-100 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-amber-700 dark:text-amber-300 rounded-xl text-2xs font-bold"
+                role="status"
+                aria-live="polite"
+              >
+                <WifiOff size={15} />
+                <span className="hidden sm:inline">Offline</span>
+              </div>
+            )}
+
             <button
               onClick={toggleTheme}
               className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
@@ -527,7 +624,7 @@ export default function App() {
         {/* Command Palette (Ctrl + K) Inline Tray */}
         {showCommandPalette && (
           <div className="bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-900 p-4 space-y-3 animate-fade-in transition-all">
-            <div className="max-w-2xl mx-auto flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5">
+            <div className="command-palette-input max-w-2xl mx-auto flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5">
               <Search size={14} className="text-neutral-450 shrink-0" />
               <input
                 type="text"
@@ -657,6 +754,44 @@ export default function App() {
           </Suspense>
         </main>
 
+        <nav
+          aria-label="Primary mobile navigation"
+          className="mobile-bottom-nav  lg:hidden"
+        >
+          {mobilePrimarySections.map((sec) => {
+            const Icon = sec.icon;
+            const on = activeSection?.id === sec.id;
+            return (
+              <button
+                key={sec.id}
+                type="button"
+                onClick={() => openSection(sec)}
+                aria-current={on ? 'page' : undefined}
+                aria-label={sec.label}
+                title={sec.label}
+                className={`mobile-bottom-nav-item ${on ? 'mobile-bottom-nav-item-active' : ''}`}
+              >
+                <Icon size={18} />
+                <span className="sr-only">{sec.label}</span>
+              </button>
+            );
+          })}
+          {visibleSections.length > mobilePrimarySections.length && (
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open all sections"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
+              title="More"
+              className="mobile-bottom-nav-item"
+            >
+              <Menu size={18} />
+              <span className="sr-only">More</span>
+            </button>
+          )}
+        </nav>
+
       </div>
 
 
@@ -664,22 +799,35 @@ export default function App() {
 
       {/* Mobile Drawer Sidebar Navigation */}
       {mobileMenuOpen && (
-        <div className="mobile-drawer fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex animate-fade-in lg:hidden">
-          <div className="w-64 bg-white dark:bg-neutral-950 h-full p-4 flex flex-col justify-between relative border-r border-neutral-200 dark:border-neutral-900 shadow-2xl transition-colors">
+        <div
+          className="mobile-drawer fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex animate-fade-in lg:hidden"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setMobileMenuOpen(false);
+          }}
+        >
+          <div
+            id="mobile-navigation"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Main navigation"
+            className="mobile-drawer-panel w-[min(20rem,88vw)] bg-white dark:bg-neutral-950 h-full p-4 flex flex-col justify-between relative border-r border-neutral-200 dark:border-neutral-900 shadow-2xl transition-colors"
+          >
             <button
               onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close navigation menu"
               className="absolute top-4 right-4 p-2 bg-neutral-150 dark:bg-slate-800 hover:bg-neutral-200 dark:hover:bg-slate-700 rounded-xl text-neutral-500 dark:text-slate-400 hover:text-black dark:hover:text-white transition-all cursor-pointer"
             >
               <X size={16} />
             </button>
 
-            <div className="space-y-4">
+            <div className="flex flex-col flex-1 min-h-0 gap-4">
               <div className="flex items-center space-x-2 dark:border-neutral-900 pb-3">
                 <div className="p-1.5  text-black  dark:text-white rounded-lg">
                   HR System
                 </div>
               </div>
-              <nav className="space-y-4 max-h-[70vh] overflow-y-auto">
+              <nav className="space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
                 {renderNavLinks(true)}
               </nav>
             </div>

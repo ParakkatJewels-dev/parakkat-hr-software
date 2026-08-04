@@ -90,7 +90,7 @@ export default function DocumentManagement() {
 
   return (
     <div className="page-shell space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+      <div className="mobile-list-row flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Document Management</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Policies and documents within your scope.</p>
@@ -193,7 +193,7 @@ export default function DocumentManagement() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {pager.slice.map((d) => (
-              <div key={d.id} className="p-3.5 bg-neutral-100/50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-850 rounded-xl flex items-center justify-between gap-2">
+              <div key={d.id} className="mobile-list-row p-3.5 bg-neutral-100/50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-850 rounded-xl flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2.5 min-w-0">
                   {d.storage_path
                     ? <FileText size={16} className="text-[#0ea971] shrink-0" />
@@ -207,7 +207,7 @@ export default function DocumentManagement() {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
+                <div className="mobile-list-actions flex items-center gap-1 shrink-0">
                   {d.signed && <span className="text-2xs px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-450 rounded-md font-mono">SIGNED</span>}
                   <button
                     onClick={() => open(d)}

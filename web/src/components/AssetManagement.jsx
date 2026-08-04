@@ -47,7 +47,7 @@ export default function AssetManagement() {
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
-      <div className="flex justify-between items-center">
+      <div className="mobile-list-row flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Asset Management</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Company hardware inventory and allocations, scoped to your access.</p>
@@ -79,7 +79,7 @@ export default function AssetManagement() {
             ) : assets.length === 0 ? (
               <p className="text-xs text-neutral-500 py-8 text-center">No assets visible to you yet.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div className="table-scroll">
                 <table className="premium-table">
                   <thead>
                     <tr><th>Item</th><th>Type</th><th className="font-mono">Serial</th><th>Allocated To</th><th className="text-right">Status</th></tr>
@@ -89,11 +89,11 @@ export default function AssetManagement() {
                       const Icon = typeIcon(a.asset_type);
                       return (
                         <tr key={a.id}>
-                          <td className="font-semibold text-neutral-800 dark:text-slate-200">{a.name}</td>
-                          <td><span className="flex items-center gap-1.5 py-3"><Icon size={12} className="text-neutral-450" /> {a.asset_type || '—'}</span></td>
-                          <td className="font-mono text-xs text-neutral-500">{a.serial || '—'}</td>
-                          <td>{a.employee?.full_name || '—'}</td>
-                          <td className="text-right"><span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${statusClass(a.status)}`}>{a.status}</span></td>
+                          <td data-label="Item" className="font-semibold text-neutral-800 dark:text-slate-200">{a.name}</td>
+                          <td data-label="Type"><span className="flex items-center gap-1.5 py-3"><Icon size={12} className="text-neutral-450" /> {a.asset_type || '—'}</span></td>
+                          <td data-label="Serial" className="font-mono text-xs text-neutral-500">{a.serial || '—'}</td>
+                          <td data-label="Allocated to">{a.employee?.full_name || '—'}</td>
+                          <td data-label="Status" className="text-right"><span className={`px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border ${statusClass(a.status)}`}>{a.status}</span></td>
                         </tr>
                       );
                     })}

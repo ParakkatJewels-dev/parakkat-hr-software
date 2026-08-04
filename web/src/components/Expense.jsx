@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { FileText, Check, Ban, Loader2, AlertTriangle } from 'lucide-react';
+import { FileText, Check, Ban, Loader2, AlertTriangle, Plus } from 'lucide-react';
 import { useExpenses, useAddExpense, useSetExpenseStatus } from '../data/expenses';
 import { useAuth } from '../auth/AuthContext';
 import FormSection, { Field, FIELD } from './ui/FormSection';
@@ -117,7 +117,7 @@ export default function Expense() {
         </FormSection>
       )}
 
-      <div className="flex justify-between items-center">
+      <div className="mobile-list-row flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Expense Management</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -152,7 +152,7 @@ export default function Expense() {
             ) : (
               <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
                 {pager.slice.map((exp) => (
-                  <div key={exp.id} className="p-3.5 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
+                  <div key={exp.id} className="mobile-list-row p-3.5 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
                     <div className="space-y-1 min-w-0">
                       <span className="font-semibold text-xs text-neutral-800 dark:text-slate-200">{exp.category}</span>
                       <span className="text-2xs text-neutral-500 block truncate">
@@ -161,7 +161,7 @@ export default function Expense() {
                       </span>
                       {exp.description && <p className="text-2xs text-neutral-450 italic truncate">"{exp.description}"</p>}
                     </div>
-                    <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
+                    <div className="mobile-list-actions text-right flex flex-col items-end gap-1.5 shrink-0">
                       <span className="font-mono font-bold text-neutral-800 dark:text-slate-100 text-sm">₹{Number(exp.amount).toLocaleString()}</span>
                       <div className="flex items-center gap-1.5">
                         <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold border ${statusClass(exp.status)}`}>{exp.status}</span>

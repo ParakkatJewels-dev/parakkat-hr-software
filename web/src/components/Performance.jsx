@@ -102,7 +102,7 @@ export default function Performance() {
             <input required placeholder="Goal, e.g. Reduce stock variance to under 1%" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={INPUT + ' sm:col-span-2'} />
             <input type="date" value={form.target_date} onChange={(e) => setForm({ ...form, target_date: e.target.value })} className={INPUT} title="Target date" aria-label="Target date" />
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="form-section-actions flex flex-wrap items-center gap-3">
             <button type="submit" disabled={save.isPending} className={BTN}>
               {save.isPending ? <Loader2 size={12} className="animate-spin disabled:opacity-40 disabled:cursor-not-allowed" /> : <Plus size={12} />} Add goal
             </button>
@@ -113,7 +113,7 @@ export default function Performance() {
       )}
 
       {canManage && (
-        <div className="flex gap-1.5">
+        <div className="mobile-segmented flex gap-1.5">
           {[['mine', `My goals (${mine.length})`], ['team', `Team goals (${team.length})`]].map(([k, label]) => (
             <button
               key={k}

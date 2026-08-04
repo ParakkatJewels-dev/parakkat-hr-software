@@ -67,7 +67,7 @@ export default function DateRangeFilter({ preset, from, to, setPreset, setFrom, 
         </button>
       ))}
 
-      <span className="flex items-center gap-1.5">
+      <span className="flex w-full sm:w-auto items-center gap-1.5">
         <input
           type="date" value={from} max={to} aria-label="From"
           onChange={(e) => e.target.value && setFrom(e.target.value)}

@@ -221,7 +221,7 @@ function UsersAccess() {
       {setSuper.error && <ErrorLine msg={setSuper.error.message} />}
 
       {users.length > 8 && (
-        <div className="flex items-center gap-3">
+        <div className="mobile-toolbar flex items-center gap-3">
           <div className="relative flex-1 min-w-0">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
             <input
@@ -315,7 +315,7 @@ function UsersAccess() {
             </div>
 
             {/* Actions sit on their own line so the identity block stays readable on a phone. */}
-            <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-850">
+            <div className="mobile-list-actions flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-neutral-100 dark:border-neutral-850">
               {u.employee_id ? (
                 <button
                   onClick={() => setGrantForUser(employees.find((e) => e.id === u.employee_id) ?? null)}
@@ -363,7 +363,7 @@ function UsersAccess() {
                 />
               )}
 
-              <div className="ml-auto flex items-center gap-2">
+              <div className="mobile-list-actions ml-auto flex items-center gap-2">
                 {isSuperAdmin && (
                   <button
                     onClick={() => setSuper.mutate({ user_id: u.user_id, flag: !u.is_super_admin })}
@@ -924,7 +924,7 @@ function RoleCard({ role: r, canEdit, onEdit, onDelete }) {
 
   return (
     <article className="premium-card">
-      <div className="flex items-start justify-between gap-3">
+      <div className="mobile-list-row flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-lg font-bold text-neutral-900 dark:text-white">{prettyRole(r.key)}</h3>
@@ -949,7 +949,7 @@ function RoleCard({ role: r, canEdit, onEdit, onDelete }) {
         </div>
 
         {canEdit && !locked && (
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="mobile-list-actions flex items-center gap-1 shrink-0">
             <button onClick={onEdit} className={ICON_BTN} title="Edit permissions" aria-label={`Edit permissions for ${prettyRole(r.key)}`}>
               <Pencil size={14} />
             </button>
@@ -1162,7 +1162,7 @@ function AuditLogs() {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
+      <div className="mobile-toolbar flex items-center gap-3">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -1184,7 +1184,7 @@ function AuditLogs() {
               const actor = log.actor_email || 'System';
               const verb = AUDIT_VERBS[log.action] ?? (log.action || '').toLowerCase();
               return (
-                <li key={log.id} className="flex items-start gap-3 py-3">
+                <li key={log.id} className="mobile-list-row flex items-start gap-3 py-3">
                   <span
                     className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${AUDIT_TONES[log.action] ?? 'bg-neutral-400'}`}
                     aria-hidden="true"
@@ -1240,8 +1240,8 @@ function Panel({ title, onClose, children }) {
 
   return (
     <section className="premium-card space-y-4 animate-fade-in">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-bold text-neutral-900 dark:text-white truncate">{title}</h3>
+      <div className="mobile-list-row flex items-center justify-between gap-3">
+        <h3 className="text-sm font-bold text-neutral-900 dark:text-white">{title}</h3>
         <button
           onClick={onClose}
           aria-label={`Close ${title}`}
@@ -1256,7 +1256,7 @@ function Panel({ title, onClose, children }) {
 }
 function PanelActions({ busy, disabled, onClose, submitLabel }) {
   return (
-    <div className="flex justify-end gap-2 pt-1">
+    <div className="form-section-actions flex justify-end gap-2 pt-1">
       <button type="button" onClick={onClose} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Cancel</button>
       <button type="submit" disabled={busy || disabled} className={BTN}>
         {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} {submitLabel}

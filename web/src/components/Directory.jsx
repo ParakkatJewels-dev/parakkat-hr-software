@@ -64,11 +64,15 @@ export default function Directory() {
   const [selectedDept, setSelectedDept] = useState('All Departments');
   const [selectedBranch, setSelectedBranch] = useState('All Branches');
   const [sortBy, setSortBy] = useState('name-asc');
-  const [viewMode, setViewMode] = useState('list'); // Default to 'list' for high density
+  const [viewMode, setViewMode] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'grid' : 'list'
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedEmp, setSelectedEmp] = useState(null);
   
-  const [pageSize, setPageSize] = useState(15);
+  const [pageSize, setPageSize] = useState(() =>
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 12 : 15
+  );
   const [compact, setCompact] = useState(false);
   const itemsPerPage = pageSize;
 
@@ -351,7 +355,7 @@ export default function Directory() {
       {/* Header and Toolbar actions */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <Header count={filtered.length} total={employees.length} />
-        <div className="flex items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
+        <div className="mobile-toolbar-actions flex flex-wrap items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
           {/* View toggle switcher */}
           <div className="flex items-center bg-neutral-105 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-855 rounded-xl p-0.5 shadow-sm">
             <button
@@ -401,7 +405,8 @@ export default function Directory() {
             title="Export csv" aria-label="Export csv"
           >
             <Download size={13} />
-            <span>Export CSV</span>
+            <span className="hidden sm:inline">Export CSV</span>
+            <span className="sm:hidden">CSV</span>
           </button>
           {/* Add employee */}
           {canCreate && (
@@ -417,7 +422,7 @@ export default function Directory() {
       </div>
 
       {/* Advanced search, filters and sort controls */}
-      <div className="premium-card space-y-3.5">
+      <div className="premium-card mobile-filter-card space-y-3.5">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
           {/* Search Input */}
           <div className="relative md:col-span-8">
@@ -463,7 +468,7 @@ export default function Directory() {
         </div>
 
         {/* Each filter carries its own label and shows when it is narrowing the list. */}
-        <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850">
+        <div className="directory-filter-row grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850">
           <FilterSelect label="Company" value={selectedEntity} options={entityOptions}
             onChange={setSelectedEntity} allValue="All Entities" />
           <FilterSelect label="Branch" value={selectedBranch} options={branchOptions}
@@ -543,10 +548,10 @@ export default function Directory() {
                           : 'hover:bg-neutral-50 dark:hover:bg-charcoal-900/40'
                       }`}
                     >
-                      <td className="font-mono text-sm text-neutral-500 py-3 hidden lg:table-cell">
+                      <td data-label="Employee ID" className="font-mono text-sm text-neutral-500 py-3 hidden lg:table-cell">
                         {emp.employee_code || '—'}
                       </td>
-                      <td className="py-3">
+                      <td data-label="Name & title" className="py-3">
                         <div className="flex items-center gap-2.5 min-w-0">
                           {/* Steady colours. The avatar used to invert to solid black on hover,
                               which flickered down the whole list as the pointer travelled. */}
@@ -564,19 +569,19 @@ export default function Directory() {
                           </div>
                         </div>
                       </td>
-                      <td className="text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden sm:table-cell">
+                      <td data-label="Location" className="text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden sm:table-cell">
                         {emp.branch ? `${emp.branch.name || emp.branch.code}` : '—'}
                       </td>
-                      <td className="text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden md:table-cell">
+                      <td data-label="Department" className="text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden md:table-cell">
                         {emp.department?.name || '—'}
                       </td>
-                      <td className={`text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate max-w-[180px] hidden ${selectedEmp ? 'xl:table-cell' : 'lg:table-cell'}`}>
+                      <td data-label="Email" className={`text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate max-w-[180px] hidden ${selectedEmp ? 'xl:table-cell' : 'lg:table-cell'}`}>
                         {emp.email || '—'}
                       </td>
-                      <td className={`text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate max-w-[120px] hidden ${selectedEmp ? '' : 'xl:table-cell'}`}>
+                      <td data-label="Company" className={`text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate max-w-[120px] hidden ${selectedEmp ? '' : 'xl:table-cell'}`}>
                         {emp.entity?.name || '—'}
                       </td>
-                      <td className="py-3 text-center">
+                      <td data-label="Status" className="py-3 text-center">
                         <span className={`text-2xs inline-block px-2 py-0.5 rounded-full font-bold tracking-wide uppercase leading-none ${statusClass(emp.status)}`}>
                           {emp.status}
                         </span>
@@ -597,8 +602,18 @@ export default function Directory() {
             // the pointer crossed it.
             <button
               key={emp.id}
-              type="button"onClick={() => setSelectedEmp(emp)} aria-label={`Open the profile for ${emp.full_name}`} aria-current={selectedEmp?.id === emp.id ? 'true' : undefined} className={`premium-card text-left cursor-pointer flex flex-col justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${ selectedEmp?.id === emp.id ? 'border-[#0ea971]/45 bg-[#0ea971]/5' : 'hover:border-neutral-300 dark:hover:border-[#0ea971]/35' }`} > <div className="w-full">
-                <div className="flex items-start justify-between gap-2">
+              type="button"
+              onClick={() => setSelectedEmp(emp)}
+              aria-label={`Open the profile for ${emp.full_name}`}
+              aria-current={selectedEmp?.id === emp.id ? 'true' : undefined}
+              className={`premium-card text-left cursor-pointer flex flex-col justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${
+                selectedEmp?.id === emp.id
+                  ? 'border-[#0ea971]/45 bg-[#0ea971]/5'
+                  : 'hover:border-neutral-300 dark:hover:border-[#0ea971]/35'
+              }`}
+            >
+              <div className="w-full">
+                <div className="mobile-list-row flex items-start justify-between gap-2">
                   <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-sm shrink-0 font-mono select-none">
                     {initials(emp.full_name)}
                   </div>
@@ -678,7 +693,7 @@ export default function Directory() {
 
       {/* Pagination component */}
       {filtered.length > itemsPerPage && (
-        <div className="premium-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="premium-card pagination-shell flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <span className="text-sm text-neutral-500 dark:text-neutral-400 tabular-nums">
             <b className="text-neutral-800 dark:text-neutral-200">
               {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, sorted.length)}
@@ -686,7 +701,7 @@ export default function Directory() {
             of {sorted.length}
           </span>
 
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="pagination-pages flex items-center justify-center gap-1.5 flex-wrap">
             {/* 500 employees at 15 a page is 34 pages. Prev/Next alone means 19 clicks to reach
                 page 20, so the numbers are here, with first/last and an ellipsis window. */}
             <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
@@ -702,7 +717,7 @@ export default function Directory() {
                   onClick={() => setCurrentPage(n)}
                   aria-label={`Page ${n}`}
                   aria-current={n === currentPage ? 'page' : undefined}
-                  className={`min-w-[2rem] px-2 py-1.5 rounded-lg text-sm font-bold tabular-nums cursor-pointer transition-colors ${
+                  className={`pagination-number min-w-[2rem] px-2 py-1.5 rounded-lg text-sm font-bold tabular-nums cursor-pointer transition-colors ${
                     n === currentPage
                       ? 'bg-[#0ea971] text-white'
                       : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
@@ -718,7 +733,7 @@ export default function Directory() {
             </button>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+          <label className="pagination-size flex items-center justify-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
             <span className="hidden sm:inline">Per page</span>
             <select
               value={pageSize}
@@ -736,7 +751,7 @@ export default function Directory() {
 
       {/* Inline employee profile section */}
       {selectedEmp && (
-        <aside className="w-full lg:w-[24rem] xl:w-[26rem] shrink-0 lg:sticky lg:top-4">
+        <aside className="mobile-detail-panel w-full lg:w-[24rem] xl:w-[26rem] shrink-0 lg:sticky lg:top-4">
           <ProfileDrawer
             emp={selectedEmp}
             onClose={() => setSelectedEmp(null)}
@@ -1325,5 +1340,3 @@ function SortHeader({ label, active, dir, onClick }) {
     </button>
   );
 }
-
-

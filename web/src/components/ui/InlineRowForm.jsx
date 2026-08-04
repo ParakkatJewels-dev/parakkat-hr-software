@@ -48,9 +48,9 @@ export default function InlineRowForm({
   return (
     <tr className="bg-[#0ea971]/5">
       <td colSpan={colSpan} className="py-2.5">
-        <div className="flex flex-wrap items-end gap-2" onKeyDown={onKeyDown}>
+        <div className="inline-row-form flex flex-wrap items-end gap-2" onKeyDown={onKeyDown}>
           {fields.map((f, i) => (
-            <div key={f.key} className={f.type === 'select' ? 'min-w-[10rem] flex-1' : 'min-w-[7rem] flex-1'}>
+            <div key={f.key} className={f.type === 'select' ? 'inline-row-field inline-row-field-select min-w-[10rem] flex-1' : 'inline-row-field min-w-[7rem] flex-1'}>
               <label
                 htmlFor={`inline-${f.key}`}
                 className="block text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-1"
@@ -84,7 +84,7 @@ export default function InlineRowForm({
             </div>
           ))}
 
-          <div className="flex items-center gap-1 pb-0.5 shrink-0">
+          <div className="inline-row-actions flex items-center gap-1 pb-0.5 shrink-0">
             <button
               type="button"
               onClick={save}

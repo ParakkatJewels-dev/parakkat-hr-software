@@ -186,8 +186,9 @@
 }
 
 /* ---- Typography scale (compact & consistent) ----------------------------- */
-main h2 { font-size: 1.375rem !important; line-height: 1.2 !important; letter-spacing: -.02em; font-weight: 700 !important; }
-main h3 { font-size: .9375rem; line-height: 1.35; letter-spacing: -.01em; font-weight: 650; }
+main h1 { font-size: 1.375rem !important; line-height: 1.2 !important; letter-spacing: 0; font-weight: 700 !important; }
+main h2 { font-size: 1.375rem !important; line-height: 1.2 !important; letter-spacing: 0; font-weight: 700 !important; }
+main h3 { font-size: .9375rem; line-height: 1.35; letter-spacing: 0; font-weight: 650; }
 
 main .text-\[8px\], main .text-\[8\.5px\], main .text-\[9px\], main .text-\[9\.5px\] { font-size: .6875rem !important; line-height: 1.35 !important; }
 main .text-\[10px\], main .text-\[10\.5px\], main .text-\[11px\] { font-size: .75rem !important; line-height: 1.4 !important; }
@@ -322,6 +323,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 /* ---- Shared page shell + standardized page header (structural, unlayered) - */
 .page-shell { width: min(100%, 1600px); margin-inline: auto; }
+.page-shell > :first-child:has(h1),
 .page-shell > :first-child:has(h2) {
   display: flex;
   align-items: center;
@@ -335,8 +337,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   color: var(--surface-text);
   box-shadow: var(--shadow-card);
 }
+.page-shell > :first-child:has(h1) h1,
 .page-shell > :first-child:has(h2) h2 { margin: 0; }
+.page-shell > :first-child:has(h1) p,
 .page-shell > :first-child:has(h2) p { max-width: 46rem; margin-top: .25rem; font-size: .8125rem !important; line-height: 1.5; color: var(--surface-text-soft); }
+.dark .page-shell > :first-child:has(h1),
 .dark .page-shell > :first-child:has(h2) { background: var(--surface-elevated); border-color: var(--surface-border); }
 .page-shell .premium-card > h3,
 .page-shell .premium-card > div > h3 { color: #142720; }
@@ -433,6 +438,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 }
 .mobile-drawer { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-left); }
+.mobile-bottom-nav { display: none; }
 
 /* ---- Responsive tuning --------------------------------------------------- */
 
@@ -451,24 +457,734 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 @media (max-width: 640px) {
+  :root {
+    --radius-card: 10px;
+    --radius-control: 9px;
+  }
+
   body { font-size: 13.5px; }
   .page-shell { width: 100%; }
+  main .page-shell > * + * {
+    margin-top: .65rem !important;
+  }
   /* The scroll area's gutter. Fluid, so it does not jump from 8px to 16px at one breakpoint —
      replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
      .page-shell so screens keep exactly one gutter, not two stacked. */
-  .app-main { padding: var(--space-shell-block) var(--space-shell); }
+  .app-main {
+    padding: .65rem var(--space-shell) calc(4.25rem + env(safe-area-inset-bottom));
+    scroll-padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+  }
   /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
      bottom edge instead of stopping flush against it. */
-  .app-main::after { content: ''; display: block; height: var(--space-shell-block); }
-  .page-shell > :first-child:has(h2) { padding: .875rem 1rem; flex-direction: column; align-items: flex-start; }
+  .app-main::after { content: ''; display: block; height: calc(1.25rem + env(safe-area-inset-bottom)); }
+  .page-shell > :first-child:has(h1),
+  .page-shell > :first-child:has(h2) {
+    padding: .7rem .8rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .45rem;
+    background:
+      radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 12%, transparent), transparent 38%),
+      var(--surface-elevated);
+  }
+  .page-shell > :first-child:has(h1) p,
+  .page-shell > :first-child:has(h2) p {
+    margin-top: .15rem;
+    font-size: .75rem !important;
+    line-height: 1.35;
+  }
+  .page-shell > :first-child:has(h1) > *,
+  .page-shell > :first-child:has(h2) > * {
+    min-width: 0;
+    width: 100%;
+  }
+  .page-shell > :first-child:has(h1) > button,
+  .page-shell > :first-child:has(h1) > a,
   .page-shell > :first-child:has(h2) > button,
-  .page-shell > :first-child:has(h2) > a { width: 100%; justify-content: center; }
+  .page-shell > :first-child:has(h2) > a {
+    justify-content: center;
+  }
+  .page-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .page-header-actions > * {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .page-header-actions button,
+  .page-header-actions a {
+    width: auto;
+    justify-content: center;
+  }
   main h2 { font-size: 1.25rem !important; }
+  main h1 { font-size: 1.25rem !important; }
+
+  main h1 svg,
+  main h2 svg {
+    width: 1rem;
+    height: 1rem;
+  }
 
   /* Horizontal tab bars (sub-navigation) scroll instead of clipping when they don't fit. */
   .tab-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
   .tab-scroll::-webkit-scrollbar { display: none; }
+
+  main .overflow-x-auto {
+    overflow-x: visible !important;
+  }
+
+  main ul.overflow-x-auto {
+    flex-wrap: wrap;
+  }
+
+  nav:has(.tab-scroll) {
+    padding-inline: .75rem !important;
+    background: color-mix(in srgb, var(--surface-elevated) 86%, transparent) !important;
+  }
+
+  .tab-scroll {
+    gap: .375rem;
+    padding-block: .5rem;
+    border-bottom: 0 !important;
+  }
+
+  .tab-scroll > button {
+    border: 1px solid var(--surface-border) !important;
+    border-radius: 999px;
+    padding: .5rem .75rem !important;
+    background: var(--surface-elevated);
+    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+  }
+
+  .tab-scroll > button[aria-current="page"] {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
+    color: var(--accent-strong) !important;
+  }
+
+  /* Narrow screens need controls to use the available width instead of preserving desktop
+     proportions. This covers the shared filter/form patterns without changing intentionally
+     compact checkboxes, radios, or icon buttons. */
+  main input:not([type="checkbox"]):not([type="radio"]),
+  main select,
+  main textarea {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  main .premium-card {
+    min-width: 0;
+  }
+
+  main .premium-card,
+  main [class*="rounded-2xl"] {
+    border-radius: var(--radius-card);
+  }
+
+  /* Two-column KPI groups remain useful on normal phones, with tighter gaps and padding. */
+  main .grid {
+    min-width: 0;
+  }
+
+  main .flex {
+    min-width: 0;
+  }
+
+  main .premium-card > .flex.items-center.justify-between,
+  main .premium-card > .flex.justify-between.items-center,
+  main .premium-card > .flex.items-start.justify-between,
+  main .page-shell > .flex.items-center.justify-between,
+  main .page-shell > .flex.justify-between.items-center {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  main .premium-card > .flex.items-center.justify-between > *,
+  main .premium-card > .flex.justify-between.items-center > *,
+  main .premium-card > .flex.items-start.justify-between > *,
+  main .page-shell > .flex.items-center.justify-between > *,
+  main .page-shell > .flex.justify-between.items-center > * {
+    min-width: 0;
+  }
+
+  main .premium-card.p-8,
+  main .premium-card.p-10,
+  main .premium-card.p-16 {
+    padding: .75rem !important;
+  }
+
+  main .p-8,
+  main .p-10,
+  main .py-8,
+  main .py-10,
+  main .py-16 {
+    padding: .85rem !important;
+  }
+
+  main .space-y-6 > :not([hidden]) ~ :not([hidden]),
+  main .space-y-5 > :not([hidden]) ~ :not([hidden]),
+  main .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: .65rem !important;
+  }
+
+  main .gap-6,
+  main .gap-5,
+  main .gap-4 {
+    gap: .65rem !important;
+  }
+
+  main .table-scroll {
+    overflow: visible;
+    max-height: none;
+    margin-inline: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  main .table-scroll table,
+  main .premium-table {
+    display: block;
+    width: 100%;
+    min-width: 0 !important;
+    overflow: visible;
+    white-space: normal;
+    font-size: .75rem;
+  }
+
+  main .premium-table thead {
+    display: none;
+  }
+
+  main .premium-table tbody,
+  main .premium-table tfoot {
+    display: grid;
+    gap: .55rem;
+  }
+
+  main .premium-table tr,
+  main .premium-table tfoot tr {
+    display: grid;
+    gap: 0;
+    border: 1px solid var(--surface-border);
+    border-radius: .9rem;
+    background: var(--surface-elevated);
+    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+    overflow: hidden;
+  }
+
+  main .premium-table td,
+  main .premium-table td.hidden,
+  main .premium-table td[class*="hidden"] {
+    display: grid !important;
+    grid-template-columns: minmax(5.25rem, 38%) minmax(0, 1fr);
+    align-items: center;
+    gap: .65rem;
+    min-width: 0;
+    width: 100%;
+    padding: .5rem .65rem !important;
+    border-bottom: 1px solid var(--surface-border);
+    text-align: left !important;
+    white-space: normal;
+    vertical-align: top;
+  }
+
+  main .premium-table tr:last-child td,
+  main .premium-table td:last-child {
+    border-bottom: 0;
+  }
+
+  main .premium-table td::before {
+    content: attr(data-label);
+    min-width: 0;
+    color: var(--surface-text-soft);
+    font-size: .62rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  main .premium-table td:not([data-label]) {
+    display: block !important;
+  }
+
+  main .premium-table td:not([data-label])::before,
+  main .premium-table td[data-label=""]::before {
+    display: none;
+  }
+
+  main .premium-table td[colspan],
+  main .premium-table td[colSpan] {
+    display: block !important;
+    text-align: center !important;
+  }
+
+  main .premium-table td > * {
+    min-width: 0;
+  }
+
+  main .premium-table td .truncate,
+  main .premium-table td[class*="truncate"] {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  main .chip {
+    min-height: 2.25rem;
+    white-space: normal;
+    justify-content: center;
+  }
+
+  main .inline-flex:not(:has(> svg:only-child)),
+  main button:not(:has(> svg:only-child)) {
+    max-width: 100%;
+  }
+
+  main button:not(:has(> svg:only-child)),
+  main a[role="button"],
+  main .checkin-btn {
+    min-height: 2.5rem;
+  }
+
+  main .filter-select {
+    flex-direction: row;
+    align-items: center;
+    min-height: 2.25rem;
+    gap: .4rem;
+    padding: .45rem .55rem;
+    border-radius: .8rem;
+  }
+
+  main .filter-select label {
+    max-width: 4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 1;
+    font-size: .58rem;
+  }
+
+  main .filter-select select {
+    min-height: 1.2rem;
+    font-size: .72rem;
+    padding-inline: 0;
+  }
+
+  main .pagination-shell {
+    position: static;
+    align-items: stretch;
+    text-align: center;
+    margin-top: .5rem;
+    padding: .5rem;
+    gap: .45rem;
+    border-radius: .9rem;
+    background: color-mix(in srgb, var(--surface-elevated) 90%, transparent);
+  }
+
+  main .pagination-pages,
+  main .pagination-size {
+    width: 100%;
+  }
+
+  main .pagination-pages {
+    flex-wrap: nowrap;
+    gap: .25rem;
+  }
+
+  main .pagination-pages > span,
+  main .pagination-number:not([aria-current="page"]) {
+    display: none;
+  }
+
+  main .pagination-number[aria-current="page"]::before {
+    content: "Page ";
+    font-weight: 700;
+  }
+
+  main .pagination-size select {
+    width: auto;
+    min-width: 3.75rem;
+  }
+
+  main .form-section-header {
+    gap: .75rem;
+  }
+
+  main .form-section-actions,
+  main .form-section-actions > button {
+    width: 100%;
+  }
+
+  main .inline-row-form {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  main .inline-row-field,
+  main .inline-row-field-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  main .inline-row-actions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  main .inline-row-actions button {
+    flex: 1 1 0;
+  }
+
+  main .mobile-list-row {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: .625rem;
+  }
+
+  main .mobile-list-row > * {
+    min-width: 0;
+  }
+
+  main .mobile-list-actions {
+    width: 100%;
+    justify-content: flex-start;
+    align-items: center;
+    text-align: left;
+    gap: .5rem;
+  }
+
+  main .mobile-list-actions > button:not(:has(> svg:only-child)),
+  main .mobile-list-actions > a,
+  main .mobile-list-actions > .inline-flex:not(:has(> svg:only-child)) {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  main .mobile-list-actions select {
+    width: auto;
+    max-width: 100%;
+  }
+
+  main .mobile-toolbar {
+    align-items: stretch;
+  }
+
+  main .mobile-toolbar > *,
+  main .mobile-toolbar-actions {
+    width: 100%;
+  }
+
+  main .mobile-segmented {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: .5rem;
+  }
+
+  main .mobile-segmented > button {
+    width: 100%;
+    min-height: 2.6rem;
+  }
+
+  main .mobile-segmented > button:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  main .mobile-segmented .drawer-tab {
+    justify-content: center;
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    padding: .625rem .75rem;
+    background: var(--surface-elevated);
+    letter-spacing: 0;
+    text-transform: none;
+    font-size: .75rem;
+    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+  }
+
+  main .mobile-segmented .drawer-tab-active {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
+    color: var(--accent-strong) !important;
+    box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  main .mobile-toolbar-actions {
+    flex-wrap: wrap;
+  }
+
+  main .mobile-toolbar-actions > button,
+  main .mobile-toolbar-actions > div {
+    flex: 1 1 100%;
+  }
+
+  main .dashboard-kpi-row {
+    gap: .625rem;
+  }
+
+  main .mobile-filter-card {
+    border-radius: 1rem;
+    padding: .55rem !important;
+    gap: .5rem;
+  }
+
+  main .mobile-filter-card .grid {
+    gap: .45rem;
+  }
+
+  main .mobile-filter-card input,
+  main .mobile-filter-card select {
+    min-height: 2.15rem;
+    font-size: .75rem;
+  }
+
+  main .mobile-filter-card .directory-filter-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .4rem;
+    padding-top: .5rem;
+  }
+
+  main .mobile-filter-card .directory-filter-row > button {
+    grid-column: 1 / -1;
+    min-height: 2rem;
+    padding-block: .25rem;
+    font-size: .75rem;
+  }
+
+  main article.premium-card,
+  main button.premium-card {
+    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+  }
+
+  main button.premium-card {
+    min-height: 5rem;
+  }
+
+  main .mobile-detail-panel {
+    margin-top: 0 !important;
+  }
+
+  main .mobile-detail-panel > .premium-card,
+  main .mobile-detail-panel .premium-card {
+    border-radius: .95rem;
+  }
+
+  main .mobile-detail-panel .drawer-tab {
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: .72rem;
+  }
+
+  main .dashboard-kpi {
+    min-height: 7rem;
+  }
+
+  main .dashboard-kpi .text-xl {
+    font-size: 1.125rem;
+    line-height: 1.1;
+    word-break: break-word;
+  }
+
+  main .quick-actions-grid button {
+    min-height: 3rem;
+  }
+
+  .login-screen {
+    align-items: flex-start;
+    padding-top: max(1.25rem, env(safe-area-inset-top));
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+
+  .login-card {
+    padding: 1rem;
+    border-radius: var(--radius-card);
+  }
+
+  .app-header {
+    align-items: center;
+    min-height: calc(3.75rem + env(safe-area-inset-top));
+    box-shadow: 0 1px 0 var(--surface-border);
+  }
+
+  .app-header-actions {
+    gap: .125rem;
+    flex-shrink: 0;
+  }
+
+  .app-header-actions > button,
+  .app-header-actions > div[role="status"] {
+    padding-inline: .5rem;
+  }
+
+  .command-palette-input {
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+
+  .command-palette-input input {
+    min-width: 0;
+    flex: 1 1 calc(100% - 2rem);
+  }
+
+  .command-palette-input button {
+    width: 100%;
+  }
+
+  .mobile-menu-trigger {
+    display: none;
+  }
+
+  .mobile-drawer {
+    align-items: flex-end;
+    justify-content: center;
+    padding: .75rem;
+  }
+
+  .mobile-drawer-panel {
+    width: min(100%, 27rem) !important;
+    height: auto !important;
+    max-height: min(70dvh, 34rem);
+    padding: .75rem !important;
+    border: 1px solid color-mix(in srgb, var(--surface-border-strong) 80%, transparent);
+    border-radius: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom) / 2) calc(1.5rem + env(safe-area-inset-bottom) / 2);
+    background: color-mix(in srgb, var(--surface-elevated) 90%, transparent) !important;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .32);
+    backdrop-filter: blur(22px) saturate(1.15);
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
+  }
+
+  .mobile-drawer-panel > button[aria-label="Close navigation menu"] {
+    top: .75rem;
+    right: .75rem;
+    width: 2.35rem;
+    height: 2.35rem;
+  }
+
+  .mobile-drawer-panel nav {
+    max-height: 42dvh;
+  }
+
+  .mobile-drawer-panel nav > div {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .45rem;
+  }
+
+  .mobile-drawer-panel nav button {
+    min-height: 4.25rem;
+    flex-direction: column;
+    justify-content: center;
+    gap: .35rem !important;
+    border-radius: 1rem;
+    padding: .55rem !important;
+    text-align: center;
+    font-size: .7rem;
+    line-height: 1.15;
+  }
+
+  .mobile-bottom-nav {
+    position: fixed;
+    left: max(.55rem, env(safe-area-inset-left));
+    right: max(.55rem, env(safe-area-inset-right));
+    bottom: max(.55rem, env(safe-area-inset-bottom));
+    z-index: 40;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: .18rem;
+    width: auto;
+    padding: .28rem;
+    border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
+    border-radius: 999px;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.16)),
+      color-mix(in srgb, var(--surface-elevated) 62%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.42),
+      0 12px 34px rgba(16, 32, 26, .18);
+    backdrop-filter: blur(24px) saturate(1.35);
+  }
+
+  .mobile-bottom-nav-item {
+    min-width: 0;
+    min-height: 2.55rem !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: var(--surface-text-soft);
+    transition: background .16s ease, color .16s ease, transform .16s ease;
+  }
+
+  .mobile-bottom-nav-item-active {
+    background: var(--accent);
+    color: #fff;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.28),
+      0 8px 18px color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+
+  .dark .mobile-bottom-nav {
+    border-color: rgba(255,255,255,.1);
+    background:
+      linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04)),
+      color-mix(in srgb, var(--surface-elevated) 62%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.08),
+      0 18px 50px rgba(0, 0, 0, .52);
+  }
+
+  .dark .mobile-bottom-nav-item-active {
+    color: #04120c;
+  }
+}
+
+@media (max-width: 380px) {
+  :root {
+    --space-shell: .5rem;
+    --space-card: .625rem;
+  }
+
+  .app-header {
+    min-height: calc(3.5rem + env(safe-area-inset-top));
+    padding-left: max(.5rem, env(safe-area-inset-left));
+    padding-right: max(.5rem, env(safe-area-inset-right));
+    gap: .25rem;
+  }
+
+  .app-header > div:first-of-type {
+    min-width: 0;
+    gap: .25rem;
+  }
+
+  .app-header > div:last-of-type {
+    flex-shrink: 0;
+    gap: 0;
+  }
+
+  .page-shell > :first-child:has(h1),
+  .page-shell > :first-child:has(h2) {
+    padding: .75rem;
+  }
+
+  main h1 {
+    font-size: 1.125rem !important;
+  }
+
+  main h2 {
+    font-size: 1.125rem !important;
+  }
+
+  /* Four KPI tiles at phone widths become illegible; retain a useful two-column minimum. */
+  main .grid-cols-4,
+  main .grid-cols-5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* ---- Touch targets ------------------------------------------------------- */

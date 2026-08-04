@@ -87,13 +87,13 @@ export default function FormSection({
     <Tag
       ref={ref}
       {...(onSubmit ? { onSubmit } : {})}
-      className="premium-card space-y-4 animate-fade-in scroll-mt-4"
+      className="premium-card form-section space-y-4 animate-fade-in scroll-mt-4"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="form-section-header flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon size={15} className="text-[#0ea971] shrink-0" />}
           <div className="min-w-0">
-            <h3 className="font-bold text-sm text-neutral-900 dark:text-white truncate">{title}</h3>
+            <h3 className="font-bold text-sm text-neutral-900 dark:text-white">{title}</h3>
             {subtitle && <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
           </div>
         </div>
@@ -115,7 +115,7 @@ export default function FormSection({
       {(onSubmit || footer) && (
         <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 pt-3 border-t border-neutral-200/70 dark:border-neutral-850">
           {footer}
-          <div className="flex flex-col-reverse sm:flex-row gap-2 sm:ml-auto">
+          <div className="form-section-actions flex flex-col-reverse sm:flex-row gap-2 sm:ml-auto">
             {onClose && (
               <button
                 type="button"

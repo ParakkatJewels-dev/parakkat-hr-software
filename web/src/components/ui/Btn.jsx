@@ -12,7 +12,7 @@ import { Loader2 } from 'lucide-react';
 
 const BASE =
   'inline-flex items-center justify-center gap-1.5 font-bold rounded-lg cursor-pointer ' +
-  'transition-colors select-none whitespace-nowrap ' +
+  'transition-colors select-none whitespace-normal sm:whitespace-nowrap ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ' +
   'disabled:opacity-45 disabled:cursor-not-allowed';
 

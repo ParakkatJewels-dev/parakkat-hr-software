@@ -43,7 +43,7 @@ export function PunchCard({ onNavigate }) {
         <EmptyNote>No attendance record for today yet.</EmptyNote>
       ) : (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="mobile-list-row flex items-center justify-between">
             <span className={`text-2xs font-bold px-2 py-1 rounded-lg ${STATUS_STYLES[row.status] || 'bg-neutral-150 text-neutral-600'}`}>
               {row.status}
             </span>
@@ -66,7 +66,7 @@ export function PunchCard({ onNavigate }) {
             ))}
           </div>
           {(row.is_late || row.is_missing_punch) && (
-            <div className="flex items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5">
+            <div className="mobile-list-row flex items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5">
               <span className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
                 {row.is_missing_punch ? 'Missing punch today' : `Late by ${fmtMinutes(row.late_minutes)}`}
               </span>
@@ -143,7 +143,7 @@ export function MyLeaveBalances({ onNavigate }) {
                 onClick={() => onNavigate?.('leave')}
                 className="w-full text-left rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-2 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
               >
-                <div className="flex items-center justify-between">
+                <div className="mobile-list-row flex items-center justify-between">
                   <span className="text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
                     {b.leave_type?.name || b.leave_type?.code}
                   </span>
@@ -243,7 +243,7 @@ export function MyTasks({ onNavigate }) {
           {mine.map((t) => {
             const overdue = t.due_date && t.due_date < today;
             return (
-              <div key={t.id} className="flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5">
+              <div key={t.id} className="mobile-list-row flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5">
                 <button
                   onClick={() => updateTask.mutate({ id: t.id, status: 'Done' })}
                   title="Mark done" aria-label="Mark done"
@@ -285,7 +285,7 @@ export function MyPayslip({ onNavigate }) {
       ) : (
         <button
           onClick={() => onNavigate?.('payroll')}
-          className="w-full flex items-center justify-between rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 text-left cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+          className="mobile-list-row w-full flex items-center justify-between rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 text-left cursor-pointer hover:border-[#0ea971]/40 transition-colors"
         >
           <div>
             <p className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">{latest.period}</p>

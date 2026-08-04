@@ -33,7 +33,7 @@ function ReportTable({ headers, rows, footer }) {
   }
   return (
     <div className="table-scroll">
-      <table className="w-full text-left">
+      <table className="premium-table w-full text-left">
         <thead>
           <tr className="border-b border-neutral-200/70 dark:border-neutral-850">
             {headers.map((h, i) => (
@@ -45,7 +45,7 @@ function ReportTable({ headers, rows, footer }) {
           {rows.map((r, ri) => (
             <tr key={ri} className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0">
               {r.map((cell, ci) => (
-                <td key={ci} className={ci === 0 ? tdName : `${td} text-right`}>{cell}</td>
+                <td key={ci} data-label={headers[ci]} className={ci === 0 ? tdName : `${td} text-right`}>{cell}</td>
               ))}
             </tr>
           ))}
@@ -54,7 +54,7 @@ function ReportTable({ headers, rows, footer }) {
           <tfoot>
             <tr className="border-t-2 border-neutral-200 dark:border-neutral-800">
               {footer.map((cell, ci) => (
-                <td key={ci} className={`${ci === 0 ? tdName : `${td} text-right`} font-bold pt-2`}>{cell}</td>
+                <td key={ci} data-label={headers[ci]} className={`${ci === 0 ? tdName : `${td} text-right`} font-bold pt-2`}>{cell}</td>
               ))}
             </tr>
           </tfoot>
@@ -209,7 +209,7 @@ export default function ReportsAnalytics() {
       </div>
 
       {/* Filters */}
-      <div className="premium-card flex flex-wrap items-center gap-3">
+      <div className="premium-card mobile-toolbar flex flex-wrap items-center gap-3">
         <input
           type="month"
           value={period}
@@ -227,7 +227,7 @@ export default function ReportsAnalytics() {
             <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
           ))}
         </select>
-        <div className="flex gap-1.5 ml-auto">
+        <div className="mobile-segmented flex gap-1.5 ml-auto">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -247,11 +247,11 @@ export default function ReportsAnalytics() {
       {/* Attendance */}
       {tab === 'attendance' && (
         <section className="premium-card space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
               <BarChart3 size={13} className="text-[#0ea971]" /> Attendance Summary · {period}
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="mobile-list-actions flex flex-wrap gap-2">
               <ExportButton
                 label="Register (Excel)"
                 icon={FileSpreadsheet}
@@ -318,11 +318,11 @@ export default function ReportsAnalytics() {
       {/* Leave */}
       {tab === 'leave' && (
         <section className="premium-card space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
               <CalendarDays size={13} className="text-[#0ea971]" /> Leave Report · {period}
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="mobile-list-actions flex flex-wrap gap-2">
               <ExportButton
                 label="Requests (CSV)"
                 onClick={() =>
@@ -374,7 +374,7 @@ export default function ReportsAnalytics() {
       {/* Expenses */}
       {tab === 'expenses' && (
         <section className="premium-card space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
               <ReceiptText size={13} className="text-[#0ea971]" /> Expense Report · {period}
             </h3>
@@ -408,7 +408,7 @@ export default function ReportsAnalytics() {
       {/* Headcount */}
       {tab === 'headcount' && (
         <section className="premium-card space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
               <Users size={13} className="text-[#0ea971]" /> Headcount & Movement · {period}
             </h3>
