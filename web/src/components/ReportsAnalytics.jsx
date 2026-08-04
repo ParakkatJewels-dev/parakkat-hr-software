@@ -7,7 +7,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   BarChart3, CalendarDays, Clock, FileSpreadsheet, Loader2, ReceiptText,
-  Users, AlertCircle, Download,
+  Users, AlertCircle, Download, SlidersHorizontal, X,
 } from 'lucide-react';
 import { useOrg } from '../data/org';
 import { useEmployees } from '../data/employees';
@@ -92,6 +92,7 @@ export default function ReportsAnalytics() {
   const today = todayIso();
   const [period, setPeriod] = useState(today.slice(0, 7)); // 'YYYY-MM'
   const [branchId, setBranchId] = useState('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // In the URL, so a refresh comes back to the report you were reading.
   // The whitelist comes from TABS itself. Hand-written, the two drifted: the list said
   // 'payroll' — a tab that does not exist and renders a blank page at /reports/payroll — and
@@ -109,6 +110,8 @@ export default function ReportsAnalytics() {
     () => [...(org?.branches ?? [])].sort((a, b) => (a.code || '').localeCompare(b.code || '')),
     [org]
   );
+  const selectedBranch = branches.find((b) => b.id === branchId);
+  const branchLabel = selectedBranch ? `${selectedBranch.code} — ${selectedBranch.name}` : 'All branches';
   // Match on branch_id, not code: a branch with an empty code made the filter a no-op on three
   // of the four tabs while the attendance tab still filtered — same screen, disagreeing numbers.
   const inBranch = (empBranchId) => branchId === 'all' || empBranchId === branchId;
@@ -209,7 +212,7 @@ export default function ReportsAnalytics() {
       </div>
 
       {/* Filters */}
-      <div className="premium-card mobile-toolbar flex flex-wrap items-center gap-3">
+      <div className="premium-card mobile-filter-card mobile-toolbar flex flex-col sm:flex-row sm:items-center gap-3">
         <input
           type="month"
           value={period}
@@ -217,16 +220,44 @@ export default function ReportsAnalytics() {
           onChange={(e) => e.target.value && setPeriod(e.target.value)}
           className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/50"
         />
-        <select
-          value={branchId}
-          onChange={(e) => setBranchId(e.target.value)}
-          className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/50 cursor-pointer"
+        {branchId !== 'all' && (
+          <div className="mobile-active-filter-row flex flex-wrap items-center gap-1.5 sm:hidden">
+            <button
+              onClick={() => { setBranchId('all'); setFiltersOpen(false); }}
+              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-[#0ea971]/25 bg-[#0ea971]/10 px-2.5 py-1 text-xs font-bold text-[#0c9765] dark:text-[#10b981]"
+              title={`Remove ${branchLabel}`}
+            >
+              <span className="truncate">{branchLabel}</span>
+              <X size={12} />
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          className="mobile-filter-toggle sm:hidden"
         >
-          <option value="all">All branches (in your scope)</option>
-          {branches.map((b) => (
-            <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
-          ))}
-        </select>
+          <span className="inline-flex items-center gap-1.5">
+            <SlidersHorizontal size={14} /> Branch filter
+          </span>
+          <span>{branchId === 'all' ? 'All' : '1 active'}</span>
+        </button>
+        <div className={`reports-filter-row mobile-filter-panel ${filtersOpen ? 'is-open' : ''}`}>
+          <select
+            value={branchId}
+            onChange={(e) => {
+              setBranchId(e.target.value);
+              if (e.target.value !== 'all') setFiltersOpen(false);
+            }}
+            className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/50 cursor-pointer"
+          >
+            <option value="all">All branches (in your scope)</option>
+            {branches.map((b) => (
+              <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+            ))}
+          </select>
+        </div>
         <div className="mobile-segmented flex gap-1.5 ml-auto">
           {TABS.map((t) => (
             <button

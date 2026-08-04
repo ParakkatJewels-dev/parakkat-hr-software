@@ -8,6 +8,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
   CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
+  SlidersHorizontal,
 } from 'lucide-react';
 import {
   useAttendanceSummary, useMonthlyAttendance, useAttendanceExceptions,
@@ -90,6 +91,7 @@ function TodayView({ workDate, setWorkDate }) {
   const [company, setCompany] = useState('All companies');
   const [branch, setBranch] = useState('All branches');
   const [dept, setDept] = useState('All departments');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   // The chips above cover the three questions asked every morning. This covers the rest —
   // Half Day, On Leave, Missing Punch, No Shift — which have no chip and were unreachable.
   const [status, setStatus] = useState('All statuses');
@@ -157,7 +159,16 @@ function TodayView({ workDate, setWorkDate }) {
   const clearFilters = () => {
     setQuery(''); setCompany('All companies'); setBranch('All branches');
     setDept('All departments'); setStatus('All statuses');
+    setFiltersOpen(false);
   };
+
+  const activeFilterChips = [
+    query ? { id: 'query', label: `Search: ${query}`, clear: () => setQuery('') } : null,
+    company !== 'All companies' ? { id: 'company', label: company, clear: () => setCompany('All companies') } : null,
+    branch !== 'All branches' ? { id: 'branch', label: branch, clear: () => setBranch('All branches') } : null,
+    dept !== 'All departments' ? { id: 'dept', label: dept, clear: () => setDept('All departments') } : null,
+    status !== 'All statuses' ? { id: 'status', label: status, clear: () => setStatus('All statuses') } : null,
+  ].filter(Boolean);
 
   const filters = [
     { id: 'all', label: `All (${summary.total})` },
@@ -196,7 +207,7 @@ function TodayView({ workDate, setWorkDate }) {
         <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber" />
       </div>
 
-      <div className="premium-card space-y-3">
+      <div className="premium-card mobile-filter-card space-y-3">
         <div className="mobile-toolbar flex flex-wrap items-center gap-2">
           <input
             type="date"
@@ -222,8 +233,39 @@ function TodayView({ workDate, setWorkDate }) {
           </button>
         </div>
 
+        <div className="mobile-active-filter-row flex flex-wrap items-center gap-1.5">
+          {activeFilterChips.map((chip) => (
+            <button
+              key={chip.id}
+              onClick={chip.clear}
+              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-[#0ea971]/25 bg-[#0ea971]/10 px-2.5 py-1 text-xs font-bold text-[#0c9765] dark:text-[#10b981]"
+              title={`Remove ${chip.label}`}
+            >
+              <span className="truncate">{chip.label}</span>
+              <XCircle size={12} />
+            </button>
+          ))}
+          {activeFilters > 0 && (
+            <button onClick={clearFilters} className="text-xs font-bold text-neutral-450 hover:text-red-600">
+              Clear all
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          className="mobile-filter-toggle sm:hidden"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <SlidersHorizontal size={14} /> More filters
+          </span>
+          <span>{activeFilters ? `${activeFilters} active` : 'Optional'}</span>
+        </button>
+
         {/* Where — company, branch, department. The status chips below answer "what". */}
-        <div className="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850">
+        <div className={`attendance-filter-row mobile-filter-panel ${filtersOpen ? 'is-open' : ''} grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850`}>
           <FilterSelect label="Company" value={company} options={companyOptions}
             onChange={setCompany} allValue="All companies" />
           <FilterSelect label="Branch" value={branch} options={branchOptions}
@@ -234,7 +276,7 @@ function TodayView({ workDate, setWorkDate }) {
             onChange={setStatus} allValue="All statuses" />
           {activeFilters > 0 && (
             <button onClick={clearFilters}
-              className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-red-600 dark:hover:text-red-400 cursor-pointer sm:ml-auto py-1.5">
+              className="hidden sm:inline-flex items-center justify-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-red-600 dark:hover:text-red-400 cursor-pointer sm:ml-auto py-1.5">
               <XCircle size={12} /> Clear {activeFilters} filter{activeFilters === 1 ? '' : 's'}
             </button>
           )}

@@ -1120,14 +1120,17 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     font-size: .75rem;
   }
 
-  main .mobile-filter-card .directory-filter-row {
-    display: grid;
+  main .mobile-filter-card .mobile-filter-panel {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: .4rem;
     padding-top: .5rem;
   }
 
-  main .mobile-filter-card .directory-filter-row > button {
+  main .mobile-filter-card .reports-filter-row {
+    grid-template-columns: 1fr;
+  }
+
+  main .mobile-filter-card .mobile-filter-panel > button {
     grid-column: 1 / -1;
     min-height: 2rem;
     padding-block: .25rem;
