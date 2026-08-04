@@ -1176,6 +1176,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       0 8px 18px color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
+  /* Final mobile anti-zoom guard. Keep this near the end of the mobile block so page-specific
+     compact rules such as filter selects and pagination sizes cannot shrink controls below the
+     16px threshold that triggers browser auto-zoom on focus. */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+  }
+
   .dark .mobile-bottom-nav {
     border-color: rgba(255,255,255,.1);
     background:
