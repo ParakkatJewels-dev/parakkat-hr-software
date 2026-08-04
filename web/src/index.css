@@ -165,6 +165,11 @@
   }
   .dark body { background-color: var(--surface-bg); color: var(--surface-text); }
 
+  #root {
+    min-height: 100vh;
+    background: var(--surface-bg);
+  }
+
   button, input, select, textarea { font: inherit; }
   button:not(:disabled), [role="button"] { cursor: pointer; }
   button:focus-visible, input:focus-visible, select:focus-visible,
@@ -1008,6 +1013,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .app-header {
     align-items: center;
     min-height: calc(3.75rem + env(safe-area-inset-top));
+    background:
+      color-mix(in srgb, var(--surface-elevated) 88%, transparent) !important;
     box-shadow: 0 1px 0 var(--surface-border);
   }
 

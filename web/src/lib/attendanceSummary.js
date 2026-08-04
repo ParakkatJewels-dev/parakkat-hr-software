@@ -182,6 +182,7 @@ export function summarise(rows) {
     shortDays,
     hoursMetRate: attended ? Math.round(((attended - shortDays) / attended) * 100) : null,
     // The headline figure: everything worked, overtime included.
+    workedMinutes,
     workedHours: Math.round((workedMinutes / 60) * 10) / 10,
     // What the clock actually saw them inside for, over the days it could be seen at all.
     insideHours: Math.round((insideTotal / 60) * 10) / 10,
@@ -196,8 +197,11 @@ export function summarise(rows) {
     // "normal + ot" beneath the headline and claims they add up; rounding all three separately
     // meant round(a) + round(b) != round(a+b) for 39 of 162 people — PPL-0065 showed a headline of
     // 245.7 over a sub-line reading "229.2 + 16.6", which is 245.8.
+    normalMinutes,
     normalHours: Math.round((workedMinutes / 60) * 10) / 10 - Math.round((otMinutes / 60) * 10) / 10,
+    otMinutes,
     otHours: Math.round((otMinutes / 60) * 10) / 10,
+    offDayOtMinutes,
     offDayOtHours: Math.round((offDayOtMinutes / 60) * 10) / 10,
     lateMinutes,
     avgLatePerLateDay: lateDays ? Math.round(lateMinutes / lateDays) : 0,

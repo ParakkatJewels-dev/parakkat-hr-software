@@ -11,7 +11,7 @@ import {
   CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search,
 } from 'lucide-react';
 import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
-import { fmtTime } from '../data/attendance';
+import { fmtMinutes, fmtTime } from '../data/attendance';
 import { formatMinutesOfDay } from '../lib/clock';
 import { useClockFormat } from '../lib/timeFormat';
 import { explainDay, asHoursMinutes, onSiteMinutes, insideMinutes } from '../lib/attendanceSummary';
@@ -243,13 +243,13 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                     "Total hours, of which some is overtime" kept reading as though the overtime
                     was extra on top. Regular and Overtime are disjoint, Total is their sum, and
                     nobody has to work out which contains which. */}
-                <Stat label="Regular hours" value={`${summary.normalHours} h`}
+                <Stat label="Regular hours" value={fmtMinutes(summary.normalMinutes)}
                   sub="not counting overtime" />
                 {/* "plus N h on days off" was accurate only while the total excluded them. Now
                     that it does not, "plus" would read as extra on top and count Sunday twice. */}
-                <Stat label="Overtime" value={`${summary.otHours} h`}
+                <Stat label="Overtime" value={fmtMinutes(summary.otMinutes)}
                   sub={summary.offDayOtHours
-                    ? `includes ${summary.offDayOtHours} h worked on days off`
+                    ? `includes ${fmtMinutes(summary.offDayOtMinutes)} worked on days off`
                     : 'beyond a full day'}
                   tone={summary.otHours > 0 ? 'green' : undefined} />
                 {/* Two figures, because they answer two questions and only one of them was on the
@@ -257,8 +257,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                     day spent inside for 8 hours with an hour's lunch is credited 8h40m. "Inside"
                     is what the clock actually saw. Showing only the payable number left "how long
                     was I really here" unanswerable without adding up the punches by hand. */}
-                <Stat label="Total hours" value={`${summary.workedHours} h`}
-                  sub={`${summary.normalHours} + ${summary.otHours}`} tone="green" />
+                <Stat label="Total hours" value={fmtMinutes(summary.workedMinutes)}
+                  sub={`${fmtMinutes(summary.normalMinutes)} + ${fmtMinutes(summary.otMinutes)}`} tone="green" />
                 {/* The sub-line must never be workedHours - insideHours. Those two are totalled over
                     different sets of days whenever anything is unmeasurable, and the difference then
                     reads as break allowance that nobody took — 90.8 h of it for a person whose every
