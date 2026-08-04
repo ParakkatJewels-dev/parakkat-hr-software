@@ -675,9 +675,9 @@ export default function App() {
         {activeSection && activeSection.tabs.length > 1 && (
           <nav
             aria-label={`${activeSection.label} sections`}
-            className="shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-white/70 dark:bg-charcoal-900/60 backdrop-blur-sm px-4 sm:px-6"
+            className="section-tabbar shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-white/70 dark:bg-charcoal-900/60 backdrop-blur-sm px-4 sm:px-6"
           >
-            <div className="tab-scroll flex gap-5 -mb-px">
+            <div className="section-tab-scroll tab-scroll flex gap-5 -mb-px">
               {activeSection.tabs.map((t) => {
                 const on = activeTab === t.id;
                 return (
@@ -685,7 +685,7 @@ export default function App() {
                     key={t.id}
                     onClick={() => setActiveTab(t.id)}
                     aria-current={on ? 'page' : undefined}
-                    className={`shrink-0 whitespace-nowrap py-2.5 text-base font-semibold border-b-2 cursor-pointer transition-colors ${
+                    className={`section-tab-button shrink-0 whitespace-nowrap py-2.5 text-base font-semibold border-b-2 cursor-pointer transition-colors ${
                       on
                         ? 'border-[#0ea971] text-[#0ea971]'
                         : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'

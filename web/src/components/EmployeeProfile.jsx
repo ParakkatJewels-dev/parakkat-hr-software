@@ -203,7 +203,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
           </div>
 
           {/* Tab switcher */}
-          <div className="flex p-0.5 bg-neutral-100 dark:bg-charcoal-800/60 rounded-xl mt-3.5" role="tablist">
+          <div className="profile-tabbar mobile-segmented flex p-0.5 bg-neutral-100 dark:bg-charcoal-800/60 rounded-xl mt-3.5" role="tablist">
             {TABS.map(([key, label]) => (
               <button
                 key={key}

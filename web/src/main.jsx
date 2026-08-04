@@ -15,6 +15,20 @@ import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import { initNative } from './mobile/native';
 import { registerServiceWorker } from './lib/pwa';
 
+function normalizeHashRoute() {
+  const { pathname, search, hash } = window.location;
+  const cleanAppPath =
+    pathname !== '/' &&
+    pathname !== '/index.html' &&
+    !pathname.includes('.') &&
+    !pathname.startsWith('/api/');
+
+  if (!hash && cleanAppPath) {
+    window.history.replaceState(null, '', `/#${pathname}${search}`);
+  }
+}
+
+normalizeHashRoute();
 initNative();
 registerServiceWorker();
 

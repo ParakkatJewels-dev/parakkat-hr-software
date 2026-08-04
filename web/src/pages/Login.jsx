@@ -4,6 +4,9 @@ import { LogIn, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 
+const LOGIN_INPUT =
+  'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-[16px] sm:text-sm focus:outline-none focus:border-[#0ea971] transition-colors';
+
 export default function Login() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
@@ -66,7 +69,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@parakkatjewels.com"
-                className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0ea971] transition-colors"
+                className={LOGIN_INPUT}
               />
             </div>
             <div>
@@ -79,7 +82,7 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#0ea971] transition-colors"
+                className={LOGIN_INPUT}
               />
             </div>
 

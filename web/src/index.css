@@ -594,6 +594,76 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     color: var(--accent-strong) !important;
   }
 
+  .section-tabbar {
+    padding: .45rem var(--space-shell);
+    background:
+      linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 92%, transparent), color-mix(in srgb, var(--surface-elevated) 78%, transparent)) !important;
+  }
+
+  .section-tab-scroll {
+    gap: .38rem !important;
+    margin-bottom: 0 !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .section-tab-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
+  .section-tab-button {
+    min-height: 2.2rem;
+    padding: .45rem .7rem !important;
+    border: 1px solid var(--surface-border) !important;
+    border-radius: 999px;
+    background: var(--surface-elevated);
+    font-size: .75rem !important;
+    line-height: 1;
+    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+  }
+
+  .section-tab-button[aria-current="page"] {
+    background: var(--accent-soft);
+    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
+    color: var(--accent-strong) !important;
+  }
+
+  .mobile-segmented {
+    width: 100%;
+    gap: .45rem !important;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .mobile-segmented::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mobile-segmented > button,
+  .mobile-segmented [role="tab"] {
+    min-height: 2.35rem;
+    justify-content: center;
+    border: 1px solid var(--surface-border) !important;
+    border-radius: 999px !important;
+    padding: .5rem .7rem !important;
+    background: var(--surface-elevated);
+    font-size: .75rem !important;
+    line-height: 1.1;
+    letter-spacing: 0 !important;
+    text-transform: none !important;
+    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+  }
+
+  .mobile-segmented > button[aria-current="page"],
+  .mobile-segmented [role="tab"][aria-selected="true"],
+  .mobile-segmented .drawer-tab-active {
+    background: var(--accent-soft) !important;
+    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
+    color: var(--accent-strong) !important;
+  }
+
   /* Narrow screens need controls to use the available width instead of preserving desktop
      proportions. This covers the shared filter/form patterns without changing intentionally
      compact checkboxes, radios, or icon buttons. */
@@ -1184,6 +1254,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   textarea {
     font-size: 16px !important;
     line-height: 1.2 !important;
+  }
+
+  .login-screen input:not([type="checkbox"]):not([type="radio"]),
+  .login-screen select,
+  .login-screen textarea {
+    font-size: 16px !important;
+    line-height: 1.2 !important;
+    transform: translateZ(0);
   }
 
   .dark .mobile-bottom-nav {

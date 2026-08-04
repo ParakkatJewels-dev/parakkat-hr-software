@@ -126,6 +126,9 @@ async function navigationResponse(event) {
     }
 
     const response = await fetch(event.request);
+    if (!response.ok) {
+      return cachedShellFallback();
+    }
     await putShellResponse(response.clone());
     return response;
   } catch {
