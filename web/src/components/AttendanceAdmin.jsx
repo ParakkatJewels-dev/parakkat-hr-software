@@ -230,6 +230,7 @@ function MappingTab() {
             <button
               key={f.id || 'all'}
               onClick={() => setStatus(f.id)}
+              aria-current={status === f.id ? 'page' : undefined}
               className={`chip text-xs ${status === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
             >
               {f.label}
@@ -1005,7 +1006,7 @@ export default function AttendanceAdmin() {
         {visible.map((t) => {
           const Icon = t.icon;
           return (
-            <button key={t.id} onClick={() => setTab(t.id)}
+            <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}
               className={`drawer-tab flex items-center gap-1.5 ${tab === t.id ? 'drawer-tab-active' : ''}`}>
               <Icon size={13} /> {t.label}
             </button>

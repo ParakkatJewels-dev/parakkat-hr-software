@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useDeferredValue } from 'react';
 import {
   Search, User, ArrowLeft, ArrowRight, X, AlertTriangle,
-  List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3
+  List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal
 } from 'lucide-react';
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from '../data/employees';
 import { useOrg } from '../data/org';
@@ -64,6 +64,7 @@ export default function Directory() {
   const [selectedDept, setSelectedDept] = useState('All Departments');
   const [selectedBranch, setSelectedBranch] = useState('All Branches');
   const [sortBy, setSortBy] = useState('name-asc');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [viewMode, setViewMode] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'grid' : 'list'
   );
@@ -149,7 +150,16 @@ export default function Directory() {
     setSelectedStatus('All Statuses');
     setSelectedDept('All Departments');
     setSelectedBranch('All Branches');
+    setFiltersOpen(false);
   };
+
+  const activeFilterChips = [
+    search ? { label: 'Search', value: search, clear: () => setSearch('') } : null,
+    selectedEntity !== 'All Entities' ? { label: 'Company', value: selectedEntity, clear: () => setSelectedEntity('All Entities') } : null,
+    selectedBranch !== 'All Branches' ? { label: 'Branch', value: selectedBranch, clear: () => setSelectedBranch('All Branches') } : null,
+    selectedDept !== 'All Departments' ? { label: 'Dept', value: selectedDept, clear: () => setSelectedDept('All Departments') } : null,
+    selectedStatus !== 'All Statuses' ? { label: 'Status', value: selectedStatus, clear: () => setSelectedStatus('All Statuses') } : null,
+  ].filter(Boolean);
 
   // Clicking a column header sorts by it, and clicking the active one flips direction — the
   // convention for any table of records. The sort dropdown stays in step.
@@ -467,8 +477,44 @@ export default function Directory() {
           </div>
         </div>
 
+        <div className="mobile-active-filter-row flex flex-wrap items-center gap-1.5">
+          {activeFilterChips.map((chip) => (
+            <button
+              key={`${chip.label}-${chip.value}`}
+              type="button"
+              onClick={chip.clear}
+              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-[#0ea971]/25 bg-[#0ea971]/10 px-2.5 py-1 text-xs font-bold text-[#0c9765] dark:text-[#10b981]"
+              title={`Clear ${chip.label}`}
+            >
+              <span className="text-2xs uppercase tracking-wider opacity-75">{chip.label}</span>
+              <span className="max-w-[9rem] truncate">{chip.value}</span>
+              <X size={11} />
+            </button>
+          ))}
+          {activeFilterCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center justify-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-red-600 dark:hover:text-red-400 transition-colors cursor-pointer py-1"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          aria-expanded={filtersOpen}
+          className="mobile-filter-toggle sm:hidden"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <SlidersHorizontal size={14} /> Filters
+          </span>
+          <span>{activeFilterCount ? `${activeFilterCount} active` : 'Optional'}</span>
+        </button>
+
         {/* Each filter carries its own label and shows when it is narrowing the list. */}
-        <div className="directory-filter-row grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850">
+        <div className={`directory-filter-row mobile-filter-panel ${filtersOpen ? 'is-open' : ''} grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850`}>
           <FilterSelect label="Company" value={selectedEntity} options={entityOptions}
             onChange={setSelectedEntity} allValue="All Entities" />
           <FilterSelect label="Branch" value={selectedBranch} options={branchOptions}
@@ -481,7 +527,7 @@ export default function Directory() {
           {activeFilterCount > 0 && (
             <button
               onClick={clearFilters}
-              className="inline-flex items-center justify-center gap-1.5 text-sm font-bold text-neutral-500 hover:text-red-600 dark:hover:text-red-400 transition-colors sm:ml-auto cursor-pointer py-1.5"
+              className="hidden sm:inline-flex items-center justify-center gap-1.5 text-sm font-bold text-neutral-500 hover:text-red-600 dark:hover:text-red-400 transition-colors sm:ml-auto cursor-pointer py-1.5"
             >
               <X size={12} /> Clear {activeFilterCount} filter{activeFilterCount === 1 ? '' : 's'}
             </button>

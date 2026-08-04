@@ -232,6 +232,7 @@ export default function ReportsAnalytics() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
+              aria-current={tab === t.id ? 'page' : undefined}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold transition-colors cursor-pointer ${
                 tab === t.id
                   ? 'bg-[#0ea971]/15 text-[#0ea971] dark:text-[#10b981] border border-[#0ea971]/25'

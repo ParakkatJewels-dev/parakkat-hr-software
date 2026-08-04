@@ -48,18 +48,34 @@ const Err = ({ e }) =>
     </p>
   ) : null;
 
+/**
+ * Every tab this screen can draw, and the ids the URL may carry.
+ *
+ * One definition, at module scope, because two hand-written lists drifted and took the whole
+ * payroll admin with them: the whitelist read ['payslips','runs','structures','reports'] while the
+ * tabs were payslips/run/salary/components, so three of the four failed the check in useUrlTab and
+ * bounced back to Payslips. No salary could be entered, no component configured and no payroll run
+ * — from the app at all. Reports & Analytics had the identical bug.
+ *
+ * `show` is evaluated per render because it depends on permissions; the ID LIST deliberately is
+ * not. A URL is valid or it is not, and gating it on permission too would mean a manager's
+ * bookmark silently redirected for everyone else instead of the tab simply not being offered.
+ */
+const TAB_DEFS = [
+  { id: 'payslips', label: 'Payslips', icon: FileText, managerOnly: false },
+  { id: 'run', label: 'Run Payroll', icon: Play, managerOnly: true },
+  { id: 'salary', label: 'Salary Structures', icon: Users, managerOnly: true },
+  { id: 'components', label: 'Deductions & Allowances', icon: Settings2, managerOnly: true },
+];
+const TAB_IDS = TAB_DEFS.map((t) => t.id);
+
 export default function Payroll() {
   const { canAny } = usePermissions();
   const canManage = canAny('payroll.manage');
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
-  const [tab, setTab] = useUrlTab('payslips', ['payslips', 'runs', 'structures', 'reports']);
+  const [tab, setTab] = useUrlTab('payslips', TAB_IDS);
 
-  const TABS = [
-    { id: 'payslips', label: 'Payslips', icon: FileText, show: true },
-    { id: 'run', label: 'Run Payroll', icon: Play, show: canManage },
-    { id: 'salary', label: 'Salary Structures', icon: Users, show: canManage },
-    { id: 'components', label: 'Deductions & Allowances', icon: Settings2, show: canManage },
-  ].filter((t) => t.show);
+  const TABS = TAB_DEFS.filter((t) => !t.managerOnly || canManage);
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
@@ -75,7 +91,7 @@ export default function Payroll() {
       </div>
 
       {TABS.length > 1 && (
-        <div className="tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
+        <div className="mobile-segmented tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
           {TABS.map((t) => (
             <button
               key={t.id}

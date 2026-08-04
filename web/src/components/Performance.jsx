@@ -118,6 +118,7 @@ export default function Performance() {
             <button
               key={k}
               onClick={() => setView(k)}
+              aria-current={view === k ? 'page' : undefined}
               className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                 view === k
                   ? 'bg-[#0ea971]/15 text-[#0ea971] border border-[#0ea971]/25'

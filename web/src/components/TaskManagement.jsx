@@ -159,6 +159,7 @@ export default function TaskManagement() {
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
+              aria-current={statusFilter === s ? 'page' : undefined}
               className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
                 statusFilter === s
                   ? 'bg-black text-white border-black dark:bg-[#0ea971] dark:text-white dark:border-neutral-700'

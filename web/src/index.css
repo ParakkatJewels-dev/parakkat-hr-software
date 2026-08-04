@@ -757,6 +757,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     background: transparent;
   }
 
+  main .premium-card > div[class*="space-y-"][class*="max-h-"][class*="overflow-y-auto"],
+  main .premium-card > section[class*="space-y-"][class*="max-h-"][class*="overflow-y-auto"] {
+    max-height: none !important;
+    overflow-y: visible !important;
+    padding-right: 0 !important;
+  }
+
   main .table-scroll table,
   main .premium-table {
     display: block;
@@ -923,6 +930,45 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     min-width: 3.75rem;
   }
 
+  .mobile-filter-toggle {
+    width: 100%;
+    min-height: 2.45rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .55rem .75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .9rem;
+    background: var(--surface-subtle);
+    color: var(--surface-text);
+    font-size: .75rem;
+    font-weight: 800;
+  }
+
+  .mobile-filter-toggle > span:last-child {
+    color: var(--surface-text-soft);
+    font-size: .6875rem;
+    font-weight: 700;
+  }
+
+  main .mobile-filter-panel {
+    display: none;
+    animation: fadeIn .16s ease;
+  }
+
+  main .mobile-filter-panel.is-open {
+    display: grid;
+  }
+
+  main .mobile-active-filter-row:empty {
+    display: none;
+  }
+
+  main .active-filter-chip {
+    max-width: 100%;
+  }
+
   main .form-section-header {
     gap: .75rem;
   }
@@ -930,6 +976,18 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   main .form-section-actions,
   main .form-section-actions > button {
     width: 100%;
+  }
+
+  main .form-section-actions {
+    position: sticky;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .45rem);
+    z-index: 5;
+    padding: .5rem;
+    border: 1px solid color-mix(in srgb, var(--surface-border-strong) 80%, transparent);
+    border-radius: 1rem;
+    background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
+    box-shadow: 0 14px 34px rgba(16, 32, 26, .16);
+    backdrop-filter: blur(18px) saturate(1.12);
   }
 
   main .inline-row-form {
@@ -992,19 +1050,22 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   main .mobile-segmented {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: nowrap !important;
     width: 100%;
-    gap: .5rem;
+    gap: .45rem !important;
+    overflow-x: auto;
+    padding-bottom: .1rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
   main .mobile-segmented > button {
-    width: 100%;
-    min-height: 2.6rem;
-  }
-
-  main .mobile-segmented > button:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
+    flex: 0 0 auto;
+    min-width: min(9rem, 46vw);
+    min-height: 2.45rem;
+    scroll-snap-align: start;
   }
 
   main .mobile-segmented .drawer-tab {
@@ -1033,6 +1094,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   main .mobile-toolbar-actions > button,
   main .mobile-toolbar-actions > div {
     flex: 1 1 100%;
+  }
+
+  main .mobile-toolbar-actions > button {
+    justify-content: center;
   }
 
   main .dashboard-kpi-row {
@@ -1091,6 +1156,32 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     text-transform: none;
     letter-spacing: 0;
     font-size: .72rem;
+  }
+
+  .notification-panel {
+    position: fixed !important;
+    left: .65rem !important;
+    right: .65rem !important;
+    top: auto !important;
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .65rem) !important;
+    width: auto !important;
+    max-height: min(62dvh, 26rem) !important;
+    border-radius: 1.25rem !important;
+  }
+
+  .confirm-panel {
+    align-self: flex-end;
+    max-width: none !important;
+    border-radius: 1.35rem 1.35rem calc(1.35rem + env(safe-area-inset-bottom) / 2) calc(1.35rem + env(safe-area-inset-bottom) / 2) !important;
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+
+  main .mobile-detail-panel {
+    width: 100%;
+  }
+
+  main .mobile-detail-panel > section {
+    min-height: calc(100dvh - 8.5rem - var(--mobile-nav-height));
   }
 
   main .dashboard-kpi {

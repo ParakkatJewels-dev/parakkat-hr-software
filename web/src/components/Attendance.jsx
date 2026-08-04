@@ -846,6 +846,7 @@ export default function Attendance() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
+              aria-current={tab === t.id ? 'page' : undefined}
               className={`drawer-tab flex items-center gap-1.5 ${tab === t.id ? 'drawer-tab-active' : ''}`}
             >
               <Icon size={13} />

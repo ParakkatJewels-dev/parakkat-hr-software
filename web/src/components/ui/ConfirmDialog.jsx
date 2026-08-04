@@ -76,7 +76,7 @@ export default function ConfirmDialog({
         aria-modal="true"
         aria-labelledby="confirm-title"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-2xl bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl p-5 space-y-4"
+        className="confirm-panel w-full max-w-md rounded-2xl bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl p-5 space-y-4"
       >
         <div className="flex items-start gap-3">
           <div
