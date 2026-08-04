@@ -33,6 +33,7 @@ import { useRealtimeSync } from './lib/realtime';
 import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
 import { isStandalonePwa } from './lib/pwa';
+import { syncNativeTheme } from './mobile/native';
 
 // Prettify a role key like 'branch_manager' -> 'Branch Manager'.
 const prettyRole = (key) =>
@@ -128,6 +129,11 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [pwaUpdateRegistration, setPwaUpdateRegistration] = useState(null);
 
+  useEffect(() => {
+    document.body.classList.add('app-body-lock');
+    return () => document.body.classList.remove('app-body-lock');
+  }, []);
+
   // Persist sidebar collapsed state
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', isSidebarCollapsed);
@@ -169,6 +175,7 @@ export default function App() {
       document.documentElement.classList.remove('dark');
     }
     localStorage.setItem('theme', theme);
+    syncNativeTheme(theme);
   }, [theme]);
 
   // Command Palette global key listener (Ctrl + K)
@@ -433,7 +440,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-dvh w-screen overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-charcoal-900 dark:text-warm-gray-100 relative transition-colors duration-250">
+    <div className="app-shell flex h-dvh w-full overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-charcoal-900 dark:text-warm-gray-100 relative transition-colors duration-250">
       <a href="#main-content" className="skip-link">Skip to content</a>
 
       {/* Sidebar - Desktop */}

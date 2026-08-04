@@ -285,3 +285,35 @@ test('with every day measured, inside + allowance is the payable figure', () => 
     'the identity the tile is built on'
   );
 });
+
+test('the short-day count follows the engine, not a fresh comparison', () => {
+  // The regression this pins: summarise() reads the stored is_short_day flag, but the screen's
+  // query did not SELECT it. Every row then looked like a pre-flag row, the fallback ran with a
+  // zero tolerance, and the screen went back to calling anyone a minute under the target "short" —
+  // 1,688 days against the engine's 647. The fix was in place and inert. A fixture without the
+  // column reproduces exactly that, so both shapes are asserted here.
+  const base = {
+    work_date: '2026-07-15', status: 'Present', day_type: 'working', day_fraction: 1,
+    worked_minutes: 500, ot_minutes: 0, break_minutes: 0, check_in: '2026-07-15T09:00:00+05:30',
+    punches: ['2026-07-15T09:00:00+05:30', '2026-07-15T17:20:00+05:30'],
+    shift: { is_flexible: true, full_day_minutes: 510, short_day_tolerance_minutes: 30 },
+  };
+
+  // 10 minutes under a 510 target, inside the engine's 30-minute tolerance: NOT short.
+  assert.equal(summarise([{ ...base, is_short_day: false }]).shortDays, 0);
+
+  // Same row, engine says short — believe the engine.
+  assert.equal(summarise([{ ...base, is_short_day: true }]).shortDays, 1);
+
+  // And with the flag missing entirely, the fallback must still honour the shift's tolerance
+  // rather than treating any shortfall as short.
+  assert.equal(summarise([base]).shortDays, 0, 'fallback respects short_day_tolerance_minutes');
+});
+
+test('normalHours carries no float noise', () => {
+  const rows = [
+    { work_date: '2026-07-01', day_type: 'working', status: 'Present', worked_minutes: 13656, ot_minutes: 996 },
+  ];
+  const n = summarise(rows).normalHours;
+  assert.equal(n, Math.round(n * 10) / 10, `${n} should be a clean one-decimal figure`);
+});

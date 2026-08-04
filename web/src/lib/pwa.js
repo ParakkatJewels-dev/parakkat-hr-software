@@ -23,6 +23,12 @@ export function registerServiceWorker() {
         window.dispatchEvent(new CustomEvent('pwa:update-ready', { detail: { registration } }));
       };
 
+      const safeUpdate = () => {
+        registration.update().catch(() => {
+          // A blocked/offline update check should never affect the running app.
+        });
+      };
+
       if (registration.waiting && navigator.serviceWorker.controller) {
         notifyUpdate();
       }
@@ -38,7 +44,16 @@ export function registerServiceWorker() {
         });
       });
 
-      registration.update();
+      safeUpdate();
+
+      window.addEventListener('online', safeUpdate);
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') safeUpdate();
+      });
+
+      // Long-lived installed PWAs can stay open for days. Check occasionally so the update banner
+      // appears even if the user never closes the app.
+      setInterval(safeUpdate, 60 * 60_000);
     } catch {
       // The app should still run in browsers or policies that block service workers.
     }

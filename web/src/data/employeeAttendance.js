@@ -17,9 +17,17 @@ const SELECT = `
   worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
   is_late, is_early_exit, is_missing_punch, is_lop, day_fraction,
   leave_type, remarks, punch_count, scheduled_in, scheduled_out, source,
-  punches, break_minutes, breaks_incomplete,
-  shift:shifts(id, code, name, start_time, end_time, is_flexible, full_day_minutes)
+  punches, break_minutes, breaks_incomplete, is_short_day, is_long_break,
+  shift:shifts(id, code, name, start_time, end_time, is_flexible, full_day_minutes,
+               short_day_tolerance_minutes)
 `;
+// is_short_day and short_day_tolerance_minutes are not decoration. summarise() reads the stored
+// flag so the screen agrees with the engine about what "short" means, and falls back to a bare
+// `worked < full_day` comparison only for rows saved before the flag existed. Leave them out of
+// this SELECT and every row looks like one of those old rows: the fallback runs with a zero
+// tolerance and the screen goes back to flagging anyone a minute under the target. It did — 1,688
+// short days on screen against the engine's 647, disagreeing for 125 of 162 people, while the
+// export beside it showed the engine's number. The fix looked applied and was doing nothing.
 
 export function useEmployeeAttendance(employeeId, from, to) {
   return useQuery({

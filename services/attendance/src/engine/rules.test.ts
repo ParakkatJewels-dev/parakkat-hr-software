@@ -1197,6 +1197,35 @@ test('the window leaves no gap between one day and the next', () => {
     'consecutive windows must meet exactly — a gap loses punches, an overlap double-counts them');
 });
 
+test('a punch just after midnight belongs to the evening before, not the morning after', () => {
+  // The calendar-day version of this window got this wrong and it was expensive: a 00:00:35 exit
+  // filed under the new date became that day's ARRIVAL, pairing with a 23:50 exit for a 23h50m day
+  // and 920 minutes of overtime. Replayed over the punch history it moved 38 employee-days.
+  const justAfterMidnight = punchAt('2026-07-25', '00:00').punchTime;
+  const previousDay = punchWindow('2026-07-24', GENERAL);
+  const thatDay = punchWindow('2026-07-25', GENERAL);
+
+  assert.ok(
+    justAfterMidnight >= previousDay.from && justAfterMidnight < previousDay.to,
+    "00:00 on the 25th is the 24th's late exit"
+  );
+  assert.ok(
+    !(justAfterMidnight >= thatDay.from && justAfterMidnight < thatDay.to),
+    'and must NOT also be claimed by the 25th'
+  );
+});
+
+test('an evening that runs past midnight is one day, not two half-days', () => {
+  // Amal and Vishnu Sathyan work ~18:15-23:15. A night that overruns must stay whole.
+  const r = processDay(day({
+    workDate: '2026-07-24',
+    punches: [punchAt('2026-07-24', '18:18'), punchAt('2026-07-25', '00:30')],
+    shift: FLEXIBLE,
+  }));
+  assert.equal(r.punchCount, 2);
+  assert.equal(r.workedMinutes, 372, '18:18 to 00:30 is 6h12m');
+});
+
 test('a night shift keeps its margin, so the morning exit stays on the starting day', () => {
   const { from, to } = punchWindow('2026-07-24', NIGHT);
   const exit = punchAt('2026-07-25', '05:50').punchTime;

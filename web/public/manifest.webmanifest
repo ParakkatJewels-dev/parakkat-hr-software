@@ -6,7 +6,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "display_override": ["standalone", "minimal-ui"],
   "orientation": "portrait-primary",
   "background_color": "#080d0b",
   "theme_color": "#080d0b",
@@ -25,7 +25,7 @@
       "src": "/pwa-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "/pwa-maskable-512.png",
@@ -47,6 +47,20 @@
       "short_name": "Attendance",
       "description": "Open attendance",
       "url": "/#/attendance",
+      "icons": [{ "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "People",
+      "short_name": "People",
+      "description": "Open employee directory",
+      "url": "/#/directory",
+      "icons": [{ "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Payroll",
+      "short_name": "Payroll",
+      "description": "Open payroll",
+      "url": "/#/payroll",
       "icons": [{ "src": "/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {

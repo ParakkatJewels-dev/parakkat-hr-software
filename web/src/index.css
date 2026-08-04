@@ -170,6 +170,29 @@
     background: var(--surface-bg);
   }
 
+  /* App screens use an internal scroll panel (`.app-main`). Locking the page shell prevents
+     mobile browsers from showing a second body scrollbar beside the app's real content scrollbar.
+     Login is outside App.jsx, so it keeps normal page scrolling for short landscape screens. */
+  body.app-body-lock {
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body.app-body-lock #root,
+  body.app-body-lock .app-shell {
+    width: 100%;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  body.app-body-lock .app-main {
+    overscroll-behavior: contain;
+  }
+
   button, input, select, textarea { font: inherit; }
   button:not(:disabled), [role="button"] { cursor: pointer; }
   button:focus-visible, input:focus-visible, select:focus-visible,

@@ -5,7 +5,24 @@
   "outputDirectory": "dist",
   "headers": [
     {
+      "//": "Applied to everything. This app is an authenticated HR console holding 162 people's personal, attendance and payroll records, and it shipped with HSTS and nothing else. DENY rather than SAMEORIGIN because nothing here is ever framed on purpose: without it, an attacker's page can frame the app and trick a signed-in admin into clicking through a leave approval or a role grant they cannot see. nosniff matters more than usual here — several service-worker failure paths hand an HTML error body to a <script type=module>, and sniffing turns that from a clean load failure into executing whatever came back.",
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=()" }
+      ]
+    },
+    {
       "source": "/version.json",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "//": "Both paths, because users navigate to '/' and Vercel matches headers on the REQUEST path. The rule was written for /index.html alone, so the URL people actually load kept Vercel's default 'public, max-age=0, must-revalidate' — 'public' lets a corporate proxy store the shell, which is the exact thing no-store was added to prevent. Same bytes, same ETag, two contradictory policies.",
+      "source": "/",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
       ]
@@ -14,6 +31,13 @@
       "source": "/index.html",
       "headers": [
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "//": "The worker decides whether every other cache is stale, so it must never be served from one. Its cache name is stamped with the build id at build time (see versionStamp in vite.config.js), but that only helps if the browser fetches the new bytes to compare.",
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, max-age=0, must-revalidate" }
       ]
     },
     {

@@ -198,7 +198,13 @@ export function summarise(rows) {
     // meant round(a) + round(b) != round(a+b) for 39 of 162 people — PPL-0065 showed a headline of
     // 245.7 over a sub-line reading "229.2 + 16.6", which is 245.8.
     normalMinutes,
-    normalHours: Math.round((workedMinutes / 60) * 10) / 10 - Math.round((otMinutes / 60) * 10) / 10,
+    // Rounded again after the subtraction: deriving it from two rounded figures keeps the tile's
+    // "normal + ot" adding up to the headline, but the subtraction itself reintroduces IEEE754
+    // noise — 227.60000000000002 for 12 of 162 people. Both properties are wanted, so round twice.
+    normalHours:
+      Math.round(
+        (Math.round((workedMinutes / 60) * 10) / 10 - Math.round((otMinutes / 60) * 10) / 10) * 10
+      ) / 10,
     otMinutes,
     otHours: Math.round((otMinutes / 60) * 10) / 10,
     offDayOtMinutes,

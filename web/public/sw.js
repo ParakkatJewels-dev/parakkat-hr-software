@@ -10,6 +10,7 @@ const APP_SHELL = [
   '/manifest.webmanifest',
   '/favicon.svg',
   '/pwa-icon.svg',
+  '/pwa-icon-180.png',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',
   '/pwa-maskable-512.png',
@@ -17,6 +18,38 @@ const APP_SHELL = [
 
 function isCacheable(response) {
   return response && response.ok && response.type === 'basic';
+}
+
+function shellAssetUrlsFrom(html) {
+  const urls = new Set();
+  const assetPattern = /(?:src|href)=["']([^"']+\.(?:js|css|png|svg|ico|webp|avif|woff2?)(?:\?[^"']*)?)["']/gi;
+  for (const match of html.matchAll(assetPattern)) {
+    try {
+      const url = new URL(match[1], self.location.origin);
+      if (url.origin === self.location.origin) {
+        urls.add(`${url.pathname}${url.search}`);
+      }
+    } catch {
+      // Ignore malformed optional references; the fixed shell entries above still install.
+    }
+  }
+  return [...urls];
+}
+
+async function cacheShell() {
+  const cache = await caches.open(SHELL_CACHE);
+
+  await Promise.allSettled(
+    APP_SHELL.map((url) => cache.add(new Request(url, { cache: 'reload' })))
+  );
+
+  const indexResponse = (await cache.match('/index.html')) || (await cache.match('/'));
+  if (!indexResponse) return;
+
+  const discoveredAssets = shellAssetUrlsFrom(await indexResponse.clone().text());
+  await Promise.allSettled(
+    discoveredAssets.map((url) => cache.add(new Request(url, { cache: 'reload' })))
+  );
 }
 
 async function trimRuntimeCache() {
@@ -33,13 +66,18 @@ async function putRuntime(request, response) {
   await trimRuntimeCache();
 }
 
+async function putShellResponse(response) {
+  if (!isCacheable(response)) return;
+  const cache = await caches.open(SHELL_CACHE);
+  await Promise.all([
+    cache.put('/index.html', response.clone()),
+    cache.put('/', response.clone()),
+  ]);
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE).then(async (cache) => {
-      // One missing optional asset should not prevent the whole PWA from installing.
-      await Promise.allSettled(APP_SHELL.map((url) => cache.add(url)));
-    })
-  );
+  // One missing optional asset should not prevent the whole PWA from installing.
+  event.waitUntil(cacheShell());
 });
 
 self.addEventListener('activate', (event) => {
@@ -71,7 +109,11 @@ async function cachedShellFallback() {
   return (
     (await caches.match('/index.html')) ||
     (await caches.match('/')) ||
-    (await caches.match('/offline.html'))
+    (await caches.match('/offline.html')) ||
+    new Response(
+      '<!doctype html><title>Offline</title><h1>Parakkat HR is offline</h1><p>Please reconnect and try again.</p>',
+      { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    )
   );
 }
 
@@ -79,16 +121,12 @@ async function navigationResponse(event) {
   try {
     const preload = await event.preloadResponse;
     if (preload) {
-      await putRuntime('/index.html', preload.clone());
+      await putShellResponse(preload.clone());
       return preload;
     }
 
     const response = await fetch(event.request);
-    if (isCacheable(response)) {
-      const shell = await caches.open(SHELL_CACHE);
-      await shell.put('/index.html', response.clone());
-      await shell.put('/', response.clone());
-    }
+    await putShellResponse(response.clone());
     return response;
   } catch {
     return cachedShellFallback();
@@ -104,7 +142,7 @@ async function staleWhileRevalidate(request) {
     })
     .catch(() => null);
 
-  return cached || (await network) || (await cachedShellFallback());
+  return cached || (await network) || new Response('', { status: 504, statusText: 'Offline' });
 }
 
 async function networkFirst(request) {

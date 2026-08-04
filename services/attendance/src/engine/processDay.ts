@@ -57,10 +57,26 @@ export function punchWindow(workDate: string, shift: ShiftDefinition | null): { 
   // 05:50 exit has to be credited to the day the shift started.
   const { start, end } = scheduledWindow(workDate, shift);
   if (!shift.crossesMidnight) {
-    return {
-      from: workDateAtTime(workDate, '00:00:00'),
-      to: workDateAtTime(workDate, '00:00:00', 1),
-    };
+    // The day runs from MARGIN before the shift starts to the same instant the next day, so
+    // consecutive windows meet exactly and nothing falls between them.
+    //
+    // Two earlier attempts were both wrong, in opposite directions. The original was
+    // `start - 6h .. end + 6h`, which for GENERAL is 03:00-23:30 — and since the next day also
+    // opened at 03:00, a punch between 23:30 and 03:00 belonged to no date at all and was dropped
+    // after being loaded. Vishnu Sathyan's 23:34, 23:52 and 23:37 punches vanished and those days
+    // are stored Absent.
+    //
+    // Replacing it with the plain calendar day closed the gap but moved the boundary to midnight,
+    // which splits a late evening in half: a 00:00:35 exit is the PREVIOUS evening's, and filing it
+    // under the new date made it that day's arrival. Replaying history, 38 employee-days became
+    // absurd — one read 00:00:35 to 23:50 as a single 23h50m day and paid 920 minutes of overtime.
+    //
+    // Keeping the lower bound and carrying it forward a full day fixes both: complete, because the
+    // next window begins where this one ends; non-overlapping, for the same reason; and a
+    // post-midnight punch stays with the evening it belongs to, because 00:00:35 is still inside
+    // the window that opened at 03:00 the previous morning.
+    const from = new Date(start.getTime() - WINDOW_MARGIN_MINUTES * 60_000);
+    return { from, to: new Date(from.getTime() + 24 * 60 * 60_000) };
   }
   return {
     from: new Date(start.getTime() - WINDOW_MARGIN_MINUTES * 60_000),
