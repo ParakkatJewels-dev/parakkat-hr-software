@@ -14,7 +14,7 @@ import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
 import { fmtTime } from '../data/attendance';
 import { formatMinutesOfDay } from '../lib/clock';
 import { useClockFormat } from '../lib/timeFormat';
-import { explainDay, asHoursMinutes } from '../lib/attendanceSummary';
+import { explainDay, asHoursMinutes, onSiteMinutes, insideMinutes } from '../lib/attendanceSummary';
 import { useEmployees } from '../data/employees';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
@@ -96,7 +96,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
   }, [employees, q]);
 
   const exportCsv = () => {
-    const head = ['Date', 'Day', 'Status', 'In', 'Out', 'Worked (h)', 'On site (h)', 'Breaks', 'Break (min)',
+    const head = ['Date', 'Day', 'Status', 'In', 'Out', 'Worked (h)', 'On site (h)', 'Inside (h)', 'Breaks', 'Break (min)',
       'Break complete', 'Late (min)', 'Early (min)', 'OT (min)', 'Leave', 'All punches'];
     const body = filtered.map((r) => {
       const punches = Array.isArray(r.punches) ? r.punches : [];
@@ -105,9 +105,10 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
         r.work_date, DOW[new Date(`${r.work_date}T00:00:00`).getDay()], r.status,
         fmtTime(r.check_in), fmtTime(r.check_out),
         ((r.worked_minutes || 0) / 60).toFixed(2),
-        punches.length >= 2
-          ? ((new Date(punches[punches.length - 1]) - new Date(punches[0])) / 3600000).toFixed(2)
-          : '',
+        // Same two helpers the table uses, so the exported file and the screen cannot disagree —
+        // this column used to recompute the on-site window inline and would have drifted.
+        onSiteMinutes(r) != null ? (onSiteMinutes(r) / 60).toFixed(2) : '',
+        insideMinutes(r) != null ? (insideMinutes(r) / 60).toFixed(2) : '',
         breaks, r.break_minutes || 0, r.breaks_incomplete ? 'no' : 'yes',
         r.late_minutes || 0, r.early_exit_minutes || 0, r.ot_minutes || 0, r.leave_type || '',
         // Quoted: a space-separated list would otherwise split across columns.
@@ -251,8 +252,27 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                     ? `includes ${summary.offDayOtHours} h worked on days off`
                     : 'beyond a full day'}
                   tone={summary.otHours > 0 ? 'green' : undefined} />
+                {/* Two figures, because they answer two questions and only one of them was on the
+                    page. "Total hours" is what gets paid — it contains the break allowance, so a
+                    day spent inside for 8 hours with an hour's lunch is credited 8h40m. "Inside"
+                    is what the clock actually saw. Showing only the payable number left "how long
+                    was I really here" unanswerable without adding up the punches by hand. */}
                 <Stat label="Total hours" value={`${summary.workedHours} h`}
                   sub={`${summary.normalHours} + ${summary.otHours}`} tone="green" />
+                {/* The sub-line must never be workedHours - insideHours. Those two are totalled over
+                    different sets of days whenever anything is unmeasurable, and the difference then
+                    reads as break allowance that nobody took — 90.8 h of it for a person whose every
+                    day was single-punch. summarise() now derives the allowance over the measured days
+                    only, and counts the rest so the tile can admit what it cannot see. */}
+                <Stat label="Inside" value={`${summary.insideHours} h`}
+                  sub={
+                    summary.unmeasuredDays > 0
+                      ? `${summary.unmeasuredDays} day${summary.unmeasuredDays === 1 ? '' : 's'} not measurable`
+                      : summary.insideAllowanceHours > 0
+                        ? `${summary.insideAllowanceHours} h break allowance`
+                        : 'never left the building'
+                  }
+                  tone={summary.unmeasuredDays > 0 ? 'amber' : undefined} />
                 <Stat label="Exceptions" value={summary.missing + summary.earlyDays}
                   sub={`${summary.missing} missing punch · ${summary.earlyDays} early`}
                   tone={summary.missing + summary.earlyDays > 0 ? 'amber' : undefined} icon={AlertTriangle} />
@@ -305,6 +325,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                         <th className="hidden md:table-cell" title="First punch to last punch — the whole day, break included">
                           On site
                         </th>
+                        <th className="hidden lg:table-cell" title="Time actually in the building: the day less every minute punched out. Lower than Worked, because the first 40 minutes of break are free.">
+                          Inside
+                        </th>
                         <th className="hidden lg:table-cell" title="Breaks taken, and total time out of office">
                           Breaks
                         </th>
@@ -322,10 +345,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                         // First punch to last. Not check_in/check_out: on a day with a
                         // reconstructed punch those are the assumed times, and this column is meant
                         // to be only what the terminal actually recorded.
-                        const onSite = punches.length >= 2
-                          ? Math.max(0, Math.round(
-                              (new Date(punches[punches.length - 1]) - new Date(punches[0])) / 60000))
-                          : null;
+                        const onSite = onSiteMinutes(r);
+                        const inside = insideMinutes(r);
                         return (
                           <React.Fragment key={r.id}>
                           <tr
@@ -353,6 +374,14 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                                 Side by side with Breaks, these three account for each other. */}
                             <td className="hidden md:table-cell tabular-nums text-neutral-500 dark:text-neutral-400">
                               {onSite != null ? `${(onSite / 60).toFixed(1)} h` : '—'}
+                            </td>
+                            {/* What the clock saw them inside for. Worked is the payable figure and
+                                sits above it by however much of the break allowance was forgiven —
+                                a 60-minute lunch is 8h inside and 8h40m worked. Both are true; the
+                                screen used to show only the payable one, so "how long was I
+                                actually here" had no answer on the page. */}
+                            <td className="hidden lg:table-cell tabular-nums text-neutral-500 dark:text-neutral-400">
+                              {inside != null ? `${(inside / 60).toFixed(1)} h` : '—'}
                             </td>
                             <td className="hidden lg:table-cell tabular-nums text-xs">
                               <BreakSummary row={r} />

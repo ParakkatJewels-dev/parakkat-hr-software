@@ -8,7 +8,7 @@
 // has been wrong at least once.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { summarise, explainDay, asHoursMinutes } from './attendanceSummary.js';
+import { summarise, explainDay, asHoursMinutes, insideMinutes, onSiteMinutes } from './attendanceSummary.js';
 
 const shift = { is_flexible: true, full_day_minutes: 510 };
 
@@ -128,9 +128,47 @@ test('the day shows the whole subtraction, not just the answer', () => {
   const byLabel = (frag) => x.lines.find((l) => l.label.includes(frag));
 
   assert.equal(byLabel('On site').minutes, 554, '09:37 to 18:51');
-  assert.equal(byLabel('Breaks measured').minutes, -39, '79 taken, 40 free, 39 charged');
+  assert.equal(byLabel('Out of the office').minutes, -79, 'every minute punched out');
+  assert.equal(byLabel('Inside the office').minutes, 554 - 79, 'what he is really asking for');
+  assert.equal(byLabel('Break allowance').minutes, 40, '40 of the 79 given back');
   assert.equal(byLabel('Counted as worked').minutes, 515);
   assert.equal(byLabel('Overtime').minutes, 5);
+});
+
+test('the ledger reconciles: inside + the free allowance is the payable figure', () => {
+  // The point of showing both. If these ever stop adding up, one of the two numbers on screen is
+  // lying and there is no way for the reader to tell which.
+  // Breaks only. A day with no break punch has no out-of-office and no inside line: the person
+  // never left, so "On site, first punch to last" already IS the inside time and a second row
+  // repeating it would be noise. The expandable ledger only opens on days with a timeline anyway.
+  for (const brk of [15, 40, 41, 79, 200]) {
+    const worked = 554 - Math.max(0, brk - 40);
+    const x = explainDay({ ...REAL_DAY, break_minutes: brk, worked_minutes: worked }, GN);
+    const at = (frag) => x.lines.find((l) => l.label.includes(frag))?.minutes ?? 0;
+    assert.equal(
+      at('Inside the office') + at('Break allowance'),
+      at('Counted as worked'),
+      `break of ${brk} min`
+    );
+  }
+});
+
+test('a day with no break shows no inside line, because on site already says it', () => {
+  const x = explainDay({ ...REAL_DAY, break_minutes: 0, worked_minutes: 554 }, GN);
+  assert.equal(x.lines.find((l) => l.label.includes('Inside the office')), undefined);
+  assert.equal(x.lines.find((l) => l.label.includes('On site')).minutes, 554);
+  // …and the column figure still resolves, which is what the table reads.
+  assert.equal(insideMinutes({ ...REAL_DAY, break_minutes: 0 }), 554);
+});
+
+test('inside time is the day less every minute punched out', () => {
+  assert.equal(insideMinutes(REAL_DAY), 554 - 79);
+  // Nobody punched a break: they never left, so the whole day was inside.
+  assert.equal(insideMinutes({ ...REAL_DAY, break_minutes: 0 }), 554);
+  assert.equal(onSiteMinutes(REAL_DAY), 554);
+  // Nothing to measure.
+  assert.equal(onSiteMinutes({ punches: [] }), null);
+  assert.equal(insideMinutes({ punches: [] }), null);
 });
 
 test('and says in one sentence why the overtime is smaller than it looks', () => {
@@ -140,9 +178,13 @@ test('and says in one sentence why the overtime is smaller than it looks', () =>
 
 test('a break inside the allowance costs nothing and is shown as costing nothing', () => {
   const x = explainDay({ ...REAL_DAY, break_minutes: 30, worked_minutes: 554, ot_minutes: 44 }, GN);
-  const b = x.lines.find((l) => l.label.includes('Breaks measured'));
-  assert.equal(b.minutes, 0);
+  const b = x.lines.find((l) => l.label.includes('Break allowance'));
+  assert.equal(b.minutes, 30, 'all 30 given back, so nothing is charged');
   assert.equal(b.muted, true, 'shown, but visibly not charged');
+  assert.equal(
+    x.lines.find((l) => l.label.includes('Inside the office')).minutes, 554 - 30,
+    'and the inside figure still says he was out for 30'
+  );
   assert.equal(x.note, null, 'nothing needs explaining away');
 });
 
@@ -189,4 +231,57 @@ test('a complete day says none of that', () => {
   assert.equal(x.incomplete, false);
   assert.equal(x.lines.some((l) => l.minutes === null), false);
   assert.doesNotMatch(x.lines.find((l) => l.total).label, /at least/);
+});
+
+// ---------------------------------------------------------------------------
+// inside vs worked — the two must be totalled over the same days
+// ---------------------------------------------------------------------------
+
+/** A single-punch day: the engine credits a full day from the schedule, nothing is measurable. */
+const RECONSTRUCTED = {
+  work_date: '2026-07-15', status: 'Present', day_type: 'working',
+  worked_minutes: 510, ot_minutes: 0, break_minutes: 0, day_fraction: 1,
+  punches: ['2026-07-15T17:31:00+05:30'], shift: GN,
+};
+
+/** A measured day: in, one hour of lunch, out. Inside 8h, credited 8h40m. */
+const MEASURED = {
+  work_date: '2026-07-16', status: 'Present', day_type: 'working',
+  worked_minutes: 520, ot_minutes: 10, break_minutes: 60, day_fraction: 1,
+  punches: [
+    '2026-07-16T09:00:00+05:30', '2026-07-16T13:00:00+05:30',
+    '2026-07-16T14:00:00+05:30', '2026-07-16T18:00:00+05:30',
+  ],
+  shift: GN,
+};
+
+test('a month of unmeasurable days does not invent a break allowance', () => {
+  // The bug this pins: inside summed with `?? 0` over days that still carry worked_minutes made
+  // the tile print the whole month's hours as forgiven break. Akhil Aji's real screen read
+  // "Total hours 90.8, Inside 0.0" and claimed 90.8 h of allowance against an actual 0.0.
+  const s = summarise([RECONSTRUCTED, RECONSTRUCTED, RECONSTRUCTED]);
+  assert.equal(s.workedHours, 25.5, 'still paid three full days');
+  assert.equal(s.insideHours, 0, 'nothing was measurable');
+  assert.equal(s.insideAllowanceHours, 0, 'and so NO allowance may be claimed');
+  assert.equal(s.unmeasuredDays, 3, 'the tile has to say it cannot speak for these');
+});
+
+test('the allowance is measured over the measurable days only', () => {
+  const s = summarise([MEASURED, RECONSTRUCTED]);
+  // Inside and the allowance both describe the one measured day: 8h inside, 40 min given back.
+  assert.equal(s.insideHours, 8);
+  assert.equal(s.insideAllowanceHours, 0.7, '40 minutes, to one decimal');
+  assert.equal(s.unmeasuredDays, 1);
+  // The payable total is untouched by any of this.
+  assert.equal(s.workedHours, Math.round(((520 + 510) / 60) * 10) / 10);
+});
+
+test('with every day measured, inside + allowance is the payable figure', () => {
+  const s = summarise([MEASURED, MEASURED]);
+  assert.equal(s.unmeasuredDays, 0);
+  assert.equal(
+    Math.round((s.insideHours + s.insideAllowanceHours) * 10) / 10,
+    s.workedHours,
+    'the identity the tile is built on'
+  );
 });

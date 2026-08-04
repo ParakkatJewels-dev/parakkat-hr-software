@@ -80,6 +80,24 @@ export function summarise(rows) {
   // against Easy Time Pro's own export, which is exactly the complaint that found this. Sunday is a
   // weekly off here and every minute worked on one is overtime, so this is not a rare edge.
   const workedMinutes = rows.reduce((a, r) => a + mins(r.worked_minutes), 0);
+  // Time actually inside — totalled ONLY over the days it can be measured on.
+  //
+  // A day with one punch has no measurable inside time: we know when they touched the terminal and
+  // nothing else. The engine still credits it a full day from the schedule, so summing `inside`
+  // with `?? 0` while `worked` keeps its 510 minutes compares two different sets of days. That is
+  // not a rounding difference — Akhil Aji's twelve July days are all single-punch, which printed
+  // "Total hours 90.8, Inside 0.0" and a claimed 90.8 hours of break allowance against a real 0.0.
+  // Narayanan's read 119.2 hours of allowance against a real 0.7.
+  //
+  // So the two figures are totalled over the same rows, and the days that cannot be measured are
+  // counted and named instead of being silently folded in as zeroes.
+  const measurable = rows.filter((r) => insideMinutes(r) !== null);
+  const insideTotal = measurable.reduce((a, r) => a + insideMinutes(r), 0);
+  const workedWhereMeasured = measurable.reduce((a, r) => a + mins(r.worked_minutes), 0);
+  // Days that were paid but where nobody can say how long the person was actually in the building.
+  const unmeasuredDays = rows.filter(
+    (r) => insideMinutes(r) === null && mins(r.worked_minutes) > 0
+  ).length;
   const otMinutes = rows.reduce((a, r) => a + mins(r.ot_minutes), 0);
   // Kept as its own figure so the split stays visible — how much of the overtime was earned on a
   // day off is a fair question, and answering it must not mean leaving it out of the total.
@@ -149,6 +167,14 @@ export function summarise(rows) {
     hoursMetRate: attended ? Math.round(((attended - shortDays) / attended) * 100) : null,
     // The headline figure: everything worked, overtime included.
     workedHours: Math.round((workedMinutes / 60) * 10) / 10,
+    // What the clock actually saw them inside for, over the days it could be seen at all.
+    insideHours: Math.round((insideTotal / 60) * 10) / 10,
+    // The break given back, measured over those SAME days — never workedHours - insideHours, which
+    // silently includes days that carry hours on one side and nothing on the other.
+    insideAllowanceHours: Math.round(((workedWhereMeasured - insideTotal) / 60) * 10) / 10,
+    // How many paid days the inside figure cannot speak for. Non-zero means the tile is reporting
+    // on less than the whole month and has to say so.
+    unmeasuredDays,
     // Its two parts, which sum back to workedHours rather than adding to it.
     normalHours: Math.round((normalMinutes / 60) * 10) / 10,
     otHours: Math.round((otMinutes / 60) * 10) / 10,
@@ -171,6 +197,41 @@ export function summarise(rows) {
  * Returns the subtraction as lines, so the day can show its own working. Null when there is nothing
  * to explain — a day off, an absence, or a day with no pair of punches to measure.
  */
+/**
+ * First punch to last — the whole day, break included.
+ *
+ * Deliberately the punches rather than check_in/check_out: on a day with a reconstructed punch
+ * those are assumed times, and this figure is meant to be only what the terminal recorded.
+ */
+export function onSiteMinutes(row) {
+  const punches = Array.isArray(row?.punches) ? row.punches : [];
+  if (punches.length >= 2) {
+    const first = new Date(punches[0]).getTime();
+    const last = new Date(punches[punches.length - 1]).getTime();
+    return Number.isNaN(first) || Number.isNaN(last)
+      ? null
+      : Math.max(0, Math.round((last - first) / 60_000));
+  }
+  return null;
+}
+
+/**
+ * How long the person was actually inside — the day, less every minute they were punched out.
+ *
+ * This is what "how long was I at work" means to the person asking, and it is not the payable
+ * figure: the allowance gives back the first 40 minutes of break, so a day inside for 8 hours is
+ * credited 8h40m. Both are true and they answer different questions, which is why the screen now
+ * shows both instead of only the payable one.
+ *
+ * A punch-out here means the person left the building. Somebody who takes lunch at their desk never
+ * punches and was genuinely inside the whole time, so a zero break is a real zero, not a missing
+ * measurement.
+ */
+export function insideMinutes(row) {
+  const onSite = onSiteMinutes(row);
+  return onSite === null ? null : Math.max(0, onSite - (Number(row?.break_minutes) || 0));
+}
+
 export function explainDay(row, shift) {
   const punches = Array.isArray(row?.punches) ? row.punches : [];
   if (punches.length < 2) return null;
@@ -186,13 +247,29 @@ export function explainDay(row, shift) {
   const fullDay = Number(shift?.full_day_minutes) || 0;
   const ot = mins(row.ot_minutes);
 
+  // The day as a ledger that adds up, in the order somebody actually asks about it: how long was
+  // the day, how much of it was I out, how long was I therefore INSIDE, and only then what am I
+  // credited. The middle figure is the one people mean by "how long was I at work" and it used to
+  // be missing entirely — the old breakdown went straight from time on site to the payable number,
+  // subtracting only the break beyond the allowance, so a 60-minute lunch showed as 20 minutes and
+  // there was no line anywhere saying you were out for an hour.
+  const insideMins = Math.max(0, onSite - measured);
+  const free = Math.min(measured, allowance);
+
   const lines = [{ label: 'On site, first punch to last', minutes: onSite }];
 
   if (measured > 0) {
+    const breaks = Math.max(1, Math.floor((punches.length - 2) / 2));
     lines.push({
-      label: `Breaks measured (${measured} min), of which ${Math.min(measured, allowance)} is free`,
-      // Negating zero gives -0, which renders as "−0m" and reads like a bug.
-      minutes: charged === 0 ? 0 : -charged,
+      label: `Out of the office (${breaks} break${breaks === 1 ? '' : 's'})`,
+      minutes: -measured,
+    });
+    // Marked `subtotal`, not `total`: `total` is the payable figure and one caller looks for the
+    // first line carrying it.
+    lines.push({ label: 'Inside the office', minutes: insideMins, subtotal: true });
+    lines.push({
+      label: `Break allowance — ${free} of the ${measured} min is free`,
+      minutes: free,
       muted: charged === 0,
     });
   }
