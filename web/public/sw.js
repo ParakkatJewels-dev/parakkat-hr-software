@@ -1,6 +1,7 @@
-const VERSION = 'parakkat-hr-pwa-v1';
+const VERSION = 'parakkat-hr-pwa-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
+const MAX_RUNTIME_ENTRIES = 90;
 
 const APP_SHELL = [
   '/',
@@ -14,26 +15,49 @@ const APP_SHELL = [
   '/pwa-maskable-512.png',
 ];
 
+function isCacheable(response) {
+  return response && response.ok && response.type === 'basic';
+}
+
+async function trimRuntimeCache() {
+  const cache = await caches.open(RUNTIME_CACHE);
+  const keys = await cache.keys();
+  if (keys.length <= MAX_RUNTIME_ENTRIES) return;
+  await Promise.all(keys.slice(0, keys.length - MAX_RUNTIME_ENTRIES).map((key) => cache.delete(key)));
+}
+
+async function putRuntime(request, response) {
+  if (!isCacheable(response)) return;
+  const cache = await caches.open(RUNTIME_CACHE);
+  await cache.put(request, response.clone());
+  await trimRuntimeCache();
+}
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(APP_SHELL))
+    caches.open(SHELL_CACHE).then(async (cache) => {
+      // One missing optional asset should not prevent the whole PWA from installing.
+      await Promise.allSettled(APP_SHELL.map((url) => cache.add(url)));
+    })
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== SHELL_CACHE && key !== RUNTIME_CACHE)
-            .map((key) => caches.delete(key))
-        )
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys
+          .filter((key) => key.startsWith('parakkat-hr-pwa-') && key !== SHELL_CACHE && key !== RUNTIME_CACHE)
+          .map((key) => caches.delete(key))
+      );
+
+      if ('navigationPreload' in self.registration) {
+        await self.registration.navigationPreload.enable();
+      }
+
+      await self.clients.claim();
+    })()
   );
 });
 
@@ -43,28 +67,53 @@ self.addEventListener('message', (event) => {
   }
 });
 
-async function cacheFirst(request) {
-  const cached = await caches.match(request);
-  if (cached) return cached;
-
-  const response = await fetch(request);
-  if (response.ok) {
-    const cache = await caches.open(RUNTIME_CACHE);
-    cache.put(request, response.clone());
-  }
-  return response;
+async function cachedShellFallback() {
+  return (
+    (await caches.match('/index.html')) ||
+    (await caches.match('/')) ||
+    (await caches.match('/offline.html'))
+  );
 }
 
-async function networkFirst(request, fallbackUrl = '/offline.html') {
+async function navigationResponse(event) {
   try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const cache = await caches.open(RUNTIME_CACHE);
-      cache.put(request, response.clone());
+    const preload = await event.preloadResponse;
+    if (preload) {
+      await putRuntime('/index.html', preload.clone());
+      return preload;
+    }
+
+    const response = await fetch(event.request);
+    if (isCacheable(response)) {
+      const shell = await caches.open(SHELL_CACHE);
+      await shell.put('/index.html', response.clone());
+      await shell.put('/', response.clone());
     }
     return response;
   } catch {
-    return (await caches.match(request)) || (await caches.match(fallbackUrl));
+    return cachedShellFallback();
+  }
+}
+
+async function staleWhileRevalidate(request) {
+  const cached = await caches.match(request);
+  const network = fetch(request)
+    .then(async (response) => {
+      await putRuntime(request, response.clone());
+      return response;
+    })
+    .catch(() => null);
+
+  return cached || (await network) || (await cachedShellFallback());
+}
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    await putRuntime(request, response.clone());
+    return response;
+  } catch {
+    return (await caches.match(request)) || (await caches.match('/offline.html'));
   }
 }
 
@@ -75,22 +124,19 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  if (url.pathname === '/version.json') {
+  // Always go to the network for deploy checks and service endpoints.
+  if (url.pathname === '/version.json' || url.pathname === '/sw.js' || url.pathname.startsWith('/api/')) {
     event.respondWith(fetch(request, { cache: 'no-store' }));
     return;
   }
 
-  if (url.pathname.startsWith('/api/')) {
+  if (request.mode === 'navigate') {
+    event.respondWith(navigationResponse(event));
     return;
   }
 
-  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(networkFirst(request, '/offline.html'));
-    return;
-  }
-
-  if (/\.(?:js|css|png|svg|ico|webp|woff2?)$/i.test(url.pathname)) {
-    event.respondWith(cacheFirst(request));
+  if (/\.(?:js|css|png|svg|ico|webp|avif|woff2?)$/i.test(url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request));
     return;
   }
 
