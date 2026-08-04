@@ -563,6 +563,39 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
 
     await flush();
 
+    // Clear any row that predates the person's hire date.
+    //
+    // The guard above `continue`s past those dates, which stops NEW ones being written but cannot
+    // remove one an earlier run already left behind — and a skipped date is a date no later
+    // recompute will ever revisit, so the row is permanently unreachable. Vivek Vimal joined on
+    // 2026-07-27 with six rows from the 21st: five absences recorded against him before he was
+    // hired, and one paid rest day. They were written on the 29th, before his join date was
+    // entered, and the full-month rerun on the 30th walked straight past them. Their `scheduled_in`
+    // still reads 09:30 — the shift's old start time — while every other July row reads 09:00,
+    // which is how you can tell nothing has touched them since.
+    //
+    // Scoped to the employees and the date range this run covered, so a recompute never reaches
+    // outside what it was asked to rebuild. Locked rows are left alone, exactly as the writer does.
+    const hiredIds = employees.filter((e) => e.join_date).map((e) => e.id);
+    if (hiredIds.length > 0) {
+      const idList = Prisma.join(hiredIds.map((id) => Prisma.sql`${id}::uuid`));
+      // Same source of truth the writer uses (`writeResults(results, scope.includeLocked ?? false)`),
+      // so a locked row is respected identically whether it is being rewritten or removed.
+      const preHireLockGuard = (scope.includeLocked ?? false)
+        ? Prisma.sql``
+        : Prisma.sql`and a.is_locked = false`;
+      const cleared = await prisma.$executeRaw`
+        delete from public.attendance a
+        using public.employees e
+        where a.employee_id = e.id
+          and a.employee_id in (${idList})
+          and a.work_date between ${from}::date and ${to}::date
+          and e.join_date is not null
+          and a.work_date < e.join_date
+          ${preHireLockGuard}`;
+      if (cleared > 0) run.addDetail({ preHireRowsRemoved: cleared });
+    }
+
     run.counters.recordsFetched = totalProcessed;
     run.counters.recordsInserted = written;
     run.counters.recordsSkipped = skippedLocked;

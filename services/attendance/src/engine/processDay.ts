@@ -41,7 +41,27 @@ export function punchWindow(workDate: string, shift: ShiftDefinition | null): { 
     };
   }
 
+  // A shift that stays inside one calendar day takes the whole calendar day, not the schedule plus
+  // a margin.
+  //
+  // The margin left a gap. GENERAL is 09:00-17:30, so start-6h to end+6h is 03:00-23:30, and the
+  // next day's window does not open until 03:00 either — a punch between 23:30 and 03:00 belonged
+  // to no work date and was silently dropped after being loaded. 41 punches across 6 people, and it
+  // does not fail quietly: Vishnu Sathyan (HO90-D4052) punched at 23:34, 23:52 and 23:37 on three
+  // January days, each his only punch that day, and all three days are stored Absent with zero
+  // minutes. Amal Mohanachandran works 18:15-23:15 and lost a 23:37 exit, which turned a measured
+  // 319-minute evening into a reconstructed 510-minute day.
+  //
+  // The calendar day is complete and cannot overlap its neighbours, which a widened margin would.
+  // The margin still applies to a night shift, where the window genuinely spans two dates and the
+  // 05:50 exit has to be credited to the day the shift started.
   const { start, end } = scheduledWindow(workDate, shift);
+  if (!shift.crossesMidnight) {
+    return {
+      from: workDateAtTime(workDate, '00:00:00'),
+      to: workDateAtTime(workDate, '00:00:00', 1),
+    };
+  }
   return {
     from: new Date(start.getTime() - WINDOW_MARGIN_MINUTES * 60_000),
     to: new Date(end.getTime() + WINDOW_MARGIN_MINUTES * 60_000),
@@ -301,6 +321,35 @@ export function processDay(input: DayInput): DayResult {
         .filter(Boolean)
         .join(' — ');
     }
+
+    // Exceptions are recorded on a day off too.
+    //
+    // This branch used to return before the flags further down were set, so a day off was the one
+    // place an incomplete record could not say it was incomplete — while being the place it matters
+    // most, because every minute here is paid as overtime. In July 2026 seven weekly-off days
+    // carried 48.7 hours of overtime on records the engine itself scored `breaksIncomplete`, and no
+    // exceptions report could filter for them. Eleven more had a break past the allowance whose
+    // excess WAS deducted from the paid overtime, while the field that exists to explain exactly
+    // that said nothing.
+    result.isLongBreak = result.breakMinutes > shift.breakMinutes;
+
+    // A lone punch on a day off is flagged rather than reconstructed. A working day rebuilds the
+    // missing half from the schedule, which cannot be right here: nobody was scheduled, so there is
+    // no shape to rebuild from, and inventing 8h30m of overtime on one button press would be the
+    // most expensive guess in the engine. Crediting nothing is the safe direction — but it was also
+    // silent, so 129 days across 38 people showed a rest day with no hint anyone had been in.
+    // Flagged, HR can regularize it and set the real time.
+    if (result.punchCount === 1 || (result.punchCount >= 3 && result.punchCount % 2 === 1)) {
+      result.isMissingPunch = true;
+      result.remarks = [
+        result.remarks,
+        result.punchCount === 1
+          ? 'Punched once on a day off — the hours cannot be measured, so none are credited'
+          : 'A punch is missing — one stretch of the day is unaccounted for',
+      ]
+        .filter(Boolean)
+        .join(' — ');
+    }
     return result;
   }
 
@@ -547,6 +596,13 @@ export function processDay(input: DayInput): DayResult {
   // a few minutes under 8:30, because the median day here is 8:31 and a hard threshold sits right
   // on top of the distribution. A rule that pays or docks on which side of the median a day lands
   // is a coin toss, not a policy.
+  // NOTE: `halfDayMinutes` is not consulted on a flexible shift and cannot be. The shift record
+  // still carries 255, which reads like an active control and is not one — an audit flagged 84 July
+  // days under that threshold paid in full, the shortest 51 minutes, as though the setting had been
+  // ignored by mistake. It has not: on this shift turning up settles the day, by policy. The days
+  // are not hidden, they carry `isShortDay`. Left as-is deliberately; changing it would cut pay on
+  // 84 days and that is the owner's call, not the engine's. If it is ever made real, do it with an
+  // explicit threshold well below the median day rather than by reinstating this one.
   if (shift.isFlexible) {
     result.status = 'Present';
     result.dayFraction = Math.max(result.dayFraction, 1);

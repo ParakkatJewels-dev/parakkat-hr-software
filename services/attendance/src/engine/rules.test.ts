@@ -1177,3 +1177,74 @@ test('a single punch keeps its own handling, which is more specific', () => {
   assert.equal(r.isMissingPunch, true);
   assert.equal(r.workedMinutes, 494, 'reconstructed to the shift end, unchanged by this');
 });
+
+// --- the punch window must cover the whole day ---------------------------------------------------
+//
+// GENERAL is 09:00-17:30, and the window used to be schedule +/- 6h = 03:00-23:30. The next day's
+// window also opened at 03:00, so 23:30-03:00 belonged to no work date and punches there were
+// loaded and then dropped. Vishnu Sathyan punched at 23:34, 23:52 and 23:37 on three January days,
+// each his only punch, and all three are stored Absent with zero minutes.
+test('a late-evening punch belongs to the day it happened on', () => {
+  const { from, to } = punchWindow('2026-07-24', GENERAL);
+  const at2337 = punchAt('2026-07-24', '23:37').punchTime;
+  assert.ok(at2337 >= from && at2337 < to, '23:37 must fall inside its own day');
+});
+
+test('the window leaves no gap between one day and the next', () => {
+  const day1 = punchWindow('2026-07-24', GENERAL);
+  const day2 = punchWindow('2026-07-25', GENERAL);
+  assert.equal(day1.to.getTime(), day2.from.getTime(),
+    'consecutive windows must meet exactly — a gap loses punches, an overlap double-counts them');
+});
+
+test('a night shift keeps its margin, so the morning exit stays on the starting day', () => {
+  const { from, to } = punchWindow('2026-07-24', NIGHT);
+  const exit = punchAt('2026-07-25', '05:50').punchTime;
+  assert.ok(exit >= from && exit < to, "a 22:00-06:00 shift's 05:50 exit belongs to the 24th");
+});
+
+test("Amal's evening is measured, not reconstructed", () => {
+  // 18:18 -> 23:37. Before the fix the exit was dropped, leaving one punch, which the
+  // missing-punch branch rebuilt as 09:00-17:30 and credited 510 minutes for 319 worked.
+  const r = processDay(day({
+    workDate: '2026-07-24',
+    punches: [punchAt('2026-07-24', '18:18'), punchAt('2026-07-24', '23:37')],
+    shift: FLEXIBLE,
+  }));
+  // FLEXIBLE, not GENERAL: the live shift charges only break beyond its allowance, and no break was
+  // punched here, so the whole 18:18-23:37 span stands. GENERAL deducts a flat hour and would have
+  // tested the break policy rather than the window.
+  assert.equal(r.punchCount, 2, 'the 23:37 exit must survive — it used to be dropped');
+  assert.equal(r.workedMinutes, 319);
+  assert.equal(r.isMissingPunch, false, 'both ends are present');
+});
+
+// --- exceptions are recorded on a day off too ----------------------------------------------------
+test('an odd punch count on a weekly off is flagged, not silently paid as overtime', () => {
+  const punches = [
+    punchAt('2026-07-26', '09:00'), punchAt('2026-07-26', '13:00'), punchAt('2026-07-26', '17:00'),
+  ];
+  const r = processDay(day({ workDate: '2026-07-26', punches, shift: GENERAL }));
+  assert.equal(r.dayType, 'weekly_off');
+  assert.ok(r.otMinutes > 0, 'still paid — every minute on a day off is overtime');
+  assert.equal(r.isMissingPunch, true, 'and now says the record is incomplete');
+});
+
+test('a long break on a weekly off is flagged, since its excess was deducted from the paid OT', () => {
+  const punches = [
+    punchAt('2026-07-26', '09:00'), punchAt('2026-07-26', '12:00'),
+    punchAt('2026-07-26', '13:30'), punchAt('2026-07-26', '18:00'),
+  ];
+  const r = processDay(day({ workDate: '2026-07-26', punches, shift: GENERAL }));
+  assert.equal(r.breakMinutes, 90);
+  assert.equal(r.isLongBreak, true);
+});
+
+test('a lone punch on a day off credits nothing, but says so', () => {
+  const r = processDay(day({
+    workDate: '2026-07-26', punches: [punchAt('2026-07-26', '10:00')], shift: GENERAL,
+  }));
+  assert.equal(r.workedMinutes, 0, 'nothing to measure, and no schedule to invent one from');
+  assert.equal(r.otMinutes, 0);
+  assert.equal(r.isMissingPunch, true, 'the day must not look like an ordinary rest day');
+});

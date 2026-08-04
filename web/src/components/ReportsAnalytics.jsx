@@ -78,12 +78,26 @@ function ExportButton({ label, onClick, pending, disabled, title, icon: Icon = D
   );
 }
 
+const TABS = [
+  { id: 'attendance', label: 'Attendance', icon: Clock },
+  { id: 'leave', label: 'Leave', icon: CalendarDays },
+  { id: 'expenses', label: 'Expenses', icon: ReceiptText },
+  { id: 'headcount', label: 'Headcount', icon: Users },
+];
+
+/** The ids the URL may carry — the tabs that actually render, and nothing else. */
+const TAB_IDS = TABS.map((t) => t.id);
+
 export default function ReportsAnalytics() {
   const today = todayIso();
   const [period, setPeriod] = useState(today.slice(0, 7)); // 'YYYY-MM'
   const [branchId, setBranchId] = useState('all');
   // In the URL, so a refresh comes back to the report you were reading.
-  const [tab, setTab] = useUrlTab('attendance', ['attendance', 'payroll', 'headcount', 'leave']);
+  // The whitelist comes from TABS itself. Hand-written, the two drifted: the list said
+  // 'payroll' — a tab that does not exist and renders a blank page at /reports/payroll — and
+  // omitted 'expenses', which does exist, so clicking Expenses failed the check and bounced
+  // straight back to Attendance. The Expenses report could not be opened at all.
+  const [tab, setTab] = useUrlTab('attendance', TAB_IDS);
 
   const year = Number(period.slice(0, 4));
   const month = Number(period.slice(5, 7));
@@ -184,13 +198,6 @@ export default function ReportsAnalytics() {
     row.exits += 1;
   }
   headByBranch.sort((a, b) => b.active - a.active);
-
-  const TABS = [
-    { id: 'attendance', label: 'Attendance', icon: Clock },
-    { id: 'leave', label: 'Leave', icon: CalendarDays },
-    { id: 'expenses', label: 'Expenses', icon: ReceiptText },
-    { id: 'headcount', label: 'Headcount', icon: Users },
-  ];
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">

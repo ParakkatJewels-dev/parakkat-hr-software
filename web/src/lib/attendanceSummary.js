@@ -122,10 +122,26 @@ export function summarise(rows) {
   // looks like a fact and carries none. What is meaningful there is whether the daily hours were
   // completed, so that is counted alongside and the screen picks whichever the shift supports.
   const flexible = rows.some((r) => r.shift?.is_flexible);
+
+  /**
+   * Short by the ENGINE's definition — the stored flag, not a fresh comparison here.
+   *
+   * This used to recompute it as `worked < full_day`, with no tolerance. The engine allows 30
+   * minutes, deliberately: the median day here is 8:31 against a 8:30 target, so a hard threshold
+   * sits directly on top of the distribution and flags half the company for finishing a minute
+   * early. The two definitions disagreed on 1,041 of July's days — 1,738 by this file's rule
+   * against 697 by the engine's — and the screen showed the inflated one while the CSV beside it
+   * showed the engine's. Akshay Das, present 27 of 27 days, read "Hours completed 19%" in amber on
+   * screen and "Short days: 5" in his export.
+   *
+   * Falling back to the raw comparison only for rows saved before the flag existed.
+   */
   const targetOf = (r) => Number(r.shift?.full_day_minutes) || 0;
   const isShort = (r) => {
+    if (r.is_short_day != null) return Boolean(r.is_short_day);
     const target = targetOf(r);
-    return target > 0 && mins(r.worked_minutes) < target;
+    const tolerance = Number(r.shift?.short_day_tolerance_minutes) || 0;
+    return target > 0 && target - mins(r.worked_minutes) > tolerance;
   };
 
   const attendedDays = working.filter((r) => r.check_in);
@@ -176,7 +192,11 @@ export function summarise(rows) {
     // on less than the whole month and has to say so.
     unmeasuredDays,
     // Its two parts, which sum back to workedHours rather than adding to it.
-    normalHours: Math.round((normalMinutes / 60) * 10) / 10,
+    // Derived from the two rounded figures, not rounded independently. The tile prints
+    // "normal + ot" beneath the headline and claims they add up; rounding all three separately
+    // meant round(a) + round(b) != round(a+b) for 39 of 162 people — PPL-0065 showed a headline of
+    // 245.7 over a sub-line reading "229.2 + 16.6", which is 245.8.
+    normalHours: Math.round((workedMinutes / 60) * 10) / 10 - Math.round((otMinutes / 60) * 10) / 10,
     otHours: Math.round((otMinutes / 60) * 10) / 10,
     offDayOtHours: Math.round((offDayOtMinutes / 60) * 10) / 10,
     lateMinutes,
@@ -292,8 +312,29 @@ export function explainDay(row, shift) {
   });
 
   if (fullDay > 0) {
-    lines.push({ label: 'A full day', minutes: fullDay, muted: true });
-    lines.push({ label: ot > 0 ? 'Overtime, beyond a full day' : 'Short of a full day', minutes: ot > 0 ? ot : worked - fullDay, total: true });
+    // On a day off every minute is overtime, whatever the total. Printing "A full day 8h30m" and
+    // then "Overtime, beyond a full day 7h47m" underneath it — which is what a worked Sunday did —
+    // states two things that cannot both be true, in four consecutive lines, on the very breakdown
+    // that exists so a disputed day can be checked by hand. 39 weekly-off days in July render this.
+    const isOffDay = ['weekly_off', 'holiday'].includes(
+      String(row.day_type ?? '').toLowerCase().replace(/[\s-]+/g, '_')
+    );
+    if (isOffDay) {
+      if (ot > 0) {
+        lines.push({
+          label: 'Overtime — every minute on a day off counts',
+          minutes: ot,
+          total: true,
+        });
+      }
+    } else {
+      lines.push({ label: 'A full day', minutes: fullDay, muted: true });
+      lines.push({
+        label: ot > 0 ? 'Overtime, beyond a full day' : 'Short of a full day',
+        minutes: ot > 0 ? ot : worked - fullDay,
+        total: true,
+      });
+    }
   }
 
   // Which punch is missing cannot be recovered from the record, so the note names both readings
