@@ -57,6 +57,42 @@ const ROLE_TITLES = {
   employee: 'My Day',
 };
 
+const ROLE_DESCRIPTIONS = {
+  super_admin: 'Company-wide health, access control and operational exceptions across the full HR system.',
+  entity_admin: 'Entity-level workforce movement, approvals, devices and compliance follow-up.',
+  hr_manager: 'Daily people operations with attendance, onboarding, documents and helpdesk focus.',
+  zonal_manager: 'Zone performance across branches, approvals and attendance health.',
+  branch_manager: 'Branch attendance, coverage, approvals and employee support for today.',
+  dept_head: 'Team attendance, tasks, leave decisions and employee follow-up.',
+  employee: 'Your attendance, leave, tasks, payslips and requests in one place.',
+};
+
+const ROLE_FOCUS = {
+  super_admin: ['All entities', 'Access', 'Audit'],
+  entity_admin: ['Entity scope', 'Approvals', 'Devices'],
+  hr_manager: ['People ops', 'Documents', 'Onboarding'],
+  zonal_manager: ['Zone scope', 'Branches', 'Reports'],
+  branch_manager: ['Branch scope', 'Attendance', 'Approvals'],
+  dept_head: ['Team scope', 'Tasks', 'Leave'],
+  employee: ['Self service', 'Attendance', 'Requests'],
+};
+
+function RoleBanner({ role, actions }) {
+  return (
+    <section className="dashboard-role-banner" data-role={role}>
+      <div className="dashboard-role-copy">
+        <span>Role dashboard</span>
+        <h1>{ROLE_TITLES[role] || 'Dashboard'}</h1>
+        <p>{ROLE_DESCRIPTIONS[role] || 'Your work queue and key HR signals for today.'}</p>
+      </div>
+      <div className="dashboard-role-focus" aria-label="Dashboard focus">
+        {(ROLE_FOCUS[role] || []).map((item) => <span key={item}>{item}</span>)}
+        {actions?.length ? <strong>{actions.length} actions</strong> : null}
+      </div>
+    </section>
+  );
+}
+
 /* ---------------------------------- per-role KPI rows ---------------------------------- */
 // Each KPI row is its own component so its queries only run for the preset that shows it.
 
@@ -614,8 +650,9 @@ export default function Dashboard({ onNavigate }) {
   const Preset = PRESETS[role];
 
   return (
-    <div className="page-shell dashboard-shell space-y-5 animate-slide-up py-3">
+    <div className="page-shell dashboard-shell space-y-5 animate-slide-up py-3" data-dashboard-role={role}>
       <NotificationsStrip onNavigate={onNavigate} />
+      <RoleBanner role={role} actions={actions} />
       <Preset onNavigate={onNavigate} actions={actions} />
     </div>
   );

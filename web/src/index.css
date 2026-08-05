@@ -348,6 +348,105 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     position: relative;
   }
 
+  .dashboard-role-banner {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 1rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 22%, var(--surface-border));
+    border-radius: var(--radius-card);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 11%, var(--surface-elevated)), transparent 48%),
+      var(--surface-elevated);
+    padding: var(--space-card);
+    box-shadow: var(--shadow-card);
+  }
+
+  .dashboard-role-banner::before {
+    content: '';
+    position: absolute;
+    inset-block: .85rem;
+    left: 0;
+    width: 3px;
+    border-radius: 999px;
+    background: linear-gradient(180deg, var(--dashboard-role-tone, var(--accent)), var(--tone-blue));
+  }
+
+  .dashboard-shell[data-dashboard-role="super_admin"],
+  .dashboard-role-banner[data-role="super_admin"] { --dashboard-role-tone: var(--tone-violet); }
+  .dashboard-shell[data-dashboard-role="entity_admin"],
+  .dashboard-role-banner[data-role="entity_admin"] { --dashboard-role-tone: var(--tone-blue); }
+  .dashboard-shell[data-dashboard-role="hr_manager"],
+  .dashboard-role-banner[data-role="hr_manager"] { --dashboard-role-tone: var(--accent); }
+  .dashboard-shell[data-dashboard-role="zonal_manager"],
+  .dashboard-role-banner[data-role="zonal_manager"] { --dashboard-role-tone: var(--tone-amber); }
+  .dashboard-shell[data-dashboard-role="branch_manager"],
+  .dashboard-role-banner[data-role="branch_manager"] { --dashboard-role-tone: var(--tone-orange); }
+  .dashboard-shell[data-dashboard-role="dept_head"],
+  .dashboard-role-banner[data-role="dept_head"] { --dashboard-role-tone: var(--tone-blue); }
+  .dashboard-shell[data-dashboard-role="employee"],
+  .dashboard-role-banner[data-role="employee"] { --dashboard-role-tone: var(--accent); }
+
+  .dashboard-role-copy {
+    min-width: 0;
+  }
+
+  .dashboard-role-copy span {
+    display: inline-flex;
+    color: var(--dashboard-role-tone, var(--accent));
+    font-size: .6875rem;
+    font-weight: 850;
+    letter-spacing: .045em;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .dashboard-role-copy h1 {
+    margin-top: .35rem;
+    color: var(--surface-text);
+    font-size: clamp(1.25rem, 1rem + .9vw, 2rem);
+    font-weight: 900;
+    line-height: 1.02;
+    letter-spacing: 0;
+  }
+
+  .dashboard-role-copy p {
+    max-width: 44rem;
+    margin-top: .4rem;
+    color: var(--surface-text-soft);
+    font-size: .8125rem;
+    line-height: 1.45;
+  }
+
+  .dashboard-role-focus {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: .4rem;
+    max-width: 22rem;
+  }
+
+  .dashboard-role-focus span,
+  .dashboard-role-focus strong {
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.55rem;
+    border: 1px solid color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 22%, var(--surface-border));
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 8%, var(--surface-elevated));
+    color: var(--surface-text);
+    padding: .2rem .55rem;
+    font-size: .6875rem;
+    font-weight: 850;
+    line-height: 1;
+  }
+
+  .dashboard-role-focus strong {
+    color: var(--dashboard-role-tone, var(--accent));
+  }
+
   .dashboard-widget {
     position: relative;
     overflow: hidden;
@@ -553,6 +652,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .dashboard-kpi:hover .dashboard-mini-chart {
     opacity: .95;
+  }
+
+  .dashboard-chart-frame {
+    height: 12.5rem;
+    min-width: 0;
   }
 
   .dashboard-stat-pill {
@@ -2504,6 +2608,573 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     margin-top: .05rem;
   }
 
+  /* ---- Asset register ----------------------------------------------------
+     The detail page borrows the record-page shell above (.emp-section, .emp-field-grid, .emp-rail).
+     Only what is genuinely new to assets lives here: the row list, the custody timeline, and the
+     small panels for handing an item over and taking it back. */
+  .asset-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .55rem;
+  }
+
+  .asset-search {
+    flex: 1 1 20rem;
+    min-width: 0;
+  }
+
+  .asset-list {
+    display: grid;
+    gap: .45rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .asset-row {
+    display: grid;
+    grid-template-columns: 2.4rem minmax(0, 2fr) minmax(0, 1.2fr) auto auto;
+    align-items: center;
+    gap: .75rem;
+    width: 100%;
+    border: 1px solid var(--surface-border);
+    border-radius: .9rem;
+    padding: .6rem .7rem;
+    background: color-mix(in srgb, var(--surface-subtle) 55%, var(--surface-elevated));
+    text-align: left;
+    transition: border-color .16s ease, background-color .16s ease;
+  }
+
+  .asset-row:hover {
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--surface-border));
+    background: var(--accent-soft);
+  }
+
+  .asset-row-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .7rem;
+    background: var(--surface-elevated);
+    color: var(--accent-strong);
+  }
+
+  .asset-row-main,
+  .asset-row-holder {
+    display: grid;
+    gap: .12rem;
+    min-width: 0;
+  }
+
+  .asset-row-main > strong,
+  .asset-row-holder > strong {
+    color: var(--surface-text);
+    font-size: .82rem;
+    font-weight: 850;
+    line-height: 1.25;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asset-row-main > em,
+  .asset-row-holder > em {
+    color: var(--surface-text-soft);
+    font-size: .66rem;
+    font-style: normal;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asset-row-chevron {
+    color: var(--surface-text-soft);
+    opacity: .55;
+  }
+
+  .asset-status {
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: .22rem .55rem;
+    font-family: var(--font-mono);
+    font-size: .62rem;
+    font-weight: 850;
+    line-height: 1;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .asset-status.is-allocated {
+    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .asset-status.is-available {
+    border-color: color-mix(in srgb, var(--tone-blue) 28%, transparent);
+    background: color-mix(in srgb, var(--tone-blue) 11%, transparent);
+    color: var(--tone-blue);
+  }
+
+  .asset-status.is-repair {
+    border-color: color-mix(in srgb, var(--tone-amber) 30%, transparent);
+    background: color-mix(in srgb, var(--tone-amber) 12%, transparent);
+    color: var(--tone-amber);
+  }
+
+  .asset-status.is-bad {
+    border-color: color-mix(in srgb, var(--tone-red) 30%, transparent);
+    background: color-mix(in srgb, var(--tone-red) 11%, transparent);
+    color: var(--tone-red);
+  }
+
+  .asset-status.is-retired {
+    border-color: var(--surface-border-strong);
+    background: var(--surface-muted);
+    color: var(--surface-text-soft);
+  }
+
+  .asset-avatar {
+    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--tone-blue) 70%, var(--accent))) !important;
+    color: #fff;
+  }
+
+  .asset-notes {
+    margin: 0;
+    color: var(--surface-text);
+    font-size: .82rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+  }
+
+  .asset-detail-loading {
+    display: flex;
+    justify-content: center;
+    padding: 3rem 0;
+    color: var(--accent-strong);
+  }
+
+  /* ---- handing over and taking back ---- */
+  .asset-custody-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .45rem;
+    margin-bottom: .85rem;
+  }
+
+  .asset-custody-actions > button,
+  .asset-panel-buttons > button {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    min-height: 2.2rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .7rem;
+    padding: .45rem .8rem;
+    background: var(--surface-subtle);
+    color: var(--surface-text);
+    font-size: .76rem;
+    font-weight: 850;
+    transition: border-color .16s ease, background-color .16s ease, color .16s ease;
+  }
+
+  .asset-custody-actions > button:hover,
+  .asset-panel-buttons > button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--surface-border));
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .asset-panel-buttons > button.is-primary {
+    border-color: transparent;
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .asset-panel-buttons > button.is-primary:hover:not(:disabled) {
+    background: var(--accent-strong);
+    color: #fff;
+  }
+
+  .asset-panel-buttons > button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+
+  .asset-panel {
+    display: grid;
+    gap: .7rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--surface-border));
+    border-radius: var(--radius-card);
+    padding: .9rem;
+    margin-bottom: .9rem;
+    background: color-mix(in srgb, var(--accent) 5%, var(--surface-subtle));
+  }
+
+  .asset-panel-title {
+    color: var(--surface-text-soft);
+    font-size: .62rem;
+    font-weight: 900;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+  }
+
+  .asset-panel-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+    gap: .6rem;
+  }
+
+  .asset-panel-row label {
+    display: grid;
+    gap: .25rem;
+    color: var(--surface-text-soft);
+    font-size: .64rem;
+    font-weight: 850;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+  }
+
+  .asset-panel-row select,
+  .asset-panel-row input {
+    min-height: 2.2rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .6rem;
+    padding: .35rem .55rem;
+    background: var(--surface-elevated);
+    color: var(--surface-text);
+    font-size: .8rem;
+    font-weight: 700;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .asset-panel-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: .45rem;
+  }
+
+  .asset-panel-error {
+    display: flex;
+    align-items: flex-start;
+    gap: .4rem;
+    margin: 0;
+    color: var(--tone-red);
+    font-size: .72rem;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  /* ---- choosing who gets it ---- */
+  .asset-picker {
+    display: grid;
+    gap: .4rem;
+  }
+
+  .asset-picker-search {
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .7rem;
+    padding: .4rem .6rem;
+    background: var(--surface-elevated);
+    color: var(--surface-text-soft);
+  }
+
+  .asset-picker-search input {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: var(--surface-text);
+    font-size: .8rem;
+    font-weight: 700;
+  }
+
+  .asset-picker-search input:focus {
+    outline: none;
+  }
+
+  .asset-picker-list {
+    display: grid;
+    gap: .2rem;
+    max-height: 13rem;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .asset-picker-list button {
+    display: grid;
+    gap: .1rem;
+    width: 100%;
+    border-radius: .6rem;
+    padding: .4rem .55rem;
+    text-align: left;
+    transition: background-color .14s ease;
+  }
+
+  .asset-picker-list button:hover {
+    background: var(--surface-muted);
+  }
+
+  .asset-picker-list strong {
+    color: var(--surface-text);
+    font-size: .78rem;
+    font-weight: 850;
+  }
+
+  .asset-picker-list em,
+  .asset-picked em {
+    color: var(--surface-text-soft);
+    font-size: .65rem;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .asset-picker-note {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    margin: 0;
+    color: var(--surface-text-soft);
+    font-size: .72rem;
+    font-weight: 700;
+  }
+
+  .asset-picked {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--surface-border));
+    border-radius: .7rem;
+    padding: .55rem .65rem;
+    background: var(--surface-elevated);
+    color: var(--accent-strong);
+  }
+
+  .asset-picked > span {
+    flex: 1 1 0;
+    min-width: 0;
+    display: grid;
+    gap: .1rem;
+  }
+
+  .asset-picked strong {
+    color: var(--surface-text);
+    font-size: .8rem;
+    font-weight: 850;
+  }
+
+  .asset-picked > button {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: .5rem;
+    color: var(--surface-text-soft);
+  }
+
+  .asset-picked > button:hover {
+    background: var(--surface-muted);
+    color: var(--surface-text);
+  }
+
+  /* ---- the history itself ---- */
+  .asset-timeline {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .asset-timeline-item {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1.85rem minmax(0, 1fr);
+    gap: 0 .75rem;
+    padding: .5rem 0 .8rem;
+  }
+
+  /* The line that makes a list of names read as one object passing between hands. */
+  .asset-timeline-item::before {
+    content: '';
+    position: absolute;
+    left: .9rem;
+    top: 2.1rem;
+    bottom: -.15rem;
+    width: 1px;
+    background: var(--surface-border-strong);
+  }
+
+  .asset-timeline-item:last-child::before {
+    display: none;
+  }
+
+  .asset-timeline-mark {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.85rem;
+    height: 1.85rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    background: var(--surface-subtle);
+    color: var(--surface-text-soft);
+  }
+
+  .asset-timeline-item.is-current .asset-timeline-mark {
+    border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .asset-timeline-body {
+    display: grid;
+    gap: .18rem;
+    min-width: 0;
+  }
+
+  .asset-timeline-who {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .45rem;
+  }
+
+  .asset-timeline-who > strong {
+    color: var(--surface-text);
+    font-size: .84rem;
+    font-weight: 850;
+  }
+
+  .asset-timeline-now {
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: 999px;
+    padding: .16rem .45rem;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+    font-size: .58rem;
+    font-weight: 900;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .asset-timeline-meta,
+  .asset-timeline-when,
+  .asset-timeline-condition,
+  .asset-timeline-note {
+    color: var(--surface-text-soft);
+    font-size: .68rem;
+    font-weight: 700;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .asset-timeline-when {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-family: var(--font-mono);
+    font-size: .66rem;
+  }
+
+  .asset-timeline-note {
+    font-style: italic;
+    opacity: .85;
+  }
+
+  /* ---- the rail ---- */
+  .asset-holder {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--surface-border));
+    border-radius: .8rem;
+    padding: .65rem .7rem;
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+
+  .asset-holder.is-free {
+    border-color: var(--surface-border);
+    background: var(--surface-subtle);
+    color: var(--surface-text-soft);
+  }
+
+  .asset-holder > span {
+    min-width: 0;
+    display: grid;
+    gap: .1rem;
+  }
+
+  .asset-holder strong {
+    color: var(--surface-text);
+    font-size: .82rem;
+    font-weight: 850;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .asset-holder em {
+    color: var(--surface-text-soft);
+    font-size: .65rem;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .asset-glance {
+    margin-top: .75rem;
+  }
+
+  .asset-warning p {
+    display: flex;
+    align-items: flex-start;
+    gap: .4rem;
+    margin: 0 0 .35rem;
+    color: var(--tone-amber);
+    font-size: .72rem;
+    font-weight: 750;
+    line-height: 1.4;
+  }
+
+  .asset-secret {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+  }
+
+  .asset-secret > button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .45rem;
+    color: var(--surface-text-soft);
+  }
+
+  .asset-secret > button:hover {
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--surface-border));
+    color: var(--accent-strong);
+  }
+
   .emp-pay {
     display: grid;
     gap: .9rem;
@@ -4268,6 +4939,26 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     padding: .8rem;
   }
 
+  /* Five columns do not fit a phone. The icon keeps its column, the name and the holder stack
+     beside it, and the status stays on the first line where it can still be scanned down the list. */
+  main .asset-row {
+    grid-template-columns: 2.4rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      'icon name   status'
+      'icon holder status';
+    gap: .15rem .6rem;
+  }
+
+  main .asset-row-icon   { grid-area: icon; align-self: center; }
+  main .asset-row-main   { grid-area: name; }
+  main .asset-row-holder { grid-area: holder; }
+  main .asset-row .asset-status { grid-area: status; align-self: center; }
+  main .asset-row-chevron { display: none; }
+
+  main .asset-toolbar > .filter-select {
+    flex: 1 1 100%;
+  }
+
   /* Title, then the two actions on their own line — side by side there is not enough width left
      for the file name to say anything useful. */
   main .emp-doc {
@@ -4410,6 +5101,27 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .dashboard-kpi-row {
     gap: .625rem;
+  }
+
+  main .dashboard-role-banner {
+    grid-template-columns: 1fr;
+    gap: .75rem;
+    padding: .85rem;
+  }
+
+  main .dashboard-role-focus {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  main .dashboard-role-copy h1 {
+    font-size: 1.35rem;
+    line-height: 1.05;
+  }
+
+  main .dashboard-role-copy p {
+    font-size: .78rem;
+    line-height: 1.4;
   }
 
   main .dashboard-priority-center {
@@ -4968,13 +5680,49 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   main .dashboard-kpi {
-    min-height: 7rem;
+    min-height: 6.75rem;
+    padding: .7rem;
   }
 
-  main .dashboard-kpi .text-xl {
-    font-size: 1.125rem;
-    line-height: 1.1;
-    word-break: break-word;
+  main .dashboard-kpi-label {
+    max-width: calc(100% - 2.05rem);
+    font-size: .62rem;
+    line-height: 1.15;
+  }
+
+  main .dashboard-kpi-icon {
+    width: 1.85rem;
+    height: 1.85rem;
+    border-radius: .7rem;
+  }
+
+  main .dashboard-kpi-body {
+    padding-top: .75rem;
+    padding-right: 0;
+  }
+
+  main .dashboard-kpi-body p {
+    font-size: clamp(1.1rem, 8vw, 1.55rem);
+    line-height: 1;
+    max-width: 100%;
+  }
+
+  main .dashboard-kpi-body span {
+    margin-top: .35rem;
+    white-space: normal;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  main .dashboard-kpi-row[data-count="5"] .dashboard-mini-chart,
+  main .dashboard-kpi-row[data-count="6"] .dashboard-mini-chart {
+    display: none;
+  }
+
+  main .dashboard-chart-frame {
+    height: 14rem;
+    margin-inline: -.25rem;
   }
 
   main .quick-actions-grid button {

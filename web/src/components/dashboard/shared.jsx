@@ -185,7 +185,7 @@ export function KpiRow({ kpis, onNavigate }) {
   const items = kpis.filter(Boolean);
   const cols = KPI_COLS[Math.min(Math.max(items.length, 3), 6)];
   return (
-    <section className={`dashboard-kpi-row grid grid-cols-2 sm:grid-cols-3 gap-3 ${cols}`}>
+    <section className={`dashboard-kpi-row grid grid-cols-2 sm:grid-cols-3 gap-3 ${cols}`} data-count={items.length}>
       {items.map((k) => (
         <KpiCard key={k.label} {...k} onNavigate={onNavigate} />
       ))}

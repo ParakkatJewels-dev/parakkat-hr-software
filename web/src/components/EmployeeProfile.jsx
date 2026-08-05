@@ -9,9 +9,10 @@ import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Pencil, Mail, Phone, Copy, Check, Calendar, Building2, MapPin, Layers,
   Briefcase, Award, ShieldAlert, ExternalLink, KeyRound, UserRound, HeartPulse,
-  Landmark, IdCard, Paperclip, FileText, Download, Eye, Loader2, AlertTriangle,
+  Landmark, IdCard, Paperclip, FileText, Download, Eye, Loader2, AlertTriangle, Boxes, Package,
 } from 'lucide-react';
 import { useEmployeeDocuments, useDocumentLink, useEmployeeAvatars, fileSize } from '../data/documents';
+import { useEmployeeAssets } from '../data/assets';
 import { usePermissions } from '../auth/usePermissions';
 
 const initials = (name) =>
@@ -159,6 +160,53 @@ function DocumentsSection({ employeeId }) {
         </div>
       )}
     </>
+  );
+}
+
+// What company property this person is holding right now. The register is the authority; this is
+// the same question asked from the other end, and it is the one exit clearance actually needs.
+function EmployeeAssetsSection({ employeeId }) {
+  const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
+
+  if (isLoading) {
+    return <p className="emp-doc-note"><Loader2 size={13} className="animate-spin" /> Loading assets…</p>;
+  }
+  if (error) {
+    return (
+      <div className="emp-doc-error" role="alert">
+        <AlertTriangle size={14} /> <span>{error.message}</span>
+      </div>
+    );
+  }
+  if (!assets.length) {
+    return (
+      <div className="emp-empty">
+        <Boxes size={20} />
+        <p>Nothing is allocated to this person. Company property they hold will appear here.</p>
+      </div>
+    );
+  }
+
+  return (
+    <ul className="emp-doc-list">
+      {assets.map((a) => (
+        <li key={a.id} className="emp-doc">
+          <span className="emp-doc-icon"><Package size={15} /></span>
+          <span className="emp-doc-copy">
+            <strong>{a.name}</strong>
+            <em>
+              {[a.category, [a.make, a.model].filter(Boolean).join(' '), a.asset_code, a.serial]
+                .filter(Boolean).join(' · ')}
+            </em>
+          </span>
+          <span className="emp-doc-actions">
+            <span className={`asset-status ${a.status === 'Allocated' ? 'is-allocated' : 'is-repair'}`}>
+              {a.condition || a.status}
+            </span>
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -395,8 +443,17 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
   ];
 
-  // Documents carry their own permission. Someone who may see a person but not their file cabinet
-  // gets no section at all, rather than an empty one that reads as "nothing was ever uploaded".
+  // Both of these carry their own permission. Someone who may see a person but not their file
+  // cabinet gets no section at all, rather than an empty one reading as "nothing was uploaded".
+  if (canAny('asset.read')) {
+    sections.push({
+      id: 'assets',
+      label: 'Assets held',
+      icon: Boxes,
+      body: <EmployeeAssetsSection employeeId={emp.id} />,
+    });
+  }
+
   if (canAny('document.read')) {
     sections.push({
       id: 'documents',
