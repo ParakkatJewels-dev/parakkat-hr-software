@@ -3691,8 +3691,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-auto-columns: minmax(0, 1fr);
     gap: .2rem;
     width: 100%;
-    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
-    padding: .32rem max(.55rem, env(safe-area-inset-left)) calc(.32rem + env(safe-area-inset-bottom)) max(.55rem, env(safe-area-inset-right));
+    min-height: var(--mobile-nav-height);
+    padding: .32rem max(.55rem, env(safe-area-inset-left)) .32rem max(.55rem, env(safe-area-inset-right));
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
     border-width: 1px 0 0;
     border-radius: 1.25rem 1.25rem 0 0;
