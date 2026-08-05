@@ -4925,11 +4925,109 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .mobile-filter-panel {
     display: none;
+  }
+
+  /* Opened from either the inline toggle or the floating button, the panel comes up as a sheet
+     over the list rather than expanding the card in place — which used to push the list down and
+     leave you scrolled somewhere else when it closed. */
+  main .mobile-filter-panel.is-open {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 70;
+    display: grid;
+    gap: .55rem;
+    max-height: 72dvh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 1rem max(.9rem, env(safe-area-inset-left))
+             calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 1rem)
+             max(.9rem, env(safe-area-inset-right));
+    border-top: 1px solid var(--surface-border);
+    border-radius: 1.35rem 1.35rem 0 0;
+    background: var(--surface-elevated);
+    box-shadow: 0 -20px 50px rgba(16, 32, 26, .26);
+    animation: mobile-filter-sheet-in .2s ease both;
+  }
+
+  @keyframes mobile-filter-sheet-in {
+    from { transform: translateY(1.5rem); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    main .mobile-filter-panel.is-open { animation: none; }
+  }
+
+  /* A grab handle, so the sheet reads as something that came up and can go back down. */
+  main .mobile-filter-panel.is-open::before {
+    content: '';
+    justify-self: center;
+    width: 2.25rem;
+    height: .25rem;
+    margin-bottom: .35rem;
+    border-radius: 999px;
+    background: var(--surface-border-strong);
+  }
+
+  .mobile-filter-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 69;
+    background: rgba(8, 13, 11, .45);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
     animation: fadeIn .16s ease;
   }
 
-  main .mobile-filter-panel.is-open {
-    display: grid;
+  /* Sits above the bottom nav, out of the thumb's way but inside its reach. */
+  .directory-filter-fab {
+    position: fixed;
+    right: max(.9rem, env(safe-area-inset-right));
+    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 1rem);
+    z-index: 71;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 42%, transparent);
+    /* Off until you have scrolled past the real filter bar. Kept in the DOM rather than unmounted
+       so it fades rather than blinking into existence. */
+    opacity: 0;
+    transform: translateY(.75rem) scale(.9);
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+
+  .directory-filter-fab.is-visible {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .directory-filter-fab > span {
+    position: absolute;
+    top: -.15rem;
+    right: -.15rem;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--surface-bg);
+    border-radius: 999px;
+    padding: 0 .2rem;
+    background: var(--surface-text);
+    color: var(--surface-bg);
+    font-family: var(--font-mono);
+    font-size: .6rem;
+    font-weight: 900;
+    line-height: 1;
   }
 
   main .mobile-active-filter-row:empty {
@@ -5655,13 +5753,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: .5rem;
   }
 
+  /* Not sticky any more. Pinned to the top it held search + sort + a filter toggle on screen for
+     the whole scroll — a third of a phone's height spent on chrome, above the list you came to
+     read. It scrolls away with the content now, and .directory-filter-fab brings it back. */
   main .directory-filter-shell {
-    position: sticky;
-    top: calc(env(safe-area-inset-top) + .45rem);
-    z-index: 24;
+    position: static;
     display: grid;
     gap: .45rem;
-    background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
   }
 
   main .directory-filter-primary {
@@ -5974,8 +6072,15 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-auto-columns: minmax(0, 1fr);
     gap: .2rem;
     width: 100%;
-    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
-    padding: .32rem max(.55rem, env(safe-area-inset-left)) calc(.32rem + env(safe-area-inset-bottom)) max(.55rem, env(safe-area-inset-right));
+    /* The bar IS flush with the bottom of the screen — measured, gap below it is 0. What reads as
+       empty space is this padding: it used to reserve the WHOLE home-indicator inset (34px on an
+       iPhone, so 39px of nothing under the icons, a fifth of the bar's height).
+       The indicator is about 5px tall and sits ~8px up, so a little over half the inset clears it
+       comfortably while the icons sit where a thumb expects them. Devices with no inset — Android
+       with on-screen buttons, anything in a browser — fall back to the .45rem floor. */
+    --nav-safe-bottom: max(.45rem, calc(env(safe-area-inset-bottom) * .55));
+    min-height: calc(var(--mobile-nav-height) + var(--nav-safe-bottom));
+    padding: .32rem max(.55rem, env(safe-area-inset-left)) var(--nav-safe-bottom) max(.55rem, env(safe-area-inset-right));
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
     border-width: 1px 0 0;
     border-radius: 1.25rem 1.25rem 0 0;

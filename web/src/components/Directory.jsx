@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useDeferredValue } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
   Search, User, ArrowLeft, ArrowRight, X, AlertTriangle,
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
@@ -160,6 +160,20 @@ export default function Directory() {
   const [selectedBranch, setSelectedBranch] = useState('All Branches');
   const [sortBy, setSortBy] = useState('name-asc');
   const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // On a phone the filter card scrolls away with the list instead of pinning to the top, where it
+  // was taking a third of the screen for the whole scroll. Once it is out of sight this button
+  // brings it back — and it only appears after you have actually scrolled past it, so it is not
+  // sitting over the first screenful where the real bar is already visible.
+  const [filterFabVisible, setFilterFabVisible] = useState(false);
+  useEffect(() => {
+    const scroller = document.querySelector('.app-main');
+    if (!scroller) return undefined;
+    const onScroll = () => setFilterFabVisible(scroller.scrollTop > 150);
+    onScroll();
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => scroller.removeEventListener('scroll', onScroll);
+  }, []);
   const [viewMode, setViewMode] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'grid' : 'list'
   );
@@ -941,6 +955,28 @@ export default function Directory() {
       )}
 
       </div>
+
+      {/* Phone only. The filter panel opens as a sheet over the list (see .mobile-filter-panel in
+          index.css), so this backdrop both dims the list and gives a tap target to close it. */}
+      {filtersOpen && (
+        <button
+          type="button"
+          className="mobile-filter-scrim lg:hidden"
+          aria-label="Close filters"
+          onClick={() => setFiltersOpen(false)}
+        />
+      )}
+
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((v) => !v)}
+        aria-expanded={filtersOpen}
+        aria-label={activeFilterCount ? `Filters, ${activeFilterCount} applied` : 'Filters'}
+        className={`directory-filter-fab lg:hidden ${filterFabVisible || filtersOpen ? 'is-visible' : ''}`}
+      >
+        <SlidersHorizontal size={17} />
+        {activeFilterCount > 0 && <span>{activeFilterCount}</span>}
+      </button>
 
     </div>
   );
