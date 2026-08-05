@@ -204,7 +204,7 @@ function SuperKpis({ onNavigate }) {
       kpis={[
         { label: 'Entities', value: (org?.entities ?? []).length, icon: Network, badgeClass: 'bg-purple-500/10 text-purple-500', subtext: 'Companies', tab: 'organization' },
         { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'All entities', tab: 'organization' },
-        { label: 'Employees', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active, system-wide', tab: 'directory' },
+        { label: 'Employees', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active', tab: 'directory' },
         { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance' },
         { label: 'Logins', value: users.length, icon: Shield, badgeClass: 'bg-violet-500/10 text-violet-500', subtext: 'users', tab: 'administration' },
         { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk' },
