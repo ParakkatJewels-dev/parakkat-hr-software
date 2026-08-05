@@ -15,7 +15,6 @@ import { useEmployees } from '../data/employees';
 import { usePermissions } from '../auth/usePermissions';
 import { useQueryClient } from '@tanstack/react-query';
 import { detectLayout, extractPeople, planImport, runImport } from '../data/employeeImport';
-import { btnClass } from './ui/Btn';
 import PageHeader from './ui/PageHeader';
 
 const STATUS_STYLE = {
@@ -116,7 +115,7 @@ export default function EmployeeImport({ onDone }) {
   }
 
   return (
-    <div className="page-shell space-y-4 animate-fade-in">
+    <div className="page-shell people-page space-y-5 animate-fade-in">
       <PageHeader
         eyebrow="People"
         icon={Upload}
@@ -124,7 +123,7 @@ export default function EmployeeImport({ onDone }) {
         subtitle="Load a roster from Excel or CSV. Nothing is saved until you review it."
         actions={
           onDone && (
-            <button onClick={onDone} className={btnClass('ghost')}>
+            <button onClick={onDone} className="people-action-button people-action-button-secondary">
               <ArrowLeft size={13} /> Back to directory
             </button>
           )
@@ -133,21 +132,21 @@ export default function EmployeeImport({ onDone }) {
 
       {/* ---- step 1: the file ---------------------------------------------------------- */}
       {!file && (
-        <label className="premium-card block cursor-pointer border-dashed border-2 hover:border-[#0ea971]/50 transition-colors p-10 text-center">
+        <label className="premium-card import-dropzone">
           <input
             type="file"
             accept=".xlsx,.xls,.csv"
             className="sr-only"
             onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])}
           />
-          <FileSpreadsheet size={26} className="mx-auto text-neutral-300 dark:text-neutral-700" />
-          <p className="text-md font-bold text-neutral-900 dark:text-white mt-2.5">
+          <span className="import-dropzone-icon"><FileSpreadsheet size={24} /></span>
+          <p>
             Choose a spreadsheet
           </p>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-md mx-auto">
+          <small>
             .xlsx, .xls or .csv. It needs a column of employee names; Designation, Branch, Code,
             Email, Phone and Join date are picked up automatically if they are there.
-          </p>
+          </small>
         </label>
       )}
 
@@ -160,8 +159,8 @@ export default function EmployeeImport({ onDone }) {
       {/* ---- step 2: what we found ----------------------------------------------------- */}
       {file && !result && (
         <>
-          <div className="premium-card flex flex-wrap items-center gap-3">
-            <FileSpreadsheet size={16} className="text-[#0ea971] shrink-0" />
+          <div className="premium-card import-file-card">
+            <span className="import-file-icon"><FileSpreadsheet size={16} /></span>
             <div className="min-w-0">
               <p className="text-sm font-bold text-neutral-900 dark:text-white truncate">{file.name}</p>
               <p className="text-xs text-neutral-500">
@@ -170,7 +169,7 @@ export default function EmployeeImport({ onDone }) {
                   : 'No column of employee names found'}
               </p>
             </div>
-            <button onClick={reset} className={btnClass('subtle', 'sm') + ' ml-auto'}>
+            <button onClick={reset} className="people-action-button people-action-button-secondary">
               <X size={13} /> Choose another
             </button>
           </div>
@@ -182,7 +181,7 @@ export default function EmployeeImport({ onDone }) {
             </p>
           ) : (
             <>
-              <div className="premium-card space-y-3">
+              <div className="premium-card import-mapping-card space-y-3">
                 <div>
                   <label htmlFor="imp-entity" className="block text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-1">
                     Import into which company? *
@@ -201,9 +200,9 @@ export default function EmployeeImport({ onDone }) {
                 </div>
 
                 {/* Which columns were recognised — so a mis-detected sheet is obvious before writing. */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
+                <div className="import-column-chips">
                   {Object.entries(layout.columns).map(([field, i]) => (
-                    <span key={field} className="text-2xs px-2 py-0.5 rounded-lg bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981] font-semibold">
+                    <span key={field}>
                       {field.replace('_', ' ')} ← “{layout.headers[i] || `column ${i + 1}`}”
                     </span>
                   ))}
@@ -212,7 +211,7 @@ export default function EmployeeImport({ onDone }) {
 
               {plan && (
                 <>
-                  <div className="premium-card flex flex-wrap items-center gap-x-6 gap-y-2">
+                  <div className="premium-card import-plan-card">
                     {[
                       ['Will be created', plan.counts.create, 'text-[#0c9765] dark:text-[#10b981]'],
                       ['Will be filled in', plan.counts.update, 'text-blue-600 dark:text-blue-400'],
@@ -221,15 +220,15 @@ export default function EmployeeImport({ onDone }) {
                       ['New branches', plan.counts.newBranches, 'text-neutral-600 dark:text-neutral-300'],
                       ['New designations', plan.counts.newDesignations, 'text-neutral-600 dark:text-neutral-300'],
                     ].map(([label, n, cls]) => (
-                      <div key={label}>
-                        <p className={`text-lg font-bold tabular-nums ${cls}`}>{n}</p>
-                        <p className="text-2xs text-neutral-500">{label}</p>
+                      <div key={label} className="import-plan-stat">
+                        <p className={cls}>{n}</p>
+                        <span>{label}</span>
                       </div>
                     ))}
                     <button
                       onClick={doImport}
                       disabled={busy || (plan.counts.create === 0 && plan.counts.update === 0)}
-                      className={btnClass('primary') + ' ml-auto'}
+                      className="people-action-button people-action-button-primary"
                     >
                       {busy ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
                       {busy && progress
@@ -242,7 +241,7 @@ export default function EmployeeImport({ onDone }) {
                     </button>
                   </div>
 
-                  <div className="premium-card p-0 overflow-hidden">
+                  <div className="premium-card import-preview-card p-0 overflow-hidden">
                     <div className="table-scroll">
                       <table className="premium-table">
                         <thead>
@@ -285,7 +284,7 @@ export default function EmployeeImport({ onDone }) {
 
       {/* ---- step 3: the outcome ------------------------------------------------------- */}
       {result && (
-        <div className="premium-card">
+        <div className="premium-card import-result-card">
           {result.ok ? (
             <>
               <p className="flex items-center gap-2 text-md font-bold text-neutral-900 dark:text-white">
@@ -306,9 +305,9 @@ export default function EmployeeImport({ onDone }) {
               <AlertTriangle size={14} className="shrink-0 mt-0.5" /> {result.message}
             </p>
           )}
-          <div className="flex gap-2 mt-3">
-            <button onClick={reset} className={btnClass('ghost')}>Import another file</button>
-            {onDone && <button onClick={onDone} className={btnClass('primary')}>Go to the directory</button>}
+          <div className="people-form-actions mt-3">
+            <button onClick={reset} className="people-action-button people-action-button-secondary">Import another file</button>
+            {onDone && <button onClick={onDone} className="people-action-button people-action-button-primary">Go to the directory</button>}
           </div>
         </div>
       )}

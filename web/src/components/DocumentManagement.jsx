@@ -3,7 +3,7 @@
 // This was a register: a title, a category, and a URL you typed in yourself. There was no file
 // upload anywhere in the application, and the footnote at the bottom of this screen said so. Now the
 // file is stored — privately, and reached only through a signed link that expires in a minute.
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   FolderOpen, Plus, ShieldAlert, Loader2, AlertTriangle, FileText, FilePlus,
   Download, Trash2, Link2, Upload,
@@ -15,9 +15,9 @@ import {
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
 import FormSection, { Field, FIELD } from './ui/FormSection';
-import { btnClass } from './ui/Btn';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Pagination, { usePagination } from './ui/Pagination';
+import PageHeader from './ui/PageHeader';
 
 const CATS = ['Policy', 'HR Letter', 'Identity', 'Contract', 'Certificate', 'Other'];
 
@@ -38,6 +38,18 @@ export default function DocumentManagement() {
   const [fileError, setFileError] = useState(null);
   const [confirming, setConfirming] = useState(null);
   const fileInput = useRef(null);
+  const stats = useMemo(() => {
+    const stored = docs.filter((d) => d.storage_path).length;
+    const links = docs.length - stored;
+    const personal = docs.filter((d) => d.employee?.full_name).length;
+    const signed = docs.filter((d) => d.signed).length;
+    return [
+      { label: 'Documents', value: docs.length, sub: 'Visible in scope', tone: 'green' },
+      { label: 'Stored files', value: stored, sub: `${links} external links`, tone: 'blue' },
+      { label: 'Employee docs', value: personal, sub: 'Attached to people', tone: 'amber' },
+      { label: 'Signed', value: signed, sub: 'Completed records', tone: 'violet' },
+    ];
+  }, [docs]);
 
   // Rejected here as well as by the bucket, because a 40 MB file refused after it has finished
   // uploading is a worse experience than one refused before it starts.
@@ -89,18 +101,28 @@ export default function DocumentManagement() {
   const pager = usePagination(docs);
 
   return (
-    <div className="page-shell space-y-6 animate-fade-in">
-      <div className="mobile-list-row flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Document Management</h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Policies and documents within your scope.</p>
-        </div>
-        {canManage && !showForm && (
-          <button onClick={() => setShowForm(true)} className={btnClass('primary')}>
+    <div className="page-shell people-page space-y-5 animate-fade-in">
+      <PageHeader
+        eyebrow="People"
+        icon={FolderOpen}
+        title="Documents"
+        subtitle="Policies, letters, identity files and company documents within your scope."
+        actions={canManage && !showForm && (
+          <button onClick={() => setShowForm(true)} className="people-action-button people-action-button-primary">
             <Plus size={14} /> Add document
           </button>
         )}
-      </div>
+      />
+
+      <section className="people-insight-grid">
+        {stats.map((stat) => (
+          <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
+            <span>{stat.label}</span>
+            <strong>{stat.value}</strong>
+            <em>{stat.sub}</em>
+          </div>
+        ))}
+      </section>
 
       {/* Opens directly under the button that summons it — it used to render below the
           whole document list, so on a long list nothing appeared to happen. */}
@@ -179,25 +201,30 @@ export default function DocumentManagement() {
         </FormSection>
       )}
 
-      <div className="premium-card p-5 space-y-4">
-        <h3 className="font-semibold text-base flex items-center border-b border-neutral-200 dark:border-neutral-850 pb-2.5">
-          <FolderOpen size={18} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Documents
-        </h3>
+      <div className="premium-card people-library-card space-y-4">
+        <div className="people-panel-head">
+          <span><FolderOpen size={15} /> Document library</span>
+          <em>{pager.from}–{pager.to} of {pager.count}</em>
+        </div>
 
         {isLoading ? (
           <div className="flex justify-center py-10 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>
         ) : error ? (
           <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
         ) : docs.length === 0 ? (
-          <p className="text-xs text-neutral-500 py-8 text-center">No documents visible to you yet.</p>
+          <div className="people-empty-state is-compact">
+            <FolderOpen size={24} />
+            <strong>No documents yet</strong>
+            <span>Files and policy links will appear here when added.</span>
+          </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="people-document-grid">
             {pager.slice.map((d) => (
-              <div key={d.id} className="mobile-list-row p-3.5 bg-neutral-100/50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-850 rounded-xl flex items-center justify-between gap-2">
+              <div key={d.id} className="people-document-card">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  {d.storage_path
-                    ? <FileText size={16} className="text-[#0ea971] shrink-0" />
-                    : <Link2 size={16} className="text-neutral-400 shrink-0" />}
+                  <span className="people-document-icon">
+                    {d.storage_path ? <FileText size={16} /> : <Link2 size={16} />}
+                  </span>
                   <div className="min-w-0">
                     <span className="text-xs font-bold text-neutral-800 dark:text-slate-200 block truncate">{d.title}</span>
                     <span className="text-2xs text-neutral-500 block truncate">
@@ -214,7 +241,7 @@ export default function DocumentManagement() {
                     disabled={link.isPending}
                     title={d.storage_path ? 'Download' : 'Open the link'}
                     aria-label={d.storage_path ? `Download ${d.title}` : `Open ${d.title}`}
-                    className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-600 dark:text-neutral-300 disabled:opacity-50"
+                    className="people-icon-button"
                   >
                     {link.isPending ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                   </button>
@@ -222,7 +249,7 @@ export default function DocumentManagement() {
                     <button
                       onClick={() => setConfirming(d)}
                       title="Delete" aria-label={`Delete ${d.title}`}
-                      className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-950/40 text-neutral-500 hover:text-red-600"
+                      className="people-icon-button is-danger"
                     >
                       <Trash2 size={13} />
                     </button>

@@ -10,7 +10,6 @@
 // range queries in Postgres — at which point `usePagination` is the seam to change.
 import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
-import { btnClass } from './Btn';
 
 /**
  * @param items      the full, already-filtered array
@@ -55,9 +54,6 @@ function pageWindow(current, total) {
   return out;
 }
 
-const NUM =
-  'pagination-number min-w-[2rem] sm:min-w-[1.75rem] px-2 sm:px-1.5 py-1.5 sm:py-1 rounded-md text-sm font-bold tabular-nums cursor-pointer transition-colors';
-
 /**
  * Renders nothing when everything fits on one page — a pager under a five-row list is noise.
  * `noun` is used in the summary, e.g. "1–25 of 242 people".
@@ -69,35 +65,35 @@ export default function Pagination({
   if (count <= Math.min(...sizes)) return null;
 
   return (
-    <div className={`premium-card pagination-shell flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${className}`}>
-      <span className="text-sm text-neutral-500 dark:text-neutral-400 tabular-nums text-center sm:text-left">
-        <b className="text-neutral-800 dark:text-neutral-200">{from}–{to}</b> of {count} {noun}
-      </span>
+    <nav className={`premium-card pagination-shell ${className}`} aria-label={`${noun} pagination`}>
+      <div className="pagination-summary">
+        <span className="pagination-range">
+          <b>{from}–{to}</b>
+          <span>of {count} {noun}</span>
+        </span>
+        <span className="pagination-page-label">Page {page} of {totalPages}</span>
+      </div>
 
-      <div className="pagination-pages flex items-center justify-center gap-1 flex-wrap">
+      <div className="pagination-pages" aria-label="Pages">
         <button
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1}
           aria-label="Previous page"
-          className={btnClass('subtle', 'sm', true)}
+          className="pagination-nav-button"
         >
           <ArrowLeft size={12} />
         </button>
 
         {pageWindow(page, totalPages).map((n, i) =>
           n === '…' ? (
-            <span key={`gap-${i}`} className="px-1 text-neutral-400 select-none">…</span>
+            <span key={`gap-${i}`} className="pagination-ellipsis" aria-hidden="true">…</span>
           ) : (
             <button
               key={n}
               onClick={() => setPage(n)}
               aria-label={`Page ${n}`}
               aria-current={n === page ? 'page' : undefined}
-              className={`${NUM} ${
-                n === page
-                  ? 'bg-[#0ea971] text-white'
-                  : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
-              }`}
+              className="pagination-number"
             >
               {n}
             </button>
@@ -108,25 +104,24 @@ export default function Pagination({
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page === totalPages}
           aria-label="Next page"
-          className={btnClass('subtle', 'sm', true)}
+          className="pagination-nav-button"
         >
           <ArrowRight size={12} />
         </button>
       </div>
 
-      <label className="pagination-size flex items-center justify-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-        <span className="hidden sm:inline">Per page</span>
+      <label className="pagination-size">
+        <span>Per page</span>
         <select
           value={pageSize}
           onChange={(e) => setPageSize(Number(e.target.value))}
           aria-label="Rows per page"
-          className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-transparent px-1.5 py-1 text-sm font-bold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
         >
           {sizes.map((n) => (
             <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>
           ))}
         </select>
       </label>
-    </div>
+    </nav>
   );
 }

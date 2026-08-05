@@ -24,6 +24,51 @@ import { useAttendanceExceptionSummary } from '../../data/reports';
 import { Widget, EmptyNote, StatPill, StatusBadge, fmtDay, inr, relTime } from './shared';
 
 const monthStart = () => `${todayIso().slice(0, 7)}-01`;
+const pct = (value, total) => (total > 0 ? Math.max(0, Math.min(100, Math.round((value / total) * 100))) : 0);
+
+function ComparisonMetric({ label, value, tone = 'neutral' }) {
+  const tones = {
+    neutral: 'text-neutral-500 dark:text-neutral-400',
+    green: 'text-emerald-600 dark:text-emerald-400',
+    amber: 'text-amber-600 dark:text-amber-400',
+    red: 'text-rose-500',
+    blue: 'text-blue-500',
+  };
+  return (
+    <span className="dashboard-comparison-metric">
+      <strong className={tones[tone]}>{value}</strong>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function ComparisonRow({ label, total, present = 0, late = 0, absent = 0, pending = 0, onLeave = 0, onClick }) {
+  const presentPct = pct(present, total);
+  const absentPct = pct(absent, total);
+  const leavePct = pct(onLeave, total);
+
+  return (
+    <button type="button" onClick={onClick} className="dashboard-comparison-row">
+      <div className="dashboard-comparison-main">
+        <span className="dashboard-comparison-code">{label}</span>
+        <span className="dashboard-comparison-sub">{presentPct}% present today</span>
+      </div>
+      <div className="dashboard-comparison-rail" aria-hidden="true">
+        <span className="is-present" style={{ width: `${presentPct}%` }} />
+        <span className="is-leave" style={{ width: `${leavePct}%` }} />
+        <span className="is-absent" style={{ width: `${absentPct}%` }} />
+      </div>
+      <div className="dashboard-comparison-metrics">
+        <ComparisonMetric label="staff" value={total} />
+        <ComparisonMetric label="in" value={present} tone="green" />
+        {late != null && <ComparisonMetric label="late" value={late} tone={late ? 'amber' : 'neutral'} />}
+        <ComparisonMetric label="absent" value={absent} tone={absent ? 'red' : 'neutral'} />
+        {pending != null && <ComparisonMetric label="pending" value={pending} tone={pending ? 'amber' : 'neutral'} />}
+        {onLeave != null && <ComparisonMetric label="leave" value={onLeave} tone="blue" />}
+      </div>
+    </button>
+  );
+}
 
 /**
  * Attendance health + payroll readiness in one card: everything month-to-date that will block a
@@ -399,35 +444,20 @@ export function BranchComparison({ onNavigate }) {
       {rows.length === 0 ? (
         <EmptyNote>No branch data in your scope.</EmptyNote>
       ) : (
-        <div className="table-scroll">
-          <table className="premium-table w-full text-left">
-            <thead>
-              <tr className="text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500 border-b border-neutral-200/70 dark:border-neutral-850">
-                <th className="py-1.5 pr-2">Branch</th>
-                <th className="py-1.5 px-2 text-right">Staff</th>
-                <th className="py-1.5 px-2 text-right">In</th>
-                <th className="py-1.5 px-2 text-right">Late</th>
-                <th className="py-1.5 px-2 text-right">Absent</th>
-                <th className="py-1.5 pl-2 text-right">Pending</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((b) => (
-                <tr
-                  key={b.code}
-                  onClick={() => onNavigate?.('attendance')}
-                  className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs cursor-pointer hover:bg-neutral-50 dark:hover:bg-charcoal-800/40 transition-colors"
-                >
-                  <td data-label="Branch" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100 font-mono">{b.code}</td>
-                  <td data-label="Staff" className="py-1.5 px-2 text-right font-mono text-neutral-600 dark:text-neutral-300">{b.headcount}</td>
-                  <td data-label="In" className="py-1.5 px-2 text-right font-mono text-emerald-600 dark:text-emerald-400">{b.present}</td>
-                  <td data-label="Late" className={`py-1.5 px-2 text-right font-mono ${b.late ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-400'}`}>{b.late}</td>
-                  <td data-label="Absent" className={`py-1.5 px-2 text-right font-mono ${b.absent ? 'text-rose-500 font-bold' : 'text-neutral-400'}`}>{b.absent}</td>
-                  <td data-label="Pending" className={`py-1.5 pl-2 text-right font-mono ${b.pending ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-neutral-400'}`}>{b.pending}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="dashboard-comparison-list">
+          {rows.map((b) => (
+            <ComparisonRow
+              key={b.code}
+              label={b.code}
+              total={b.headcount}
+              present={b.present}
+              late={b.late}
+              absent={b.absent}
+              pending={b.pending}
+              onLeave={null}
+              onClick={() => onNavigate?.('attendance')}
+            />
+          ))}
         </div>
       )}
     </Widget>
@@ -461,33 +491,20 @@ export function EntityComparison({ onNavigate }) {
       {rows.length === 0 ? (
         <EmptyNote>No entities visible.</EmptyNote>
       ) : (
-        <div className="table-scroll">
-          <table className="premium-table w-full text-left">
-            <thead>
-              <tr className="text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500 border-b border-neutral-200/70 dark:border-neutral-850">
-                <th className="py-1.5 pr-2">Entity</th>
-                <th className="py-1.5 px-2 text-right">Headcount</th>
-                <th className="py-1.5 px-2 text-right">Present</th>
-                <th className="py-1.5 px-2 text-right">Absent</th>
-                <th className="py-1.5 pl-2 text-right">On leave</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((e) => (
-                <tr
-                  key={e.code}
-                  onClick={() => onNavigate?.('organization')}
-                  className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs cursor-pointer hover:bg-neutral-50 dark:hover:bg-charcoal-800/40 transition-colors"
-                >
-                  <td data-label="Entity" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100 font-mono">{e.code}</td>
-                  <td data-label="Headcount" className="py-1.5 px-2 text-right font-mono text-neutral-600 dark:text-neutral-300">{e.headcount}</td>
-                  <td data-label="Present" className="py-1.5 px-2 text-right font-mono text-emerald-600 dark:text-emerald-400">{e.present}</td>
-                  <td data-label="Absent" className={`py-1.5 px-2 text-right font-mono ${e.absent ? 'text-rose-500 font-bold' : 'text-neutral-400'}`}>{e.absent}</td>
-                  <td data-label="On leave" className="py-1.5 pl-2 text-right font-mono text-blue-500">{e.onLeave}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="dashboard-comparison-list">
+          {rows.map((e) => (
+            <ComparisonRow
+              key={e.code}
+              label={e.code}
+              total={e.headcount}
+              present={e.present}
+              late={null}
+              absent={e.absent}
+              pending={null}
+              onLeave={e.onLeave}
+              onClick={() => onNavigate?.('organization')}
+            />
+          ))}
         </div>
       )}
     </Widget>

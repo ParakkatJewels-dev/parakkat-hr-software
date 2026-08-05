@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Briefcase, Users, Plus, Award, ChevronRight, X, User, Loader2, AlertTriangle } from 'lucide-react';
 import { useJobs, useCandidates, useAddJob, useSetCandidateStage } from '../data/recruitment';
 import { useOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
-import { btnClass } from './ui/Btn';
+import PageHeader from './ui/PageHeader';
 
 const STAGES = ['Applied', 'Shortlisted', 'Interview', 'Offered'];
 const nextStage = (s) => STAGES[STAGES.indexOf(s) + 1] || s;
@@ -20,6 +20,20 @@ export default function Recruitment() {
   const entities = org?.entities ?? [];
   const [showForm, setShowForm] = useState(false);
   const [job, setJob] = useState({ entity_id: '', title: '', type: 'Full-time', location: '' });
+  const pipelineStats = useMemo(() => {
+    const openJobs = jobs.filter((j) => j.status === 'Open').length;
+    const offered = candidates.filter((c) => c.stage === 'Offered').length;
+    const scored = candidates.filter((c) => c.match_score != null);
+    const avgMatch = scored.length
+      ? Math.round(scored.reduce((sum, c) => sum + Number(c.match_score || 0), 0) / scored.length)
+      : 0;
+    return [
+      { label: 'Open roles', value: openJobs, sub: `${jobs.length} total postings`, tone: 'green' },
+      { label: 'Candidates', value: candidates.length, sub: 'Across pipeline', tone: 'blue' },
+      { label: 'Offers', value: offered, sub: 'Reached final stage', tone: 'amber' },
+      { label: 'Avg match', value: avgMatch ? `${avgMatch}%` : '—', sub: scored.length ? `${scored.length} scored` : 'No scores yet', tone: 'violet' },
+    ];
+  }, [jobs, candidates]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -32,37 +46,48 @@ export default function Recruitment() {
   };
 
   return (
-    <div className="page-shell space-y-6 animate-slide-up">
-      <div className="mobile-list-row flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Recruitment</h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Track candidate pipelines and manage openings within your scope.</p>
-        </div>
-        {canManage && !showForm && (
-          <button onClick={() => setShowForm(true)} className={btnClass('primary')}>
+    <div className="page-shell people-page space-y-5 animate-slide-up">
+      <PageHeader
+        eyebrow="People"
+        icon={Briefcase}
+        title="Hiring"
+        subtitle="Track candidate pipelines and manage openings within your scope."
+        actions={canManage && !showForm && (
+          <button onClick={() => setShowForm(true)} className="people-action-button people-action-button-primary">
             <Plus size={14} /> Publish Opening
           </button>
         )}
-      </div>
+      />
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+      <section className="people-insight-grid">
+        {pipelineStats.map((stat) => (
+          <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
+            <span>{stat.label}</span>
+            <strong>{stat.value}</strong>
+            <em>{stat.sub}</em>
+          </div>
+        ))}
+      </section>
+
+      <div className="people-workspace grid grid-cols-1 xl:grid-cols-4 gap-5">
         <div className={`${showForm ? 'xl:col-span-3' : 'xl:col-span-4'}`}>
-          <div className="premium-card space-y-4">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-850 dark:text-neutral-100 flex items-center">
-              <Users size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Candidate Pipeline
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="premium-card people-board space-y-4">
+            <div className="people-panel-head">
+              <span><Users size={15} /> Candidate pipeline</span>
+              <em>{candidates.length} active profiles</em>
+            </div>
+            <div className="people-kanban-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               {STAGES.map((stage) => {
                 const list = candidates.filter((c) => c.stage === stage);
                 return (
-                  <div key={stage} className="bg-neutral-50/50 dark:bg-neutral-950/40 rounded-xl border border-neutral-200/80 dark:border-neutral-900 p-3.5 space-y-3.5 min-h-[360px]">
-                    <div className="mobile-list-row flex justify-between items-center border-b border-neutral-200 dark:border-neutral-850 pb-2">
-                      <span className="text-2xs font-bold text-neutral-500 uppercase tracking-widest">{stage}</span>
-                      <span className="px-1.5 bg-neutral-200/50 dark:bg-neutral-900 text-neutral-550 dark:text-neutral-450 font-mono text-2xs rounded-md font-bold border border-neutral-300 dark:border-neutral-800">{list.length}</span>
+                  <div key={stage} className="people-kanban-column">
+                    <div className="people-kanban-head">
+                      <span>{stage}</span>
+                      <b>{list.length}</b>
                     </div>
                     <div className="space-y-2">
                       {list.map((can) => (
-                        <div key={can.id} className="bg-white dark:bg-neutral-900 p-3 rounded-lg border border-neutral-200/80 dark:border-neutral-850 hover:border-black dark:hover:border-white transition-all group">
+                        <div key={can.id} className="people-candidate-card">
                           <div className="mobile-list-row flex justify-between items-start">
                             <div className="min-w-0">
                               <h4 className="font-bold text-neutral-800 dark:text-slate-200 text-xs truncate">{can.name}</h4>
@@ -73,17 +98,17 @@ export default function Recruitment() {
                             )}
                           </div>
                           {canManage && (
-                            <div className="mt-3 pt-2 border-t border-neutral-100 dark:border-neutral-850/40 flex justify-end gap-1">
+                            <div className="people-card-actions">
                               {stage !== 'Offered' && (
-                                <button onClick={() => moveCand.mutate({ id: can.id, stage: nextStage(stage) })} title="Advance" aria-label="Advance" className="p-1 bg-neutral-100 hover:bg-black hover:text-white dark:bg-neutral-850 dark:hover:bg-white dark:hover:text-black rounded text-neutral-600 cursor-pointer border border-neutral-200 dark:border-neutral-800"><ChevronRight size={10} /></button>
+                                <button onClick={() => moveCand.mutate({ id: can.id, stage: nextStage(stage) })} title="Advance" aria-label="Advance"><ChevronRight size={12} /></button>
                               )}
-                              <button onClick={() => moveCand.mutate({ id: can.id, stage: 'Rejected' })} title="Reject" aria-label="Reject" className="p-1 bg-neutral-105 hover:bg-rose-600 hover:text-white dark:bg-neutral-850 dark:hover:bg-rose-500 rounded text-neutral-600 cursor-pointer border border-neutral-200 dark:border-neutral-800"><X size={10} /></button>
+                              <button onClick={() => moveCand.mutate({ id: can.id, stage: 'Rejected' })} title="Reject" aria-label="Reject" className="is-danger"><X size={12} /></button>
                             </div>
                           )}
                         </div>
                       ))}
                       {list.length === 0 && (
-                        <div className="py-10 text-center text-neutral-450 text-xs flex flex-col items-center"><User size={20} className="opacity-30 mb-1" /><span>No applicants</span></div>
+                        <div className="people-empty-mini"><User size={20} /><span>No applicants</span></div>
                       )}
                     </div>
                   </div>
@@ -95,10 +120,10 @@ export default function Recruitment() {
 
         <div className="order-first xl:order-none xl:col-span-1">
           {showForm && canManage ? (
-            <div className="premium-card space-y-4 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-900 pb-2.5">
-                <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-150">Publish Opening</h3>
-                <button onClick={() => setShowForm(false)} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-neutral-450 cursor-pointer"><X size={15} /></button>
+            <div className="premium-card people-side-panel space-y-4 animate-fade-in">
+              <div className="people-panel-head">
+                <span>Publish opening</span>
+                <button onClick={() => setShowForm(false)} aria-label="Close opening form"><X size={15} /></button>
               </div>
               <form onSubmit={submit} className="space-y-3 text-xs">
                 <Field label="Entity"><select required value={job.entity_id} onChange={(e) => setJob({ ...job, entity_id: e.target.value })} className={INPUT}><option value="">Select…</option>{entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}</select></Field>
@@ -108,27 +133,27 @@ export default function Recruitment() {
                   <Field label="Location"><input value={job.location} onChange={(e) => setJob({ ...job, location: e.target.value })} placeholder="Kochi" className={INPUT} /></Field>
                 </div>
                 {addJob.error && <p className="text-xs text-red-500">{addJob.error.message}</p>}
-                <div className="flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={() => setShowForm(false)} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Cancel</button>
-                  <button type="submit" disabled={addJob.isPending} className={btnClass('primary')}>{addJob.isPending && <Loader2 size={13} className="animate-spin" />} Publish</button>
+                <div className="people-form-actions">
+                  <button type="button" onClick={() => setShowForm(false)} className="people-action-button people-action-button-secondary">Cancel</button>
+                  <button type="submit" disabled={addJob.isPending} className="people-action-button people-action-button-primary">{addJob.isPending && <Loader2 size={13} className="animate-spin" />} Publish</button>
                 </div>
               </form>
             </div>
           ) : (
-            <div className="premium-card space-y-4">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-855 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
-                <Briefcase size={15} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Job Openings
-              </h3>
+            <div className="premium-card people-side-panel space-y-4">
+              <div className="people-panel-head">
+                <span><Briefcase size={15} /> Job openings</span>
+              </div>
               {jobsLoading ? (
                 <div className="flex justify-center py-8 text-[#0ea971]"><Loader2 size={20} className="animate-spin" /></div>
               ) : jobsError ? (
                 <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{jobsError.message}</span></div>
               ) : jobs.length === 0 ? (
-                <p className="text-xs text-neutral-500 py-6 text-center">No openings yet.</p>
+                <p className="people-empty-mini">No openings yet.</p>
               ) : (
                 <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
                   {jobs.map((j) => (
-                    <div key={j.id} className="p-3.5 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-850 rounded-xl space-y-2">
+                    <div key={j.id} className="people-opening-card">
                       <div className="mobile-list-row flex justify-between items-start">
                         <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200 leading-snug">{j.title}</h4>
                         <span className={`text-2xs px-1.5 rounded-md font-bold uppercase font-mono border ${j.status === 'Open' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-900/30' : 'bg-neutral-200 text-neutral-500 border-neutral-300 dark:bg-neutral-900 dark:text-neutral-450 dark:border-neutral-800'}`}>{j.status}</span>

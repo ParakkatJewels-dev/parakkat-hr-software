@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
-import { UserCheck, Clock, Calendar, Loader2, AlertTriangle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { UserCheck, Clock, Calendar, Loader2, AlertTriangle, CheckCircle2, Users } from 'lucide-react';
 import { useOnboarding, useUpdateOnboarding } from '../data/onboarding';
-import { btnClass } from './ui/Btn';
+import PageHeader from './ui/PageHeader';
 
 export default function Onboarding() {
   const { data: list = [], isLoading, error } = useOnboarding();
   const update = useUpdateOnboarding();
   const [selectedId, setSelectedId] = useState(null);
   const selected = list.find((c) => c.id === selectedId) || list[0] || null;
+  const stats = useMemo(() => {
+    const complete = list.filter((c) => c.progress === 100).length;
+    const avg = list.length
+      ? Math.round(list.reduce((sum, c) => sum + Number(c.progress || 0), 0) / list.length)
+      : 0;
+    const joiningSoon = list.filter((c) => c.progress !== 100).length;
+    return [
+      { label: 'Incoming hires', value: list.length, sub: 'Visible in scope', tone: 'green' },
+      { label: 'Ready', value: complete, sub: 'All steps complete', tone: 'blue' },
+      { label: 'In progress', value: joiningSoon, sub: 'Needs follow-up', tone: 'amber' },
+      { label: 'Avg progress', value: list.length ? `${avg}%` : '—', sub: 'Across checklists', tone: 'violet' },
+    ];
+  }, [list]);
 
   const toggleTask = (row, taskId) => {
     const tasks = (row.tasks || []).map((t) =>
@@ -19,28 +32,46 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="page-shell space-y-6 animate-slide-up">
-      <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Onboarding</h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Pre-boarding checklists for incoming hires within your scope.</p>
-      </div>
+    <div className="page-shell people-page space-y-5 animate-slide-up">
+      <PageHeader
+        eyebrow="People"
+        icon={UserCheck}
+        title="Onboarding"
+        subtitle="Pre-boarding checklists for incoming hires within your scope."
+      />
 
       {isLoading ? (
         <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>
       ) : error ? (
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300"><AlertTriangle size={16} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
       ) : list.length === 0 ? (
-        <div className="premium-card p-16 text-center text-sm text-neutral-500">No onboarding records visible to you yet.</div>
+        <div className="premium-card people-empty-state">
+          <Users size={26} />
+          <strong>No onboarding records yet</strong>
+          <span>Incoming hires will appear here when they are added to onboarding.</span>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <>
+        <section className="people-insight-grid">
+          {stats.map((stat) => (
+            <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
+              <span>{stat.label}</span>
+              <strong>{stat.value}</strong>
+              <em>{stat.sub}</em>
+            </div>
+          ))}
+        </section>
+
+        <div className="people-workspace grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-1">
-            <div className="premium-card space-y-4">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-250 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
-                <UserCheck size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Incoming Hires
-              </h3>
+            <div className="premium-card people-side-panel space-y-4">
+              <div className="people-panel-head">
+                <span><UserCheck size={15} /> Incoming hires</span>
+                <em>{list.length} records</em>
+              </div>
               <div className="space-y-3">
                 {list.map((c) => (
-                  <div key={c.id} onClick={() => setSelectedId(c.id)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selected?.id === c.id ? 'bg-neutral-50 dark:bg-neutral-900 border-black dark:border-neutral-700' : 'bg-white dark:bg-neutral-950/20 border-neutral-200 dark:border-neutral-900 hover:border-neutral-350 dark:hover:border-neutral-800'}`}>
+                  <button key={c.id} type="button" onClick={() => setSelectedId(c.id)} className={`onboarding-hire-card ${selected?.id === c.id ? 'is-active' : ''}`}>
                     <div className="mobile-list-row flex justify-between items-start">
                       <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200">{c.name}</h4>
                       <span className="text-2xs text-neutral-500 font-mono">{c.entity?.code}{c.branch?.code ? `·${c.branch.code}` : ''}</span>
@@ -48,10 +79,10 @@ export default function Onboarding() {
                     <span className="text-2xs text-neutral-500 block mt-0.5">{c.job_title || '—'}</span>
                     <div className="mt-3 space-y-1">
                       <div className="flex justify-between text-2xs text-neutral-500 font-mono"><span>Milestones</span><span className="font-bold">{c.progress || 0}%</span></div>
-                      <div className="w-full bg-neutral-200 dark:bg-neutral-950 h-1 rounded-full overflow-hidden border border-neutral-250 dark:border-neutral-900"><div className={btnClass('primary')} style={{ width: `${c.progress || 0}%` }} /></div>
+                      <div className="onboarding-progress"><span style={{ width: `${c.progress || 0}%` }} /></div>
                     </div>
                     <div className="flex justify-between text-2xs text-neutral-450 pt-2.5 mt-3 border-t border-neutral-100 dark:border-neutral-900/40"><span className="flex items-center"><Calendar size={10} className="mr-1" /> {c.join_date || '—'}</span></div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -59,7 +90,7 @@ export default function Onboarding() {
 
           <div className="lg:col-span-2">
             {selected ? (
-              <div className="premium-card space-y-5">
+              <div className="premium-card onboarding-detail-card space-y-5">
                 <div className="mobile-list-row flex justify-between items-start border-b border-neutral-100 dark:border-neutral-900 pb-4">
                   <div>
                     <h3 className="font-extrabold text-base text-neutral-850 dark:text-slate-100">{selected.name}</h3>
@@ -73,16 +104,16 @@ export default function Onboarding() {
                   {(selected.tasks || []).map((task, idx) => {
                     const done = task.status === 'Completed';
                     return (
-                      <div key={task.id} onClick={() => toggleTask(selected, task.id)} className="relative pl-6 group cursor-pointer flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+                      <button key={task.id} type="button" onClick={() => toggleTask(selected, task.id)} className="onboarding-task-row">
                         <div className={`absolute left-[-18px] top-1.5 w-6 h-6 rounded-full border flex items-center justify-center transition-all ${done ? 'bg-black border-black text-white dark:bg-[#0ea971] dark:border-neutral-700 dark:text-charcoal-900' : 'bg-white border-neutral-300 dark:bg-neutral-950 dark:border-neutral-800 group-hover:border-black dark:group-hover:border-[#0ea971]'}`}>
-                          <span className="text-2xs font-bold">{done ? '✓' : idx + 1}</span>
+                          <span className="text-2xs font-bold">{done ? <CheckCircle2 size={12} /> : idx + 1}</span>
                         </div>
-                        <div className="space-y-0.5">
+                        <div className="space-y-0.5 text-left">
                           <span className={`text-xs font-semibold block ${done ? 'line-through text-neutral-450' : 'text-neutral-800 dark:text-neutral-200'}`}>{task.title}</span>
                           <span className="text-2xs text-neutral-400 block font-mono">Assignee: {task.assignee}</span>
                         </div>
                         <span className={`text-2xs font-bold font-mono md:text-right shrink-0 ${done ? 'text-emerald-600 dark:text-emerald-450' : 'text-neutral-450'}`}>{task.status}</span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -96,6 +127,7 @@ export default function Onboarding() {
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );

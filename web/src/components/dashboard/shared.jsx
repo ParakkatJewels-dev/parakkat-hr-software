@@ -53,15 +53,71 @@ export const relTime = (iso) => {
 export const inr = (n) =>
   `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
-/** Standard widget card shell: title row with icon, optional count badge and "view"action. */
-export function Widget({ title, icon: Icon, badge, action, onAction, children, className = '' }) { return ( <section className={`premium-card dashboard-widget ${className}`}> <div className="mobile-list-row mb-3 flex items-center justify-between gap-2">
+const inferTone = (className = '') => {
+  if (className.includes('rose')) return 'red';
+  if (className.includes('amber')) return 'amber';
+  if (className.includes('orange')) return 'orange';
+  if (className.includes('blue')) return 'blue';
+  if (className.includes('violet') || className.includes('purple')) return 'violet';
+  return 'green';
+};
+
+const chartSeeds = {
+  green: [20, 32, 28, 45, 38, 58, 54, 72],
+  blue: [34, 28, 40, 36, 52, 48, 64, 60],
+  violet: [24, 38, 34, 50, 42, 62, 56, 70],
+  amber: [46, 34, 42, 30, 48, 38, 54, 44],
+  orange: [38, 52, 44, 58, 46, 64, 54, 68],
+  red: [58, 46, 62, 50, 66, 54, 70, 60],
+};
+
+function MiniChart({ tone }) {
+  const values = chartSeeds[tone] || chartSeeds.green;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  const range = max - min || 1;
+  const coords = values.map((v, i) => {
+    const x = 4 + i * 12;
+    const y = 36 - ((v - min) / range) * 24;
+    return { x, y };
+  });
+  const line = coords
+    .map((p, i) => {
+      if (i === 0) return `M ${p.x} ${p.y}`;
+      const prev = coords[i - 1];
+      const cx = (prev.x + p.x) / 2;
+      return `C ${cx} ${prev.y}, ${cx} ${p.y}, ${p.x} ${p.y}`;
+    })
+    .join(' ');
+  const area = `${line} L ${coords.at(-1).x} 40 L ${coords[0].x} 40 Z`;
+  const last = coords.at(-1);
+
+  return (
+    <svg className="dashboard-mini-chart" viewBox="0 0 92 44" aria-hidden="true" focusable="false">
+      <path className="dashboard-mini-chart-grid" d="M4 32 H88" />
+      <path className="dashboard-mini-chart-area" d={area} />
+      <path className="dashboard-mini-chart-line" d={line} />
+      <circle className="dashboard-mini-chart-dot" cx={last.x} cy={last.y} r="2.25" />
+    </svg>
+  );
+}
+
+/** Standard widget card shell: title row with icon, optional count badge and "view" action. */
+export function Widget({ title, icon: Icon, badge, action, onAction, children, className = '' }) {
+  return (
+    <section className={`premium-card dashboard-widget ${className}`}>
+      <div className="mobile-list-row dashboard-widget-head mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          {Icon && <Icon size={14} className="text-[#0ea971] shrink-0" />}
+          {Icon && (
+            <span className="dashboard-widget-icon">
+              <Icon size={14} />
+            </span>
+          )}
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 truncate">
             {title}
           </h3>
           {badge != null && (
-            <span className="rounded-full bg-[#0ea971]/15 px-2 py-0.5 text-2xs font-bold text-[#0ea971] dark:text-[#10b981] border border-[#0ea971]/20">
+            <span className="dashboard-badge">
               {badge}
             </span>
           )}
@@ -69,22 +125,43 @@ export function Widget({ title, icon: Icon, badge, action, onAction, children, c
         {action && (
           <button
             onClick={onAction}
-            className="flex items-center gap-1 text-2xs font-bold text-neutral-450 hover:text-neutral-900 dark:text-neutral-500 dark:hover:text-white transition-colors cursor-pointer shrink-0"> {action} <ArrowRight size={10} /> </button> )} </div> {children} </section> );
-} /** KPI tile. Renders as a button when `tab` is set, so the number is a way into the detail. */
-export function KpiCard({ label, value, icon: Icon, badgeClass, subtext, tab, onNavigate }) { const clickable = Boolean(tab && onNavigate); const Tag = clickable ? 'button' : 'article'; return ( <Tag {...(clickable ? { onClick: () => onNavigate(tab), type: 'button', title: `Open ${label}` } : {})} className={`premium-card dashboard-kpi flex flex-col justify-between hover:-translate-y-0.5 hover:shadow-md transition-all duration-300 text-left w-full ${ clickable ? 'cursor-pointer hover:border-[#0ea971]/40' : '' }`} > <div className="mobile-list-row flex items-center justify-between gap-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-455">{label}</span>
-        <div className={`shrink-0 flex items-center justify-center rounded-full w-7 h-7 ${badgeClass}`}>
+            className="dashboard-widget-action"
+          >
+            {action} <ArrowRight size={10} />
+          </button>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+/** KPI tile. Renders as a button when `tab` is set, so the number is a way into the detail. */
+export function KpiCard({ label, value, icon: Icon, badgeClass, subtext, tab, onNavigate }) {
+  const clickable = Boolean(tab && onNavigate);
+  const Tag = clickable ? 'button' : 'article';
+  const tone = inferTone(badgeClass);
+  return (
+    <Tag
+      {...(clickable ? { onClick: () => onNavigate(tab), type: 'button', title: `Open ${label}` } : {})}
+      data-tone={tone}
+      className={`premium-card dashboard-kpi text-left w-full ${clickable ? 'cursor-pointer' : ''}`}
+    >
+      <div className="mobile-list-row flex items-start justify-between gap-2">
+        <span className="dashboard-kpi-label">{label}</span>
+        <div className={`dashboard-kpi-icon ${badgeClass}`}>
           <Icon size={12} />
         </div>
       </div>
-      <div className="mt-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-850">
-        <p className="text-xl font-bold text-neutral-900 dark:text-white leading-none">{value}</p>
+      <div className="dashboard-kpi-body">
+        <p>{value}</p>
         {subtext && (
-          <span className="text-2xs text-[#0ea971] dark:text-[#10b981] font-semibold mt-1.5 block truncate leading-none">
+          <span>
             {subtext}
           </span>
         )}
       </div>
+      <MiniChart tone={tone} />
     </Tag>
   );
 }
@@ -96,7 +173,7 @@ export function KpiRow({ kpis, onNavigate }) {
   const items = kpis.filter(Boolean);
   const cols = KPI_COLS[Math.min(Math.max(items.length, 3), 6)];
   return (
-    <section className={`dashboard-kpi-row grid grid-cols-2 sm:grid-cols-3 gap-4 ${cols}`}>
+    <section className={`dashboard-kpi-row grid grid-cols-2 sm:grid-cols-3 gap-3 ${cols}`}>
       {items.map((k) => (
         <KpiCard key={k.label} {...k} onNavigate={onNavigate} />
       ))}
@@ -110,7 +187,7 @@ export function EmptyNote({ children }) {
 
 export function Avatar({ name }) {
   return (
-    <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-800 dark:text-[#0ea971] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
+    <div className="dashboard-avatar w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-800 dark:text-[#0ea971] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
       {getInitials(name)}
     </div>
   );
@@ -130,7 +207,8 @@ export function StatPill({ label, value, tone = 'neutral', onClick }) {
   return (
     <Tag
       {...(onClick ? { onClick, type: 'button', title: `Open ${label}` } : {})}
-      className={`mobile-list-row flex items-center justify-between rounded-lg px-2.5 py-1.5 w-full ${tones[tone]} ${
+      data-tone={tone}
+      className={`mobile-list-row dashboard-stat-pill flex items-center justify-between rounded-lg px-2.5 py-1.5 w-full ${tones[tone]} ${
         onClick ? 'cursor-pointer hover:brightness-110 transition-all' : ''
       }`}
     >
@@ -169,7 +247,7 @@ export function NotificationsStrip({ onNavigate }) {
   if (unread.length === 0) return null;
 
   return (
-    <section className="premium-card border-amber-500/25 dark:border-amber-500/20">
+    <section className="premium-card dashboard-alert-strip border-amber-500/25 dark:border-amber-500/20">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 shrink-0">
           <BellRing size={12} /> Needs attention
@@ -260,7 +338,7 @@ export function QuickActions({ actions, onNavigate }) {
   const items = actions.filter(Boolean).slice(0, 8);
   if (items.length === 0) return null;
   return (
-    <section className="premium-card">
+    <section className="premium-card dashboard-quick-actions">
       <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
         Quick Actions
       </h3>
@@ -269,10 +347,10 @@ export function QuickActions({ actions, onNavigate }) {
           <button
             key={label}
             onClick={() => onNavigate?.(tab)}
-            className="mobile-list-row flex items-center justify-between rounded-xl border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-left text-xs font-semibold text-neutral-700 hover:text-neutral-900 hover:border-neutral-355 dark:border-neutral-855 dark:bg-charcoal-900/40 dark:text-warm-gray-350 dark:hover:text-white dark:hover:border-[#10b981]/30 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer shadow-sm group"
+            className="mobile-list-row dashboard-action-tile flex items-center justify-between rounded-xl border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-left text-xs font-semibold text-neutral-700 hover:text-neutral-900 hover:border-neutral-355 dark:border-neutral-855 dark:bg-charcoal-900/40 dark:text-warm-gray-350 dark:hover:text-white dark:hover:border-[#10b981]/30 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer shadow-sm group"
           >
             <span className="flex items-center gap-2.5">
-              <div className="p-1 bg-neutral-100 dark:bg-charcoal-800 rounded-lg group-hover:bg-neutral-250 dark:group-hover:bg-charcoal-700 transition-colors">
+              <div className="dashboard-action-icon p-1 bg-neutral-100 dark:bg-charcoal-800 rounded-lg group-hover:bg-neutral-250 dark:group-hover:bg-charcoal-700 transition-colors">
                 <Icon size={12} className="text-neutral-500 dark:text-[#10b981]" />
               </div>
               <span>{label}</span>

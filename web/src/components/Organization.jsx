@@ -9,6 +9,7 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
 import { usePermissions } from '../auth/usePermissions';
 import { useEmployees } from '../data/employees';
+import PageHeader from './ui/PageHeader';
 
 // The parts of a company, in the order you actually set them up. All four are optional — only the
 // company itself is required (employees.entity_id is NOT NULL) — so each says what it is for and
@@ -109,6 +110,14 @@ export default function Organization() {
   const departments = byEntity('departments');
   const designations = byEntity('designations');
   const listsByKey = { zones, branches, departments, designations };
+  const activeEntity = entities.find((e) => e.id === activeEntityId);
+  const activePeopleCount = allEmployees.filter((x) => x.entity_id === activeEntityId).length;
+  const structureStats = [
+    { label: 'People', value: activePeopleCount, sub: activeEntity?.code || 'Selected company', tone: 'green' },
+    { label: 'Branches', value: branches.length, sub: 'Work locations', tone: 'blue' },
+    { label: 'Departments', value: departments.length, sub: 'Teams mapped', tone: 'amber' },
+    { label: 'Designations', value: designations.length, sub: `${zones.length} zones`, tone: 'violet' },
+  ];
 
   const zoneName = (id) => (id ? labelOf(zones.find((z) => z.id === id)) : '—');
   const branchName = (id) => (id ? labelOf(branches.find((b) => b.id === id)) : '—');
@@ -206,25 +215,20 @@ export default function Organization() {
   if (error) return <div className="p-8 text-sm text-red-600 border border-red-200 mt-8 max-w-2xl mx-auto">{error.message}</div>;
 
   return (
-    <div className="page-shell space-y-8 animate-fade-in text-neutral-900 dark:text-neutral-100">
+    <div className="page-shell people-page space-y-5 animate-fade-in text-neutral-900 dark:text-neutral-100">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wider text-[#0ea971] flex items-center gap-1.5">
-            <Network size={12} /> Organisation
-          </p>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white mt-1">Structure</h1>
-          <p className="text-base text-neutral-500 mt-0.5">
-            Companies and what sits inside them. Placement here decides who manages whom.
-          </p>
-        </div>
-        {canManage && isSuperAdmin && entities.length > 0 && !quickSetup && (
-          <button onClick={() => setQuickSetup(true)} className={BTN_PRIMARY}>
+      <PageHeader
+        eyebrow="People"
+        icon={Network}
+        title="Structure"
+        subtitle="Companies and what sits inside them. Placement here decides who manages whom."
+        actions={canManage && isSuperAdmin && entities.length > 0 && !quickSetup && (
+          <button onClick={() => setQuickSetup(true)} className="people-action-button people-action-button-primary">
             <Plus size={14} /> Add company
           </button>
         )}
-      </div>
+      />
 
       {/* Nothing exists yet. This used to render an empty page: every "Add" control lived inside
           `activeEntityId && (...)`, so with no company there was no way to add a branch, a
@@ -259,17 +263,13 @@ export default function Organization() {
         <div className="space-y-5">
           {/* Which company you are looking at, and the only way to correct one. Shown even for a
               single company — you could previously create one but never fix a typo in its name. */}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="people-entity-strip">
             {entities.map((e) => {
               const isActive = e.id === activeEntityId;
               return (
                 <div
                   key={e.id}
-                  className={`flex items-center gap-1 rounded-xl border pr-1 transition-colors ${
-                    isActive
-                      ? 'border-[#0ea971]/45 bg-[#0ea971]/8'
-                      : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
-                  }`}
+                  className={`people-entity-chip ${isActive ? 'is-active' : ''}`}
                 >
                   <button
                     onClick={() => setSelectedEntityId(e.id)}
@@ -312,6 +312,16 @@ export default function Organization() {
             })}
           </div>
 
+          <section className="people-insight-grid">
+            {structureStats.map((stat) => (
+              <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
+                <span>{stat.label}</span>
+                <strong>{stat.value}</strong>
+                <em>{stat.sub}</em>
+              </div>
+            ))}
+          </section>
+
           {/* What this company is made of, in one line. Four stacked lists give no sense of scale
               until you scroll all of them; this answers "how big is this?" up front and keeps the
               company you are editing on screen as you work down the page. */}
@@ -321,8 +331,8 @@ export default function Organization() {
               half-width pane wastes the screen on a list that needs it. Choosing one at a time
               gives it the whole width — and the counts in the rail still answer "what exists?"
               without opening anything. */}
-          <div className="grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-5 items-start">
-            <nav aria-label="Parts of this company" className="premium-card p-1.5 lg:sticky lg:top-2">
+          <div className="people-workspace grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-5 items-start">
+            <nav aria-label="Parts of this company" className="premium-card people-part-rail lg:sticky lg:top-2">
               <ul className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
                 {SECTIONS.map((s) => {
                   const isOn = s.key === activePart;
@@ -332,23 +342,13 @@ export default function Organization() {
                       <button
                         onClick={() => showPart(s.key)}
                         aria-current={isOn ? 'true' : undefined}
-                        className={`w-full flex items-center gap-2 rounded-lg px-2.5 py-2 text-left cursor-pointer transition-colors ${
-                          isOn
-                            ? 'bg-[#0ea971]/12 text-[#0c9765] dark:text-[#10b981]'
-                            : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
-                        }`}
+                        className={`people-part-button ${isOn ? 'is-active' : ''}`}
                       >
                         <span className={`text-base font-bold whitespace-nowrap ${isOn ? '' : ''}`}>
                           {s.label}
                         </span>
                         <span
-                          className={`ml-auto text-xs font-bold tabular-nums px-1.5 py-0.5 rounded ${
-                            isOn
-                              ? 'bg-[#0ea971]/20'
-                              : count === 0
-                              ? 'text-neutral-400'
-                              : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500'
-                          }`}
+                          className="people-part-count"
                         >
                           {count}
                         </span>
@@ -678,8 +678,8 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
   };
 
   return (
-    <section className="premium-card">
-      <div className="flex items-start justify-between gap-3 mb-3">
+    <section className="premium-card people-structure-section">
+      <div className="people-panel-head mb-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-md font-bold text-neutral-900 dark:text-white">{section.label}</h2>
@@ -712,7 +712,7 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
         {canManage && editing !== 'new' && (
           <button
             onClick={() => setEditing('new')}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 px-2.5 py-1.5 text-sm font-bold text-neutral-700 dark:text-neutral-200 hover:border-[#0ea971]/40 cursor-pointer transition-colors"
+            className="people-action-button people-action-button-secondary"
           >
             <Plus size={12} /> Add {section.singular}
           </button>

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useDeferredValue } from 'react';
 import {
   Search, User, ArrowLeft, ArrowRight, X, AlertTriangle,
-  List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal
+  List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
+  Users, Building2, MapPin, Briefcase, Mail, CalendarDays,
 } from 'lucide-react';
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from '../data/employees';
 import { useOrg } from '../data/org';
@@ -32,6 +33,93 @@ const statusClass = (status) =>
     : status === 'Probation'
     ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-405 border border-blue-500/10'
     : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-450 border border-rose-500/10';
+
+const monthStartIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
+const pct = (value, total) => (total > 0 ? Math.round((value / total) * 100) : 0);
+
+const employeeCompleteness = (emp) => {
+  const fields = [
+    emp.full_name, emp.employee_code, emp.email, emp.phone, emp.join_date, emp.status,
+    emp.entity?.name, emp.branch?.name || emp.branch?.code, emp.department?.name, emp.designation?.title,
+  ];
+  return pct(fields.filter(Boolean).length, fields.length);
+};
+
+function PeopleOverview({ employees, filtered, activeFilterCount }) {
+  const active = employees.filter((e) => e.status === 'Active').length;
+  const probation = employees.filter((e) => e.status === 'Probation').length;
+  const onLeave = employees.filter((e) => e.status === 'On Leave').length;
+  const joinedMtd = employees.filter((e) => e.join_date && e.join_date >= monthStartIso()).length;
+  const noEmail = employees.filter((e) => !e.email).length;
+  const noPlacement = employees.filter((e) => !e.branch_id && !e.department_id).length;
+  const activeRate = pct(active, employees.length);
+  const visibleRate = pct(filtered.length, employees.length);
+  const topBranches = Object.entries(
+    employees.reduce((m, e) => {
+      const key = e.branch?.name || e.branch?.code || 'Unplaced';
+      m[key] = (m[key] || 0) + 1;
+      return m;
+    }, {})
+  )
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  const stats = [
+    { label: 'Active roster', value: active, sub: `${activeRate}% of visible scope`, icon: Users, tone: 'green' },
+    { label: 'On probation', value: probation, sub: 'Needs closer follow-up', icon: Briefcase, tone: 'blue' },
+    { label: 'On leave', value: onLeave, sub: 'Current status', icon: CalendarDays, tone: 'amber' },
+    { label: 'Joined MTD', value: joinedMtd, sub: 'This month', icon: Building2, tone: 'violet' },
+  ];
+
+  return (
+    <section className="directory-overview">
+      <div className="directory-overview-copy">
+        <span className="directory-eyebrow">People overview</span>
+        <h2>Roster health at a glance</h2>
+        <p>
+          {activeFilterCount
+            ? `${filtered.length} people match the current filters, covering ${visibleRate}% of your visible roster.`
+            : `${employees.length} people are visible in your current role scope.`}
+        </p>
+        <div className="directory-overview-bars" aria-label="Largest branches">
+          {topBranches.map(([branch, count]) => (
+            <span key={branch}>
+              <strong>{branch}</strong>
+              <i style={{ width: `${pct(count, employees.length)}%` }} />
+              <em>{count}</em>
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="directory-overview-stats">
+        {stats.map(({ label, value, sub, icon: Icon, tone }) => (
+          <div key={label} className="directory-overview-stat" data-tone={tone}>
+            <span><Icon size={14} /></span>
+            <strong>{value}</strong>
+            <small>{label}</small>
+            <em>{sub}</em>
+          </div>
+        ))}
+      </div>
+
+      <div className="directory-overview-quality">
+        <div>
+          <span className="directory-eyebrow">Data quality</span>
+          <strong>{noEmail + noPlacement === 0 ? 'Clean enough to work' : `${noEmail + noPlacement} records need attention`}</strong>
+        </div>
+        <div className="directory-quality-grid">
+          <span><Mail size={12} /> {noEmail} missing email</span>
+          <span><MapPin size={12} /> {noPlacement} missing placement</span>
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function Directory() {
   const { data: employees = [], isLoading, error } = useEmployees();
@@ -363,79 +451,80 @@ export default function Directory() {
       )}
 
       {/* Header and Toolbar actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="directory-mobile-head flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <Header count={filtered.length} total={employees.length} />
-        <div className="mobile-toolbar-actions flex flex-wrap items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
+        <div className="mobile-toolbar-actions directory-toolbar-actions flex flex-wrap items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
           {/* View toggle switcher */}
-          <div className="flex items-center bg-neutral-105 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-855 rounded-xl p-0.5 shadow-sm">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded-lg transition-all ${
-                viewMode === 'list'
-                  ? 'bg-white dark:bg-charcoal-800 text-neutral-900 dark:text-[#10b981] shadow-xs'
-                  : 'text-neutral-500 hover:text-neutral-850 dark:hover:text-warm-gray-200'
-              }`}
-              title="Table View" aria-label="Table View"
-            >
-              <List size={14} />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-lg transition-all ${
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-charcoal-800 text-neutral-900 dark:text-[#10b981] shadow-xs'
-                  : 'text-neutral-500 hover:text-neutral-850 dark:hover:text-warm-gray-200'
-              }`}
-              title="Grid Cards View" aria-label="Grid Cards View"
-            >
-              <LayoutGrid size={14} />
-            </button>
+          <div className="directory-view-tools">
+            <div className="directory-view-toggle">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`directory-view-button ${
+                  viewMode === 'list'
+                    ? 'is-active'
+                    : ''
+                }`}
+                title="Table View" aria-label="Table View"
+              >
+                <List size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`directory-view-button ${
+                  viewMode === 'grid'
+                    ? 'is-active'
+                    : ''
+                }`}
+                title="Grid Cards View" aria-label="Grid Cards View"
+              >
+                <LayoutGrid size={14} />
+              </button>
+            </div>
+            {/* Density. Only meaningful in the table view. */}
+            {viewMode === 'list' && (
+              <button
+                onClick={() => setCompact((v) => !v)}
+                aria-pressed={compact}
+                title={compact ? 'Comfortable rows' : 'Compact rows — fit more on screen'}
+                aria-label={compact ? 'Switch to comfortable rows' : 'Switch to compact rows'}
+                className={`directory-density-button ${compact ? 'is-active' : ''}`}
+              >
+                <Rows3 size={14} />
+              </button>
+            )}
           </div>
-          {/* Density. Only meaningful in the table view. */}
-          {viewMode === 'list' && (
-            <button
-              onClick={() => setCompact((v) => !v)}
-              aria-pressed={compact}
-              title={compact ? 'Comfortable rows' : 'Compact rows — fit more on screen'}
-              aria-label={compact ? 'Switch to comfortable rows' : 'Switch to compact rows'}
-              className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-                compact
-                  ? 'border-[#0ea971]/40 bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981]'
-                  : 'border-neutral-200 dark:border-neutral-855 bg-neutral-105 dark:bg-charcoal-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-              }`}
-            >
-              <Rows3 size={14} />
-            </button>
-          )}
 
-          {/* Export action */}
-          <button
-            onClick={handleExport}
-            className="flex items-center gap-2 px-3 py-2 bg-neutral-105 dark:bg-charcoal-900 hover:bg-neutral-200 dark:hover:bg-charcoal-800 text-neutral-700 dark:text-warm-gray-200 border border-neutral-200 dark:border-neutral-855 rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer"
-            title="Export csv" aria-label="Export csv"
-          >
-            <Download size={13} />
-            <span className="hidden sm:inline">Export CSV</span>
-            <span className="sm:hidden">CSV</span>
-          </button>
-          {/* Add employee */}
-          {canCreate && (
+          <div className="directory-action-group">
             <button
-              onClick={() => setEditing({})}
-              className={btnClass('primary')}
+              onClick={handleExport}
+              className="directory-action-button directory-action-button-secondary"
+              title="Export csv" aria-label="Export csv"
             >
-              <Plus size={13} />
-              <span>Add person</span>
+              <Download size={13} />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">CSV</span>
             </button>
-          )}
+            {/* Add employee */}
+            {canCreate && (
+              <button
+                onClick={() => setEditing({})}
+                className="directory-action-button directory-action-button-primary"
+              >
+                <Plus size={13} />
+                <span>Add person</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      <PeopleOverview employees={employees} filtered={filtered} activeFilterCount={activeFilterCount} />
+
       {/* Advanced search, filters and sort controls */}
-      <div className="premium-card mobile-filter-card space-y-3.5">
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+      <div className="directory-filter-shell premium-card mobile-filter-card">
+        <div className="directory-filter-primary">
           {/* Search Input */}
-          <div className="relative md:col-span-8">
+          <div className="directory-search-control relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" size={15} />
             <input
               type="search"
@@ -458,7 +547,19 @@ export default function Directory() {
 
           {/* Sort. Duplicated by the sortable column headers below — kept because the grid view
               has no headers to click, and because "Date joined" is not a visible column. */}
-          <div className="flex items-center gap-2 bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl px-3 py-2 md:col-span-4">
+          <button
+            type="button"
+            onClick={() => setFiltersOpen((v) => !v)}
+            aria-expanded={filtersOpen}
+            className="directory-filter-button sm:hidden"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <SlidersHorizontal size={14} /> Filters
+            </span>
+            <span>{activeFilterCount || '0'}</span>
+          </button>
+
+          <div className="directory-sort-control flex items-center gap-2 bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl px-3 py-2">
             <ArrowUpDown size={12} className="text-neutral-450 shrink-0" />
             <label htmlFor="dir-sort" className="text-2xs font-bold uppercase tracking-wider text-neutral-400 shrink-0">
               Sort
@@ -477,7 +578,7 @@ export default function Directory() {
           </div>
         </div>
 
-        <div className="mobile-active-filter-row flex flex-wrap items-center gap-1.5">
+        <div className="directory-filter-chips mobile-active-filter-row flex flex-wrap items-center gap-1.5">
           {activeFilterChips.map((chip) => (
             <button
               key={`${chip.label}-${chip.value}`}
@@ -501,20 +602,8 @@ export default function Directory() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setFiltersOpen((v) => !v)}
-          aria-expanded={filtersOpen}
-          className="mobile-filter-toggle sm:hidden"
-        >
-          <span className="inline-flex items-center gap-1.5">
-            <SlidersHorizontal size={14} /> Filters
-          </span>
-          <span>{activeFilterCount ? `${activeFilterCount} active` : 'Optional'}</span>
-        </button>
-
         {/* Each filter carries its own label and shows when it is narrowing the list. */}
-        <div className={`directory-filter-row mobile-filter-panel ${filtersOpen ? 'is-open' : ''} grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850`}>
+        <div className={`directory-filter-row mobile-filter-panel ${filtersOpen ? 'is-open' : ''}`}>
           <FilterSelect label="Company" value={selectedEntity} options={entityOptions}
             onChange={setSelectedEntity} allValue="All Entities" />
           <FilterSelect label="Branch" value={selectedBranch} options={branchOptions}
@@ -541,7 +630,7 @@ export default function Directory() {
       {/* Main Listings */}
       {viewMode === 'list' ? (
         /* High Density Table View */
-        <div className="premium-card overflow-hidden shadow-xs border border-neutral-200/80 dark:border-neutral-850 rounded-2xl">
+        <div className="premium-card directory-table-card overflow-hidden shadow-xs border border-neutral-200/80 dark:border-neutral-850 rounded-2xl">
           <div className="table-scroll">
             <table className={`premium-table ${compact ? 'is-compact' : ''}`}>
               <thead>
@@ -601,7 +690,7 @@ export default function Directory() {
                         <div className="flex items-center gap-2.5 min-w-0">
                           {/* Steady colours. The avatar used to invert to solid black on hover,
                               which flickered down the whole list as the pointer travelled. */}
-                          <div className="avatar-cell w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
+                          <div className="avatar-cell directory-avatar w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
                             {initials(emp.full_name)}
                           </div>
                           <div className="min-w-0">
@@ -641,7 +730,7 @@ export default function Directory() {
         </div>
       ) : (
         /* Grid Card View */
-        <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${selectedEmp ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4'}`}>
+        <div className={`directory-card-grid grid grid-cols-1 sm:grid-cols-2 gap-4 ${selectedEmp ? 'md:grid-cols-2 xl:grid-cols-3' : 'md:grid-cols-3 lg:grid-cols-4'}`}>
           {paginated.map((emp) => (
             // A real <button> rather than a clickable div: keyboard operable and announced,
             // for free. Hover changes colour only — the old -translate-y nudged every card as
@@ -652,7 +741,7 @@ export default function Directory() {
               onClick={() => setSelectedEmp(emp)}
               aria-label={`Open the profile for ${emp.full_name}`}
               aria-current={selectedEmp?.id === emp.id ? 'true' : undefined}
-              className={`premium-card text-left cursor-pointer flex flex-col justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${
+              className={`premium-card directory-person-card text-left cursor-pointer flex flex-col justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${
                 selectedEmp?.id === emp.id
                   ? 'border-[#0ea971]/45 bg-[#0ea971]/5'
                   : 'hover:border-neutral-300 dark:hover:border-[#0ea971]/35'
@@ -660,7 +749,7 @@ export default function Directory() {
             >
               <div className="w-full">
                 <div className="mobile-list-row flex items-start justify-between gap-2">
-                  <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-sm shrink-0 font-mono select-none">
+                  <div className="directory-avatar w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-sm shrink-0 font-mono select-none">
                     {initials(emp.full_name)}
                   </div>
                   <span className={`text-2xs px-2 py-0.5 rounded-full font-bold tracking-wide uppercase shrink-0 ${statusClass(emp.status)}`}>
@@ -674,6 +763,9 @@ export default function Directory() {
                   <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5 truncate">
                     {emp.designation?.title || 'No designation'}
                   </p>
+                </div>
+                <div className="directory-completeness" title={`Profile completeness ${employeeCompleteness(emp)}%`}>
+                  <span style={{ width: `${employeeCompleteness(emp)}%` }} />
                 </div>
               </div>
               {/* Where they sit — the question a card in a directory is actually asked. */}
@@ -739,58 +831,54 @@ export default function Directory() {
 
       {/* Pagination component */}
       {filtered.length > itemsPerPage && (
-        <div className="premium-card pagination-shell flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <span className="text-sm text-neutral-500 dark:text-neutral-400 tabular-nums">
-            <b className="text-neutral-800 dark:text-neutral-200">
-              {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, sorted.length)}
-            </b>{' '}
-            of {sorted.length}
-          </span>
+        <nav className="premium-card pagination-shell" aria-label="People pagination">
+          <div className="pagination-summary">
+            <span className="pagination-range">
+              <b>{(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, sorted.length)}</b>
+              <span>of {sorted.length} people</span>
+            </span>
+            <span className="pagination-page-label">Page {currentPage} of {totalPages}</span>
+          </div>
 
-          <div className="pagination-pages flex items-center justify-center gap-1.5 flex-wrap">
+          <div className="pagination-pages" aria-label="Pages">
             {/* 500 employees at 15 a page is 34 pages. Prev/Next alone means 19 clicks to reach
                 page 20, so the numbers are here, with first/last and an ellipsis window. */}
             <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
-              aria-label="Previous page" className={PAGE_BTN}>
+              aria-label="Previous page" className="pagination-nav-button">
               <ArrowLeft size={12} />
             </button>
             {pageWindow(currentPage, totalPages).map((n, i) =>
               n === '…' ? (
-                <span key={`gap-${i}`} className="px-1 text-neutral-400 select-none">…</span>
+                <span key={`gap-${i}`} className="pagination-ellipsis" aria-hidden="true">…</span>
               ) : (
                 <button
                   key={n}
                   onClick={() => setCurrentPage(n)}
                   aria-label={`Page ${n}`}
                   aria-current={n === currentPage ? 'page' : undefined}
-                  className={`pagination-number min-w-[2rem] px-2 py-1.5 rounded-lg text-sm font-bold tabular-nums cursor-pointer transition-colors ${
-                    n === currentPage
-                      ? 'bg-[#0ea971] text-white'
-                      : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
-                  }`}
+                  className="pagination-number"
                 >
                   {n}
                 </button>
               )
             )}
             <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-              aria-label="Next page" className={PAGE_BTN}>
+              aria-label="Next page" className="pagination-nav-button">
               <ArrowRight size={12} />
             </button>
           </div>
 
-          <label className="pagination-size flex items-center justify-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-            <span className="hidden sm:inline">Per page</span>
+          <label className="pagination-size">
+            <span>Per page</span>
             <select
               value={pageSize}
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
               aria-label="Rows per page"
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-transparent px-2 py-1 text-sm font-bold cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
             >
               {[15, 30, 60, 120].map((n) => <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>)}
             </select>
           </label>
-        </div>
+        </nav>
       )}
 
       </div>
@@ -813,7 +901,6 @@ export default function Directory() {
 }
 
 const FORM_INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-855 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
-const PAGE_BTN = btnClass('subtle', 'sm', true);
 /** Page numbers to show: always first and last, a window around the current page, ellipses between. */
 function pageWindow(current, total) {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
