@@ -364,9 +364,26 @@ export default function App() {
     .filter((sec) => sec.tabs.length > 0);
 
   const allTabs = sections.flatMap((sec) => sec.tabs);
+  // Every tab the application defines, in either tree. `allTabs` above is only the tabs in THIS
+  // user's nav, which is the wrong set to authorise against.
+  const allKnownTabs = [...essSections, ...oversightSections].flatMap((sec) => sec.tabs);
+
+  /**
+   * May this user open this screen?
+   *
+   * This used to read `return !t || canSeeTab(t)` — and `t` came from the CURRENT nav tree only.
+   * An employee gets essSections, which has no Directory, Administration, Reports, Organization or
+   * Assets in it, so those ids were "not found" and the `!t` arm returned TRUE. The router at the
+   * bottom of this file asks exactly this question before rendering, so typing /administration as
+   * a self-service employee rendered the real Administration screen instead of AccessDenied.
+   *
+   * A tab missing from your own nav is now still authorised against its real definition — found in
+   * the full set — so a screen you legitimately hold the permission for stays reachable by URL,
+   * while one you do not is refused. An id belonging to no tab at all is refused outright.
+   */
   const canViewTab = (tabId) => {
-    const t = allTabs.find((x) => x.id === tabId);
-    return !t || canSeeTab(t);
+    const t = allTabs.find((x) => x.id === tabId) ?? allKnownTabs.find((x) => x.id === tabId);
+    return Boolean(t) && canSeeTab(t);
   };
 
   // Which section owns the screen on show? Drives sidebar highlighting and the tab bar, so a

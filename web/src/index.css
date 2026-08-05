@@ -4937,6 +4937,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     bottom: 0;
     z-index: 70;
     display: grid;
+    /* One per row. .directory-filter-row lays these out in columns for the inline bar, and that
+       template survives into the sheet unless it is replaced — four selects side by side in a
+       390px sheet just run off the right edge. */
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: .55rem;
     max-height: 72dvh;
     overflow-y: auto;
@@ -4958,6 +4962,18 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   @media (prefers-reduced-motion: reduce) {
     main .mobile-filter-panel.is-open { animation: none; }
+  }
+
+  /* The controls carry flex bases and max-widths meant for the inline bar; inside the sheet they
+     have to be told to fit the column instead. */
+  main .mobile-filter-panel.is-open > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+  }
+
+  main .mobile-filter-panel.is-open .filter-select select {
+    max-width: none !important;
   }
 
   /* A grab handle, so the sheet reads as something that came up and can go back down. */
@@ -5867,13 +5883,20 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     font-size: .72rem;
   }
 
+  /* This was `position: fixed` with left/right/bottom offsets, meaning to sit above the nav as a
+     sheet. It could never work: the panel lives inside .app-header, which carries backdrop-blur —
+     and backdrop-filter makes an element the containing block for its fixed descendants. So
+     `bottom: <nav height>` was measured from the bottom of a 119px header rather than the screen,
+     which put the panel at top:-346 with 22px of it on screen. That is the "cannot see it".
+     Absolute, hanging off the bell, is correct here and is what the utility classes already ask
+     for; only the width and height need to suit a phone. */
   .notification-panel {
-    position: fixed !important;
-    left: .65rem !important;
-    right: .65rem !important;
-    top: auto !important;
-    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .65rem) !important;
-    width: auto !important;
+    position: absolute !important;
+    left: auto !important;
+    right: 0 !important;
+    top: 100% !important;
+    bottom: auto !important;
+    width: min(21rem, calc(100vw - 1.25rem)) !important;
     max-height: min(62dvh, 26rem) !important;
     border-radius: 1.25rem !important;
   }
@@ -6084,14 +6107,28 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
     border-width: 1px 0 0;
     border-radius: 1.25rem 1.25rem 0 0;
-    background:
-      linear-gradient(135deg, rgba(255,255,255,.62), rgba(255,255,255,.2)),
-      color-mix(in srgb, var(--surface-elevated) 94%, var(--surface-bg));
+    /* Opaque fallback. A see-through fill with no blur behind it is not glass, it is a bar you can
+       read the page through — so the translucency only arrives inside the @supports below. */
+    background: color-mix(in srgb, var(--surface-elevated) 96%, var(--surface-bg));
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.42),
-      0 -12px 34px rgba(16, 32, 26, .14);
-    backdrop-filter: blur(24px) saturate(1.35);
-    -webkit-backdrop-filter: blur(24px) saturate(1.35);
+      inset 0 1px 0 rgba(255, 255, 255, .5),
+      0 -10px 30px rgba(16, 32, 26, .13);
+  }
+
+  /* Glass, properly.
+     The old rule stacked a white gradient over a fill that was 94% opaque and then asked for a
+     24px blur — nothing of the page could ever show through it, so the blur was doing no work and
+     the bar read as a solid slab. Glass needs the fill to be genuinely see-through; the blur and
+     the saturation are what stop the content behind it becoming noise. */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-bottom-nav {
+      background:
+        /* a sheen along the top edge, where light would catch a pane */
+        linear-gradient(180deg, color-mix(in srgb, #fff 26%, transparent), transparent 58%),
+        color-mix(in srgb, var(--surface-elevated) 62%, transparent);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      backdrop-filter: blur(20px) saturate(180%);
+    }
   }
 
   /* Installed iOS PWAs are especially sensitive to whether the nav is an in-flow child or an
@@ -6314,13 +6351,21 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .dark .mobile-bottom-nav {
-    border-color: rgba(255,255,255,.1);
-    background:
-      linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04)),
-      color-mix(in srgb, var(--surface-elevated) 92%, #20352c);
+    border-color: rgba(255, 255, 255, .12);
+    background: color-mix(in srgb, var(--surface-elevated) 96%, #20352c);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.08),
-      0 -18px 50px rgba(0, 0, 0, .5);
+      inset 0 1px 0 rgba(255, 255, 255, .09),
+      0 -14px 40px rgba(0, 0, 0, .48);
+  }
+
+  /* On a dark ground the sheen has to be much fainter — the same 26% white that reads as a
+     highlight over white reads as fog over near-black. */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .dark .mobile-bottom-nav {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .09), transparent 58%),
+        color-mix(in srgb, var(--surface-elevated) 58%, transparent);
+    }
   }
 
   .dark .mobile-bottom-nav-item-active {

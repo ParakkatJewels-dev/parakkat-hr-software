@@ -79,6 +79,29 @@ function ErrorNote({ error }) {
   );
 }
 
+const ALL_ROWS = 'All rows';
+
+/**
+ * Filters that test a FLAG on the row rather than its status.
+ *
+ * The distinction is the whole bug this fixes. `status` only ever holds Present / Absent /
+ * Weekly Off; missing punches, late arrivals and short days are booleans alongside it. A filter
+ * named for one of those and then compared against `status` matches nothing, which is what the
+ * Missing punch tile did — it showed a count of 2,606 and emptied the list when you clicked it.
+ *
+ * Everything that filters by flag belongs here, and the dropdown is built from these keys, so the
+ * tiles, the dropdown and the predicate cannot drift apart again.
+ */
+const FLAG_FILTERS = {
+  'Checked in': (row) => Boolean(row.check_in),
+  'On site now': (row) => Boolean(row.check_in && !row.check_out),
+  'Late arrivals': (row) => Boolean(row.is_late),
+  'Missing punch': (row) => Boolean(row.is_missing_punch),
+  'Short days': (row) => Boolean(row.is_short_day),
+  // Same definition as the Exceptions tab, or the two disagree about the same day.
+  Exceptions: (row) => hasAttendanceException(row),
+};
+
 function hasAttendanceException(row) {
   return (
     row.is_missing_punch || row.is_short_day || row.is_long_break || row.breaks_incomplete
@@ -124,27 +147,26 @@ function TodayView({ workDate, setWorkDate }) {
       companyOptions: ['All companies', ...[...c].sort()],
       branchOptions: ['All branches', ...[...b].sort()],
       deptOptions: ['All departments', ...[...d].sort()],
-      attendanceOptions: [
-        'All rows',
-        'Checked in',
-        'On site now',
-        'Late arrivals',
-        'Exceptions',
-        ...ranked,
-      ],
+      // The flag filters first, then whatever statuses the day actually contains. Built from the
+      // same map the filter reads, so a filter can never be offered that nothing implements — or
+      // implemented and never offered, which is how Missing punch ended up reachable only from a
+      // KPI card that then matched nothing.
+      attendanceOptions: [ALL_ROWS, ...Object.keys(FLAG_FILTERS), ...ranked],
     };
   }, [data]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     return data.filter((row) => {
-      if (attendanceFilter === 'On site now' && !(row.check_in && !row.check_out)) return false;
-      if (attendanceFilter === 'Checked in' && !row.check_in) return false;
-      if (attendanceFilter === 'Late arrivals' && !row.is_late) return false;
-      // Same definition as the Exceptions tab, or the two disagree about the same day.
-      if (attendanceFilter === 'Exceptions' && !hasAttendanceException(row)) return false;
-      if (!['All rows', 'Checked in', 'On site now', 'Late arrivals', 'Exceptions'].includes(attendanceFilter)
-          && row.status !== attendanceFilter) return false;
+      // Either the filter names a flag, or it names a status. Anything not in FLAG_FILTERS is
+      // matched against row.status — which is why 'Missing Punch' used to empty the list: it is a
+      // flag on the row, never a value of status, so the comparison failed for every row.
+      const byFlag = FLAG_FILTERS[attendanceFilter];
+      if (byFlag) {
+        if (!byFlag(row)) return false;
+      } else if (attendanceFilter !== ALL_ROWS && row.status !== attendanceFilter) {
+        return false;
+      }
       if (company !== 'All companies' && row.employee?.entity?.name !== company) return false;
       if (branch !== 'All branches'
           && (row.employee?.branch?.name || row.employee?.branch?.code) !== branch) return false;
@@ -203,8 +225,10 @@ function TodayView({ workDate, setWorkDate }) {
       ) : null}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Every tile sets a filter the predicate actually implements — the keys come from
+            FLAG_FILTERS or from a real status value, never from a label typed by hand. */}
         <Kpi icon={Users} label="Roster" value={summary.total}
-          onClick={() => setAttendanceFilter('All rows')} active={attendanceFilter === 'All rows'} />
+          onClick={() => setAttendanceFilter(ALL_ROWS)} active={attendanceFilter === ALL_ROWS} />
         <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green"
           onClick={() => setAttendanceFilter('Checked in')} active={attendanceFilter === 'Checked in'} />
         <Kpi icon={Clock} label="Still on site" value={summary.stillIn} tone="green"
@@ -214,7 +238,7 @@ function TodayView({ workDate, setWorkDate }) {
         <Kpi icon={XCircle} label="Absent" value={summary.absent} tone="red"
           onClick={() => setAttendanceFilter('Absent')} active={attendanceFilter === 'Absent'} />
         <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber"
-          onClick={() => setAttendanceFilter('Missing Punch')} active={attendanceFilter === 'Missing Punch'} />
+          onClick={() => setAttendanceFilter('Missing punch')} active={attendanceFilter === 'Missing punch'} />
       </div>
 
       <div className="premium-card mobile-filter-card space-y-3">
