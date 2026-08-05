@@ -157,7 +157,7 @@ function HrKpis({ onNavigate }) {
         { label: 'Joiners (MTD)', value: joiners, icon: UserPlus, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'This month', tab: 'directory' },
         { label: 'Exits Open', value: exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length, icon: DoorOpen, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'In clearance', tab: 'helpdesk' },
         { label: 'Pending Leaves', value: leaves.filter((l) => l.status === 'Pending').length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Awaiting decision', tab: 'leave' },
-        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk queue', tab: 'helpdesk' },
+        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk' },
       ]}
     />
   );
@@ -206,8 +206,8 @@ function SuperKpis({ onNavigate }) {
         { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'All entities', tab: 'organization' },
         { label: 'Employees', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active, system-wide', tab: 'directory' },
         { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance' },
-        { label: 'Logins', value: users.length, icon: Shield, badgeClass: 'bg-violet-500/10 text-violet-500', subtext: 'Provisioned users', tab: 'administration' },
-        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk queue', tab: 'helpdesk' },
+        { label: 'Logins', value: users.length, icon: Shield, badgeClass: 'bg-violet-500/10 text-violet-500', subtext: 'users', tab: 'administration' },
+        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk' },
       ]}
     />
   );

@@ -3691,8 +3691,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-auto-columns: minmax(0, 1fr);
     gap: .2rem;
     width: 100%;
-    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 1px);
-    padding: .32rem max(.55rem, env(safe-area-inset-left)) calc(.32rem + env(safe-area-inset-bottom) + 1px) max(.55rem, env(safe-area-inset-right));
+    min-height: var(--mobile-nav-height);
+    padding: .32rem max(.55rem, env(safe-area-inset-left)) .32rem max(.55rem, env(safe-area-inset-right));
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
     border-width: 1px 0 0;
     border-radius: 1.25rem 1.25rem 0 0;
@@ -3703,6 +3703,30 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       inset 0 1px 0 rgba(255,255,255,.42),
       0 -12px 34px rgba(16, 32, 26, .14);
     backdrop-filter: blur(24px) saturate(1.35);
+  }
+
+  body.app-body-lock::after {
+    content: '';
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    z-index: 39;
+    height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 5rem);
+    pointer-events: none;
+    background: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-bg));
+  }
+
+  .dark body.app-body-lock::after {
+    background: color-mix(in srgb, var(--surface-elevated) 84%, #20352c);
+  }
+
+  @media (display-mode: standalone) {
+    body.app-body-lock,
+    body.app-body-lock #root,
+    body.app-body-lock .app-shell {
+      height: 100vh !important;
+      min-height: 100vh !important;
+    }
   }
 
   .mobile-bottom-nav-item {
