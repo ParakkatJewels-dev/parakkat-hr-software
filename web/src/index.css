@@ -450,7 +450,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .dashboard-kpi::after {
     inset-inline: 0;
-    bottom: 0;
+    bottom: calc(-1px - env(safe-area-inset-bottom));
     height: 3px;
     background: var(--kpi-tone, var(--accent));
     opacity: .72;
@@ -3691,8 +3691,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-auto-columns: minmax(0, 1fr);
     gap: .2rem;
     width: 100%;
-    min-height: var(--mobile-nav-height);
-    padding: .32rem max(.55rem, env(safe-area-inset-left)) .32rem max(.55rem, env(safe-area-inset-right));
+    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 1px);
+    padding: .32rem max(.55rem, env(safe-area-inset-left)) calc(.32rem + env(safe-area-inset-bottom) + 1px) max(.55rem, env(safe-area-inset-right));
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
     border-width: 1px 0 0;
     border-radius: 1.25rem 1.25rem 0 0;
