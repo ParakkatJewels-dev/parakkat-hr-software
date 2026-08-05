@@ -515,7 +515,7 @@ export default function App() {
       </aside>
 
       {/* Main Panel Content Area */}
-      <div className="flex-1 flex min-h-0 flex-col min-w-0">
+      <div className="app-content flex-1 flex min-h-0 flex-col min-w-0">
 
         {/* Header toolbar */}
         <header className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">

@@ -2298,8 +2298,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
      replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
      .page-shell so screens keep exactly one gutter, not two stacked. */
   .app-main {
-    padding: .65rem var(--space-shell) calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
-    scroll-padding-bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    padding: .65rem var(--space-shell) max(.75rem, env(safe-area-inset-bottom));
+    scroll-padding-bottom: max(.75rem, env(safe-area-inset-bottom));
   }
   /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
@@ -3681,43 +3681,25 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .mobile-bottom-nav {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    position: relative;
     z-index: 40;
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
     gap: .2rem;
     width: 100%;
-    min-height: var(--mobile-nav-height);
-    padding: .32rem max(.55rem, env(safe-area-inset-left)) .32rem max(.55rem, env(safe-area-inset-right));
+    min-height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
+    padding: .32rem max(.55rem, env(safe-area-inset-left)) calc(.32rem + env(safe-area-inset-bottom)) max(.55rem, env(safe-area-inset-right));
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
     border-width: 1px 0 0;
     border-radius: 1.25rem 1.25rem 0 0;
     background:
       linear-gradient(135deg, rgba(255,255,255,.62), rgba(255,255,255,.2)),
-      color-mix(in srgb, var(--surface-elevated) 76%, transparent);
+      color-mix(in srgb, var(--surface-elevated) 94%, var(--surface-bg));
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.42),
       0 -12px 34px rgba(16, 32, 26, .14);
     backdrop-filter: blur(24px) saturate(1.35);
-  }
-
-  body.app-body-lock::after {
-    content: '';
-    position: fixed;
-    inset-inline: 0;
-    bottom: 0;
-    z-index: 39;
-    height: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 5rem);
-    pointer-events: none;
-    background: color-mix(in srgb, var(--surface-elevated) 92%, var(--surface-bg));
-  }
-
-  .dark body.app-body-lock::after {
-    background: color-mix(in srgb, var(--surface-elevated) 84%, #20352c);
   }
 
   @media (display-mode: standalone) {
@@ -3776,9 +3758,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .app-shell,
+  .app-content,
   .app-main {
     min-width: 0;
     overflow-x: hidden;
+  }
+
+  .app-content {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .app-header,
@@ -3930,7 +3919,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     border-color: rgba(255,255,255,.1);
     background:
       linear-gradient(135deg, rgba(255,255,255,.12), rgba(255,255,255,.04)),
-      color-mix(in srgb, var(--surface-elevated) 62%, transparent);
+      color-mix(in srgb, var(--surface-elevated) 92%, #20352c);
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.08),
       0 -18px 50px rgba(0, 0, 0, .5);
