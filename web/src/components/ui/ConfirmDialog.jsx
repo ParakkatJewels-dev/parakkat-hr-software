@@ -25,13 +25,21 @@ export default function ConfirmDialog({
   const cancelRef = useRef(null);
   const restoreTo = useRef(null);
 
+  // The latest onCancel without tying the effect to its identity — callers pass inline arrows, and
+  // re-running this effect re-captures `restoreTo` (so focus returns to the dialog's own Cancel
+  // button instead of where the user actually was) and drags focus back to Cancel mid-interaction.
+  const onCancelRef = useRef(onCancel);
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+  });
+
   useEffect(() => {
     restoreTo.current = document.activeElement;
     cancelRef.current?.focus();
 
     const onKey = (e) => {
       if (e.key === 'Escape') {
-        onCancel?.();
+        onCancelRef.current?.();
         return;
       }
       // Keep Tab inside the dialog while it is open.
@@ -57,7 +65,7 @@ export default function ConfirmDialog({
       // Send focus back where the user was, not to the top of the document.
       if (restoreTo.current instanceof HTMLElement) restoreTo.current.focus();
     };
-  }, [onCancel]);
+  }, []);
 
   const confirmClass =
     tone === 'danger'

@@ -23,7 +23,10 @@ export function useDocuments() {
       const { data, error } = await supabase
         .from('documents')
         .select(
-          `id, title, category, url, signed, created_at,
+          // employee_id as well as the embed: it is what says "this belongs to a person", and it
+          // stays true even when RLS hides the employee row itself, where the embed comes back
+          // null and would file a personal document under company-wide.
+          `id, title, category, url, signed, created_at, employee_id,
            storage_path, file_name, mime_type, size_bytes, uploaded_at,
            employee:employees(full_name)`
         )

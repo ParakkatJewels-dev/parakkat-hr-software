@@ -65,21 +65,34 @@ export default function FormSection({
 }) {
   const ref = useRef(null);
 
-  // Escape closes, and the panel takes focus when it opens so keyboard users land inside it
-  // rather than at the top of the page.
-  //
-  // It also scrolls itself into view. Several of these panels are rendered after the list they
-  // belong to — editing row 3 of 264 in the Directory would otherwise open a form below the
-  // pagination controls, with no visible sign anything had happened.
+  // The latest onClose, without making the effects below depend on its identity. Every caller
+  // passes an inline arrow, so a new function arrives on every render.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
+  // Escape closes. Bound once and routed through the ref, so re-binding never costs anything.
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape') onCloseRef.current?.();
     };
     document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  // Focus the first field, ONCE, when the panel opens — and scroll it into view. Several of these
+  // panels render after the list they belong to; editing row 3 of 264 in the Directory would
+  // otherwise open a form below the pagination controls with no visible sign anything happened.
+  //
+  // The empty dependency array is load-bearing. This used to depend on [onClose], which every
+  // caller supplies as an inline arrow — so the effect re-ran on EVERY render, and typing a single
+  // character anywhere in the form threw focus back to the first input. Twenty-odd fields on the
+  // asset form made it unusable; it was wrong on every form that has more than one.
+  useEffect(() => {
     ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     ref.current?.querySelector('input, select, textarea, button')?.focus({ preventScroll: true });
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, []);
 
   const Tag = onSubmit ? 'form' : 'div';
 

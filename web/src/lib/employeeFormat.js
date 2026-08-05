@@ -49,8 +49,14 @@ export function dobWithinRange(iso, today = new Date()) {
   const y = today.getUTCFullYear();
   const m = today.getUTCMonth();
   const d = today.getUTCDate();
-  const oldest = Date.UTC(y - 100, m, d);
-  const youngest = Date.UTC(y - 14, m, d);
+
+  // Date.UTC rolls an impossible day forward — Date.UTC(2010, 1, 29) is 1 March 2010 — whereas
+  // Postgres clamps: date '2024-02-29' - interval '14 years' is 2010-02-28. On 29 February the two
+  // disagree by a day, and the client would accept a birth date the database then rejects. Clamp
+  // to the last real day of the target month so both answer the same question.
+  const clampDay = (year) => Math.min(d, new Date(Date.UTC(year, m + 1, 0)).getUTCDate());
+  const oldest = Date.UTC(y - 100, m, clampDay(y - 100));
+  const youngest = Date.UTC(y - 14, m, clampDay(y - 14));
   return dob.getTime() > oldest && dob.getTime() < youngest;
 }
 

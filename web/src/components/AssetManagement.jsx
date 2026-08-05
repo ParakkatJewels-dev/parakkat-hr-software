@@ -36,12 +36,14 @@ const statusTone = (s) =>
     : s === 'Lost' || s === 'Damaged' ? 'is-bad'
     : 'is-repair';
 
+// No `status`: it is derived from custody by trigger, and a form that posted it would write back
+// whatever it was when the form opened. Deliberate states are set from the detail page.
 const EMPTY_FORM = {
-  category: 'Hardware', asset_type: 'Laptop', name: '', asset_code: '', make: '', model: '',
-  serial: '', status: 'Available', condition: 'New', location: '', notes: '',
+  category: 'Hardware', asset_type: '', name: '', asset_code: '', make: '', model: '',
+  serial: '', condition: 'New', location: '', notes: '',
   purchase_date: '', purchase_cost: '', vendor: '', invoice_no: '', warranty_expires: '',
   licence_key: '', licence_seats: '', licence_expires: '',
-  entity_id: '', branch_id: '',
+  owner_entity_id: '', owner_branch_id: '',
 };
 
 export default function AssetManagement() {
@@ -122,14 +124,14 @@ export default function AssetManagement() {
   }
 
   const branchesForEntity = (org?.branches ?? []).filter(
-    (b) => !form.entity_id || b.entity_id === form.entity_id
+    (b) => !form.owner_entity_id || b.entity_id === form.owner_entity_id
   );
   const typeOptions = ASSET_TYPES[form.category] ?? ASSET_TYPES.Other;
 
   return (
     <div className="page-shell people-page space-y-5 animate-fade-in">
       <PageHeader
-        eyebrow="Work"
+        eyebrow="Asset Management"
         icon={Boxes}
         title="Assets"
         subtitle="Everything the company owns — hardware, software and the rest — and who has it."
@@ -171,16 +173,31 @@ export default function AssetManagement() {
               <select id="as-cat" value={form.category} className={FIELD + ' cursor-pointer'}
                 onChange={(e) => {
                   const next = e.target.value;
-                  setForm({ ...form, category: next, asset_type: (ASSET_TYPES[next] ?? ASSET_TYPES.Other)[0] });
+                  // Only clear the type when it came from the old category's suggestions. Something
+                  // typed by hand — "Espresso machine" — is not ours to throw away because the
+                  // category changed underneath it.
+                  const wasSuggestion = (ASSET_TYPES[form.category] ?? []).includes(form.asset_type);
+                  setForm({ ...form, category: next, asset_type: wasSuggestion ? '' : form.asset_type });
                 }}>
                 {ASSET_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
               </select>
             </Field>
-            <Field label="Type" htmlFor="as-type">
-              <select id="as-type" value={form.asset_type} className={FIELD + ' cursor-pointer'}
-                onChange={(e) => setForm({ ...form, asset_type: e.target.value })}>
-                {typeOptions.map((t) => <option key={t}>{t}</option>)}
-              </select>
+            {/* Free text with the category's common types offered as suggestions. A closed dropdown
+                cannot cover what a jewellery business actually owns — safes, weighing scales,
+                hallmarking equipment — and the column is free text, so the list should suggest
+                rather than restrict. */}
+            <Field label="Type" htmlFor="as-type" hint="Type anything, or pick a suggestion">
+              <input
+                id="as-type"
+                list="asset-type-options"
+                value={form.asset_type}
+                className={FIELD}
+                onChange={(e) => setForm({ ...form, asset_type: e.target.value })}
+                placeholder={typeOptions.slice(0, 3).join(', ') + '…'}
+              />
+              <datalist id="asset-type-options">
+                {typeOptions.map((t) => <option key={t} value={t} />)}
+              </datalist>
             </Field>
 
             <Field label="Asset code" htmlFor="as-code">
@@ -201,12 +218,6 @@ export default function AssetManagement() {
               <input id="as-serial" value={form.serial} className={FIELD + ' font-mono'}
                 onChange={(e) => setForm({ ...form, serial: e.target.value })} />
             </Field>
-            <Field label="Status" htmlFor="as-status">
-              <select id="as-status" value={form.status} className={FIELD + ' cursor-pointer'}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                {ASSET_STATUSES.map((s) => <option key={s}>{s}</option>)}
-              </select>
-            </Field>
             <Field label="Condition" htmlFor="as-cond">
               <select id="as-cond" value={form.condition} className={FIELD + ' cursor-pointer'}
                 onChange={(e) => setForm({ ...form, condition: e.target.value })}>
@@ -215,18 +226,19 @@ export default function AssetManagement() {
               </select>
             </Field>
 
-            {/* An asset's own company is what makes it visible to anyone but a global admin while
-                nobody holds it — see migration 0076. */}
-            <Field label="Company" htmlFor="as-entity" required>
-              <select id="as-entity" required value={form.entity_id} className={FIELD + ' cursor-pointer'}
-                onChange={(e) => setForm({ ...form, entity_id: e.target.value, branch_id: '' })}>
+            {/* Who OWNS it, which is not the same as who currently has it. This is what the asset
+                falls back to when it is returned, and what makes unallocated stock visible to
+                anyone but a global admin — see migration 0076. */}
+            <Field label="Owned by (company)" htmlFor="as-entity" required>
+              <select id="as-entity" required value={form.owner_entity_id} className={FIELD + ' cursor-pointer'}
+                onChange={(e) => setForm({ ...form, owner_entity_id: e.target.value, owner_branch_id: '' })}>
                 <option value="">Choose a company…</option>
                 {(org?.entities ?? []).map((en) => <option key={en.id} value={en.id}>{en.name}</option>)}
               </select>
             </Field>
-            <Field label="Branch" htmlFor="as-branch">
-              <select id="as-branch" value={form.branch_id} className={FIELD + ' cursor-pointer'}
-                onChange={(e) => setForm({ ...form, branch_id: e.target.value })}>
+            <Field label="Owned by (branch)" htmlFor="as-branch">
+              <select id="as-branch" value={form.owner_branch_id} className={FIELD + ' cursor-pointer'}
+                onChange={(e) => setForm({ ...form, owner_branch_id: e.target.value })}>
                 <option value="">Company-wide</option>
                 {branchesForEntity.map((b) => <option key={b.id} value={b.id}>{b.name || b.code}</option>)}
               </select>
@@ -351,7 +363,14 @@ export default function AssetManagement() {
               const Icon = categoryIcon(a);
               return (
                 <li key={a.id}>
-                  <button type="button" className="asset-row" onClick={() => setSelectedId(a.id)}>
+                  {/* Closing the form here too. The detail view is gated on `!showForm`, so a row
+                      clicked while the form is open used to do nothing visible and then decide
+                      where you landed when the form finally closed. */}
+                  <button
+                    type="button"
+                    className="asset-row"
+                    onClick={() => { setSelectedId(a.id); setShowForm(false); setEditing(null); upsert.reset(); }}
+                  >
                     <span className="asset-row-icon"><Icon size={16} /></span>
                     <span className="asset-row-main">
                       <strong>{a.name}</strong>

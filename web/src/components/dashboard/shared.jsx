@@ -62,22 +62,15 @@ const inferTone = (className = '') => {
   return 'green';
 };
 
-const chartSeeds = {
-  green: [20, 32, 28, 45, 38, 58, 54, 72],
-  blue: [34, 28, 40, 36, 52, 48, 64, 60],
-  violet: [24, 38, 34, 50, 42, 62, 56, 70],
-  amber: [46, 34, 42, 30, 48, 38, 54, 44],
-  orange: [38, 52, 44, 58, 46, 64, 54, 68],
-  red: [58, 46, 62, 50, 66, 54, 70, 60],
-};
-
-function MiniChart({ tone }) {
-  const values = chartSeeds[tone] || chartSeeds.green;
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+function MiniChart({ values }) {
+  const clean = (values ?? []).map((v) => Number(v) || 0);
+  if (clean.length < 2) return null;
+  const max = Math.max(...clean);
+  const min = Math.min(...clean);
   const range = max - min || 1;
-  const coords = values.map((v, i) => {
-    const x = 4 + i * 12;
+  const step = 84 / Math.max(clean.length - 1, 1);
+  const coords = clean.map((v, i) => {
+    const x = 4 + i * step;
     const y = 36 - ((v - min) / range) * 24;
     return { x, y };
   });
@@ -90,14 +83,34 @@ function MiniChart({ tone }) {
     })
     .join(' ');
   const area = `${line} L ${coords.at(-1).x} 40 L ${coords[0].x} 40 Z`;
-  const last = coords.at(-1);
+
+  // The curve is drawn twice: solid up to the second-to-last point, dotted from there on. The
+  // marker sits on the join — the last reading we actually have — so the dotted run reads as the
+  // period still in progress rather than as more measured data.
+  const seg = (from, to) => coords.slice(from, to)
+    .map((p, i) => {
+      if (i === 0) return `M ${p.x} ${p.y}`;
+      const prev = coords[from + i - 1];
+      const cx = (prev.x + p.x) / 2;
+      return `C ${cx} ${prev.y}, ${cx} ${p.y}, ${p.x} ${p.y}`;
+    })
+    .join(' ');
+
+  const markIndex = Math.max(coords.length - 2, 0);
+  const solid = seg(0, markIndex + 1);
+  const trail = coords.length > 1 ? seg(markIndex, coords.length) : '';
+  const mark = coords[markIndex];
 
   return (
     <svg className="dashboard-mini-chart" viewBox="0 0 92 44" aria-hidden="true" focusable="false">
       <path className="dashboard-mini-chart-grid" d="M4 32 H88" />
       <path className="dashboard-mini-chart-area" d={area} />
-      <path className="dashboard-mini-chart-line" d={line} />
-      <circle className="dashboard-mini-chart-dot" cx={last.x} cy={last.y} r="2.25" />
+      {/* Drops from the marker to the baseline, the way the reference anchors its highlighted
+          reading to the axis. */}
+      <path className="dashboard-mini-chart-drop" d={`M ${mark.x} ${mark.y} V 40`} />
+      <path className="dashboard-mini-chart-line" d={solid} />
+      {trail && <path className="dashboard-mini-chart-trail" d={trail} />}
+      <circle className="dashboard-mini-chart-dot" cx={mark.x} cy={mark.y} r="2.6" />
     </svg>
   );
 }
@@ -149,7 +162,7 @@ export function Widget({ title, icon: Icon, badge, action, onAction, children, c
 }
 
 /** KPI tile. Renders as a button when `tab` is set, so the number is a way into the detail. */
-export function KpiCard({ label, value, icon: Icon, badgeClass, subtext, tab, onNavigate }) {
+export function KpiCard({ label, value, badgeClass, subtext, tab, onNavigate, trend }) {
   const clickable = Boolean(tab && onNavigate);
   const Tag = clickable ? 'button' : 'article';
   const tone = inferTone(badgeClass);
@@ -161,9 +174,6 @@ export function KpiCard({ label, value, icon: Icon, badgeClass, subtext, tab, on
     >
       <div className="mobile-list-row flex items-start justify-between gap-2">
         <span className="dashboard-kpi-label">{label}</span>
-        <div className={`dashboard-kpi-icon ${badgeClass}`}>
-          <Icon size={12} />
-        </div>
       </div>
       <div className="dashboard-kpi-body">
         <p>{value}</p>
@@ -173,7 +183,7 @@ export function KpiCard({ label, value, icon: Icon, badgeClass, subtext, tab, on
           </span>
         )}
       </div>
-      <MiniChart tone={tone} />
+      <MiniChart values={trend} />
     </Tag>
   );
 }

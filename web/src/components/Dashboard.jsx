@@ -96,6 +96,43 @@ function RoleBanner({ role, actions }) {
 /* ---------------------------------- per-role KPI rows ---------------------------------- */
 // Each KPI row is its own component so its queries only run for the preset that shows it.
 
+const validSeries = (values) => values.map((v) => Number(v) || 0).filter((v) => Number.isFinite(v));
+
+const countsBy = (items, keyFn) => {
+  const map = new Map();
+  for (const item of items ?? []) {
+    const key = keyFn(item) || 'Unassigned';
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return validSeries([...map.values()]);
+};
+
+const employeeStatusSeries = (employees) =>
+  ['Active', 'Probation', 'On Leave', 'Inactive'].map((status) => employees.filter((e) => e.status === status).length);
+
+const attendanceSummarySeries = (summary) =>
+  [summary.checkedIn, summary.stillIn, summary.late, summary.absent, summary.onLeave, summary.missingPunch];
+
+const attendanceDaySeries = (rows, predicate) =>
+  rows
+    .slice()
+    .sort((a, b) => (a.work_date || '').localeCompare(b.work_date || ''))
+    .map((row) => (predicate(row) ? 1 : 0))
+    .slice(-10);
+
+const datedCountSeries = (rows, dateField, predicate = () => true) => {
+  const map = new Map();
+  for (const row of rows ?? []) {
+    if (!predicate(row)) continue;
+    const key = (row[dateField] || row.created_at || '').slice(0, 10);
+    if (!key) continue;
+    map.set(key, (map.get(key) || 0) + 1);
+  }
+  return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, count]) => count).slice(-10);
+};
+
+const queueSeries = (...counts) => validSeries(counts);
+
 function EssKpis({ onNavigate }) {
   const { employee } = useAuth();
   const today = todayIso();
@@ -114,10 +151,10 @@ function EssKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Days Present', value: present, icon: CalendarCheck2, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'This month', tab: 'attendance' },
-        { label: 'Late Marks', value: late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'This month', tab: 'attendance' },
-        { label: 'Leave Available', value: available, icon: CalendarDays, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'Across all types', tab: 'leave' },
-        { label: 'Pending Requests', value: pending, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Awaiting approval', tab: 'leave' },
+        { label: 'Days Present', value: present, icon: CalendarCheck2, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'This month', tab: 'attendance', trend: attendanceDaySeries(monthRows, (r) => r.status === 'Present' || r.status === 'Half Day') },
+        { label: 'Late Marks', value: late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'This month', tab: 'attendance', trend: attendanceDaySeries(monthRows, (r) => r.is_late) },
+        { label: 'Leave Available', value: available, icon: CalendarDays, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'Across all types', tab: 'leave', trend: balances.map((b) => Number(b.available || 0)) },
+        { label: 'Pending Requests', value: pending, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Awaiting approval', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length) },
       ]}
     />
   );
@@ -125,7 +162,7 @@ function EssKpis({ onNavigate }) {
 
 function TeamKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
-  const { summary } = useAttendanceSummary(todayIso());
+  const { data: attendanceRows = [], summary } = useAttendanceSummary(todayIso());
   const { data: leaves = [] } = useLeaves();
   const { data: expenses = [] } = useExpenses();
   const { data: regs = [] } = useRegularizations('Pending');
@@ -139,11 +176,11 @@ function TeamKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Team Size', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active in your scope', tab: 'directory' },
-        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance' },
-        { label: 'Late Today', value: summary.late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Past shift start', tab: 'attendance' },
-        { label: 'Absent Today', value: summary.absent, icon: Users, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'No punch, no leave', tab: 'attendance' },
-        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Leaves · punches · expenses', tab: 'leave' },
+        { label: 'Team Size', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active in your scope', tab: 'directory', trend: employeeStatusSeries(employees) },
+        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
+        { label: 'Late Today', value: summary.late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Past shift start', tab: 'attendance', trend: countsBy(attendanceRows.filter((r) => r.is_late), (r) => r.employee?.branch?.code || r.employee?.department?.name) },
+        { label: 'Absent Today', value: summary.absent, icon: Users, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'No punch, no leave', tab: 'attendance', trend: countsBy(attendanceRows.filter((r) => r.status === 'Absent'), (r) => r.employee?.branch?.code || r.employee?.department?.name) },
+        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Leaves · punches · expenses', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length, regs.length) },
       ]}
     />
   );
@@ -152,7 +189,7 @@ function TeamKpis({ onNavigate }) {
 function ZonalKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
   const { data: org } = useOrg();
-  const { summary } = useAttendanceSummary(todayIso());
+  const { data: attendanceRows = [], summary } = useAttendanceSummary(todayIso());
   const { data: leaves = [] } = useLeaves();
   const { data: expenses = [] } = useExpenses();
 
@@ -164,10 +201,10 @@ function ZonalKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'In your zone', tab: 'organization' },
-        { label: 'Headcount', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active employees', tab: 'directory' },
-        { label: 'Attendance Today', value: `${pct}%`, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: `${summary.checkedIn}/${summary.total} checked in`, tab: 'attendance' },
-        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Across all branches', tab: 'leave' },
+        { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'In your zone', tab: 'organization', trend: countsBy(employees, (e) => e.branch?.code || e.branch?.name) },
+        { label: 'Headcount', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active employees', tab: 'directory', trend: employeeStatusSeries(employees) },
+        { label: 'Attendance Today', value: `${pct}%`, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: `${summary.checkedIn}/${summary.total} checked in`, tab: 'attendance', trend: attendanceSummarySeries(summary) },
+        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Across all branches', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length, attendanceRows.filter((r) => r.is_missing_punch).length) },
       ]}
     />
   );
@@ -188,12 +225,12 @@ function HrKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Headcount', value: active, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active in your scope', tab: 'directory' },
-        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance' },
-        { label: 'Joiners (MTD)', value: joiners, icon: UserPlus, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'This month', tab: 'directory' },
-        { label: 'Exits Open', value: exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length, icon: DoorOpen, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'In clearance', tab: 'helpdesk' },
-        { label: 'Pending Leaves', value: leaves.filter((l) => l.status === 'Pending').length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Awaiting decision', tab: 'leave' },
-        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk' },
+        { label: 'Headcount', value: active, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active in your scope', tab: 'directory', trend: countsBy(employees.filter((e) => e.status === 'Active'), (e) => e.branch?.code || e.department?.name) },
+        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
+        { label: 'Joiners (MTD)', value: joiners, icon: UserPlus, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'This month', tab: 'directory', trend: datedCountSeries(employees, 'join_date', (e) => e.join_date && e.join_date >= start) },
+        { label: 'Exits Open', value: exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length, icon: DoorOpen, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'In clearance', tab: 'helpdesk', trend: countsBy(exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared'), (x) => x.status) },
+        { label: 'Pending Leaves', value: leaves.filter((l) => l.status === 'Pending').length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Awaiting decision', tab: 'leave', trend: datedCountSeries(leaves, 'created_at', (l) => l.status === 'Pending') },
+        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk', trend: countsBy(tickets.filter((t) => t.status !== 'Resolved'), (t) => t.status) },
       ]}
     />
   );
@@ -216,12 +253,12 @@ function EntityKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Headcount', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active employees', tab: 'directory' },
-        { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'Across the entity', tab: 'organization' },
-        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance' },
-        { label: 'Pending Leaves', value: leaves.filter((l) => l.status === 'Pending').length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Awaiting decision', tab: 'leave' },
-        { label: 'Open Roles', value: jobs.filter((j) => j.status === 'Open').length, icon: Briefcase, badgeClass: 'bg-violet-500/10 text-violet-500', subtext: 'Recruitment', tab: 'recruitment' },
-        { label: 'Spend (MTD)', value: inr(mtdSpend), icon: DollarSign, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Approved expenses', tab: 'expense' },
+        { label: 'Headcount', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active employees', tab: 'directory', trend: countsBy(employees.filter((e) => e.status === 'Active'), (e) => e.branch?.code || e.department?.name) },
+        { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'Across the entity', tab: 'organization', trend: countsBy(employees, (e) => e.branch?.code || e.branch?.name) },
+        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
+        { label: 'Pending Leaves', value: leaves.filter((l) => l.status === 'Pending').length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Awaiting decision', tab: 'leave', trend: datedCountSeries(leaves, 'created_at', (l) => l.status === 'Pending') },
+        { label: 'Open Roles', value: jobs.filter((j) => j.status === 'Open').length, icon: Briefcase, badgeClass: 'bg-violet-500/10 text-violet-500', subtext: 'Recruitment', tab: 'recruitment', trend: countsBy(jobs.filter((j) => j.status === 'Open'), (j) => j.department || j.location || j.title) },
+        { label: 'Spend (MTD)', value: inr(mtdSpend), icon: DollarSign, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Approved expenses', tab: 'expense', trend: datedCountSeries(expenses, 'expense_date', (e) => (e.expense_date || '') >= start && (e.status === 'Approved' || e.status === 'Paid')) },
       ]}
     />
   );
@@ -238,12 +275,12 @@ function SuperKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Entities', value: (org?.entities ?? []).length, icon: Network, badgeClass: 'bg-purple-500/10 text-purple-500', subtext: 'Companies', tab: 'organization' },
-        { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'All entities', tab: 'organization' },
-        { label: 'Employees', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active', tab: 'directory' },
-        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance' },
-        { label: 'Logins', value: users.length, icon: Shield, badgeClass: 'bg-violet-500/10 text-violet-500', subtext: 'users', tab: 'administration' },
-        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk' },
+        { label: 'Entities', value: (org?.entities ?? []).length, icon: Network, badgeClass: 'bg-purple-500/10 text-purple-500', subtext: 'Companies', tab: 'organization', trend: countsBy(employees, (e) => e.entity?.code || e.entity?.name) },
+        { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'All entities', tab: 'organization', trend: countsBy(employees, (e) => e.branch?.code || e.branch?.name) },
+        { label: 'Employees', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active', tab: 'directory', trend: employeeStatusSeries(employees) },
+        { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
+        { label: 'Logins', value: users.length, icon: Shield, badgeClass: 'bg-violet-500/10 text-violet-500', subtext: 'users', tab: 'administration', trend: countsBy(users, (u) => u.roles?.[0]?.role_key || (u.is_super_admin ? 'super_admin' : 'no_role')) },
+        { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk', trend: countsBy(tickets.filter((t) => t.status !== 'Resolved'), (t) => t.status || t.category) },
       ]}
     />
   );

@@ -19,7 +19,10 @@ export function spanLabel(fromIso, toIso, now = new Date()) {
 
   const days = Math.floor((to - from) / 86400000);
   if (days < 0) return null;
-  if (days < 1) return 'today';
+
+  // 'today' only means anything for a spell that is still running. A closed spell from 2020 that
+  // happened to last nine hours is not "today", and the timeline printed exactly that.
+  if (days < 1) return toIso ? 'same day' : 'today';
   if (days < 31) return `${days} day${days === 1 ? '' : 's'}`;
 
   // Calendar months, counted the way tenure is counted on the employee profile. Dividing days by
@@ -27,7 +30,12 @@ export function spanLabel(fromIso, toIso, now = new Date()) {
   // laptop held for exactly a year reads as "11 months".
   let months = (to.getUTCFullYear() - from.getUTCFullYear()) * 12
     + (to.getUTCMonth() - from.getUTCMonth());
-  if (to.getUTCDate() < from.getUTCDate()) months -= 1;
+
+  // The day-of-month comparison has to allow for months of different lengths. 31 Jan to 30 Apr is
+  // three whole months, but 30 < 31 so a naive decrement calls it two. A return that lands on the
+  // last day of its own month has completed that month whatever the handover day was.
+  const lastDayOfToMonth = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth() + 1, 0)).getUTCDate();
+  if (to.getUTCDate() < from.getUTCDate() && to.getUTCDate() !== lastDayOfToMonth) months -= 1;
 
   if (months < 12) return `${months} month${months === 1 ? '' : 's'}`;
 

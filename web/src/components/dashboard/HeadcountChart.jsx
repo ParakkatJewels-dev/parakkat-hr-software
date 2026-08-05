@@ -33,6 +33,7 @@ export default function HeadcountChart({ groupBy = 'branch', onNavigate }) {
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, compact ? 6 : 9);
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
 
   return (
     <Widget
@@ -43,6 +44,23 @@ export default function HeadcountChart({ groupBy = 'branch', onNavigate }) {
     >
       {data.length === 0 ? (
         <EmptyNote>No employees visible.</EmptyNote>
+      ) : compact ? (
+        <div className="dashboard-mobile-bars">
+          {data.map((row) => (
+            <button
+              key={row.name}
+              type="button"
+              onClick={() => onNavigate?.('directory')}
+              className="dashboard-mobile-bar-row"
+            >
+              <span className="dashboard-mobile-bar-label">{row.name}</span>
+              <span className="dashboard-mobile-bar-track" aria-hidden="true">
+                <i style={{ width: `${Math.max(8, Math.round((row.count / maxCount) * 100))}%` }} />
+              </span>
+              <strong>{row.count}</strong>
+            </button>
+          ))}
+        </div>
       ) : (
         <div className="dashboard-chart-frame">
           <ResponsiveContainer width="100%" height="100%">

@@ -21,14 +21,17 @@ export const ASSET_TYPES = {
   Other: ['Other'],
 };
 
+// The embeds hang off owner_entity_id / owner_branch_id, which are the only foreign keys assets
+// has to entities and branches. entity_id and branch_id are derived by trigger and deliberately
+// carry no key — a second key to the same table would make `entities(...)` ambiguous to PostgREST.
 const ASSET_COLUMNS = `
   id, category, asset_type, asset_code, name, make, model, serial, status, condition, location,
   notes, purchase_date, purchase_cost, vendor, invoice_no, warranty_expires,
   licence_key, licence_seats, licence_expires,
-  entity_id, branch_id, employee_id, created_at, updated_at,
-  entity:entities(code,name),
-  branch:branches(code,name),
-  employee:employees(id, full_name, employee_code, branch:branches(code))
+  owner_entity_id, owner_branch_id, entity_id, branch_id, employee_id, created_at, updated_at,
+  owner_entity:entities(code,name),
+  owner_branch:branches(code,name),
+  employee:employees(id, full_name, employee_code, entity_id, branch:branches(code))
 `;
 
 export function useAssets() {
@@ -76,7 +79,7 @@ export function useAssetHistory(assetId) {
       const { data, error } = await supabase
         .from('asset_assignments')
         .select(
-          `id, assigned_at, returned_at, condition_out, condition_in, notes,
+          `id, assigned_at, returned_at, condition_out, condition_in, notes, return_notes,
            employee:employees(id, full_name, employee_code,
                               branch:branches(code,name), designation:designations(title))`
         )
@@ -105,14 +108,25 @@ export function useEmployeeAssets(employeeId) {
   });
 }
 
-/** Columns a client may set. An allow-list, so a stray form key can never reach the table. */
+/**
+ * Columns a client may set. An allow-list, so a stray form key can never reach the table.
+ *
+ * `status` is NOT here, and neither are entity_id/branch_id. All three are derived from custody by
+ * database trigger. A form that posts the whole row would otherwise carry whatever those values
+ * were when it opened: correcting a typo in "Kept at" minutes after somebody else allocated the
+ * item would quietly write status back to Available while an open assignment still exists.
+ * Deliberate status changes go through useSetAssetStatus below.
+ */
 const ASSET_COLS = [
-  'category', 'asset_type', 'asset_code', 'name', 'make', 'model', 'serial', 'status',
+  'category', 'asset_type', 'asset_code', 'name', 'make', 'model', 'serial',
   'condition', 'location', 'notes',
   'purchase_date', 'purchase_cost', 'vendor', 'invoice_no', 'warranty_expires',
   'licence_key', 'licence_seats', 'licence_expires',
-  'entity_id', 'branch_id',
+  'owner_entity_id', 'owner_branch_id',
 ];
+
+/** The states custody does not own. Available and Allocated are the trigger's to set. */
+export const ASSET_MANUAL_STATUSES = ['Under Repair', 'Damaged', 'Lost', 'Retired'];
 
 function cleanAssetPayload(input) {
   const row = {};
@@ -162,6 +176,31 @@ export function useUpsertAsset() {
 }
 
 /**
+ * Move an asset into one of the states custody does not own.
+ *
+ * Separate from useUpsertAsset so a status change is always a deliberate act on the current value,
+ * never a stale field posted along with an unrelated edit. Returning to Available is the trigger's
+ * job — take the asset back instead.
+ */
+export function useSetAssetStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ assetId, status }) => {
+      const { data, error } = await supabase
+        .from('assets')
+        .update({ status })
+        .eq('id', assetId)
+        .select('id');
+      if (error) throw describeAssetError(error);
+      if (!data || data.length === 0) {
+        throw new Error('That status change did not go through — the asset is outside what you can manage.');
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['assets'] }),
+  });
+}
+
+/**
  * Hand an asset to somebody.
  *
  * The partial unique index refuses this while the asset is still out with someone else. Closing
@@ -201,18 +240,28 @@ export function useReturnAsset() {
   return useMutation({
     mutationFn: async ({ assignmentId, conditionIn, notes }) => {
       const { data: { user } } = await supabase.auth.getUser();
-      const patch = {
-        returned_at: new Date().toISOString(),
-        returned_by: user?.id ?? null,
-        condition_in: conditionIn || null,
-      };
-      if (notes) patch.notes = notes;
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('asset_assignments')
-        .update(patch)
+        .update({
+          returned_at: new Date().toISOString(),
+          returned_by: user?.id ?? null,
+          condition_in: conditionIn || null,
+          // Its own column. Writing this into `notes` would erase what was recorded at handover.
+          return_notes: notes || null,
+        })
         .eq('id', assignmentId)
-        .is('returned_at', null);
+        .is('returned_at', null)
+        .select('id');
       if (error) throw describeAssetError(error);
+      // An UPDATE that matches no row is not an error — RLS filtering it out, or a second click
+      // after it already closed, both come back 204 with no rows. Without this the panel closes
+      // and the timeline still shows the asset out with the same person.
+      if (!data || data.length === 0) {
+        throw new Error(
+          'That return did not go through — the assignment may already be closed, or it is outside '
+          + 'what you have permission to manage. Reload and check who is holding it.',
+        );
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['assets'] });

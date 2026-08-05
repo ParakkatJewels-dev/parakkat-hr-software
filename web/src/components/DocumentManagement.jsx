@@ -6,8 +6,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   FolderOpen, Plus, ShieldAlert, Loader2, AlertTriangle, FileText, FilePlus,
-  Download, Trash2, Link2, Upload, Search, X, SearchX,
+  Download, Trash2, Link2, Upload, Search, X, SearchX, Users, Building2,
 } from 'lucide-react';
+import { useUrlTab } from '../lib/useUrlTab';
 import {
   useDocuments, useAddDocument, useDocumentLink, useDeleteDocument,
   fileSize, ACCEPTED_FILES, MAX_FILE_BYTES, PHOTO_CATEGORY,
@@ -23,6 +24,25 @@ import PageHeader from './ui/PageHeader';
 // has to be pickable from this screen too — otherwise the only way to set someone's photo is
 // through the employee form.
 const CATS = ['Policy', 'HR Letter', 'Identity', PHOTO_CATEGORY, 'Contract', 'Certificate', 'Other'];
+
+// The one thing that separates the two libraries is whether the row names a person.
+const SCOPES = [
+  {
+    id: 'employee',
+    label: 'Employee documents',
+    icon: Users,
+    blurb: 'Identity papers, contracts and letters filed against a person.',
+    empty: 'Documents attached to an employee will appear here.',
+  },
+  {
+    id: 'company',
+    label: 'Company documents',
+    icon: Building2,
+    blurb: 'Policies, handbooks and anything that belongs to the company rather than one person.',
+    empty: 'Company-wide policies and shared files will appear here.',
+  },
+];
+const SCOPE_IDS = SCOPES.map((s) => s.id);
 
 const EMPTY = { title: '', category: 'Policy', attachSelf: false, url: '' };
 
@@ -42,16 +62,29 @@ export default function DocumentManagement() {
   const [confirming, setConfirming] = useState(null);
   const [search, setSearch] = useState('');
   const fileInput = useRef(null);
+
+  // Two libraries, not one list. A person's Aadhaar scan and the company leave policy are different
+  // things kept for different reasons, and mixing them meant scrolling past 200 identity documents
+  // to reach a handbook. In the URL, so a refresh comes back to the one you were reading.
+  const [scope, setScope] = useUrlTab(SCOPES[0].id, SCOPE_IDS);
+
+  const { employeeDocs, companyDocs } = useMemo(() => {
+    const owned = [], shared = [];
+    for (const d of docs) (d.employee_id ? owned : shared).push(d);
+    return { employeeDocs: owned, companyDocs: shared };
+  }, [docs]);
+
+  const scoped = scope === 'employee' ? employeeDocs : companyDocs;
+
   const stats = useMemo(() => {
     const stored = docs.filter((d) => d.storage_path).length;
     const links = docs.length - stored;
-    const personal = docs.filter((d) => d.employee?.full_name).length;
     const signed = docs.filter((d) => d.signed).length;
     return [
       { label: 'Documents', value: docs.length, sub: 'Visible in scope', tone: 'green' },
-      { label: 'Stored files', value: stored, sub: `${links} external links`, tone: 'blue' },
-      { label: 'Employee docs', value: personal, sub: 'Attached to people', tone: 'amber' },
-      { label: 'Signed', value: signed, sub: 'Completed records', tone: 'violet' },
+      { label: 'Employee docs', value: docs.filter((d) => d.employee_id).length, sub: 'Attached to people', tone: 'amber' },
+      { label: 'Company docs', value: docs.filter((d) => !d.employee_id).length, sub: 'Policies and shared files', tone: 'blue' },
+      { label: 'Signed', value: signed, sub: `${stored} stored · ${links} links`, tone: 'violet' },
     ];
   }, [docs]);
 
@@ -104,14 +137,16 @@ export default function DocumentManagement() {
 
   // Everything printed on a card is searchable, because the thing you remember about a document
   // varies: its title, whose it is, what kind it is, or the name of the file somebody sent you.
+  // Scoped to the library on show — searching "policy" in Employee documents should not quietly
+  // start returning company files.
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return docs;
-    return docs.filter((d) =>
+    if (!term) return scoped;
+    return scoped.filter((d) =>
       [d.title, d.category, d.employee?.full_name, d.file_name]
         .some((field) => field?.toLowerCase().includes(term))
     );
-  }, [docs, search]);
+  }, [scoped, search]);
 
   const pager = usePagination(filtered);
 
@@ -119,8 +154,9 @@ export default function DocumentManagement() {
   const countLabel = !searching
     ? `${pager.from}–${pager.to} of ${pager.count}`
     : pager.count === 0
-      ? `No matches · ${docs.length} in all`
-      : `${pager.from}–${pager.to} of ${pager.count} matching · ${docs.length} in all`;
+      ? `No matches · ${scoped.length} in this library`
+      : `${pager.from}–${pager.to} of ${pager.count} matching · ${scoped.length} in this library`;
+  const activeScope = SCOPES.find((s) => s.id === scope) ?? SCOPES[0];
 
   return (
     <div className="page-shell people-page space-y-5 animate-fade-in">
@@ -223,9 +259,31 @@ export default function DocumentManagement() {
         </FormSection>
       )}
 
+      <div className="mobile-segmented tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
+        {SCOPES.map((s) => {
+          const count = (s.id === 'employee' ? employeeDocs : companyDocs).length;
+          return (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => { setScope(s.id); setSearch(''); }}
+              aria-current={scope === s.id ? 'page' : undefined}
+              className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
+                scope === s.id
+                  ? 'border-[#0ea971] text-[#0ea971]'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              <s.icon size={13} /> {s.label}
+              <span className="font-mono text-2xs opacity-70">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="premium-card people-library-card space-y-4">
         <div className="people-panel-head">
-          <span><FolderOpen size={15} /> Document library</span>
+          <span><activeScope.icon size={15} /> {activeScope.label}</span>
           {/* Says the total as well as the range whenever a search is narrowing it, so a library
               cut down to three never reads as a library of three. */}
           <em>{countLabel}</em>
@@ -235,7 +293,9 @@ export default function DocumentManagement() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" size={15} />
           <input
             type="search"
-            placeholder="Search title, category, person or file name…"
+            placeholder={scope === 'employee'
+              ? 'Search title, category, person or file name…'
+              : 'Search title, category or file name…'}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search documents"
@@ -256,11 +316,11 @@ export default function DocumentManagement() {
           <div className="flex justify-center py-10 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>
         ) : error ? (
           <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
-        ) : docs.length === 0 ? (
+        ) : scoped.length === 0 ? (
           <div className="people-empty-state is-compact">
             <FolderOpen size={24} />
-            <strong>No documents yet</strong>
-            <span>Files and policy links will appear here when added.</span>
+            <strong>No {activeScope.label.toLowerCase()} yet</strong>
+            <span>{activeScope.empty}</span>
           </div>
         ) : filtered.length === 0 ? (
           /* Kept apart from the empty library above, because the two mean different things: one
@@ -269,8 +329,8 @@ export default function DocumentManagement() {
             <SearchX size={24} />
             <strong>Nothing matches “{search.trim()}”</strong>
             <span>
-              Searched titles, categories, people and file names across {docs.length}{' '}
-              {docs.length === 1 ? 'document' : 'documents'}.
+              Searched titles, categories, people and file names across {scoped.length}{' '}
+              {scoped.length === 1 ? 'document' : 'documents'} in {activeScope.label.toLowerCase()}.
             </span>
             <button type="button" onClick={() => setSearch('')} className="people-action-button mt-2">
               <X size={13} /> Clear the search
@@ -286,9 +346,11 @@ export default function DocumentManagement() {
                   </span>
                   <div className="min-w-0">
                     <span className="text-xs font-bold text-neutral-800 dark:text-slate-200 block truncate">{d.title}</span>
+                    {/* Whose it is only earns its place in the employee library; in the company
+                        one every row would read "Company-wide", which says nothing. */}
                     <span className="text-2xs text-neutral-500 block truncate">
                       {d.category || 'Uncategorized'}
-                      {d.employee?.full_name ? ` · ${d.employee.full_name}` : ' · Company-wide'}
+                      {scope === 'employee' ? ` · ${d.employee?.full_name ?? 'Employee not visible to you'}` : ''}
                       {d.storage_path ? ` · ${fileSize(d.size_bytes)}` : ' · link'}
                     </span>
                   </div>

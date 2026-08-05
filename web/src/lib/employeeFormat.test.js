@@ -53,6 +53,17 @@ test('both bounds are strict, matching the SQL', () => {
   assert.equal(dobWithinRange('1926-08-05', TODAY), false); // exactly 100 today
 });
 
+test('on 29 February the bound clamps like Postgres instead of rolling into March', () => {
+  const leapDay = new Date('2024-02-29T00:00:00Z');
+  // Postgres reads 2024-02-29 minus 14 years as 2010-02-28, so a birth date ON that day is not
+  // strictly earlier than the bound and must be rejected — Date.UTC would have said 2010-03-01
+  // and let it through.
+  assert.equal(dobWithinRange('2010-02-28', leapDay), false);
+  assert.ok(validateEmployeeFields({ date_of_birth: '2010-02-28' }, leapDay).date_of_birth);
+  // A day either side still behaves.
+  assert.equal(dobWithinRange('2010-02-27', leapDay), true);
+});
+
 test('an unparseable date says so rather than silently passing', () => {
   assert.equal(dobWithinRange('not-a-date', TODAY), null);
   assert.ok(validateEmployeeFields({ date_of_birth: 'not-a-date' }, TODAY).date_of_birth);

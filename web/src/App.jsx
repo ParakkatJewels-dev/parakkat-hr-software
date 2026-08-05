@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes,
 } from 'lucide-react';
 
 // Import components
@@ -297,6 +297,17 @@ export default function App() {
         { id: 'expense', label: 'Expenses', perm: 'expense.read' },
       ],
     },
+    // Its own destination rather than a tab inside Work. What the company owns and who has it is
+    // a job of its own — it was sitting third behind Tasks and Goals, which is where people went
+    // looking for it and did not find it.
+    {
+      id: 'asset-management',
+      label: 'Asset Management',
+      icon: Boxes,
+      tabs: [
+        { id: 'assets', label: 'Assets', perm: 'asset.read' },
+      ],
+    },
     {
       id: 'work',
       label: 'Work',
@@ -304,7 +315,6 @@ export default function App() {
       tabs: [
         { id: 'tasks', label: 'Tasks', perm: 'task.read' },
         { id: 'performance', label: 'Goals', perm: 'goal.read' },
-        { id: 'assets', label: 'Assets', perm: 'asset.read' },
       ],
     },
     {
@@ -363,7 +373,10 @@ export default function App() {
   const activeSection =
     visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab)) ?? visibleSections[0];
   const activeTabMeta = allTabs.find((t) => t.id === activeTab);
-  const mobilePrimarySections = visibleSections.slice(0, 4);
+  // Five, not four. The bar is icon-only, so five plus the More button still leaves ~60px a
+  // target on a 390px screen — and at four, Asset Management fell off the end of the bar and into
+  // the More drawer, which is exactly where nobody looked for it.
+  const mobilePrimarySections = visibleSections.slice(0, 5);
 
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {

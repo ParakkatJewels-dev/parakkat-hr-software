@@ -11,7 +11,8 @@ import {
   Loader2, AlertTriangle, Eye, EyeOff, Search, X, Check,
 } from 'lucide-react';
 import {
-  useAsset, useAssetHistory, useAssignAsset, useReturnAsset, ASSET_CONDITIONS,
+  useAsset, useAssetHistory, useAssignAsset, useReturnAsset, useSetAssetStatus,
+  ASSET_CONDITIONS, ASSET_MANUAL_STATUSES,
 } from '../data/assets';
 import { useEmployees } from '../data/employees';
 import { usePermissions } from '../auth/usePermissions';
@@ -72,14 +73,22 @@ function LicenceKey({ value }) {
   );
 }
 
-/** Pick a person to hand the asset to. A select over 242 names is a scroll; this is a search. */
-function EmployeePicker({ value, onChange }) {
+/**
+ * Pick a person to hand the asset to. A select over 242 names is a scroll; this is a search.
+ *
+ * Restricted to the company that owns the asset. The picker showed only a code, a role and a
+ * branch — never a company — so handing a Parakkat Jewels laptop to a Parakkat Silver employee
+ * looked identical to handing it to a colleague, and the asset's scope followed the holder.
+ */
+function EmployeePicker({ value, onChange, ownerEntityId }) {
   const { data: employees = [], isLoading } = useEmployees();
   const [q, setQ] = useState('');
 
   const matches = useMemo(() => {
     const term = q.trim().toLowerCase();
-    const active = employees.filter((e) => e.status !== 'Inactive');
+    const active = employees.filter(
+      (e) => e.status !== 'Inactive' && (!ownerEntityId || e.entity_id === ownerEntityId),
+    );
     if (!term) return active.slice(0, 8);
     return active
       .filter((e) =>
@@ -87,7 +96,7 @@ function EmployeePicker({ value, onChange }) {
         || e.employee_code?.toLowerCase().includes(term)
         || e.branch?.name?.toLowerCase().includes(term))
       .slice(0, 8);
-  }, [employees, q]);
+  }, [employees, q, ownerEntityId]);
 
   const chosen = employees.find((e) => e.id === value);
 
@@ -141,6 +150,7 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
   const { canAny } = usePermissions();
   const assign = useAssignAsset();
   const takeBack = useReturnAsset();
+  const setStatus = useSetAssetStatus();
 
   const canManage = canAny('asset.manage');
   const [mode, setMode] = useState(null); // 'assign' | 'return'
@@ -184,6 +194,8 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
 
   const Icon = categoryIcon(asset);
   const isSoftware = asset.category === 'Software';
+  // Out of service: 0078 refuses to open a custody row for either of these.
+  const outOfService = asset.status === 'Retired' || asset.status === 'Lost';
   const warrantyGone = asset.warranty_expires && new Date(asset.warranty_expires) < new Date();
   const licenceGone = asset.licence_expires && new Date(asset.licence_expires) < new Date();
 
@@ -267,8 +279,8 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
           <article className="emp-section">
             <h2 className="emp-section-head"><MapPin size={12} /> Where it belongs</h2>
             <div className="emp-field-grid">
-              <Field label="Company" value={asset.entity?.name} />
-              <Field label="Branch" value={asset.branch?.name || asset.branch?.code} />
+              <Field label="Owned by" value={asset.owner_entity?.name} />
+              <Field label="Branch" value={asset.owner_branch?.name || asset.owner_branch?.code} />
               <Field label="Kept at" value={asset.location} />
               <Field label="Registered on" value={fmtDate(asset.created_at)} />
             </div>
@@ -288,11 +300,18 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
             {canManage && (
               <div className="asset-custody-actions">
                 {open ? (
-                  <button type="button" onClick={() => (mode === 'return' ? reset() : (reset(), setMode('return')))}>
+                  <button type="button" onClick={() => { reset(); if (mode !== 'return') setMode('return'); }}>
                     <Undo2 size={13} /> Take it back
                   </button>
+                ) : outOfService ? (
+                  /* The database refuses this too (0078); saying so here means nobody fills in a
+                     form to be told no at the end of it. */
+                  <p className="emp-doc-note">
+                    <AlertTriangle size={13} /> This asset is marked {asset.status.toLowerCase()} and
+                    cannot be allocated. Put it back into service first.
+                  </p>
                 ) : (
-                  <button type="button" onClick={() => (mode === 'assign' ? reset() : (reset(), setMode('assign')))}>
+                  <button type="button" onClick={() => { reset(); if (mode !== 'assign') setMode('assign'); }}>
                     <UserPlus size={13} /> Allocate to someone
                   </button>
                 )}
@@ -301,8 +320,10 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
 
             {mode === 'assign' && canManage && (
               <form className="asset-panel" onSubmit={doAssign}>
-                <span className="asset-panel-title">Hand this over</span>
-                <EmployeePicker value={pick} onChange={setPick} />
+                <span className="asset-panel-title">
+                  Hand this over{asset.owner_entity?.name ? ` — ${asset.owner_entity.name} staff` : ''}
+                </span>
+                <EmployeePicker value={pick} onChange={setPick} ownerEntityId={asset.owner_entity_id} />
                 <div className="asset-panel-row">
                   <label>
                     Condition going out
@@ -392,7 +413,8 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
                             {h.condition_in ? `Back: ${h.condition_in}` : ''}
                           </span>
                         )}
-                        {h.notes && <span className="asset-timeline-note">{h.notes}</span>}
+                        {h.notes && <span className="asset-timeline-note">Out: {h.notes}</span>}
+                        {h.return_notes && <span className="asset-timeline-note">Back: {h.return_notes}</span>}
                       </div>
                     </li>
                   );
@@ -434,6 +456,27 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
               </div>
             </div>
           </div>
+
+          {/* Available and Allocated are the custody trigger's to set, so they are not offered
+              here — an item comes back by being taken back, not by being relabelled. */}
+          {canManage && (
+            <div className="emp-rail-card emp-rail-actions">
+              <span className="emp-rail-title">Mark as</span>
+              {ASSET_MANUAL_STATUSES.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={asset.status === s || setStatus.isPending}
+                  onClick={() => setStatus.mutate({ assetId: asset.id, status: s })}
+                >
+                  {asset.status === s ? <Check size={13} /> : <AlertTriangle size={13} />} {s}
+                </button>
+              ))}
+              {setStatus.error && (
+                <p className="asset-panel-error"><AlertTriangle size={13} /> {setStatus.error.message}</p>
+              )}
+            </div>
+          )}
 
           {(warrantyGone || licenceGone) && (
             <div className="emp-rail-card asset-warning">

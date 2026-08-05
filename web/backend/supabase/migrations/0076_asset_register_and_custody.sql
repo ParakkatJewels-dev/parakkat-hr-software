@@ -55,8 +55,9 @@ comment on column public.assets.employee_id is
   'Who holds it right now. A cache of the open row in asset_assignments, maintained by '
   'app.tg_asset_sync_holder — do not write it directly; open or close an assignment instead.';
 comment on column public.assets.entity_id is
-  'The company that owns the item, set when it is registered rather than inherited from a holder. '
-  'Without it an unallocated asset has NULL scope, which app.has_perm grants only to global roles.';
+  'DERIVED, do not write: the holder''s company while somebody has the asset, and owner_entity_id '
+  'when nobody does. Maintained by app.tg_asset_scope. RLS reads this, so the asset is visible to '
+  'the holder''s managers while it is out and to the owning company once it is back.';
 
 -- Nobody can hold a negative number of seats, and a licence for zero people is a typo.
 alter table public.assets drop constraint if exists assets_seats_positive;
@@ -75,11 +76,59 @@ alter table public.assets add constraint assets_category_values
   check (category in ('Hardware', 'Software', 'Furniture', 'Vehicle', 'Other'))
   not valid;
 
+-- --------------------------------------------------------------- who owns it vs who has it
+-- Two different questions that were sharing one pair of columns, which is why an asset used to
+-- change hands and change owner at the same time.
+--
+--   owner_entity_id / owner_branch_id  where the item belongs. Set once, when it is registered.
+--   entity_id / zone_id / branch_id /  DERIVED. The holder's ancestry while somebody has it, the
+--   department_id                      owner's when nobody does. RLS reads these, so the asset is
+--                                      visible to the holder's managers AND, once returned, back
+--                                      to the branch that owns it.
+--
+-- The owner columns get the foreign keys, and the derived ones deliberately do not: PostgREST
+-- resolves an embed from a foreign key, and two keys from assets to entities would make
+-- `entity:entities(...)` ambiguous. One key per target table keeps the embed unambiguous.
+alter table public.assets
+  add column if not exists owner_entity_id uuid,
+  add column if not exists owner_branch_id uuid;
+
+-- What is on the row today is the best available claim about where it belongs.
+update public.assets set owner_entity_id = entity_id where owner_entity_id is null;
+update public.assets set owner_branch_id = branch_id where owner_branch_id is null;
+
+-- These columns were stamped from an employee with no constraint behind them, so an entity or
+-- branch deleted since could leave an id pointing at nothing. Clear those before constraining.
+update public.assets a set owner_entity_id = null
+ where owner_entity_id is not null
+   and not exists (select 1 from public.entities e where e.id = a.owner_entity_id);
+
+update public.assets a set owner_branch_id = null
+ where owner_branch_id is not null
+   and not exists (select 1 from public.branches b where b.id = a.owner_branch_id);
+
+alter table public.assets drop constraint if exists assets_owner_entity_id_fkey;
+alter table public.assets add constraint assets_owner_entity_id_fkey
+  foreign key (owner_entity_id) references public.entities(id) on delete set null;
+
+alter table public.assets drop constraint if exists assets_owner_branch_id_fkey;
+alter table public.assets add constraint assets_owner_branch_id_fkey
+  foreign key (owner_branch_id) references public.branches(id) on delete set null;
+
+create index if not exists idx_assets_owner_entity on public.assets(owner_entity_id);
+create index if not exists idx_assets_entity       on public.assets(entity_id);
+
+comment on column public.assets.owner_entity_id is
+  'The company that owns the item. Authoritative and set at registration; entity_id is derived '
+  'from it and from whoever currently holds the asset. Write this, never entity_id.';
+
 -- A tag written on the side of the thing. Unique per company where it is set, so two branches can
 -- both run their own numbering without colliding company-wide.
+-- Keyed on the OWNER, not the derived scope: an item lent across companies must not drift out of
+-- its own numbering and let the owning company mint the same code twice.
 create unique index if not exists idx_assets_code_per_entity
-  on public.assets(entity_id, asset_code)
-  where asset_code is not null and entity_id is not null;
+  on public.assets(owner_entity_id, asset_code)
+  where asset_code is not null and owner_entity_id is not null;
 
 create index if not exists idx_assets_status   on public.assets(status);
 create index if not exists idx_assets_category on public.assets(category);
@@ -99,9 +148,16 @@ create table if not exists public.asset_assignments (
   returned_by   uuid references auth.users(id) on delete set null,
   condition_in  text,
 
+  -- Two notes, not one. The handover note and the note written when it comes back describe
+  -- different moments; sharing a column means closing an assignment erases why it was opened.
   notes         text,
+  return_notes  text,
   created_at    timestamptz not null default now()
 );
+
+-- The table may predate this migration on an environment where 0076 ran before return_notes
+-- existed, so add it explicitly too.
+alter table public.asset_assignments add column if not exists return_notes text;
 
 comment on table public.asset_assignments is
   'One row per period somebody held an asset. The row with returned_at null is the current '
@@ -134,19 +190,25 @@ create trigger trg_asset_assignments_ancestry
 create or replace function app.tg_asset_scope()
 returns trigger language plpgsql security definer set search_path = app, public as $$
 declare
-  _owner_entity uuid := new.entity_id;
-  _owner_branch uuid := new.branch_id;
+  _emp_entity uuid; _emp_zone uuid; _emp_branch uuid; _emp_dept uuid;
 begin
   if new.employee_id is not null then
+    -- Read the holder's ancestry into LOCALS. Selecting straight into new.entity_id destroys the
+    -- owner before it can be used as a fallback, which is how an asset lent across companies used
+    -- to change owner permanently and vanish from the company that bought it.
     select e.entity_id, e.zone_id, e.branch_id, e.department_id
-      into new.entity_id, new.zone_id, new.branch_id, new.department_id
+      into _emp_entity, _emp_zone, _emp_branch, _emp_dept
       from public.employees e where e.id = new.employee_id;
-    -- Fall back to what was registered if the employee record is missing any of it.
-    new.entity_id := coalesce(new.entity_id, _owner_entity);
-    new.branch_id := coalesce(new.branch_id, _owner_branch);
+
+    new.entity_id     := coalesce(_emp_entity, new.owner_entity_id);
+    new.branch_id     := coalesce(_emp_branch, new.owner_branch_id);
+    new.zone_id       := _emp_zone;
+    new.department_id := _emp_dept;
   else
-    -- Nobody holds it: it answers to wherever it is kept.
-    new.zone_id := null;
+    -- Nobody holds it, so it answers to the company and branch that own it.
+    new.entity_id     := new.owner_entity_id;
+    new.branch_id     := new.owner_branch_id;
+    new.zone_id       := null;
     new.department_id := null;
   end if;
   new.updated_at := now();
@@ -154,6 +216,7 @@ begin
 end $$;
 
 drop trigger if exists trg_assets_ancestry on public.assets;
+drop trigger if exists trg_assets_scope on public.assets;
 create trigger trg_assets_scope
   before insert or update on public.assets
   for each row execute function app.tg_asset_scope();
@@ -201,7 +264,10 @@ create policy asset_assignments_select on public.asset_assignments for select to
     or exists (
       select 1 from public.assets a
        where a.id = asset_id
-         and app.has_perm('asset.read', a.entity_id, a.zone_id, a.branch_id, a.department_id, a.employee_id)
+         and (
+           app.has_perm('asset.read', a.entity_id, a.zone_id, a.branch_id, a.department_id, a.employee_id)
+           or (a.entity_id is null and app.has_perm_org_wide('asset.read'))
+         )
     )
   );
 
@@ -211,14 +277,24 @@ create policy asset_assignments_write on public.asset_assignments for all to aut
     exists (
       select 1 from public.assets a
        where a.id = asset_id
-         and app.has_perm('asset.manage', a.entity_id, a.zone_id, a.branch_id, a.department_id, a.employee_id)
+         and (
+           app.has_perm('asset.manage', a.entity_id, a.zone_id, a.branch_id, a.department_id, a.employee_id)
+           -- Same escape the assets policies carry. Without it an entity admin can SEE a legacy
+           -- unscoped asset and cannot allocate it, which is the one thing they opened it to do.
+           or (a.entity_id is null and app.has_perm_org_wide('asset.manage'))
+         )
     )
   )
   with check (
     exists (
       select 1 from public.assets a
        where a.id = asset_id
-         and app.has_perm('asset.manage', a.entity_id, a.zone_id, a.branch_id, a.department_id, a.employee_id)
+         and (
+           app.has_perm('asset.manage', a.entity_id, a.zone_id, a.branch_id, a.department_id, a.employee_id)
+           -- Same escape the assets policies carry. Without it an entity admin can SEE a legacy
+           -- unscoped asset and cannot allocate it, which is the one thing they opened it to do.
+           or (a.entity_id is null and app.has_perm_org_wide('asset.manage'))
+         )
     )
   );
 
