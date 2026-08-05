@@ -2,9 +2,14 @@ import React, { useState, useMemo, useDeferredValue } from 'react';
 import {
   Search, User, ArrowLeft, ArrowRight, X, AlertTriangle,
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
-  Users, Building2, MapPin, Briefcase, Mail, CalendarDays,
+  Users, Building2, MapPin, Briefcase, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
+  Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
 } from 'lucide-react';
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from '../data/employees';
+import {
+  useAddDocument, useEmployeeAvatars, ACCEPTED_FILES, MAX_FILE_BYTES, fileSize, PHOTO_CATEGORY,
+} from '../data/documents';
+import { validateEmployeeFields, normaliseEmployeeFields } from '../lib/employeeFormat';
 import { useOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import { EmployeeOrgFields } from './EmployeeOrgFields';
@@ -127,6 +132,7 @@ export default function Directory() {
   const { canAny, isSuperAdmin } = usePermissions();
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();
+  const addDocument = useAddDocument();
   const grantAccess = useGrantAppAccess();
   const canCreate = canAny('employee.create');
   const canUpdate = canAny('employee.update');
@@ -137,6 +143,7 @@ export default function Directory() {
   const [editing, setEditing] = useState(null); // null = closed, {} = new, {...emp} = edit
   const [grantFor, setGrantFor] = useState(null);
   const [newLogin, setNewLogin] = useState(null); // credentials to hand over after a create+access
+  const [formSaveError, setFormSaveError] = useState(null);
   // Which row to point at after coming back from the form. Cleared on a timer: it is a "here it
   // is" cue, not a selection, and leaving it on meant one row stayed highlighted all session.
   const [justSaved, setJustSaved] = useState(null);
@@ -259,6 +266,12 @@ export default function Directory() {
     return sorted.slice(start, start + itemsPerPage);
   }, [sorted, currentPage, itemsPerPage]);
 
+  // Only the rows on screen. Signing every employee's photograph to render one page of them would
+  // be 242 signatures to show 25, and the signatures expire either way.
+  const { data: avatars = {} } = useEmployeeAvatars(
+    useMemo(() => paginated.map((e) => e.id), [paginated]),
+  );
+
   const handleExport = () => {
     const headers = ['Employee Code', 'Full Name', 'Email', 'Phone', 'Entity', 'Branch', 'Department', 'Designation', 'Status', 'Join Date'];
     const csvRows = [
@@ -320,67 +333,110 @@ export default function Directory() {
   // page number are exactly as you left them when you return.
   if (editing) {
     const isEdit = Boolean(editing.id);
+    const resetEmployeeFormState = () => {
+      createEmployee.reset();
+      updateEmployee.reset();
+      grantAccess.reset();
+      addDocument.reset();
+      setFormSaveError(null);
+    };
     return (
-      <div className="page-shell space-y-5 animate-fade-in">
-        <div>
+      <div className="page-shell people-page space-y-5 animate-fade-in">
+        <div className="employee-form-hero">
           <button
-            onClick={() => { createEmployee.reset(); updateEmployee.reset(); grantAccess.reset(); setEditing(null); }}
-            className="inline-flex items-center gap-1.5 text-sm font-bold text-neutral-500 hover:text-[#0ea971] cursor-pointer transition-colors"
+            onClick={() => { resetEmployeeFormState(); setEditing(null); }}
+            className="employee-form-back"
           >
-            <ArrowLeft size={13} /> Back to directory
+            <ArrowLeft size={14} /> Back to directory
           </button>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white font-sans mt-2">
-            {isEdit ? `Edit ${editing.full_name}` : 'Add a person'}
-          </h1>
-          {/* Say what you are coming back to. The list is out of sight, so the anxious question
-              is whether the filters and page you had set are still there. They are. */}
-          <p className="text-xs text-neutral-400 mt-1">
-            Returning to {sorted.length} {sorted.length === 1 ? 'person' : 'people'}
-            {activeFilterCount > 0 ? ` · ${activeFilterCount} filter${activeFilterCount === 1 ? '' : 's'} still applied` : ''}
-            {totalPages > 1 ? ` · page ${currentPage}` : ''}
-          </p>
-          <p className="text-base text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {isEdit
-              ? [editing.employee_code, editing.designation?.name, editing.branch?.name || editing.branch?.code]
-                  .filter(Boolean).join(' · ') || 'Update their details and placement.'
-              : 'Their details, where they sit, and whether they get a login — in one go.'}
-          </p>
+          <div className="employee-form-hero-main">
+            <span className="employee-form-eyebrow"><ClipboardList size={13} /> Employee onboarding</span>
+            <h1>{isEdit ? `Edit ${editing.full_name}` : 'Add a person'}</h1>
+            <p>
+              {isEdit
+                ? [editing.employee_code, editing.designation?.title || editing.designation?.name, editing.branch?.name || editing.branch?.code]
+                    .filter(Boolean).join(' · ') || 'Update their profile, payroll details and documents.'
+                : 'Create the employee record, set placement and access, and attach joining documents in one focused workspace.'}
+            </p>
+          </div>
+          <div className="employee-form-return">
+            <span>{sorted.length} {sorted.length === 1 ? 'person' : 'people'} in your directory</span>
+            <strong>
+              {activeFilterCount > 0 ? `${activeFilterCount} active filter${activeFilterCount === 1 ? '' : 's'}` : 'Filters preserved'}
+              {totalPages > 1 ? ` · page ${currentPage}` : ''}
+            </strong>
+          </div>
         </div>
 
-        {/* Wide enough for the form and its summary side by side; the form column itself stays
-            a readable measure because the summary takes the rest. */}
-        <div className="max-w-5xl">
-          <EmployeeFormModal
-            employee={editing.id ? editing : null}
-            org={org}
-            busy={createEmployee.isPending || updateEmployee.isPending || grantAccess.isPending}
-            error={createEmployee.error?.message || updateEmployee.error?.message
-              || (grantAccess.error && `Employee saved, but the login could not be created: ${grantAccess.error.message}`)}
-            onClose={() => { createEmployee.reset(); updateEmployee.reset(); grantAccess.reset(); setEditing(null); }}
-            onSubmit={async (payload, wantAccess) => {
-              try {
-                if (editing.id) {
-                  await updateEmployee.mutateAsync({ id: editing.id, ...payload });
-                  setJustSaved(editing.id);
-                  setEditing(null);
-                  return;
-                }
+        <EmployeeFormModal
+          employee={editing.id ? editing : null}
+          org={org}
+          busy={createEmployee.isPending || updateEmployee.isPending || grantAccess.isPending || addDocument.isPending}
+          error={formSaveError || createEmployee.error?.message || updateEmployee.error?.message
+            || (addDocument.error && `Employee saved, but a document could not be uploaded: ${addDocument.error.message}`)
+            || (grantAccess.error && `Employee saved, but the login could not be created: ${grantAccess.error.message}`)}
+          onClose={() => { resetEmployeeFormState(); setEditing(null); }}
+          onSubmit={async (payload, wantAccess, documentsToUpload) => {
+            setFormSaveError(null);
+            addDocument.reset();
+            let employeeId = editing.id || null;
+            let employeeName = payload.full_name;
+            try {
+              if (editing.id) {
+                await updateEmployee.mutateAsync({ id: editing.id, ...payload });
+              } else {
                 const created = await createEmployee.mutateAsync(payload);
-                setJustSaved(created.id);
-                if (!wantAccess) {
-                  setEditing(null);
-                  return;
-                }
-                // The employee row exists now, so the login can be created against it in the same
-                // gesture. If this half fails the employee is still saved — say so plainly rather
-                // than pretending the whole thing failed and inviting a duplicate.
-                await grantAccess.mutateAsync({ employee_id: created.id, ...wantAccess });
+                employeeId = created.id;
+                employeeName = created.full_name;
+              }
+
+              for (const doc of documentsToUpload) {
+                await addDocument.mutateAsync({
+                  title: `${employeeName} - ${doc.label}`,
+                  category: doc.category,
+                  employee_id: employeeId,
+                  signed: false,
+                  file: doc.file,
+                });
+              }
+
+              setJustSaved(employeeId);
+              if (!wantAccess) {
                 setEditing(null);
-                setNewLogin({ name: created.full_name, email: wantAccess.email, password: wantAccess.password });
-              } catch { /* surfaced in the form */ }
-            }}
+                return;
+              }
+              await grantAccess.mutateAsync({ employee_id: employeeId, ...wantAccess });
+              setEditing(null);
+              setNewLogin({ name: employeeName, email: wantAccess.email, password: wantAccess.password });
+            } catch (err) {
+              if (employeeId && !editing.id) {
+                setEditing({ id: employeeId, ...payload, full_name: employeeName });
+                setFormSaveError(err?.message ? `Employee saved. Finish the remaining step: ${err.message}` : 'Employee saved, but the remaining step failed.');
+              }
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (selectedEmp) {
+    return (
+      <div className="page-shell space-y-5 animate-fade-in">
+        {grantFor && (
+          <GrantAccessPanel
+            key={grantFor.id}
+            employee={grantFor}
+            onClose={() => setGrantFor(null)}
+            onDone={() => setGrantFor(null)}
           />
-        </div>
+        )}
+        <ProfileDrawer
+          emp={selectedEmp}
+          onClose={() => setSelectedEmp(null)}
+          onEdit={canUpdate ? () => { setEditing(selectedEmp); setSelectedEmp(null); } : null}
+          onGrantAccess={canManageAccess ? () => setGrantFor(selectedEmp) : null}
+        />
       </div>
     );
   }
@@ -624,9 +680,8 @@ export default function Directory() {
         </div>
       </div>
 
-      {/* Master-detail split: listings on the left, inline profile section on the right */}
-      <div className="flex flex-col lg:flex-row gap-5 items-start">
-      <div className={`flex-1 min-w-0 w-full space-y-5 ${selectedEmp ? 'hidden lg:block' : ''}`}>
+      {/* Main Listings */}
+      <div className="space-y-5">
       {/* Main Listings */}
       {viewMode === 'list' ? (
         /* High Density Table View */
@@ -691,7 +746,9 @@ export default function Directory() {
                           {/* Steady colours. The avatar used to invert to solid black on hover,
                               which flickered down the whole list as the pointer travelled. */}
                           <div className="avatar-cell directory-avatar w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
-                            {initials(emp.full_name)}
+                            {avatars[emp.id]
+                              ? <img src={avatars[emp.id]} alt="" loading="lazy" />
+                              : initials(emp.full_name)}
                           </div>
                           <div className="min-w-0">
                             {/* The name is what you scan for — it leads the row. */}
@@ -750,7 +807,9 @@ export default function Directory() {
               <div className="w-full">
                 <div className="mobile-list-row flex items-start justify-between gap-2">
                   <div className="directory-avatar w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-sm shrink-0 font-mono select-none">
-                    {initials(emp.full_name)}
+                    {avatars[emp.id]
+                      ? <img src={avatars[emp.id]} alt="" loading="lazy" />
+                      : initials(emp.full_name)}
                   </div>
                   <span className={`text-2xs px-2 py-0.5 rounded-full font-bold tracking-wide uppercase shrink-0 ${statusClass(emp.status)}`}>
                     {emp.status}
@@ -883,19 +942,6 @@ export default function Directory() {
 
       </div>
 
-      {/* Inline employee profile section */}
-      {selectedEmp && (
-        <aside className="mobile-detail-panel w-full lg:w-[24rem] xl:w-[26rem] shrink-0 lg:sticky lg:top-4">
-          <ProfileDrawer
-            emp={selectedEmp}
-            onClose={() => setSelectedEmp(null)}
-            onEdit={canUpdate ? () => { setEditing(selectedEmp); setSelectedEmp(null); } : null}
-            onGrantAccess={canManageAccess ? () => setGrantFor(selectedEmp) : null}
-          />
-        </aside>
-      )}
-      </div>
-
     </div>
   );
 }
@@ -915,6 +961,17 @@ function pageWindow(current, total) {
 }
 
 const EMP_STATUSES = ['Active', 'Probation', 'On Leave', 'Inactive'];
+const EMPLOYEE_DOCUMENT_TYPES = [
+  { key: 'aadhaar', label: 'Aadhaar card', category: 'Identity', icon: IdCard, hint: 'Government ID proof' },
+  { key: 'pan', label: 'PAN card', category: 'Identity', icon: ShieldCheck, hint: 'Tax identity proof' },
+  { key: 'education', label: 'Education certificate', category: 'Certificate', icon: GraduationCap, hint: 'Highest qualification or training' },
+  { key: 'bank', label: 'Bank pass book', category: 'Identity', icon: Landmark, hint: 'Account proof for payroll' },
+  // Its own category, not 'Identity': this is the one document the app reads back, to use as the
+  // person's avatar wherever they appear.
+  { key: 'photo', label: 'Photograph', category: PHOTO_CATEGORY, icon: Image, hint: 'Used as their profile photo' },
+  { key: 'signature', label: 'Signature', category: 'Identity', icon: PenLine, hint: 'Specimen signature' },
+  { key: 'offer_letter', label: 'Offer letter', category: 'Contract', icon: FileSignature, hint: 'Joining contract' },
+];
 
 // The summary card's submit button sits outside the <form>, so it targets it by id.
 const FORM_ID = 'employee-form';
@@ -950,25 +1007,32 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     emergency_phone: employee?.emergency_phone ?? '',
     emergency_relation: employee?.emergency_relation ?? '',
   }));
+  const [documents, setDocuments] = useState(() =>
+    Object.fromEntries(EMPLOYEE_DOCUMENT_TYPES.map((doc) => [doc.key, null]))
+  );
+  const [documentError, setDocumentError] = useState(null);
+  // Format problems, keyed by field. Cleared and recomputed on every save attempt.
+  const [formatErrors, setFormatErrors] = useState({});
   const patch = (p) => setForm((f) => ({ ...f, ...p }));
 
   // App access, folded into this form so adding a person is one job rather than two screens.
   const { rank: myRank, permissions } = useAuth();
   const { can } = usePermissions();
   const roleOptions = useMemo(() => grantableRoles(myRank), [myRank]);
+  const savePermission = isEdit ? 'employee.update' : 'employee.create';
 
   // The narrowest placement this user can file someone under, for the blocker wording below. A
   // department head has to name a department; an entity admin only has to name the company.
   const placementNoun = useMemo(() => {
     const scopes = new Set(
-      (permissions ?? []).filter((p) => p.permission === 'employee.create').map((p) => p.scope_type)
+      (permissions ?? []).filter((p) => p.permission === savePermission).map((p) => p.scope_type)
     );
     if (scopes.has('global') || scopes.has('entity')) return 'company';
     if (scopes.has('zone')) return 'zone';
     if (scopes.has('branch')) return 'branch';
     if (scopes.has('department')) return 'department';
     return 'placement';
-  }, [permissions]);
+  }, [permissions, savePermission]);
   const [access, setAccess] = useState(() => ({
     // Every new person gets a login; Employee (self-service) is the default because it is what
     // most of them need — it exposes only their own attendance, leave and payslips.
@@ -1011,7 +1075,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   // means the form stops asking for something the database is going to refuse.
   const derivedZoneId =
     (org?.branches ?? []).find((b) => b.id === form.branch_id)?.zone_id ?? null;
-  const placementAllowed = can('employee.create', {
+  const placementAllowed = can(savePermission, {
     entityId: form.entity_id || null,
     zoneId: derivedZoneId,
     branchId: form.branch_id || null,
@@ -1020,12 +1084,38 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   });
 
   const canSubmit = form.full_name.trim() && form.entity_id && accessReady && placementAllowed;
+  const selectedDocuments = EMPLOYEE_DOCUMENT_TYPES
+    .map((doc) => ({ ...doc, file: documents[doc.key] }))
+    .filter((doc) => doc.file);
+  const selectedDocumentCount = selectedDocuments.length;
+
+  const pickDocument = (key, file) => {
+    setDocumentError(null);
+    if (!file) {
+      setDocuments((d) => ({ ...d, [key]: null }));
+      return;
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      setDocuments((d) => ({ ...d, [key]: null }));
+      setDocumentError(`"${file.name}" is ${fileSize(file.size)}. The limit is ${fileSize(MAX_FILE_BYTES)}.`);
+      return;
+    }
+    setDocuments((d) => ({ ...d, [key]: file }));
+  };
 
   const submit = (e) => {
     e.preventDefault();
     if (!canSubmit) return;
+
+    // The database's own format guards, applied before the round trip. Without this a mistyped PAN
+    // comes back as a 400 naming a check constraint, which tells the person nothing about the PAN.
+    const problems = validateEmployeeFields(form);
+    setFormatErrors(problems);
+    if (Object.keys(problems).length > 0) return;
+
     onSubmit(
-      {
+      // Sent the way the database will store it anyway, so the record and the form agree.
+      normaliseEmployeeFields({
         full_name: form.full_name.trim(),
         employee_code: form.employee_code.trim() || null,
         email: form.email.trim() || null,
@@ -1050,7 +1140,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         emergency_name: form.emergency_name.trim() || null,
         emergency_phone: form.emergency_phone.trim() || null,
         emergency_relation: form.emergency_relation.trim() || null,
-      },
+      }),
       // Second argument: what to do about a login, once the employee row exists.
       wantsAccess
         ? {
@@ -1061,6 +1151,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
             scope_id: accessScope.id,
           }
         : null
+      ,
+      selectedDocuments
     );
   };
 
@@ -1089,13 +1181,20 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   if (wantsAccess && accessScope.missing) blockers.push(`a ${accessScope.noun} for that role`);
   if (form.entity_id && !placementAllowed) blockers.push(`a ${placementNoun} you have access to`);
 
+  const completionItems = [
+    { label: 'Profile', done: Boolean(form.full_name.trim() && form.entity_id), sub: 'Name and company' },
+    { label: 'Placement', done: Boolean(form.branch_id || form.department_id || form.designation_id), sub: 'Branch, dept or role' },
+    { label: 'Payroll', done: Boolean(form.bank_account.trim() && form.bank_ifsc.trim() && form.pan.trim()), sub: 'Bank, IFSC and PAN' },
+    { label: 'Documents', done: selectedDocumentCount > 0, sub: `${selectedDocumentCount}/${EMPLOYEE_DOCUMENT_TYPES.length} uploaded` },
+    { label: 'Access', done: !wantsAccess || Boolean(accessReady), sub: isEdit ? 'Managed from profile' : rolePreset?.label || 'Login' },
+  ];
+  const completion = pct(completionItems.filter((item) => item.done).length, completionItems.length);
+  const formatProblems = Object.values(formatErrors);
+
   return (
-    // Two columns: the form on the left, and on the right a card that fills in as you type. A
-    // dozen fields is a lot to hold in your head — the summary turns "did I get that right?"
-    // into something you can read back before committing.
-    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-5 items-start">
-      <form id={FORM_ID} onSubmit={submit} className="space-y-4 min-w-0">
-        <FormBlock step={1} title="Who they are" hint="Name is required; the rest can follow later.">
+    <div className="employee-form-layout">
+      <form id={FORM_ID} onSubmit={submit} className="employee-form-main">
+        <FormBlock step={1} title="Personal Details" hint="Start with the details every department will use.">
           {/* Six fields, three even rows — paired by what they have to do with each other:
               who they are, how to reach them, when and on what terms they joined. The name used
               to span the full width, which left the join date stranded alone on the last row. */}
@@ -1129,14 +1228,14 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           </div>
         </FormBlock>
 
-        <FormBlock step={2} title="Where they sit" hint="This decides who manages them and what they can see.">
+        <FormBlock step={2} title="Designation" hint="This decides who manages them and what they can see.">
           <EmployeeOrgFields org={org} value={form} onChange={patch} inputClass={FORM_INPUT} labelClass={L} />
         </FormBlock>
 
         {/* Everything below is optional to SAVE but required to PAY. A person with no bank
             account and IFSC cannot be paid at all; no PAN means no Form 16; no UAN means they
             cannot appear on a PF filing. The summary card lists whatever is still missing. */}
-        <FormBlock step={3} title="Pay & statutory" hint="Needed before this person can be paid or filed for. Can be filled in later.">
+        <FormBlock step={3} title="Payroll & statutory" hint="Needed before this person can be paid or filed for. Can be filled in later.">
           <div className="space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
@@ -1197,7 +1296,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           </div>
         </FormBlock>
 
-        <FormBlock step={4} title="Next of kin" hint="Who to contact in an emergency. Optional.">
+        <FormBlock step={4} title="Emergency contact" hint="Who to contact in an emergency. Optional.">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className={L} htmlFor="emp-emg-name">Name</label>
@@ -1217,11 +1316,30 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           </div>
         </FormBlock>
 
+        <FormBlock step={5} title="Employee documents" hint={`Upload PDF, image, Word or Excel files up to ${fileSize(MAX_FILE_BYTES)} each.`}>
+          <div className="employee-document-upload-grid">
+            {EMPLOYEE_DOCUMENT_TYPES.map((doc) => (
+              <DocumentSlot
+                key={doc.key}
+                doc={doc}
+                file={documents[doc.key]}
+                onPick={(file) => pickDocument(doc.key, file)}
+                onRemove={() => pickDocument(doc.key, null)}
+              />
+            ))}
+          </div>
+          {documentError && (
+            <div role="alert" className="employee-document-error">
+              <AlertTriangle size={13} /> <span>{documentError}</span>
+            </div>
+          )}
+        </FormBlock>
+
         {/* App access — part of adding a person, not a separate errand in another section.
             Only on create: an existing employee's access is managed from their profile, where
             you can see what they already have. */}
         {!isEdit && roleOptions.length > 0 && (
-          <FormBlock step={5} title="App access" hint="Everyone added here gets a login. Pick what it lets them reach.">
+          <FormBlock step={6} title="App access" hint="Everyone added here gets a login. Pick what it lets them reach.">
                 <div className="space-y-3">
                   <div>
                     <label className={L} htmlFor="emp-role">Role</label>
@@ -1302,10 +1420,19 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           </FormBlock>
         )}
 
-        {error && (
+        {(error || documentError || formatProblems.length > 0) && (
           <div role="alert" className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3">
             <AlertTriangle size={14} className="text-rose-500 shrink-0 mt-0.5" />
-            <p className="text-sm text-rose-600 dark:text-rose-300 break-words">{error}</p>
+            <div className="min-w-0 space-y-1">
+              {(error || documentError) && (
+                <p className="text-sm text-rose-600 dark:text-rose-300 break-words">{error || documentError}</p>
+              )}
+              {/* One line per field the database would have refused. All of them at once, so a
+                  save is not a sequence of single rejections. */}
+              {formatProblems.map((msg) => (
+                <p key={msg} className="text-sm text-rose-600 dark:text-rose-300 break-words">{msg}</p>
+              ))}
+            </div>
           </div>
         )}
 
@@ -1321,8 +1448,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
       </form>
 
       {/* Live summary. Sticky, so it stays with you as the form scrolls. */}
-      <aside className="hidden lg:block lg:sticky lg:top-4 space-y-3">
-        <div className="premium-card">
+      <aside className="employee-form-summary">
+        <div className="employee-form-summary-card">
           <p className="text-2xs font-bold uppercase tracking-wider text-neutral-400 mb-3">
             {isEdit ? 'After saving' : 'You are adding'}
           </p>
@@ -1346,6 +1473,26 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                 {form.employee_code ? ` · ${form.employee_code}` : ''}
               </p>
             </div>
+          </div>
+
+          <div className="employee-form-completion">
+            <div>
+              <span>Onboarding readiness</span>
+              <strong>{completion}%</strong>
+            </div>
+            <i><b style={{ width: `${completion}%` }} /></i>
+          </div>
+
+          <div className="employee-form-checklist">
+            {completionItems.map((item) => (
+              <span key={item.label} className={item.done ? 'is-done' : ''}>
+                <Check size={12} />
+                <span>
+                  <strong>{item.label}</strong>
+                  <em>{item.sub}</em>
+                </span>
+              </span>
+            ))}
           </div>
 
           <div className="mt-3.5 pt-3.5 border-t border-neutral-100 dark:border-neutral-855">
@@ -1373,6 +1520,18 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
               )}
             </div>
           )}
+
+          <div className="mt-3.5 pt-3.5 border-t border-neutral-100 dark:border-neutral-855">
+            <p className="text-2xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Documents</p>
+            <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
+              {selectedDocumentCount} selected
+            </p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+              {selectedDocumentCount
+                ? selectedDocuments.map((doc) => doc.label).join(', ')
+                : 'Attach joining documents before saving, or add them later from Documents.'}
+            </p>
+          </div>
 
           {/* What still stops this person being paid. Distinct from `blockers` below, which is
               about saving the form — these do not prevent saving, they prevent payroll. */}
@@ -1422,17 +1581,54 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   );
 }
 
+function DocumentSlot({ doc, file, onPick, onRemove }) {
+  const inputId = `emp-doc-${doc.key}`;
+  const Icon = doc.icon;
+  const inputRef = React.useRef(null);
+  const remove = () => {
+    onRemove();
+    if (inputRef.current) inputRef.current.value = '';
+  };
+  return (
+    <div className={`employee-document-slot ${file ? 'is-filled' : ''}`}>
+      <input
+        id={inputId}
+        ref={inputRef}
+        type="file"
+        accept={ACCEPTED_FILES}
+        className="sr-only"
+        onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+      />
+      <label htmlFor={inputId} className="employee-document-drop">
+        <span className="employee-document-type-icon"><Icon size={16} /></span>
+        <span className="employee-document-copy">
+          <strong>{doc.label}</strong>
+          <em>{file ? `${file.name} · ${fileSize(file.size)}` : doc.hint}</em>
+        </span>
+        <span className="employee-document-state">
+          {file ? <FileCheck2 size={15} /> : <UploadCloud size={15} />}
+        </span>
+      </label>
+      {file && (
+        <button type="button" onClick={remove} className="employee-document-remove" aria-label={`Remove ${doc.label}`}>
+          <Trash2 size={12} /> Remove
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** One titled step of the form. Numbered so three groups read as three groups, not one wall. */
 function FormBlock({ step, title, hint, children }) {
   return (
-    <section className="premium-card">
-      <div className="flex items-baseline gap-2.5 mb-3.5">
-        <span className="shrink-0 w-5 h-5 rounded-md bg-[#0ea971]/12 text-[#0c9765] dark:text-[#10b981] text-xs font-bold flex items-center justify-center tabular-nums">
+    <section className="employee-form-card">
+      <div className="employee-form-card-head">
+        <span>
           {step}
         </span>
         <div className="min-w-0">
-          <h2 className="text-md font-bold text-neutral-900 dark:text-white">{title}</h2>
-          {hint && <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{hint}</p>}
+          <h2>{title}</h2>
+          {hint && <p>{hint}</p>}
         </div>
       </div>
       {children}

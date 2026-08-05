@@ -35,6 +35,100 @@ export function useDocuments() {
 }
 
 /**
+ * The documents filed against one person.
+ *
+ * Filtered in the database rather than by pulling the whole folder and sieving it here: an HR
+ * document list is exactly the thing not to over-fetch. The key sits under ['documents'] so the
+ * add and delete mutations, which invalidate that prefix, refresh this too.
+ */
+export function useEmployeeDocuments(employeeId) {
+  return useQuery({
+    enabled: Boolean(employeeId),
+    queryKey: ['documents', 'employee', employeeId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('documents')
+        .select(
+          `id, title, category, url, signed, created_at,
+           storage_path, file_name, mime_type, size_bytes, uploaded_at`
+        )
+        .eq('employee_id', employeeId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+/**
+ * Photographs are filed under their own category.
+ *
+ * The alternative was to find the avatar by matching the document title against ' - Photograph',
+ * which is a display string: it changes the first time somebody renames a document type or the
+ * app is read in another language, and when it changes every avatar quietly turns back into
+ * initials with nothing in the logs to say why. A category is data, and `category` is free text on
+ * the table, so this needs no migration.
+ */
+export const PHOTO_CATEGORY = 'Photo';
+
+/**
+ * Long enough that a directory page of avatars does not re-sign while you read it, short enough
+ * that a link found in a cache is no use to anybody. Deliberately not the 60s used for a click,
+ * where the browser fetches immediately and nothing is held.
+ */
+const AVATAR_URL_SECONDS = 600;
+
+/**
+ * Signed avatar URLs for a set of employees, keyed by employee id.
+ *
+ * Batched on purpose. The directory shows a page of people at a time and signing one URL per row
+ * would be a request per person; `createSignedUrls` does the page in one. Pass only the rows on
+ * screen — signing all 242 to show 25 is the same mistake wearing a different hat.
+ */
+export function useEmployeeAvatars(employeeIds) {
+  // Sorted and de-duplicated so the same page produces the same key regardless of row order.
+  const ids = [...new Set((employeeIds ?? []).filter(Boolean))].sort();
+
+  return useQuery({
+    enabled: ids.length > 0,
+    queryKey: ['employee-avatars', ids],
+    // Comfortably inside the signature's life, so a cached URL is never a dead one.
+    staleTime: (AVATAR_URL_SECONDS - 120) * 1000,
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from('documents')
+        .select('employee_id, storage_path, created_at')
+        .in('employee_id', ids)
+        .eq('category', PHOTO_CATEGORY)
+        .not('storage_path', 'is', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      // Newest photograph per person wins, so re-uploading replaces the avatar without anyone
+      // having to delete the old one first.
+      const newest = new Map();
+      for (const row of rows ?? []) {
+        if (!newest.has(row.employee_id)) newest.set(row.employee_id, row.storage_path);
+      }
+      if (newest.size === 0) return {};
+
+      const { data: signed, error: signError } = await supabase.storage
+        .from(BUCKET)
+        .createSignedUrls([...newest.values()], AVATAR_URL_SECONDS);
+      if (signError) throw signError;
+
+      const urlByPath = new Map((signed ?? []).filter((s) => s.signedUrl).map((s) => [s.path, s.signedUrl]));
+      const byEmployee = {};
+      for (const [employeeId, path] of newest) {
+        const url = urlByPath.get(path);
+        if (url) byEmployee[employeeId] = url;
+      }
+      return byEmployee;
+    },
+  });
+}
+
+/**
  * A filename that survives being the tail of an object path.
  *
  * The original is kept on the row for display and for the download filename; only the stored path
@@ -98,7 +192,12 @@ export function useAddDocument() {
 
       return id;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['documents'] });
+      // A photograph is also somebody's avatar, and that is cached under its own key — without
+      // this, uploading a new photo leaves the old face on screen until a reload.
+      qc.invalidateQueries({ queryKey: ['employee-avatars'] });
+    },
   });
 }
 
@@ -110,7 +209,11 @@ export function useAddDocument() {
  */
 export function useDocumentLink() {
   return useMutation({
-    mutationFn: async (doc) => {
+    mutationFn: async (input) => {
+      // A bare row still means "download", which is what every existing caller expects. Pass
+      // `{ doc, download: false }` to open it in a tab instead.
+      const { doc, download = true } = input?.doc ? input : { doc: input };
+
       if (!doc?.storage_path) {
         if (doc?.url) return doc.url;
         throw new Error('This record has no file attached.');
@@ -118,10 +221,13 @@ export function useDocumentLink() {
 
       const { data, error } = await supabase.storage
         .from(BUCKET)
-        .createSignedUrl(doc.storage_path, SIGNED_URL_SECONDS, {
-          // Downloads under the name it was uploaded with, not the sanitised path tail.
-          download: doc.file_name || true,
-        });
+        .createSignedUrl(
+          doc.storage_path,
+          SIGNED_URL_SECONDS,
+          // Downloads under the name it was uploaded with, not the sanitised path tail. Left off
+          // entirely when viewing, or the browser saves the file instead of showing it.
+          download ? { download: doc.file_name || true } : undefined,
+        );
 
       if (error) {
         // The row is visible but the object is not — it never uploaded, or it was removed
@@ -172,7 +278,12 @@ export function useDeleteDocument() {
         );
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['documents'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['documents'] });
+      // A photograph is also somebody's avatar, and that is cached under its own key — without
+      // this, uploading a new photo leaves the old face on screen until a reload.
+      qc.invalidateQueries({ queryKey: ['employee-avatars'] });
+    },
   });
 }
 

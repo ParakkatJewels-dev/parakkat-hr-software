@@ -57,6 +57,39 @@ function cleanEmployeePayload(input) {
   return row;
 }
 
+/**
+ * What the format guards from migration 0047 mean, in words HR can act on.
+ *
+ * Those checks are the reason a save comes back 400: Postgres is correctly refusing a PAN or an
+ * IFSC that cannot be real. What it says while refusing is
+ * `violates check constraint "employees_pan_format"`, which names the rule and not the fix. The
+ * person looking at the screen typed a PAN and needs to be told the PAN is wrong.
+ */
+const EMPLOYEE_CONSTRAINT_MESSAGES = {
+  employees_pan_format:
+    'PAN looks wrong. It is five letters, four digits, then one letter — like AAAPZ1234C.',
+  employees_ifsc_format:
+    'IFSC looks wrong. It is four letters, then a zero, then six letters or digits — like SBIN0001234.',
+  employees_aadhaar_format: 'Aadhaar must be exactly 12 digits.',
+  employees_uan_format: 'UAN must be exactly 12 digits. A PF number is a different thing and goes in its own field.',
+  employees_gender_values: 'Gender must be Male, Female or Other.',
+  employees_dob_sane:
+    'Date of birth is out of range — it has to put this person between 14 and 100 years old. Check the year.',
+};
+
+/** Postgres error -> something worth showing. Anything unrecognised is passed through untouched. */
+function describeEmployeeError(error) {
+  if (!error) return error;
+  const haystack = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`;
+  const hit = Object.keys(EMPLOYEE_CONSTRAINT_MESSAGES).find((name) => haystack.includes(name));
+  if (hit) return new Error(EMPLOYEE_CONSTRAINT_MESSAGES[hit]);
+  // 23502 is NOT NULL. The only required column the form can leave empty is the company.
+  if (error.code === '23502') {
+    return new Error('A required field is empty. Every person needs at least a name and a company.');
+  }
+  return error;
+}
+
 export function useCreateEmployee() {
   const qc = useQueryClient();
   return useMutation({
@@ -66,7 +99,7 @@ export function useCreateEmployee() {
         .insert(cleanEmployeePayload(payload))
         .select('id, full_name, employee_code')
         .single();
-      if (error) throw error;
+      if (error) throw describeEmployeeError(error);
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
@@ -83,7 +116,7 @@ export function useUpdateEmployee() {
         .eq('id', id)
         .select('id')
         .single();
-      if (error) throw error;
+      if (error) throw describeEmployeeError(error);
       return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),

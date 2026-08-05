@@ -1,12 +1,18 @@
-// Employee profile — inline detail section shown beside the Directory list/grid (master-detail),
-// not an overlay. Identity header (avatar, chips, key stats, tab switcher) stays fixed within the
-// section; each tab scrolls beneath it. Shows only real record data — nothing estimated or mocked.
+// Employee profile — the detail screen shown in place of the Directory list (master-detail).
+//
+// Everything the record holds is on one scroll. The four tabs this replaced hid three quarters of
+// a person behind a click, which is the wrong trade for a screen people open to answer one small
+// question: what is their PAN, when did they join, which branch. A sticky rail carries the summary,
+// the quick actions, and a section index, so a long page stays one jump away from any answer.
+// Shows only real record data — nothing estimated or mocked.
 import React, { useState, useEffect } from 'react';
-import { btnClass } from './ui/Btn';
 import {
-  X, Pencil, Mail, Phone, Copy, Check, Calendar, Building2, MapPin, Layers,
-  Briefcase, Award, ShieldAlert, ExternalLink, KeyRound,
+  ArrowLeft, Pencil, Mail, Phone, Copy, Check, Calendar, Building2, MapPin, Layers,
+  Briefcase, Award, ShieldAlert, ExternalLink, KeyRound, UserRound, HeartPulse,
+  Landmark, IdCard, Paperclip, FileText, Download, Eye, Loader2, AlertTriangle,
 } from 'lucide-react';
+import { useEmployeeDocuments, useDocumentLink, useEmployeeAvatars, fileSize } from '../data/documents';
+import { usePermissions } from '../auth/usePermissions';
 
 const initials = (name) =>
   (name || '')
@@ -19,12 +25,12 @@ const initials = (name) =>
 
 const statusClass = (status) =>
   status === 'Active'
-    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-450 border border-emerald-500/10'
+    ? 'is-active'
     : status === 'On Leave'
-    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-450 border border-amber-500/10'
+    ? 'is-leave'
     : status === 'Probation'
-    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-405 border border-blue-500/10'
-    : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-450 border border-rose-500/10';
+    ? 'is-probation'
+    : 'is-inactive';
 
 const inr = (n) => '₹' + Number(n).toLocaleString('en-IN');
 
@@ -50,73 +56,134 @@ const tenureOf = (join) => {
   return y > 0 ? `${y}y ${m}m` : `${m}m`;
 };
 
-const TABS = [
-  ['overview', 'Overview'],
-  ['work', 'Work'],
-  ['pay', 'Pay'],
-];
-
-function Stat({ label, value }) {
+function Field({ label, value, mono }) {
+  const empty = !value;
   return (
-    <div className="px-2 text-center min-w-0">
-      <span className="block text-xs font-extrabold text-neutral-855 dark:text-warm-gray-150 truncate">
-        {value || '—'}
-      </span>
-      <span className="block text-2xs uppercase font-bold tracking-wider text-neutral-455 dark:text-neutral-500 mt-0.5">
-        {label}
-      </span>
+    <div className={`emp-field${empty ? ' is-empty' : ''}`}>
+      <span>{label}</span>
+      <strong className={mono ? 'is-mono' : undefined}>{value || 'Not recorded'}</strong>
     </div>
   );
 }
 
-function SectionCard({ title, icon: Icon, children }) {
-  return (
-    <div className="premium-card space-y-3 bg-neutral-50/40 dark:bg-charcoal-900/10">
-      <span className="text-2xs uppercase font-bold tracking-wider text-neutral-455 dark:text-neutral-500 flex items-center gap-1.5">
-        {Icon && <Icon size={11} />} {title}
-      </span>
-      {children}
-    </div>
-  );
-}
+// The files filed against this person. Every one lives in a private bucket, so both actions go
+// through a freshly signed URL — view opens it inline, download asks for it under the name it was
+// uploaded with. The link is minted per click and never held, so it cannot outlive the permission
+// that produced it.
+function DocumentsSection({ employeeId }) {
+  const { data: docs = [], isLoading, error } = useEmployeeDocuments(employeeId);
+  const link = useDocumentLink();
+  const [busy, setBusy] = useState(null);
 
-function DetailRow({ label, value }) {
-  return (
-    <div className="flex justify-between gap-3 border-t border-neutral-100 dark:border-neutral-905 pt-2 text-xs">
-      <span className="text-neutral-455 font-medium shrink-0">{label}</span>
-      <span className="text-neutral-800 dark:text-warm-gray-200 font-semibold text-right truncate">
-        {value || '—'}
-      </span>
-    </div>
-  );
-}
+  const openFile = async (doc, download) => {
+    setBusy(`${doc.id}:${download ? 'download' : 'view'}`);
+    try {
+      const href = await link.mutateAsync({ doc, download });
+      // An anchor rather than window.open: this runs after an await, and a popup opened outside a
+      // live gesture is what phone browsers block.
+      const a = document.createElement('a');
+      a.href = href;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch {
+      /* surfaced under the list */
+    } finally {
+      setBusy(null);
+    }
+  };
 
-function HierarchyNode({ icon: Icon, label, value, last }) {
+  if (isLoading) {
+    return <p className="emp-doc-note"><Loader2 size={13} className="animate-spin" /> Loading documents…</p>;
+  }
+
+  if (error) {
+    return (
+      <div className="emp-doc-error" role="alert">
+        <AlertTriangle size={14} /> <span>{error.message}</span>
+      </div>
+    );
+  }
+
+  if (!docs.length) {
+    return (
+      <div className="emp-empty">
+        <Paperclip size={20} />
+        <p>No documents are filed against this person yet. Add them from the employee form or the Documents screen.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex gap-3 relative">
-      {!last && (
-        <span className="absolute left-[15px] top-8 bottom-[-12px] w-px bg-neutral-200 dark:bg-charcoal-800" />
+    <>
+      <ul className="emp-doc-list">
+        {docs.map((doc) => {
+          const meta = [doc.category, doc.file_name, fileSize(doc.size_bytes)].filter(Boolean).join(' · ');
+          const hasFile = Boolean(doc.storage_path || doc.url);
+          return (
+            <li key={doc.id} className="emp-doc">
+              <span className="emp-doc-icon"><FileText size={15} /></span>
+              <span className="emp-doc-copy">
+                <strong>{doc.title}</strong>
+                <em>{meta || 'No file attached'}</em>
+              </span>
+              <span className="emp-doc-actions">
+                <button
+                  type="button"
+                  onClick={() => openFile(doc, false)}
+                  disabled={!hasFile || busy === `${doc.id}:view`}
+                  title={hasFile ? 'View file' : 'No file attached'}
+                >
+                  {busy === `${doc.id}:view` ? <Loader2 size={12} className="animate-spin" /> : <Eye size={12} />}
+                  View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openFile(doc, true)}
+                  disabled={!hasFile || busy === `${doc.id}:download`}
+                  title={hasFile ? 'Download file' : 'No file attached'}
+                >
+                  {busy === `${doc.id}:download` ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                  Download
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {link.error && (
+        <div className="emp-doc-error" role="alert">
+          <AlertTriangle size={14} /> <span>{link.error.message}</span>
+        </div>
       )}
-      <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-600 dark:text-[#10b981] flex items-center justify-center shrink-0 border border-neutral-250/20 dark:border-neutral-750 relative z-10">
+    </>
+  );
+}
+
+function OrgNode({ icon: Icon, label, value, last }) {
+  return (
+    <div className={`emp-org-node${last ? ' is-last' : ''}`}>
+      <span className="emp-org-mark">
         <Icon size={13} />
-      </div>
-      <div className="min-w-0 pt-0.5">
-        <span className="block text-2xs uppercase font-bold tracking-wider text-neutral-455 dark:text-neutral-500 leading-none">
-          {label}
-        </span>
-        <span className="block text-xs font-bold text-neutral-855 dark:text-warm-gray-150 truncate mt-1">
-          {value || '—'}
-        </span>
-      </div>
+      </span>
+      <span className="emp-org-label">{label}</span>
+      <strong className="emp-org-value">{value || 'Not recorded'}</strong>
     </div>
   );
 }
 
 export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
-  const [activeTab, setActiveTab] = useState('overview');
   const [copied, setCopied] = useState(false);
+  const [activeSection, setActiveSection] = useState('contact');
+  const { canAny } = usePermissions();
+  // Their photograph, if one has been filed. Falls back to initials, which is what everyone
+  // without a photo has always had.
+  const { data: avatars = {} } = useEmployeeAvatars([emp.id]);
+  const avatarUrl = avatars[emp.id];
 
-  // Escape closes the drawer (parity with the app's other overlays).
+  // Escape closes the profile (parity with the app's other overlays).
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -131,6 +198,24 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   };
 
   const tenure = tenureOf(emp.join_date);
+  const branchName = emp.branch?.name || emp.branch?.code || 'Entity-wide';
+  const designation = emp.designation?.title || 'No designation';
+
+  const completeness = [
+    emp.full_name,
+    emp.employee_code,
+    emp.email,
+    emp.phone,
+    emp.join_date,
+    emp.entity?.name,
+    emp.branch?.name || emp.branch?.code,
+    emp.department?.name,
+    emp.designation?.title,
+    emp.date_of_birth,
+    emp.pan,
+    emp.bank_account,
+  ].filter(Boolean).length;
+  const completenessPct = Math.round((completeness / 12) * 100);
 
   // Compensation — only what the record actually holds (no estimated components).
   const salary = emp.salary || null;
@@ -140,279 +225,352 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   const basePct =
     ctc > 0 && baseAnnual > 0 ? Math.min(100, Math.round((baseAnnual / ctc) * 100)) : null;
 
-  return (
-    <section className="premium-card p-0 w-full bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl flex flex-col overflow-hidden animate-fade-in lg:max-h-[calc(100vh-6rem)]">
-
-        {/* ---- Fixed identity header ---- */}
-        <div className="p-4 sm:p-5 pb-0 shrink-0">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3.5 min-w-0">
-              <div className={btnClass('primary')}>
-                {initials(emp.full_name)}
+  const sections = [
+    {
+      id: 'contact',
+      label: 'Contact',
+      icon: Mail,
+      body: (
+        <div className="emp-contact-list">
+          <div className="emp-contact">
+            <Mail size={14} />
+            <span>{emp.email || 'No email on record'}</span>
+            {emp.email && (
+              <div className="emp-contact-actions">
+                <button type="button" onClick={copyEmail} title="Copy email" aria-label="Copy email address">
+                  {copied ? <Check size={12} /> : <Copy size={12} />}
+                </button>
+                <a href={`mailto:${emp.email}`} title="Send email" aria-label="Send email">
+                  <ExternalLink size={12} />
+                </a>
               </div>
-              <div className="min-w-0">
-                <h3 className="text-lg font-bold text-neutral-900 dark:text-white truncate leading-snug">
-                  {emp.full_name}
-                </h3>
-                <span className="text-neutral-500 dark:text-neutral-400 text-xs block truncate mt-0.5 font-medium">
-                  {emp.designation?.title || 'No designation'}
-                  {emp.department?.name ? ` · ${emp.department.name}` : ''}
-                </span>
-                <div className="flex items-center gap-1.5 pt-1.5 flex-wrap">
-                  <span className="text-2xs px-2 py-0.5 bg-neutral-100 dark:bg-charcoal-800 text-neutral-600 dark:text-warm-gray-300 rounded font-mono font-bold border border-neutral-200/50 dark:border-neutral-800">
-                    {emp.employee_code || '—'}
-                  </span>
-                  <span className={`text-2xs px-1.5 py-0.5 rounded font-bold font-mono uppercase leading-none ${statusClass(emp.status)}`}>
-                    {emp.status}
-                  </span>
-                  {emp.entity?.code && (
-                    <span className="text-2xs px-1.5 py-0.5 rounded font-bold font-mono uppercase leading-none bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-neutral-200/50 dark:border-neutral-800">
-                      {emp.entity.code}
-                    </span>
-                  )}
+            )}
+          </div>
+          <div className="emp-contact">
+            <Phone size={14} />
+            <span>{emp.phone || 'No phone on record'}</span>
+            {emp.phone && (
+              <div className="emp-contact-actions">
+                <a href={`tel:${emp.phone}`} title="Call" aria-label="Call employee">
+                  <Phone size={12} />
+                </a>
+              </div>
+            )}
+          </div>
+          <div className="emp-field-grid emp-contact-extra">
+            <Field label="Personal email" value={emp.personal_email} />
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: 'employment',
+      label: 'Employment',
+      icon: Calendar,
+      body: (
+        <div className="emp-field-grid">
+          <Field label="Joined on" value={fmtDate(emp.join_date)} />
+          <Field label="Tenure" value={tenure} />
+          <Field label="Employee code" value={emp.employee_code} mono />
+          <Field label="Status" value={emp.status} />
+        </div>
+      ),
+    },
+    {
+      id: 'organization',
+      label: 'Organization',
+      icon: Building2,
+      body: (
+        <>
+          <div className="emp-org">
+            <OrgNode icon={Building2} label="Entity" value={emp.entity?.name} />
+            <OrgNode icon={MapPin} label="Location / Branch" value={emp.branch ? emp.branch.name || emp.branch.code : 'Entity-wide'} />
+            <OrgNode icon={Layers} label="Department" value={emp.department?.name} />
+            <OrgNode icon={Briefcase} label="Designation" value={emp.designation?.title} last />
+          </div>
+          {/* Grade is the one thing the old Role tab held that the path above does not. Its other
+              two fields repeated the designation and the status, which are already on this page. */}
+          <div className="emp-field-grid emp-org-extra">
+            <Field label="Grade level" value={emp.designation?.grade} mono />
+          </div>
+        </>
+      ),
+    },
+    {
+      id: 'personal',
+      label: 'Personal',
+      icon: UserRound,
+      body: (
+        <div className="emp-field-grid">
+          <Field label="Date of birth" value={fmtDate(emp.date_of_birth)} />
+          <Field label="Gender" value={emp.gender} />
+          <Field label="Father name" value={emp.father_name} />
+          <Field label="Blood group" value={emp.blood_group} mono />
+          <Field label="Address" value={emp.address} />
+        </div>
+      ),
+    },
+    {
+      id: 'statutory',
+      label: 'Statutory IDs',
+      icon: IdCard,
+      body: (
+        <div className="emp-field-grid">
+          <Field label="PAN" value={emp.pan} mono />
+          <Field label="Aadhaar" value={emp.aadhaar} mono />
+          <Field label="UAN" value={emp.uan} mono />
+          <Field label="PF number" value={emp.pf_number} mono />
+          <Field label="ESI" value={emp.esi_number} mono />
+        </div>
+      ),
+    },
+    {
+      id: 'emergency',
+      label: 'Emergency',
+      icon: HeartPulse,
+      body: (
+        <div className="emp-field-grid">
+          <Field label="Name" value={emp.emergency_name} />
+          <Field label="Phone" value={emp.emergency_phone} mono />
+          <Field label="Relation" value={emp.emergency_relation} />
+        </div>
+      ),
+    },
+    {
+      id: 'compensation',
+      label: 'Compensation',
+      icon: Award,
+      body:
+        ctc != null || baseMonthly != null ? (
+          <div className="emp-pay">
+            {ctc != null && (
+              <div className="emp-pay-headline">
+                <span>Annual CTC</span>
+                <strong>{inr(ctc)}</strong>
+              </div>
+            )}
+
+            {basePct != null && (
+              <div className="emp-pay-split">
+                <div className="emp-pay-bar">
+                  <i style={{ width: `${basePct}%` }} className="is-base" title={`Base: ${basePct}%`} />
+                  <i style={{ width: `${100 - basePct}%` }} className="is-other" title={`Other components: ${100 - basePct}%`} />
                 </div>
+                <div className="emp-pay-legend">
+                  <span><i className="is-base" /> Base ({basePct}%)</span>
+                  <span><i className="is-other" /> Other ({100 - basePct}%)</span>
+                </div>
+              </div>
+            )}
+
+            <div className="emp-field-grid">
+              {baseMonthly != null && <Field label="Monthly base salary" value={inr(baseMonthly)} mono />}
+              {baseAnnual != null && <Field label="Annualized base" value={inr(baseAnnual)} mono />}
+            </div>
+
+            <p className="emp-note">
+              Figures come directly from the employee record. Component breakdowns beyond base pay
+              are managed in Payroll.
+            </p>
+          </div>
+        ) : (
+          <div className="emp-empty">
+            <ShieldAlert size={20} />
+            <p>Compensation details are restricted or not recorded for this profile.</p>
+          </div>
+        ),
+    },
+    {
+      id: 'banking',
+      label: 'Banking',
+      icon: Landmark,
+      body: (
+        <div className="emp-field-grid">
+          <Field label="Bank" value={emp.bank_name} />
+          <Field label="Account" value={emp.bank_account} mono />
+          <Field label="IFSC" value={emp.bank_ifsc} mono />
+          <Field label="Account holder" value={emp.account_holder} />
+        </div>
+      ),
+    },
+  ];
+
+  // Documents carry their own permission. Someone who may see a person but not their file cabinet
+  // gets no section at all, rather than an empty one that reads as "nothing was ever uploaded".
+  if (canAny('document.read')) {
+    sections.push({
+      id: 'documents',
+      label: 'Documents',
+      icon: Paperclip,
+      body: <DocumentsSection employeeId={emp.id} />,
+    });
+  }
+  const sectionIds = sections.map((s) => s.id).join('|');
+
+  // Which section the reader is actually looking at. Drives the rail index — without it a nine
+  // section scroll gives no sense of place. Tuned so the section crossing the upper third wins.
+  useEffect(() => {
+    const nodes = sectionIds
+      .split('|')
+      .map((id) => document.getElementById(`emp-sec-${id}`))
+      .filter(Boolean);
+    if (!nodes.length) return undefined;
+    const io = new IntersectionObserver(
+      (entries) => {
+        const seen = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (seen[0]?.target?.dataset?.section) setActiveSection(seen[0].target.dataset.section);
+      },
+      { rootMargin: '-15% 0px -70% 0px', threshold: 0 },
+    );
+    nodes.forEach((n) => io.observe(n));
+    return () => io.disconnect();
+  }, [sectionIds]);
+
+  const jumpTo = (id) => {
+    const el = document.getElementById(`emp-sec-${id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  return (
+    <section className="emp-profile animate-fade-in">
+      <header className="emp-hero">
+        <div className="emp-hero-bar">
+          <button type="button" onClick={onClose} className="emp-back">
+            <ArrowLeft size={14} /> Directory
+          </button>
+          <div className="emp-hero-actions">
+            {emp.email && (
+              <a href={`mailto:${emp.email}`} title="Send email" aria-label="Send email">
+                <Mail size={14} />
+              </a>
+            )}
+            {emp.phone && (
+              <a href={`tel:${emp.phone}`} title="Call employee" aria-label="Call employee">
+                <Phone size={14} />
+              </a>
+            )}
+            {onGrantAccess && (
+              <button type="button" onClick={onGrantAccess} title="Give app access" aria-label="Give app access">
+                <KeyRound size={14} />
+              </button>
+            )}
+            {onEdit && (
+              <button type="button" onClick={onEdit} title="Edit employee" aria-label="Edit employee">
+                <Pencil size={14} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="emp-hero-id">
+          <div className="emp-avatar">
+            {avatarUrl
+              ? <img src={avatarUrl} alt={`Photograph of ${emp.full_name}`} />
+              : initials(emp.full_name)}
+          </div>
+          <div className="emp-hero-text">
+            <h1>{emp.full_name}</h1>
+            <p>
+              {designation}
+              {emp.department?.name ? ` · ${emp.department.name}` : ''}
+              {branchName ? ` · ${branchName}` : ''}
+            </p>
+            <div className="emp-hero-chips">
+              <span className={`emp-status ${statusClass(emp.status)}`}>{emp.status}</span>
+              <span>{emp.employee_code || 'No code'}</span>
+              {emp.entity?.code && <span>{emp.entity.code}</span>}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="emp-layout">
+        <div className="emp-main">
+          {sections.map((sec) => {
+            const Icon = sec.icon;
+            return (
+              <article
+                key={sec.id}
+                id={`emp-sec-${sec.id}`}
+                data-section={sec.id}
+                className="emp-section"
+              >
+                <h2 className="emp-section-head">
+                  <Icon size={12} /> {sec.label}
+                </h2>
+                {sec.body}
+              </article>
+            );
+          })}
+        </div>
+
+        <aside className="emp-rail">
+          <div className="emp-rail-card emp-glance">
+            <span className="emp-rail-title">At a glance</span>
+            <div className="emp-glance-grid">
+              <div>
+                <strong>{tenure || '—'}</strong>
+                <small>Tenure</small>
+              </div>
+              <div>
+                <strong>{emp.designation?.grade || '—'}</strong>
+                <small>Grade</small>
+              </div>
+              <div className="emp-glance-wide">
+                <strong>{branchName}</strong>
+                <small>Branch</small>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
-              {onEdit && (
+            <div className="emp-complete">
+              <div className="emp-complete-top">
+                <span>Profile complete</span>
+                <strong>{completenessPct}%</strong>
+              </div>
+              <div className="emp-complete-bar">
+                <i style={{ width: `${completenessPct}%` }} />
+              </div>
+              <small>{completeness} of 12 key fields recorded</small>
+            </div>
+          </div>
+
+          <nav className="emp-rail-card emp-rail-nav" aria-label="Profile sections">
+            <span className="emp-rail-title">Sections</span>
+            {sections.map((sec) => {
+              const Icon = sec.icon;
+              return (
                 <button
-                  onClick={onEdit}
-                  aria-label="Edit employee"
-                  title="Edit employee"
-                  className="p-2 hover:bg-neutral-100 dark:hover:bg-charcoal-800 rounded-lg text-neutral-450 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-warm-gray-100 transition-colors duration-200 border border-neutral-200/50 dark:border-neutral-800 cursor-pointer"
+                  key={sec.id}
+                  type="button"
+                  onClick={() => jumpTo(sec.id)}
+                  className={activeSection === sec.id ? 'is-active' : undefined}
+                  aria-current={activeSection === sec.id ? 'true' : undefined}
                 >
-                  <Pencil size={14} />
+                  <Icon size={13} /> {sec.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {(onEdit || onGrantAccess) && (
+            <div className="emp-rail-card emp-rail-actions">
+              <span className="emp-rail-title">Actions</span>
+              {onEdit && (
+                <button type="button" onClick={onEdit}>
+                  <Pencil size={13} /> Edit profile
                 </button>
               )}
-              <button
-                onClick={onClose}
-                aria-label="Close profile"
-                className="p-2 hover:bg-neutral-100 dark:hover:bg-charcoal-800 rounded-lg text-neutral-450 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-warm-gray-100 transition-colors duration-200 border border-neutral-200/50 dark:border-neutral-800 cursor-pointer"
-              >
-                <X size={15} />
-              </button>
-            </div>
-          </div>
-
-          {/* Key stats */}
-          <div className="grid grid-cols-3 divide-x divide-neutral-150 dark:divide-neutral-850 border-y border-neutral-150 dark:border-neutral-855 py-2.5 mt-4">
-            <Stat label="Tenure" value={tenure} />
-            <Stat label="Branch" value={emp.branch?.name || emp.branch?.code || 'Entity-wide'} />
-            <Stat label="Grade" value={emp.designation?.grade} />
-          </div>
-
-          {/* Tab switcher */}
-          <div className="profile-tabbar mobile-segmented flex p-0.5 bg-neutral-100 dark:bg-charcoal-800/60 rounded-xl mt-3.5" role="tablist">
-            {TABS.map(([key, label]) => (
-              <button
-                key={key}
-                role="tab"
-                aria-selected={activeTab === key}
-                onClick={() => setActiveTab(key)}
-                className={`flex-1 py-1.5 text-base font-bold rounded-[10px] transition-all duration-200 cursor-pointer ${
-                  activeTab === key
-                    ? 'bg-white dark:bg-charcoal-900 text-neutral-900 dark:text-[#10b981] shadow-sm border border-neutral-200/60 dark:border-neutral-800'
-                    : 'text-neutral-500 hover:text-neutral-800 dark:hover:text-warm-gray-200'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ---- Scrollable tab content ---- */}
-        <div className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-5 pt-4 space-y-4">
-          {activeTab === 'overview' && (
-            <div className="space-y-4 animate-fade-in">
-              <SectionCard title="Contact Information" icon={Mail}>
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-355 min-w-0">
-                      <Mail size={12} className="text-neutral-455 shrink-0" />
-                      <span className="truncate">{emp.email || 'No email on record'}</span>
-                    </div>
-                    {emp.email && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={copyEmail}
-                          aria-label="Copy email address"
-                          title="Copy email"
-                          className="p-1.5 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 hover:text-black dark:hover:text-[#0ea971] transition-colors duration-200 cursor-pointer"
-                        >
-                          {copied ? <Check size={11} /> : <Copy size={11} />}
-                        </button>
-                        <a
-                          href={`mailto:${emp.email}`}
-                          aria-label="Send email"
-                          title="Send email"
-                          className="p-1.5 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 hover:text-black dark:hover:text-[#0ea971] transition-colors duration-200 cursor-pointer"
-                        >
-                          <ExternalLink size={11} />
-                        </a>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 border-t border-neutral-100 dark:border-neutral-905 pt-2.5">
-                    <div className="flex items-center gap-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-355 min-w-0">
-                      <Phone size={12} className="text-neutral-455 shrink-0" />
-                      <span className="truncate">{emp.phone || 'No phone on record'}</span>
-                    </div>
-                    {emp.phone && (
-                      <a
-                        href={`tel:${emp.phone}`}
-                        aria-label="Call employee"
-                        title="Call"
-                        className="p-1.5 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 hover:text-black dark:hover:text-[#0ea971] transition-colors duration-200 cursor-pointer shrink-0"
-                      >
-                        <Phone size={11} />
-                      </a>
-                    )}
-                  </div>
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Employment Snapshot" icon={Calendar}>
-                <div className="space-y-2">
-                  <DetailRow
-                    label="Joined on"
-                    value={
-                      fmtDate(emp.join_date)
-                        ? `${fmtDate(emp.join_date)}${tenure ? ` · ${tenure}` : ''}`
-                        : null
-                    }
-                  />
-                  <DetailRow label="Employee code" value={emp.employee_code} />
-                  <DetailRow label="Status" value={emp.status} />
-                </div>
-              </SectionCard>
+              {onGrantAccess && (
+                <button type="button" onClick={onGrantAccess}>
+                  <KeyRound size={13} /> Give app access
+                </button>
+              )}
             </div>
           )}
-
-          {activeTab === 'work' && (
-            <div className="space-y-4 animate-fade-in">
-              <SectionCard title="Organization Path" icon={Building2}>
-                <div className="space-y-3 pt-1">
-                  <HierarchyNode icon={Building2} label="Entity" value={emp.entity?.name} />
-                  <HierarchyNode
-                    icon={MapPin}
-                    label="Location / Branch"
-                    value={emp.branch ? emp.branch.name || emp.branch.code : 'Entity-wide'}
-                  />
-                  <HierarchyNode icon={Layers} label="Department" value={emp.department?.name} />
-                  <HierarchyNode
-                    icon={Briefcase}
-                    label="Designation"
-                    value={emp.designation?.title}
-                    last
-                  />
-                </div>
-              </SectionCard>
-
-              <SectionCard title="Role Details" icon={Briefcase}>
-                <div className="space-y-2">
-                  <DetailRow label="Designation" value={emp.designation?.title} />
-                  <DetailRow label="Grade level" value={emp.designation?.grade} />
-                  <DetailRow label="Classification" value={emp.status} />
-                </div>
-              </SectionCard>
-            </div>
-          )}
-
-          {activeTab === 'pay' && (
-            <div className="space-y-4 animate-fade-in">
-              <SectionCard title="Compensation" icon={Award}>
-                {ctc != null || baseMonthly != null ? (
-                  <div className="space-y-4">
-                    {ctc != null && (
-                      <div>
-                        <span className="block text-2xs uppercase font-bold tracking-wider text-neutral-455 dark:text-neutral-500">
-                          Annual CTC
-                        </span>
-                        <span className="block text-xl font-extrabold font-mono text-neutral-900 dark:text-white mt-0.5">
-                          {inr(ctc)}
-                        </span>
-                      </div>
-                    )}
-
-                    {basePct != null && (
-                      <div className="space-y-1.5">
-                        <div className="flex h-2.5 rounded-full overflow-hidden bg-neutral-100 dark:bg-charcoal-800">
-                          <div
-                            style={{ width: `${basePct}%` }}
-                            className="bg-[#0ea971]"
-                            title={`Base: ${basePct}%`} aria-label={`Base: ${basePct}%`}
-                          />
-                          <div
-                            style={{ width: `${100 - basePct}%` }}
-                            className="bg-[#6b8f89]"
-                            title={`Other components: ${100 - basePct}%`} aria-label={`Other components: ${100 - basePct}%`}
-                          />
-                        </div>
-                        <div className="flex flex-wrap gap-x-3 gap-y-1.5 text-2xs text-neutral-455 dark:text-neutral-550 font-bold uppercase tracking-wider">
-                          <span className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#0ea971]" /> Base ({basePct}%)
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#6b8f89]" /> Other components ({100 - basePct}%)
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-2 pt-1">
-                      {baseMonthly != null && (
-                        <DetailRow label="Monthly base salary" value={inr(baseMonthly)} />
-                      )}
-                      {baseAnnual != null && (
-                        <DetailRow label="Annualized base" value={inr(baseAnnual)} />
-                      )}
-                    </div>
-
-                    <p className="text-2xs text-neutral-450 dark:text-neutral-550 leading-relaxed border-t border-neutral-100 dark:border-neutral-905 pt-2.5">
-                      Figures come directly from the employee record. Component breakdowns beyond
-                      base pay are managed in Payroll.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="text-center py-6 space-y-2 bg-neutral-50/50 dark:bg-charcoal-900/20 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800">
-                    <ShieldAlert size={20} className="mx-auto text-neutral-450" />
-                    <p className="text-2xs text-neutral-500 px-6">
-                      Compensation details are restricted or not recorded for this profile.
-                    </p>
-                  </div>
-                )}
-              </SectionCard>
-            </div>
-          )}
-        </div>
-
-        {/* ---- Footer actions ---- */}
-        <div className="border-t border-neutral-200/80 dark:border-neutral-850 p-4 sm:px-5 flex flex-wrap gap-2 shrink-0">
-          {onGrantAccess && (
-            <button
-              onClick={onGrantAccess}
-              className="w-full py-2.5 bg-[#0ea971] hover:bg-[#0c9765] text-white rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-sm active:scale-99 flex items-center justify-center gap-1.5"
-            >
-              <KeyRound size={12} /> Give app access
-            </button>
-          )}
-          {onEdit && (
-            <button
-              onClick={onEdit}
-              className="flex-1 py-2.5 bg-neutral-900 hover:bg-[#0ea971] dark:bg-[#0ea971] dark:text-charcoal-900 dark:hover:bg-[#0ea971]/85 text-white rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer shadow-sm active:scale-99 flex items-center justify-center gap-1.5"
-            >
-              <Pencil size={12} /> Edit Profile
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className={`${onEdit ? 'flex-1' : 'w-full'} py-2.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-charcoal-800 dark:hover:bg-charcoal-700 text-neutral-700 dark:text-warm-gray-200 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer`}
-          >
-            Close
-          </button>
-        </div>
+        </aside>
+      </div>
     </section>
   );
 }

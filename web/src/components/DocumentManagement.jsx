@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import {
   useDocuments, useAddDocument, useDocumentLink, useDeleteDocument,
-  fileSize, ACCEPTED_FILES, MAX_FILE_BYTES,
+  fileSize, ACCEPTED_FILES, MAX_FILE_BYTES, PHOTO_CATEGORY,
 } from '../data/documents';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
@@ -19,7 +19,10 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import Pagination, { usePagination } from './ui/Pagination';
 import PageHeader from './ui/PageHeader';
 
-const CATS = ['Policy', 'HR Letter', 'Identity', 'Contract', 'Certificate', 'Other'];
+// PHOTO_CATEGORY is in here because a document filed under it becomes that person's avatar, so it
+// has to be pickable from this screen too — otherwise the only way to set someone's photo is
+// through the employee form.
+const CATS = ['Policy', 'HR Letter', 'Identity', PHOTO_CATEGORY, 'Contract', 'Certificate', 'Other'];
 
 const EMPTY = { title: '', category: 'Policy', attachSelf: false, url: '' };
 
