@@ -45,21 +45,25 @@ function StatusBadge({ status, isLop }) {
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone = 'neutral' }) {
+function Kpi({ icon: Icon, label, value, tone = 'neutral', onClick, active = false }) {
   const tones = {
     neutral: 'text-neutral-800 dark:text-neutral-100',
     green: 'text-emerald-600 dark:text-emerald-400',
     amber: 'text-amber-600 dark:text-amber-400',
     red: 'text-red-600 dark:text-red-400',
   };
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="premium-card">
+    <Tag
+      {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
+      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
+    >
       <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
         <Icon size={13} />
         {label}
       </div>
       <div className={`mt-2 text-2xl font-black font-mono ${tones[tone]}`}>{value}</div>
-    </div>
+    </Tag>
   );
 }
 
@@ -122,6 +126,7 @@ function TodayView({ workDate, setWorkDate }) {
       deptOptions: ['All departments', ...[...d].sort()],
       attendanceOptions: [
         'All rows',
+        'Checked in',
         'On site now',
         'Late arrivals',
         'Exceptions',
@@ -134,10 +139,11 @@ function TodayView({ workDate, setWorkDate }) {
     const term = query.trim().toLowerCase();
     return data.filter((row) => {
       if (attendanceFilter === 'On site now' && !(row.check_in && !row.check_out)) return false;
+      if (attendanceFilter === 'Checked in' && !row.check_in) return false;
       if (attendanceFilter === 'Late arrivals' && !row.is_late) return false;
       // Same definition as the Exceptions tab, or the two disagree about the same day.
       if (attendanceFilter === 'Exceptions' && !hasAttendanceException(row)) return false;
-      if (!['All rows', 'On site now', 'Late arrivals', 'Exceptions'].includes(attendanceFilter)
+      if (!['All rows', 'Checked in', 'On site now', 'Late arrivals', 'Exceptions'].includes(attendanceFilter)
           && row.status !== attendanceFilter) return false;
       if (company !== 'All companies' && row.employee?.entity?.name !== company) return false;
       if (branch !== 'All branches'
@@ -197,12 +203,18 @@ function TodayView({ workDate, setWorkDate }) {
       ) : null}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Kpi icon={Users} label="Roster" value={summary.total} />
-        <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green" />
-        <Kpi icon={Clock} label="Still on site" value={summary.stillIn} tone="green" />
-        <Kpi icon={AlertTriangle} label="Late" value={summary.late} tone="amber" />
-        <Kpi icon={XCircle} label="Absent" value={summary.absent} tone="red" />
-        <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber" />
+        <Kpi icon={Users} label="Roster" value={summary.total}
+          onClick={() => setAttendanceFilter('All rows')} active={attendanceFilter === 'All rows'} />
+        <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green"
+          onClick={() => setAttendanceFilter('Checked in')} active={attendanceFilter === 'Checked in'} />
+        <Kpi icon={Clock} label="Still on site" value={summary.stillIn} tone="green"
+          onClick={() => setAttendanceFilter('On site now')} active={attendanceFilter === 'On site now'} />
+        <Kpi icon={AlertTriangle} label="Late" value={summary.late} tone="amber"
+          onClick={() => setAttendanceFilter('Late arrivals')} active={attendanceFilter === 'Late arrivals'} />
+        <Kpi icon={XCircle} label="Absent" value={summary.absent} tone="red"
+          onClick={() => setAttendanceFilter('Absent')} active={attendanceFilter === 'Absent'} />
+        <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber"
+          onClick={() => setAttendanceFilter('Missing Punch')} active={attendanceFilter === 'Missing Punch'} />
       </div>
 
       <div className="premium-card mobile-filter-card space-y-3">

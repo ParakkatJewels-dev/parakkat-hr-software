@@ -197,7 +197,7 @@ export function MyRequests({ onNavigate }) {
     .slice(0, 6);
 
   return (
-    <Widget title="My Requests" icon={ListChecks}>
+    <Widget title="My Requests" icon={ListChecks} action="Requests" onAction={() => onNavigate?.('leave')}>
       {items.length === 0 ? (
         <EmptyNote>Nothing raised yet — leaves, expenses and tickets will show up here.</EmptyNote>
       ) : (

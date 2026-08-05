@@ -26,6 +26,7 @@ export default function AssetManagement() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ asset_type: 'Laptop', name: '', serial: '', status: 'Available' });
+  const [statusFilter, setStatusFilter] = useState('All');
 
   const stats = useMemo(() => {
     const c = (s) => assets.filter((a) => a.status === s).length;
@@ -42,8 +43,13 @@ export default function AssetManagement() {
     } catch { /* shown below */ }
   };
 
+  const visibleAssets = useMemo(
+    () => statusFilter === 'All' ? assets : assets.filter((a) => a.status === statusFilter),
+    [assets, statusFilter]
+  );
+
   // Paged: this list grows with the business and was rendering every row.
-  const pager = usePagination(assets);
+  const pager = usePagination(visibleAssets);
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
@@ -60,10 +66,10 @@ export default function AssetManagement() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat label="Total Items" value={stats.total} />
-        <Stat label="Allocated" value={stats.allocated} />
-        <Stat label="Available" value={stats.available} />
-        <Stat label="Under Repair" value={stats.repair} />
+        <Stat label="Total Items" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
+        <Stat label="Allocated" value={stats.allocated} active={statusFilter === 'Allocated'} onClick={() => setStatusFilter('Allocated')} />
+        <Stat label="Available" value={stats.available} active={statusFilter === 'Available'} onClick={() => setStatusFilter('Available')} />
+        <Stat label="Under Repair" value={stats.repair} active={statusFilter === 'Under Repair'} onClick={() => setStatusFilter('Under Repair')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -76,8 +82,10 @@ export default function AssetManagement() {
               <div className="flex justify-center py-10 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>
             ) : error ? (
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
-            ) : assets.length === 0 ? (
-              <p className="text-xs text-neutral-500 py-8 text-center">No assets visible to you yet.</p>
+            ) : visibleAssets.length === 0 ? (
+              <p className="text-xs text-neutral-500 py-8 text-center">
+                No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}assets visible to you yet.
+              </p>
             ) : (
               <div className="table-scroll">
                 <table className="premium-table">
@@ -140,12 +148,18 @@ export default function AssetManagement() {
 }
 
 const INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]';
-const Stat = ({ label, value }) => (
-  <div className="premium-card">
+const Stat = ({ label, value, onClick, active = false }) => {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+  <Tag
+    {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
+    className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
+  >
     <span className="text-neutral-500 dark:text-neutral-450 text-xs font-bold uppercase tracking-wider block">{label}</span>
     <span className="text-2xl font-extrabold font-mono text-neutral-850 dark:text-slate-100 block mt-1">{value}</span>
-  </div>
-);
+  </Tag>
+  );
+};
 const Field = ({ label, children }) => (
   <div className="space-y-1"><label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">{label}</label>{children}</div>
 );

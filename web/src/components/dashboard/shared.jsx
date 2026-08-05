@@ -104,8 +104,19 @@ function MiniChart({ tone }) {
 
 /** Standard widget card shell: title row with icon, optional count badge and "view" action. */
 export function Widget({ title, icon: Icon, badge, action, onAction, children, className = '' }) {
+  const actionable = Boolean(action && onAction);
+  const openFromCard = (event) => {
+    if (!actionable) return;
+    const interactive = event.target.closest('button, a, input, select, textarea, [role="button"]');
+    if (interactive) return;
+    onAction();
+  };
+
   return (
-    <section className={`premium-card dashboard-widget ${className}`}>
+    <section
+      onClick={openFromCard}
+      className={`premium-card dashboard-widget ${actionable ? 'dashboard-widget-clickable' : ''} ${className}`}
+    >
       <div className="mobile-list-row dashboard-widget-head mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {Icon && (
@@ -124,6 +135,7 @@ export function Widget({ title, icon: Icon, badge, action, onAction, children, c
         </div>
         {action && (
           <button
+            type="button"
             onClick={onAction}
             className="dashboard-widget-action"
           >

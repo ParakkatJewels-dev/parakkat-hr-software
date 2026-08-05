@@ -152,7 +152,13 @@ export function ApprovalsQueue({ onNavigate }) {
         : row.reason;
 
   return (
-    <Widget title="Approval Inbox" icon={CalendarDays} badge={total || null}>
+    <Widget
+      title="Approval Inbox"
+      icon={CalendarDays}
+      badge={total || null}
+      action="Open queue"
+      onAction={() => onNavigate?.(tab.id === 'expenses' ? 'expense' : tab.id === 'regs' ? 'attendance' : 'leave')}
+    >
       <div className="mb-3 flex gap-1.5">
         {tabs.map((t) => (
           <button

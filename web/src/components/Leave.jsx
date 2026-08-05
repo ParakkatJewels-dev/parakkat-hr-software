@@ -39,6 +39,7 @@ export default function Leave() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: 'Casual Leave', start: '', end: '', reason: '' });
+  const [statusFilter, setStatusFilter] = useState('All');
 
   const stats = useMemo(() => {
     const by = (s) => leaves.filter((l) => l.status === s).length;
@@ -62,8 +63,13 @@ export default function Leave() {
     } catch { /* error shown below */ }
   };
 
+  const visibleLeaves = useMemo(
+    () => statusFilter === 'All' ? leaves : leaves.filter((l) => l.status === statusFilter),
+    [leaves, statusFilter]
+  );
+
   // Paged: this list grows with the business and was rendering every row.
-  const pager = usePagination(leaves);
+  const pager = usePagination(visibleLeaves);
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
@@ -86,10 +92,10 @@ export default function Leave() {
 
       {/* stats from real data */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Stat label="Total Requests" value={stats.total} />
-        <Stat label="Pending" value={stats.pending} />
-        <Stat label="Approved" value={stats.approved} />
-        <Stat label="Rejected" value={stats.rejected} />
+        <Stat label="Total Requests" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
+        <Stat label="Pending" value={stats.pending} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
+        <Stat label="Approved" value={stats.approved} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
+        <Stat label="Rejected" value={stats.rejected} active={statusFilter === 'Rejected'} onClick={() => setStatusFilter('Rejected')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -106,8 +112,10 @@ export default function Leave() {
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3">
                 <AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span>
               </div>
-            ) : leaves.length === 0 ? (
-              <p className="text-xs text-neutral-500 py-8 text-center">No leave requests visible to you yet.</p>
+            ) : visibleLeaves.length === 0 ? (
+              <p className="text-xs text-neutral-500 py-8 text-center">
+                No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}leave requests visible to you yet.
+              </p>
             ) : (
               <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
                 {pager.slice.map((req) => (
@@ -241,11 +249,15 @@ export default function Leave() {
   );
 }
 
-function Stat({ label, value }) {
+function Stat({ label, value, onClick, active = false }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="premium-card">
+    <Tag
+      {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
+      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
+    >
       <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
       <span className="text-2xl font-extrabold font-mono text-neutral-850 dark:text-slate-100 block mt-1.5">{value}</span>
-    </div>
+    </Tag>
   );
 }

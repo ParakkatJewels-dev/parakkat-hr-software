@@ -27,6 +27,7 @@ export default function Expense() {
   const canClaim = Boolean(employee?.id);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ category: 'Local Conveyance', amount: '', expense_date: '', description: '' });
+  const [statusFilter, setStatusFilter] = useState('All');
 
   const totals = useMemo(() => {
     const sum = (pred) => expenses.filter(pred).reduce((a, e) => a + Number(e.amount || 0), 0);
@@ -53,8 +54,14 @@ export default function Expense() {
     } catch { /* shown below */ }
   };
 
+  const visibleExpenses = useMemo(() => {
+    if (statusFilter === 'All') return expenses;
+    if (statusFilter === 'Approved') return expenses.filter((e) => e.status === 'Approved' || e.status === 'Paid');
+    return expenses.filter((e) => e.status === statusFilter);
+  }, [expenses, statusFilter]);
+
   // Paged: this list grows with the business and was rendering every row.
-  const pager = usePagination(expenses);
+  const pager = usePagination(visibleExpenses);
 
   return (
     <div className="page-shell space-y-6 animate-fade-in">
@@ -132,9 +139,9 @@ export default function Expense() {
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <Stat label="Total Claims" value={totals.count} />
-        <Stat label="Pending ₹" value={totals.pending.toLocaleString()} />
-        <Stat label="Approved ₹" value={totals.approved.toLocaleString()} />
+        <Stat label="Total Claims" value={totals.count} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
+        <Stat label="Pending ₹" value={totals.pending.toLocaleString()} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
+        <Stat label="Approved ₹" value={totals.approved.toLocaleString()} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -147,8 +154,10 @@ export default function Expense() {
               <div className="flex justify-center py-10 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>
             ) : error ? (
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
-            ) : expenses.length === 0 ? (
-              <p className="text-xs text-neutral-500 py-8 text-center">No expense claims visible to you yet.</p>
+            ) : visibleExpenses.length === 0 ? (
+              <p className="text-xs text-neutral-500 py-8 text-center">
+                No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}expense claims visible to you yet.
+              </p>
             ) : (
               <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
                 {pager.slice.map((exp) => (
@@ -202,12 +211,18 @@ export default function Expense() {
   );
 }
 
-const Stat = ({ label, value }) => (
-  <div className="premium-card">
+const Stat = ({ label, value, onClick, active = false }) => {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+  <Tag
+    {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
+    className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
+  >
     <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
     <span className="text-2xl font-extrabold font-mono text-neutral-850 dark:text-slate-100 block mt-1.5">{value}</span>
-  </div>
-);
+  </Tag>
+  );
+};
 const Limit = ({ k, v }) => (
   <div className="flex justify-between border-b border-neutral-100 dark:border-neutral-855 pb-1"><span>{k}</span><span className="text-neutral-800 dark:text-slate-200">{v}</span></div>
 );

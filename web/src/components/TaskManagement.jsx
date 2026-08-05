@@ -58,7 +58,7 @@ export default function TaskManagement() {
 
   // In the URL, so a refresh comes back to the view you were reading.
   const [view, setView] = useUrlTab('flow', ['flow', 'people']);
-  const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | <status>
+  const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | null
 
@@ -68,6 +68,7 @@ export default function TaskManagement() {
       if (mineOnly && t.employee_id !== employee?.id) return false;
       if (statusFilter === 'All') return true;
       if (statusFilter === 'Active') return t.status !== 'Done' && t.status !== 'Cancelled';
+      if (statusFilter === 'Overdue') return isOverdue(t);
       return t.status === statusFilter;
     });
   }, [tasks, mineOnly, statusFilter, employee]);
@@ -145,17 +146,17 @@ export default function TaskManagement() {
 
       {/* stats */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Stat label="Total" value={stats.total} />
-        <Stat label="To Do" value={stats.todo} />
-        <Stat label="In Progress" value={stats.progress} />
-        <Stat label="Done" value={stats.done} />
-        <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} />
+        <Stat label="Total" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
+        <Stat label="To Do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => setStatusFilter('To Do')} />
+        <Stat label="In Progress" value={stats.progress} active={statusFilter === 'In Progress'} onClick={() => setStatusFilter('In Progress')} />
+        <Stat label="Done" value={stats.done} active={statusFilter === 'Done'} onClick={() => setStatusFilter('Done')} />
+        <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} />
       </div>
 
       {/* controls */}
       <div className="mobile-toolbar flex flex-wrap items-center justify-between gap-3">
         <div className="mobile-segmented flex flex-wrap items-center gap-1.5">
-          {['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'All'].map((s) => (
+          {['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All'].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -458,11 +459,15 @@ function ViewBtn({ active, onClick, icon: Icon, label }) {
   );
 }
 
-function Stat({ label, value, accent }) {
+function Stat({ label, value, accent, onClick, active = false }) {
+  const Tag = onClick ? 'button' : 'div';
   return (
-    <div className="premium-card">
+    <Tag
+      {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
+      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
+    >
       <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
       <span className={`text-2xl font-extrabold font-mono block mt-1.5 ${accent ? 'text-rose-500' : 'text-neutral-850 dark:text-slate-100'}`}>{value}</span>
-    </div>
+    </Tag>
   );
 }

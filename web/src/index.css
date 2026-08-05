@@ -353,6 +353,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     overflow: hidden;
   }
 
+  .dashboard-widget-clickable {
+    cursor: pointer;
+  }
+
+  .dashboard-widget-clickable:hover {
+    border-color: color-mix(in srgb, var(--accent) 28%, var(--surface-border));
+  }
+
   .dashboard-widget::before {
     content: '';
     position: absolute;
@@ -2174,6 +2182,23 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   letter-spacing: 0;
 }
 
+.summary-card-link {
+  cursor: pointer;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.summary-card-link:hover,
+.summary-card-link-active {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--surface-border)) !important;
+  box-shadow: 0 6px 18px rgba(16, 32, 26, .07);
+}
+
+.summary-card-link-active {
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%),
+    var(--surface-elevated) !important;
+}
+
 /* ---- Sidebar active pill (uses !important to win over hover utilities) ---- */
 .nav-item-active {
   font-weight: 700;
@@ -3702,14 +3727,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     backdrop-filter: blur(24px) saturate(1.35);
   }
 
-  @media (display-mode: standalone) {
-    body.app-body-lock,
-    body.app-body-lock #root,
-    body.app-body-lock .app-shell {
-      height: 100vh !important;
-      min-height: 100vh !important;
-    }
-  }
+  /* Installed to the home screen, the shell stays on 100dvh — see body.app-body-lock above.
+     There was a `height: 100vh !important` override here for standalone only. With the
+     viewport-fit=cover we ask for in index.html, the layout viewport runs edge to edge behind the
+     home indicator, so 100vh is taller than the visible screen by exactly safe-area-inset-bottom
+     while 100dvh is not. The shell clips its overflow and the nav is its last in-flow child, so
+     that extra height pushed the nav down and hid its lower half behind the indicator strip. The
+     nav already paints its own background through the inset and pads its buttons above it, which
+     is all that is needed once the shell is the height of the screen you can actually see. */
 
   .mobile-bottom-nav-item {
     min-width: 0;
