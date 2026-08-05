@@ -6,7 +6,7 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
   FolderOpen, Plus, ShieldAlert, Loader2, AlertTriangle, FileText, FilePlus,
-  Download, Trash2, Link2, Upload,
+  Download, Trash2, Link2, Upload, Search, X, SearchX,
 } from 'lucide-react';
 import {
   useDocuments, useAddDocument, useDocumentLink, useDeleteDocument,
@@ -40,6 +40,7 @@ export default function DocumentManagement() {
   const [file, setFile] = useState(null);
   const [fileError, setFileError] = useState(null);
   const [confirming, setConfirming] = useState(null);
+  const [search, setSearch] = useState('');
   const fileInput = useRef(null);
   const stats = useMemo(() => {
     const stored = docs.filter((d) => d.storage_path).length;
@@ -101,7 +102,25 @@ export default function DocumentManagement() {
     } catch { /* surfaced under the list */ }
   };
 
-  const pager = usePagination(docs);
+  // Everything printed on a card is searchable, because the thing you remember about a document
+  // varies: its title, whose it is, what kind it is, or the name of the file somebody sent you.
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return docs;
+    return docs.filter((d) =>
+      [d.title, d.category, d.employee?.full_name, d.file_name]
+        .some((field) => field?.toLowerCase().includes(term))
+    );
+  }, [docs, search]);
+
+  const pager = usePagination(filtered);
+
+  const searching = search.trim().length > 0;
+  const countLabel = !searching
+    ? `${pager.from}–${pager.to} of ${pager.count}`
+    : pager.count === 0
+      ? `No matches · ${docs.length} in all`
+      : `${pager.from}–${pager.to} of ${pager.count} matching · ${docs.length} in all`;
 
   return (
     <div className="page-shell people-page space-y-5 animate-fade-in">
@@ -207,7 +226,30 @@ export default function DocumentManagement() {
       <div className="premium-card people-library-card space-y-4">
         <div className="people-panel-head">
           <span><FolderOpen size={15} /> Document library</span>
-          <em>{pager.from}–{pager.to} of {pager.count}</em>
+          {/* Says the total as well as the range whenever a search is narrowing it, so a library
+              cut down to three never reads as a library of three. */}
+          <em>{countLabel}</em>
+        </div>
+
+        <div className="document-search relative">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" size={15} />
+          <input
+            type="search"
+            placeholder="Search title, category, person or file name…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            aria-label="Search documents"
+            className="w-full bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl pl-10 pr-9 py-2 text-base text-neutral-850 dark:text-neutral-100 placeholder-neutral-450 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20 transition-colors"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              aria-label="Clear the search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-md text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+            >
+              <X size={13} />
+            </button>
+          )}
         </div>
 
         {isLoading ? (
@@ -219,6 +261,20 @@ export default function DocumentManagement() {
             <FolderOpen size={24} />
             <strong>No documents yet</strong>
             <span>Files and policy links will appear here when added.</span>
+          </div>
+        ) : filtered.length === 0 ? (
+          /* Kept apart from the empty library above, because the two mean different things: one
+             asks you to add a document, the other to search for a different one. */
+          <div className="people-empty-state is-compact">
+            <SearchX size={24} />
+            <strong>Nothing matches “{search.trim()}”</strong>
+            <span>
+              Searched titles, categories, people and file names across {docs.length}{' '}
+              {docs.length === 1 ? 'document' : 'documents'}.
+            </span>
+            <button type="button" onClick={() => setSearch('')} className="people-action-button mt-2">
+              <X size={13} /> Clear the search
+            </button>
           </div>
         ) : (
           <div className="people-document-grid">

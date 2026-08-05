@@ -84,7 +84,7 @@ function PeopleOverview({ employees, filtered, activeFilterCount }) {
     <section className="directory-overview">
       <div className="directory-overview-copy">
         <span className="directory-eyebrow">People overview</span>
-        <h2>Roster health at a glance</h2>
+        <h2>Roster Status</h2>
         <p>
           {activeFilterCount
             ? `${filtered.length} people match the current filters, covering ${visibleRate}% of your visible roster.`
