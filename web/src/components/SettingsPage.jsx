@@ -232,8 +232,13 @@ function WorkspaceCard() {
 
 export default function SettingsPage() {
   return (
-    <div className="space-y-6 animate-fade-in text-xs text-neutral-500">
-      <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">System Settings</h1>
+    <div className="page-shell space-y-6 animate-fade-in text-xs text-neutral-500">
+      <div>
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">System Settings</h1>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          Profile, password, display preferences, and workspace defaults.
+        </p>
+      </div>
       <ChangePassword />
       <MyProfileCard />
       <DisplayPreferences />

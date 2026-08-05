@@ -46,7 +46,7 @@ export default function HelpdeskExit() {
 
   return (
     <div className="page-shell space-y-6 animate-slide-up text-xs">
-      <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-900 pb-3">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Helpdesk &amp; Separation</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Raise support tickets and track exit clearances.</p>

@@ -2008,6 +2008,172 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .dark .page-shell .premium-card > h3,
 .dark .page-shell .premium-card > div > h3 { color: #f4f6f5; }
 
+/* ---- Native work pages ----------------------------------------------------
+   Applies to the older operational screens. People and Dashboard have their own tailored layers. */
+.page-shell:not(.dashboard-shell):not(.people-page) {
+  --work-line: color-mix(in srgb, var(--surface-border-strong) 78%, transparent);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h1),
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h2) {
+  position: relative;
+  overflow: hidden;
+  align-items: flex-start;
+  border-color: color-mix(in srgb, var(--surface-border) 86%, transparent);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-elevated) 94%, #dcfce7), var(--surface-elevated) 58%),
+    var(--surface-elevated);
+  box-shadow: 0 1px 2px rgba(16, 32, 26, .035);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h1)::before,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h2)::before {
+  content: '';
+  position: absolute;
+  inset-block: .85rem;
+  left: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent), var(--tone-blue));
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h1) h1,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h2) h2 {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  font-weight: 800 !important;
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h1) h1 svg,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h2) h2 svg {
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--accent-strong);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) > .grid:has(> .premium-card) {
+  gap: .75rem;
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card {
+  border-color: color-mix(in srgb, var(--surface-border) 88%, transparent);
+  box-shadow: 0 1px 2px rgba(16, 32, 26, .035);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:hover {
+  box-shadow: 0 4px 16px rgba(16, 32, 26, .06);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span),
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) {
+  position: relative;
+  min-height: 5.25rem;
+  overflow: hidden;
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 58%),
+    var(--surface-elevated);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span)::after,
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"])::after {
+  content: '';
+  position: absolute;
+  right: .8rem;
+  bottom: .65rem;
+  width: 3.5rem;
+  height: 1.2rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-left: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  border-radius: 0 0 0 .65rem;
+  opacity: .72;
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card > h3,
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card > div > h3 {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  border-bottom-color: var(--work-line) !important;
+  padding-bottom: .65rem;
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) form.premium-card,
+.page-shell:not(.dashboard-shell):not(.people-page) .form-section {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 42%, transparent), transparent 46%),
+    var(--surface-elevated);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) form.premium-card::before,
+.page-shell:not(.dashboard-shell):not(.people-page) .form-section::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--tone-blue) 70%, var(--accent)));
+  opacity: .82;
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) label {
+  color: var(--surface-text-soft);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) input:not([type="checkbox"]):not([type="radio"]),
+.page-shell:not(.dashboard-shell):not(.people-page) select,
+.page-shell:not(.dashboard-shell):not(.people-page) textarea {
+  border-color: var(--surface-border);
+  background-color: color-mix(in srgb, var(--surface-subtle) 58%, var(--surface-elevated));
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) input:not([type="checkbox"]):not([type="radio"]):focus,
+.page-shell:not(.dashboard-shell):not(.people-page) select:focus,
+.page-shell:not(.dashboard-shell):not(.people-page) textarea:focus {
+  background-color: var(--surface-elevated);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card.p-8,
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card.p-10,
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card.p-16,
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card[class*="text-center"] {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 60%, transparent), transparent),
+    var(--surface-elevated);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) article.premium-card,
+.page-shell:not(.dashboard-shell):not(.people-page) .premium-card .mobile-list-row[class*="border"] {
+  border-color: color-mix(in srgb, var(--surface-border) 92%, transparent);
+  background: color-mix(in srgb, var(--surface-subtle) 54%, var(--surface-elevated));
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) article.premium-card {
+  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) article.premium-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--surface-border));
+  transform: translateY(-1px);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .table-scroll {
+  border: 1px solid var(--surface-border);
+  background: var(--surface-elevated);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .mobile-toolbar,
+.page-shell:not(.dashboard-shell):not(.people-page) .mobile-filter-card {
+  border-color: color-mix(in srgb, var(--surface-border) 82%, transparent);
+}
+
+.page-shell:not(.dashboard-shell):not(.people-page) .mobile-segmented > button,
+.page-shell:not(.dashboard-shell):not(.people-page) .tab-scroll > button {
+  letter-spacing: 0;
+}
+
 /* ---- Sidebar active pill (uses !important to win over hover utilities) ---- */
 .nav-item-active {
   font-weight: 700;
@@ -2149,6 +2315,20 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 12%, transparent), transparent 38%),
       var(--surface-elevated);
   }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h1),
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h2) {
+    border-radius: .9rem;
+    background: var(--surface-elevated);
+    box-shadow: none;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h1)::before,
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:has(h2)::before {
+    inset-block: .7rem;
+    width: 2px;
+  }
+
   .page-shell > :first-child:has(h1) p,
   .page-shell > :first-child:has(h2) p {
     margin-top: .15rem;
@@ -2320,6 +2500,38 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .premium-card {
     min-width: 0;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) > .grid:has(> .premium-card) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: .55rem !important;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span),
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) {
+    min-height: 4.65rem;
+    padding: .72rem !important;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span)::after,
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"])::after {
+    right: .55rem;
+    bottom: .5rem;
+    width: 2.7rem;
+    height: .9rem;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span) > span:first-child,
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) > div:first-child {
+    font-size: .66rem !important;
+    line-height: 1.15;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span) > span:nth-child(2),
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) > div:nth-child(2) {
+    font-size: 1.32rem !important;
+    line-height: 1;
   }
 
   main .premium-card,
@@ -2708,6 +2920,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: .5rem;
   }
 
+  main .page-shell:not(.dashboard-shell):not(.people-page) article.premium-card,
+  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card .mobile-list-row[class*="border"] {
+    border-radius: .9rem;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) .mobile-list-row p,
+  main .page-shell:not(.dashboard-shell):not(.people-page) .mobile-list-row span {
+    max-width: 100%;
+  }
+
   main .mobile-list-actions > button:not(:has(> svg:only-child)),
   main .mobile-list-actions > a,
   main .mobile-list-actions > .inline-flex:not(:has(> svg:only-child)) {
@@ -2727,6 +2949,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   main .mobile-toolbar > *,
   main .mobile-toolbar-actions {
     width: 100%;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) .mobile-toolbar {
+    gap: .5rem;
+  }
+
+  main .page-shell:not(.dashboard-shell):not(.people-page) .mobile-toolbar > input,
+  main .page-shell:not(.dashboard-shell):not(.people-page) .mobile-toolbar > select,
+  main .page-shell:not(.dashboard-shell):not(.people-page) .mobile-toolbar > .relative {
+    flex: 1 1 100%;
   }
 
   main .mobile-segmented {
