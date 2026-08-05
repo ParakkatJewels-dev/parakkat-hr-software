@@ -413,6 +413,13 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
                             {h.condition_in ? `Back: ${h.condition_in}` : ''}
                           </span>
                         )}
+                        {/* Who did the handing over, as they were named at the time. */}
+                        <span className="asset-timeline-actor">
+                          Allocated by {h.assigned_by_name || 'somebody no longer on record'}
+                          {h.returned_at
+                            ? ` · taken back by ${h.returned_by_name || 'somebody no longer on record'}`
+                            : ''}
+                        </span>
                         {h.notes && <span className="asset-timeline-note">Out: {h.notes}</span>}
                         {h.return_notes && <span className="asset-timeline-note">Back: {h.return_notes}</span>}
                       </div>
@@ -457,19 +464,26 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
             </div>
           </div>
 
-          {/* Available and Allocated are the custody trigger's to set, so they are not offered
-              here — an item comes back by being taken back, not by being relabelled. */}
+          {/* 'Allocated' is never offered — an asset goes out by being allocated, not by being
+              relabelled. 'Available' is, but only while nobody holds it: it is the way back from
+              Under Repair, which otherwise had no exit. */}
           {canManage && (
             <div className="emp-rail-card emp-rail-actions">
               <span className="emp-rail-title">Mark as</span>
-              {ASSET_MANUAL_STATUSES.map((s) => (
+              {ASSET_MANUAL_STATUSES
+                // Nobody may declare an asset Available while an assignment says somebody has it.
+                .filter((s) => s !== 'Available' || !open)
+                .map((s) => (
                 <button
                   key={s}
                   type="button"
                   disabled={asset.status === s || setStatus.isPending}
                   onClick={() => setStatus.mutate({ assetId: asset.id, status: s })}
                 >
-                  {asset.status === s ? <Check size={13} /> : <AlertTriangle size={13} />} {s}
+                  {asset.status === s
+                    ? <Check size={13} />
+                    : s === 'Available' ? <Undo2 size={13} /> : <AlertTriangle size={13} />}
+                  {' '}{s === 'Available' ? 'Back in service' : s}
                 </button>
               ))}
               {setStatus.error && (

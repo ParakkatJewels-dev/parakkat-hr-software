@@ -348,105 +348,15 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     position: relative;
   }
 
-  .dashboard-role-banner {
-    position: relative;
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: end;
-    gap: 1rem;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 22%, var(--surface-border));
-    border-radius: var(--radius-card);
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 11%, var(--surface-elevated)), transparent 48%),
-      var(--surface-elevated);
-    padding: var(--space-card);
-    box-shadow: var(--shadow-card);
-  }
-
-  .dashboard-role-banner::before {
-    content: '';
-    position: absolute;
-    inset-block: .85rem;
-    left: 0;
-    width: 3px;
-    border-radius: 999px;
-    background: linear-gradient(180deg, var(--dashboard-role-tone, var(--accent)), var(--tone-blue));
-  }
-
-  .dashboard-shell[data-dashboard-role="super_admin"],
-  .dashboard-role-banner[data-role="super_admin"] { --dashboard-role-tone: var(--tone-violet); }
-  .dashboard-shell[data-dashboard-role="entity_admin"],
-  .dashboard-role-banner[data-role="entity_admin"] { --dashboard-role-tone: var(--tone-blue); }
-  .dashboard-shell[data-dashboard-role="hr_manager"],
-  .dashboard-role-banner[data-role="hr_manager"] { --dashboard-role-tone: var(--accent); }
-  .dashboard-shell[data-dashboard-role="zonal_manager"],
-  .dashboard-role-banner[data-role="zonal_manager"] { --dashboard-role-tone: var(--tone-amber); }
-  .dashboard-shell[data-dashboard-role="branch_manager"],
-  .dashboard-role-banner[data-role="branch_manager"] { --dashboard-role-tone: var(--tone-orange); }
-  .dashboard-shell[data-dashboard-role="dept_head"],
-  .dashboard-role-banner[data-role="dept_head"] { --dashboard-role-tone: var(--tone-blue); }
-  .dashboard-shell[data-dashboard-role="employee"],
-  .dashboard-role-banner[data-role="employee"] { --dashboard-role-tone: var(--accent); }
-
-  .dashboard-role-copy {
-    min-width: 0;
-  }
-
-  .dashboard-role-copy span {
-    display: inline-flex;
-    color: var(--dashboard-role-tone, var(--accent));
-    font-size: .6875rem;
-    font-weight: 850;
-    letter-spacing: .045em;
-    line-height: 1;
-    text-transform: uppercase;
-  }
-
-  .dashboard-role-copy h1 {
-    margin-top: .35rem;
-    color: var(--surface-text);
-    font-size: clamp(1.25rem, 1rem + .9vw, 2rem);
-    font-weight: 900;
-    line-height: 1.02;
-    letter-spacing: 0;
-  }
-
-  .dashboard-role-copy p {
-    max-width: 44rem;
-    margin-top: .4rem;
-    color: var(--surface-text-soft);
-    font-size: .8125rem;
-    line-height: 1.45;
-  }
-
-  .dashboard-role-focus {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: .4rem;
-    max-width: 22rem;
-  }
-
-  .dashboard-role-focus span,
-  .dashboard-role-focus strong {
-    display: inline-flex;
-    align-items: center;
-    min-height: 1.55rem;
-    border: 1px solid color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 22%, var(--surface-border));
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--dashboard-role-tone, var(--accent)) 8%, var(--surface-elevated));
-    color: var(--surface-text);
-    padding: .2rem .55rem;
-    font-size: .6875rem;
-    font-weight: 850;
-    line-height: 1;
-  }
-
-  .dashboard-role-focus strong {
-    color: var(--dashboard-role-tone, var(--accent));
-  }
-
+  /* The banner these tones were built for is gone; the shell still uses them to tint the
+     dashboard, so only the .dashboard-role-* rules were removed. */
+  .dashboard-shell[data-dashboard-role="super_admin"] { --dashboard-role-tone: var(--tone-violet); }
+  .dashboard-shell[data-dashboard-role="entity_admin"] { --dashboard-role-tone: var(--tone-blue); }
+  .dashboard-shell[data-dashboard-role="hr_manager"] { --dashboard-role-tone: var(--accent); }
+  .dashboard-shell[data-dashboard-role="zonal_manager"] { --dashboard-role-tone: var(--tone-amber); }
+  .dashboard-shell[data-dashboard-role="branch_manager"] { --dashboard-role-tone: var(--tone-orange); }
+  .dashboard-shell[data-dashboard-role="dept_head"] { --dashboard-role-tone: var(--tone-blue); }
+  .dashboard-shell[data-dashboard-role="employee"] { --dashboard-role-tone: var(--accent); }
   .dashboard-widget {
     position: relative;
     overflow: hidden;
@@ -607,28 +517,40 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     white-space: nowrap;
   }
 
+  /* Edge to edge, then faded out at both ends.
+     It used to start at 18% and stop at 104%, so the left end of the curve just began, mid-card,
+     with a visible cap — which is what made it look pasted on rather than part of the tile. Now it
+     spans the full width and a mask dissolves it into the surface at both edges: the line arrives
+     from off-card and leaves the same way, and the long left fade sits exactly where the number is,
+     so the figure stays the loudest thing here. */
+  /* Anchored to the bottom-left corner and running the full width of the tile.
+     It sat in the middle before because the mask held the first 28% transparent — so the curve
+     appeared to begin a third of the way in — and because `bottom: .45rem` on a 4.9rem box left the
+     line floating well above the card's edge. Now it starts at the left with only a short fade in,
+     and the plot area sits ON the bottom of the card. */
+  /* The whole card is the canvas. It fills the tile and sits behind the label, the number and the
+     subtext, entering from the left edge — a backdrop the text reads on top of, not a panel parked
+     in the corner. z-index keeps it under the copy without needing a stacking context per tile. */
   .dashboard-mini-chart {
     position: absolute;
-    left: 18%;
-    right: auto;
-    bottom: .45rem;
-    width: 86%;
-    height: 4.9rem;
+    inset: 0;
+    z-index: 0;
+    width: 100%;
+    height: 100%;
     color: var(--kpi-tone, var(--accent));
-    /* Was .34, which flattened the bloom into a smudge. High enough for the glow to read as a
-       glow, low enough that the number is still the loudest thing on the tile. */
-    opacity: .55;
+    /* Lower than when it lived below the text: it is now underneath the number, and the number has
+       to stay the easiest thing on the card to read. */
+    opacity: .4;
+    /* Starts at the card's left edge and passes under the number — no left fade at all. Only the
+       trailing end is faded, so the dotted tail leaves the card rather than stopping inside it. */
+    -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 94%, transparent 100%);
+    mask-image: linear-gradient(90deg, #000 0%, #000 94%, transparent 100%);
   }
 
-  .dashboard-mini-chart-grid {
-    fill: none;
-    stroke: color-mix(in srgb, var(--surface-text-soft) 13%, transparent);
-    stroke-linecap: round;
-    stroke-width: 1;
-  }
-
+  /* A wash under the curve rather than a shape with a visible edge. Light enough that where it
+     meets the bottom of the tile you cannot tell whether it stopped or faded. */
   .dashboard-mini-chart-area {
-    fill: color-mix(in srgb, currentColor 11%, transparent);
+    fill: color-mix(in srgb, currentColor 8%, transparent);
     stroke: none;
   }
 
@@ -674,6 +596,137 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .dashboard-kpi:hover .dashboard-mini-chart {
     opacity: .72;
+  }
+
+  /* ---- Install nudge -------------------------------------------------------
+     Sits above the bottom nav on a phone and in the corner on a desktop. Fixed rather than in
+     flow so it never shifts the page it appears over. */
+  .install-prompt {
+    position: fixed;
+    z-index: 60;
+    left: max(.75rem, env(safe-area-inset-left));
+    right: max(.75rem, env(safe-area-inset-right));
+    bottom: calc(var(--mobile-nav-height, 3.25rem) + env(safe-area-inset-bottom) + .75rem);
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--surface-border));
+    border-radius: var(--radius-card);
+    padding: .7rem .8rem;
+    background: color-mix(in srgb, var(--accent) 5%, var(--surface-elevated));
+    box-shadow: 0 18px 42px rgba(16, 32, 26, .18);
+    animation: install-prompt-in .28s ease both;
+  }
+
+  @keyframes install-prompt-in {
+    from { opacity: 0; transform: translateY(.5rem); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .install-prompt { animation: none; }
+  }
+
+  /* No bottom nav on a desktop, so it tucks into the corner instead of spanning the window. */
+  @media (min-width: 1024px) {
+    .install-prompt {
+      left: auto;
+      right: 1.25rem;
+      bottom: 1.25rem;
+      max-width: 27rem;
+    }
+  }
+
+  .install-prompt-icon {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 2.35rem;
+    height: 2.35rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .75rem;
+    background: var(--surface-elevated);
+    color: var(--accent-strong);
+  }
+
+  .install-prompt-copy {
+    flex: 1 1 0;
+    min-width: 0;
+    display: grid;
+    gap: .12rem;
+  }
+
+  .install-prompt-copy > strong {
+    color: var(--surface-text);
+    font-size: .8rem;
+    font-weight: 850;
+    line-height: 1.25;
+  }
+
+  .install-prompt-copy > em {
+    color: var(--surface-text-soft);
+    font-size: .68rem;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+
+  /* The iOS line names two buttons; the glyphs sit on the text baseline so it reads as a sentence
+     rather than as a row of icons. */
+  .install-prompt-steps {
+    display: inline;
+  }
+
+  .install-prompt-steps svg {
+    display: inline;
+    vertical-align: -.14em;
+    margin-inline: .12rem;
+  }
+
+  .install-prompt-steps b {
+    color: var(--surface-text);
+    font-weight: 850;
+  }
+
+  .install-prompt-actions {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: .35rem;
+  }
+
+  .install-prompt-go {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-height: 2.1rem;
+    border-radius: .7rem;
+    padding: .45rem .8rem;
+    background: var(--accent);
+    color: #fff;
+    font-size: .76rem;
+    font-weight: 850;
+    transition: background-color .16s ease;
+  }
+
+  .install-prompt-go:hover {
+    background: var(--accent-strong);
+  }
+
+  .install-prompt-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.1rem;
+    height: 2.1rem;
+    border-radius: .7rem;
+    color: var(--surface-text-soft);
+  }
+
+  .install-prompt-close:hover {
+    background: var(--surface-muted);
+    color: var(--surface-text);
   }
 
   .dashboard-chart-frame {
@@ -3159,6 +3212,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .asset-timeline-meta,
   .asset-timeline-when,
   .asset-timeline-condition,
+  .asset-timeline-actor,
   .asset-timeline-note {
     color: var(--surface-text-soft);
     font-size: .68rem;
@@ -5186,27 +5240,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
-  main .dashboard-role-banner {
-    grid-template-columns: 1fr;
-    gap: .75rem;
-    padding: .85rem;
-  }
-
-  main .dashboard-role-focus {
-    justify-content: flex-start;
-    max-width: none;
-  }
-
-  main .dashboard-role-copy h1 {
-    font-size: 1.35rem;
-    line-height: 1.05;
-  }
-
-  main .dashboard-role-copy p {
-    font-size: .78rem;
-    line-height: 1.4;
-  }
-
   main .dashboard-priority-center {
     grid-template-columns: 1fr;
     gap: .65rem;
@@ -5807,16 +5840,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .dashboard-mini-chart {
     position: absolute;
-    left: 12%;
-    right: auto;
-    bottom: .6rem;
-    width: 96%;
-    height: 3.7rem;
-    opacity: .38;
-  }
-
-  main .dashboard-mini-chart-grid {
-    opacity: .35;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: .36;
   }
 
   main .dashboard-mini-chart-line {
@@ -5995,21 +6022,33 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     overflow-x: hidden;
   }
 
-  body.app-body-lock,
+  /* One measurement, not three.
+     The body is `position: fixed; inset: 0`, which already IS the viewport box — exactly, with no
+     unit involved. It also carried `height: 100dvh`, and when top, bottom and height are all set
+     CSS drops `bottom` and lets `height` win: an exact box replaced by a guess. Where an installed
+     iOS app reports a dvh shorter than its own fixed viewport, the shell ends above the bottom of
+     the screen and the difference shows as a band of page background under the nav.
+     #root and .app-shell now take 100% of whatever the body actually resolved to, instead of
+     each re-deriving the viewport for itself. */
+  body.app-body-lock {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: 100%;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body.app-body-lock #root,
   body.app-body-lock .app-shell {
     width: 100%;
     max-width: 100%;
-    height: 100dvh;
-    min-height: 100dvh;
+    height: 100%;
+    min-height: 0;
     overflow: hidden;
-  }
-
-  body.app-body-lock {
-    position: fixed;
-    inset: 0;
-    overscroll-behavior: none;
-    -webkit-tap-highlight-color: transparent;
   }
 
   .app-shell,

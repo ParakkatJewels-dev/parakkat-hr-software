@@ -6,6 +6,7 @@ import {
 
 // Import components
 import Dashboard from './components/Dashboard';
+import InstallPrompt from './components/InstallPrompt';
 const Directory = lazy(() => import('./components/Directory'));
 const EmployeeImport = lazy(() => import('./components/EmployeeImport'));
 const EmployeeAttendanceDetail = lazy(() => import('./components/EmployeeAttendanceDetail'));
@@ -773,6 +774,12 @@ export default function App() {
           })()}
           </Suspense>
         </main>
+
+        <InstallPrompt
+          deferredPrompt={installPrompt}
+          standalone={isPwaInstalled}
+          onInstall={installPwa}
+        />
 
         <nav
           aria-label="Primary mobile navigation"

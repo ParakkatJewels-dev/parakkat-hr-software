@@ -79,7 +79,11 @@ export function useAssetHistory(assetId) {
       const { data, error } = await supabase
         .from('asset_assignments')
         .select(
+          // The *_by_name columns are stamped server-side at write time (0079). assigned_by itself
+          // points at auth.users, which PostgREST cannot embed, and a live lookup would anyway go
+          // blank the day that login is removed.
           `id, assigned_at, returned_at, condition_out, condition_in, notes, return_notes,
+           assigned_by_name, returned_by_name,
            employee:employees(id, full_name, employee_code,
                               branch:branches(code,name), designation:designations(title))`
         )
@@ -125,8 +129,15 @@ const ASSET_COLS = [
   'owner_entity_id', 'owner_branch_id',
 ];
 
-/** The states custody does not own. Available and Allocated are the trigger's to set. */
-export const ASSET_MANUAL_STATUSES = ['Under Repair', 'Damaged', 'Lost', 'Retired'];
+/**
+ * States somebody sets by hand.
+ *
+ * 'Available' is here as the way BACK: an asset marked Under Repair had no route to "it is fine
+ * now" and was stuck out of service forever. It is only offered while nobody holds the asset —
+ * with an open assignment the status is Allocated and the custody trigger owns it, so setting it
+ * Available by hand would contradict a row that says somebody has the thing.
+ */
+export const ASSET_MANUAL_STATUSES = ['Available', 'Under Repair', 'Damaged', 'Lost', 'Retired'];
 
 function cleanAssetPayload(input) {
   const row = {};

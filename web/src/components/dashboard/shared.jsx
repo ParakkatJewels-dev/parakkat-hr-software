@@ -68,10 +68,15 @@ function MiniChart({ values }) {
   const max = Math.max(...clean);
   const min = Math.min(...clean);
   const range = max - min || 1;
-  const step = 84 / Math.max(clean.length - 1, 1);
+  // Full bleed: the first and last points sit ON the edges of the viewBox rather than inset by 4,
+  // so the curve has no terminus inside the card. Combined with the edge fade in CSS it reads as
+  // something passing through the tile instead of a graphic dropped into it.
+  const step = 92 / Math.max(clean.length - 1, 1);
+  // Baseline at the very bottom of the viewBox, amplitude filling most of the height — so the wash
+  // under the curve meets the card's bottom edge rather than stopping short of it.
   const coords = clean.map((v, i) => {
-    const x = 4 + i * step;
-    const y = 36 - ((v - min) / range) * 24;
+    const x = i * step;
+    const y = 40 - ((v - min) / range) * 30;
     return { x, y };
   });
   const line = coords
@@ -82,7 +87,7 @@ function MiniChart({ values }) {
       return `C ${cx} ${prev.y}, ${cx} ${p.y}, ${p.x} ${p.y}`;
     })
     .join(' ');
-  const area = `${line} L ${coords.at(-1).x} 40 L ${coords[0].x} 40 Z`;
+  const area = `${line} L ${coords.at(-1).x} 44 L ${coords[0].x} 44 Z`;
 
   // The curve is drawn twice: solid up to the second-to-last point, dotted from there on. The
   // marker sits on the join — the last reading we actually have — so the dotted run reads as the
@@ -102,15 +107,22 @@ function MiniChart({ values }) {
   const mark = coords[markIndex];
 
   return (
-    <svg className="dashboard-mini-chart" viewBox="0 0 92 44" aria-hidden="true" focusable="false">
-      <path className="dashboard-mini-chart-grid" d="M4 32 H88" />
+    // preserveAspectRatio="none" so the curve stretches to fill the whole card rather than being
+    // fitted and centred — the default (xMidYMid meet) letterboxes a 92:44 box inside a wider tile,
+    // which is what pushed the chart into the middle. non-scaling-stroke keeps the line 2px through
+    // that stretch instead of smearing it into a wedge.
+    <svg
+      className="dashboard-mini-chart"
+      viewBox="0 0 92 44"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path className="dashboard-mini-chart-area" d={area} />
-      {/* Drops from the marker to the baseline, the way the reference anchors its highlighted
-          reading to the axis. */}
-      <path className="dashboard-mini-chart-drop" d={`M ${mark.x} ${mark.y} V 40`} />
-      <path className="dashboard-mini-chart-line" d={solid} />
-      {trail && <path className="dashboard-mini-chart-trail" d={trail} />}
-      <circle className="dashboard-mini-chart-dot" cx={mark.x} cy={mark.y} r="2.6" />
+      <path className="dashboard-mini-chart-drop" d={`M ${mark.x} ${mark.y} V 44`} vectorEffect="non-scaling-stroke" />
+      <path className="dashboard-mini-chart-line" d={solid} vectorEffect="non-scaling-stroke" />
+      {trail && <path className="dashboard-mini-chart-trail" d={trail} vectorEffect="non-scaling-stroke" />}
+      <circle className="dashboard-mini-chart-dot" cx={mark.x} cy={mark.y} r="2.6" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
