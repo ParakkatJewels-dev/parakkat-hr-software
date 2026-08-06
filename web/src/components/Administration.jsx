@@ -899,6 +899,30 @@ function RolesMatrix() {
   if (isLoading) return <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>;
   if (error) return <p className="text-xs text-amber-600">{error.message}</p>;
 
+  // The editor REPLACES the list rather than appending to it.
+  //
+  // It used to render after roles.map(...), so pressing "New role" opened a form below seven role
+  // cards — off the bottom of the screen, with nothing focused and no scroll. The button appeared
+  // to do nothing. Giving the editor the page settles that without a scroll-into-view hack: there
+  // is nothing above it to scroll past.
+  if (editing) {
+    return (
+      <RoleEditorPanel
+        role={editing.id ? editing : null}
+        catalog={catalog}
+        busy={saveRole.isPending}
+        error={saveRole.error?.message}
+        onClose={() => { saveRole.reset(); setEditing(null); }}
+        onSubmit={async (payload) => {
+          try {
+            await saveRole.mutateAsync(payload);
+            setEditing(null);
+          } catch { /* shown in the panel */ }
+        }}
+      />
+    );
+  }
+
   return (
     <div className="space-y-3">
       {isSuperAdmin ? (
@@ -922,22 +946,6 @@ function RolesMatrix() {
           onDelete={() => setConfirmDelete(r)}
         />
       ))}
-
-      {editing && (
-        <RoleEditorPanel
-          role={editing.id ? editing : null}
-          catalog={catalog}
-          busy={saveRole.isPending}
-          error={saveRole.error?.message}
-          onClose={() => { saveRole.reset(); setEditing(null); }}
-          onSubmit={async (payload) => {
-            try {
-              await saveRole.mutateAsync(payload);
-              setEditing(null);
-            } catch { /* shown in modal */ }
-          }}
-        />
-      )}
 
       {confirmDelete && (
         <ConfirmDialog
@@ -1112,9 +1120,23 @@ function RoleEditorPanel({ role, catalog, busy, error, onClose, onSubmit }) {
 
   const title = isNew ? 'New role' : `Edit role — ${prettyRole(role.key)}`;
 
+  /**
+   * Put the caret in the first field when the editor opens.
+   *
+   * The dependency array is EMPTY on purpose. The obvious version keys this on [onClose] or
+   * [isNew], and onClose is an inline arrow that gets a new identity every render — so the effect
+   * re-runs after every keystroke and yanks the caret back to the first field, which is precisely
+   * the bug fixed in FormSection.jsx. Mounting once is the whole intent, so the array says so.
+   */
+  const formRef = useRef(null);
+  useEffect(() => {
+    const first = formRef.current?.querySelector('input:not([type="checkbox"]), textarea');
+    first?.focus();
+  }, []);
+
   return (
     <Panel title={title} onClose={onClose}>
-      <form onSubmit={submit} className="space-y-4">
+      <form ref={formRef} onSubmit={submit} className="space-y-4">
         {isNew ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Key (identifier)">
