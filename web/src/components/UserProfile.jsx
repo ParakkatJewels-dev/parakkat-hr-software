@@ -9,6 +9,7 @@ import {
   HeartPulse,
   Loader2,
   Mail,
+  Package,
   MapPin,
   Pencil,
   Phone,
@@ -20,6 +21,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useEmployeeAvatars } from '../data/documents';
 import { useEmployees } from '../data/employees';
+import { useEmployeeAssets } from '../data/assets';
 import { useUpdateMyProfile } from '../data/settings';
 
 const initials = (name) =>
@@ -98,6 +100,53 @@ function ProfileLoading() {
         <div className="user-profile-section skeleton" />
       </div>
     </div>
+  );
+}
+
+
+/**
+ * What company property this person is holding.
+ *
+ * `asset.read` was never granted to the employee role, so the laptop or phone signed out in
+ * somebody's name was invisible to the one person actually responsible for returning it — while
+ * being the thing they are most likely to want to check. 0088 grants it at self scope, and
+ * assets_select passes the row's employee_id, so this resolves to their own kit and nothing else:
+ * not the register, not the unallocated pool, not a colleague's.
+ */
+function MyAssets({ employeeId }) {
+  const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
+
+  if (isLoading) {
+    return <p className="text-2xs text-neutral-500 flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading…</p>;
+  }
+  if (error) {
+    return <p className="text-2xs text-red-600 dark:text-red-300" role="alert">{error.message}</p>;
+  }
+  if (!assets.length) {
+    return <p className="text-2xs text-neutral-500 dark:text-neutral-400">Nothing is signed out to you.</p>;
+  }
+
+  return (
+    <ul className="space-y-2">
+      {assets.map((a) => (
+        <li key={a.id} className="flex items-start gap-2.5">
+          <span className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-600 dark:text-[#10b981] flex items-center justify-center shrink-0">
+            <Package size={14} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold text-neutral-800 dark:text-warm-gray-100 truncate">{a.name}</span>
+            <span className="block text-2xs text-neutral-500 dark:text-neutral-400 truncate">
+              {[a.category, [a.make, a.model].filter(Boolean).join(' '), a.asset_code, a.serial]
+                .filter(Boolean).join(' · ') || '—'}
+            </span>
+          </span>
+          {/* The condition it was handed over in, which is what a return is measured against. */}
+          <span className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 shrink-0 mt-0.5">
+            {a.condition || a.status}
+          </span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -310,6 +359,12 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) 
               <ProfileValue icon={BriefcaseBusiness} label="Designation" value={record.designation?.title} />
               <ProfileValue icon={CalendarDays} label="Joined" value={joined} />
               <ProfileValue icon={CalendarDays} label="Tenure" value={tenure} />
+            </ProfileSection>
+          )}
+
+          {record?.id && (
+            <ProfileSection icon={Package} title="My assets">
+              <MyAssets employeeId={record.id} />
             </ProfileSection>
           )}
         </div>

@@ -51,7 +51,7 @@ export function setChosenRole(next) {
   for (const l of listeners) l();
 }
 
-function subscribe(listener) {
+export function subscribeToViewRole(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }

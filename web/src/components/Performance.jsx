@@ -40,8 +40,11 @@ export default function Performance() {
   const del = useDeleteGoal();
 
   const [form, setForm] = useState({ employee_id: '', title: '', target_date: '', weight: '' });
-  // In the URL, so a refresh comes back to the view you were reading.
-  const [view, setView] = useUrlTab('mine', ['mine', 'team']);
+  // In the URL, so a refresh comes back to the view you were reading — but only among the views
+  // this person actually has. The tab bar is already hidden without performance.manage; passing the
+  // whole catalogue here meant typing /performance/team still selected the team view. Payroll.jsx
+  // documents the same bug class and fixes it the same way.
+  const [view, setView] = useUrlTab('mine', canManage ? ['mine', 'team'] : ['mine']);
 
   const mine = useMemo(() => goals.filter((g) => g.employee_id === employee?.id), [goals, employee]);
   const team = useMemo(() => goals.filter((g) => g.employee_id !== employee?.id), [goals, employee]);

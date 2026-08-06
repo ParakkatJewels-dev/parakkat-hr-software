@@ -785,6 +785,24 @@ function ExceptionsView() {
 
 function RegularizationsView({ employee, canApprove }) {
   const { data: queue = [], isLoading } = useRegularizations(canApprove ? 'Pending' : undefined);
+  const { can } = usePermissions();
+
+  /**
+   * May this reviewer decide THIS request?
+   *
+   * canApprove alone drew Approve/Reject on every row in the queue — including rows outside the
+   * reviewer's scope, where the update silently matches nothing, and their own request, which
+   * app.tg_no_self_approval (0072) refuses outright.
+   */
+  const canDecide = (r) =>
+    r.employee_id !== employee?.id
+    && can('regularization.approve', {
+      entityId: r.entity_id,
+      zoneId: r.zone_id,
+      branchId: r.branch_id,
+      deptId: r.department_id,
+      employeeId: r.employee_id,
+    });
   const { data: mine = [] } = useMyRegularizations(employee?.id);
   const create = useCreateRegularization();
   const decide = useDecideRegularization();
@@ -908,7 +926,7 @@ function RegularizationsView({ employee, canApprove }) {
                       </td>
                       <td data-label="Proposed" className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
                       <td data-label="Reason" className="max-w-55 truncate text-neutral-500" title={r.reason} aria-label={r.reason}>{r.reason}</td>
-                      {canApprove ? (
+                      {canDecide(r) ? (
                         <td data-label="Decision" className="text-right whitespace-nowrap">
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Approved' })}

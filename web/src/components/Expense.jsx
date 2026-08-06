@@ -20,7 +20,7 @@ const statusClass = (s) =>
 export default function Expense() {
   const { data: expenses = [], isLoading, error } = useExpenses();
   const { employee } = useAuth();
-  const { canAny, can } = usePermissions();
+  const { canAny, can, canBeyondSelf } = usePermissions();
   const { user } = useAuth();
   const add = useAddExpense();
   const setStatus = useSetExpenseStatus();
@@ -52,16 +52,24 @@ export default function Expense() {
   const [form, setForm] = useState({ category: 'Local Conveyance', amount: '', expense_date: '', description: '' });
   const [statusFilter, setStatusFilter] = useState('All');
   // A manager's list is their whole branch; this is how they find their own claims in it.
-  const [mineOnly, setMineOnly] = useMineOnly();
+  const [mineOnly, setMineOnly, canPickWhose] = useMineOnly(canBeyondSelf('expense.read'));
+
+  const visibleExpenses = useMemo(() => {
+    const scoped = mineOnly ? expenses.filter((e) => e.employee_id === employee?.id) : expenses;
+    if (statusFilter === 'All') return scoped;
+    if (statusFilter === 'Approved') return scoped.filter((e) => e.status === 'Approved' || e.status === 'Paid');
+    return scoped.filter((e) => e.status === statusFilter);
+  }, [expenses, statusFilter, mineOnly, employee?.id]);
 
   const totals = useMemo(() => {
-    const sum = (pred) => expenses.filter(pred).reduce((a, e) => a + Number(e.amount || 0), 0);
+    // Over the visible rows, not the whole scope — see the same fix in Leave.
+    const sum = (pred) => visibleExpenses.filter(pred).reduce((a, e) => a + Number(e.amount || 0), 0);
     return {
       pending: sum((e) => e.status === 'Pending'),
       approved: sum((e) => e.status === 'Approved' || e.status === 'Paid'),
-      count: expenses.length,
+      count: visibleExpenses.length,
     };
-  }, [expenses]);
+  }, [visibleExpenses]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -79,12 +87,6 @@ export default function Expense() {
     } catch { /* shown below */ }
   };
 
-  const visibleExpenses = useMemo(() => {
-    const scoped = mineOnly ? expenses.filter((e) => e.employee_id === employee?.id) : expenses;
-    if (statusFilter === 'All') return scoped;
-    if (statusFilter === 'Approved') return scoped.filter((e) => e.status === 'Approved' || e.status === 'Paid');
-    return scoped.filter((e) => e.status === statusFilter);
-  }, [expenses, statusFilter, mineOnly, employee?.id]);
 
   // Paged: this list grows with the business and was rendering every row.
   const pager = usePagination(visibleExpenses);
@@ -161,7 +163,7 @@ export default function Expense() {
           {/* A manager's list is their whole branch. Without this there is no way to answer "what
               did I claim?" — which is a question they have too, since 0080 gave every manager role
               expense.create so they could file their own. */}
-          {canApprove && canClaim && (
+          {canPickWhose && canClaim && (
             <div className="inline-flex rounded-xl border border-neutral-200 dark:border-neutral-800 p-0.5" role="group" aria-label="Whose claims">
               {[['Mine', true], ['Everyone', false]].map(([label, v]) => (
                 <button

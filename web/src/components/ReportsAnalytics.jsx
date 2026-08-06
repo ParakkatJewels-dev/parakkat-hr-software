@@ -18,6 +18,7 @@ import { useExits } from '../data/exits';
 import { useAttendanceReport } from '../data/reports';
 import { todayIso, fmtMinutes, monthRange } from '../data/attendance';
 import { useQueuedExport } from '../data/syncStatus';
+import { usePermissions } from '../auth/usePermissions';
 import { downloadCsv } from '../lib/csv';
 import { useUrlTab } from '../lib/useUrlTab';
 
@@ -122,6 +123,12 @@ export default function ReportsAnalytics() {
   // health check that pinged the same unreachable address — so on the deployed site they were
   // permanently disabled, correctly but uselessly. The queue does not care whether this browser can
   // see the HR laptop, only whether the laptop is running, and says so if it is not.
+  // The export service resolves scope from global/entity/zone/branch grants only — a dept_head
+  // holds report.read at DEPARTMENT scope, passes the screen's own gate, and gets a 403. Attendance
+  // guards the identical two buttons this way; this screen had no permission check at all.
+  const { canAcrossBranches } = usePermissions();
+  const canExportRegister = canAcrossBranches('report.read') || canAcrossBranches('attendance.read');
+  const canExportPayroll = canAcrossBranches('report.read') || canAcrossBranches('payslip.read');
   const exportRegister = useQueuedExport('register');
   const exportPayroll = useQueuedExport('payroll');
   const attFiltered = attRows.filter((r) => branchId === 'all' || r.branch_id === branchId);
@@ -284,6 +291,7 @@ export default function ReportsAnalytics() {
               <BarChart3 size={13} className="text-[#0ea971]" /> Attendance Summary · {period}
             </h3>
             <div className="mobile-list-actions flex flex-wrap gap-2">
+              {canExportRegister && (
               <ExportButton
                 label="Register (Excel)"
                 icon={FileSpreadsheet}
@@ -291,6 +299,8 @@ export default function ReportsAnalytics() {
                 title="Built on the attendance service and delivered here — takes a few seconds"
                 onClick={() => exportRegister.mutate(serviceParams)}
               />
+              )}
+              {canExportPayroll && (
               <ExportButton
                 label="Payroll Sheet (Excel)"
                 icon={FileSpreadsheet}
@@ -298,6 +308,7 @@ export default function ReportsAnalytics() {
                 title="Built on the attendance service and delivered here — takes a few seconds"
                 onClick={() => exportPayroll.mutate(serviceParams)}
               />
+              )}
               <ExportButton
                 label="Summary (CSV)"
                 onClick={() =>

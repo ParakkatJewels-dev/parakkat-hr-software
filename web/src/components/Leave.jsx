@@ -34,12 +34,14 @@ export default function Leave() {
   const { data: holidays = [] } = useHolidays(null, currentYear);
   const { data: leaves = [], isLoading, error } = useLeaves();
   const { employee } = useAuth();
-  const { can, canAny } = usePermissions();
+  const { can, canAny, canBeyondSelf } = usePermissions();
   const apply = useApplyLeave();
   const setStatus = useSetLeaveStatus();
 
   const canApprove = canAny('leave.approve');
-  const canReview = (request) => can('leave.approve', {
+  // Your own request is not yours to decide: app.tg_no_self_leave_decision (0083) raises 42501 on it.
+  // Expense.jsx already excludes this case; Leave drew a fully working dropdown that always threw.
+  const canReview = (request) => request.employee_id !== employee?.id && can('leave.approve', {
     entityId: request.entity_id,
     zoneId: request.zone_id,
     branchId: request.branch_id,
@@ -51,18 +53,27 @@ export default function Leave() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: 'Casual Leave', start: '', end: '', reason: '' });
   const [statusFilter, setStatusFilter] = useState('All');
-  const [mineOnly, setMineOnly] = useMineOnly();
+  // Self-only unless this viewer's grants reach other people. Covers a genuine employee AND a
+  // manager who switched to the employee view — usePermissions narrows the grants, this follows.
+  const [mineOnly, setMineOnly, canPickWhose] = useMineOnly(canBeyondSelf('leave.read'));
+
+  const visibleLeaves = useMemo(() => {
+    const scoped = mineOnly ? leaves.filter((l) => l.employee_id === employee?.id) : leaves;
+    return statusFilter === 'All' ? scoped : scoped.filter((l) => l.status === statusFilter);
+  }, [leaves, statusFilter, mineOnly, employee?.id]);
 
   const stats = useMemo(() => {
-    const by = (s) => leaves.filter((l) => l.status === s).length;
+    // Counted over the SAME rows the list shows, or 'Mine' displays your two requests above a
+    // tile reading 40.
+    const by = (s) => visibleLeaves.filter((l) => l.status === s).length;
     return {
-      total: leaves.length,
+      total: visibleLeaves.length,
       pending: by('Pending'),
       onHold: by('On Hold'),
       approved: by('Approved'),
       rejected: by('Rejected'),
     };
-  }, [leaves]);
+  }, [visibleLeaves]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -81,10 +92,6 @@ export default function Leave() {
     } catch { /* error shown below */ }
   };
 
-  const visibleLeaves = useMemo(() => {
-    const scoped = mineOnly ? leaves.filter((l) => l.employee_id === employee?.id) : leaves;
-    return statusFilter === 'All' ? scoped : scoped.filter((l) => l.status === statusFilter);
-  }, [leaves, statusFilter, mineOnly, employee?.id]);
 
   // Paged: this list grows with the business and was rendering every row.
   const pager = usePagination(visibleLeaves);
@@ -101,7 +108,7 @@ export default function Leave() {
         <div className="flex items-center gap-2">
           {/* Their whole branch by default. A manager also takes leave, and 0080 gave them
               leave.create to request it — this is how they find their own requests in the list. */}
-          {canApprove && canApply && (
+          {canPickWhose && canApply && (
             <div className="inline-flex rounded-xl border border-neutral-200 dark:border-neutral-800 p-0.5" role="group" aria-label="Whose requests">
               {[['Mine', true], ['Everyone', false]].map(([label, v]) => (
                 <button
