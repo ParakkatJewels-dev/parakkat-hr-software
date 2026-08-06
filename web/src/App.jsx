@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target,
@@ -144,9 +144,13 @@ export default function App() {
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [pwaUpdateRegistration, setPwaUpdateRegistration] = useState(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    document.documentElement.classList.add('app-root-lock');
     document.body.classList.add('app-body-lock');
-    return () => document.body.classList.remove('app-body-lock');
+    return () => {
+      document.documentElement.classList.remove('app-root-lock');
+      document.body.classList.remove('app-body-lock');
+    };
   }, []);
 
   // Persist sidebar collapsed state

@@ -119,6 +119,110 @@ export function useTriggerBackfill() {
   });
 }
 
+/**
+ * Wait for a queued command to finish, and hand back the row.
+ *
+ * Polls rather than subscribing: realtime is already wired for this table, but a download is a
+ * foreground action a person is watching, and it must not hang forever if the websocket never
+ * connected. The database settles anything uncollected after five minutes with a message saying so,
+ * which is where the timeout below comes from — giving up earlier would report a failure the
+ * service is about to contradict.
+ */
+async function awaitCommand(id, { timeoutMs = 6 * 60_000, everyMs = 2_000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+
+  for (;;) {
+    const { data, error } = await supabase
+      .from('service_commands')
+      .select('status, error_message, result, result_file, result_filename')
+      .eq('id', id)
+      .single();
+    if (error) throw new Error(error.message);
+
+    if (data.status === 'done') return data;
+    if (data.status === 'failed' || data.status === 'cancelled') {
+      throw new Error(data.error_message || 'The service could not complete that request.');
+    }
+    if (Date.now() > deadline) {
+      throw new Error('That is taking longer than expected. Check Shifts & Devices for the outcome.');
+    }
+    await new Promise((r) => setTimeout(r, everyMs));
+  }
+}
+
+/** base64 -> Blob, without inflating the whole file into a JS string array. */
+function base64ToBlob(base64, mime) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+function saveBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoke on the next tick — Safari cancels the download if the URL dies too early.
+  setTimeout(() => URL.revokeObjectURL(url), 2_000);
+}
+
+/**
+ * Generate an Excel export and download it, without needing to reach the HR laptop.
+ *
+ * The old version called the service's HTTP API directly, which cannot work from the deployed site:
+ * the page is HTTPS and the service answers on a plain-HTTP LAN address, so the browser kills the
+ * request before it is sent. Both buttons were dead everywhere except inside the office over http.
+ *
+ * The file is built where the generator already lives — it colours cells by attendance status using
+ * a library the frontend does not carry — and travels back as base64 on the command row. Slower
+ * than a direct download by the length of one poll; the alternative was not working at all.
+ */
+export function useQueuedExport(kind) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ year, month, branchIds, columns }) => {
+      const id = await queueCommand(kind === 'register' ? 'export_register' : 'export_payroll', {
+        year, month, branchIds, columns,
+      });
+      const row = await awaitCommand(id);
+      if (!row.result_file) {
+        throw new Error('The export finished but the file was not attached. Try again.');
+      }
+      saveBlob(base64ToBlob(row.result_file, XLSX_MIME), row.result_filename || 'export.xlsx');
+      return { filename: row.result_filename };
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['service-commands'] }),
+  });
+}
+
+/**
+ * Rebuild attendance for a date range.
+ *
+ * Queued for the same reason the exports are: the direct route is unreachable from an HTTPS page.
+ * request_service_command still requires attendance.manage organisation-wide for an unscoped
+ * recompute (0071), so this is not a way around that check — it is the same check, reached from
+ * somewhere the button actually works.
+ */
+export function useQueuedRecompute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ from, to, employeeIds }) => {
+      const id = await queueCommand('recompute', { from, to, employeeIds });
+      // The engine's summary — rowsWritten, employees — is what the screen reports back, so hand
+      // back `result` rather than the envelope it travelled in.
+      const { result } = await awaitCommand(id);
+      return result ?? {};
+    },
+    onSuccess: () => REFRESH_AFTER_COMMAND.forEach((k) => qc.invalidateQueries({ queryKey: [k] })),
+  });
+}
+
 export const RUN_STATUS_STYLES = {
   success: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
   running: 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300',

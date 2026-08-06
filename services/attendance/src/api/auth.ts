@@ -196,6 +196,43 @@ export async function resolveVisibleScope(
 }
 
 /**
+ * The grants of a user identified by id rather than by token — for queued work.
+ *
+ * A command row carries `requested_by` and nothing else: by the time the service collects it the
+ * request is minutes old and there is no session to read. Everything downstream (resolveVisibleScope,
+ * resolveScopedEmployeeIds) takes an AuthContext, so one is assembled here instead of giving queued
+ * commands a second, looser notion of scope — which is exactly how the two paths would drift apart.
+ *
+ * Reads role_assignments directly, which is what get_my_access does for the token path. Returns null
+ * for an unknown or absent user, and callers must treat that as no authority rather than as full
+ * authority: a command whose requester was deleted has nobody's permission behind it.
+ */
+export async function contextForUserId(userId: string | null): Promise<AuthContext | null> {
+  if (!userId) return null;
+
+  const rows = await prisma.$queryRaw<Array<{ permission: string; scope_type: string; scope_id: string | null }>>`
+    select p.key as permission, ra.scope_type::text as scope_type, ra.scope_id::text as scope_id
+      from public.role_assignments ra
+      join public.role_permissions rp on rp.role_id = ra.role_id
+      join public.permissions p on p.id = rp.permission_id
+     where ra.user_id = ${userId}::uuid`;
+
+  const profile = await prisma.$queryRaw<Array<{ is_super_admin: boolean; employee_id: string | null }>>`
+    select coalesce(is_super_admin, false) as is_super_admin, employee_id::text as employee_id
+      from public.profiles where user_id = ${userId}::uuid`;
+
+  if (!profile.length && !rows.length) return null;
+
+  return {
+    userId,
+    email: null,
+    isSuperAdmin: Boolean(profile[0]?.is_super_admin),
+    permissions: rows,
+    employee: null,
+  };
+}
+
+/**
  * Which employees may the caller ACT on — the write-side counterpart of resolveVisibleScope.
  *
  * Returns null for "everyone" (super admin or a global grant) and an explicit id list otherwise.

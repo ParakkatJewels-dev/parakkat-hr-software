@@ -14,11 +14,14 @@ import { logger } from '../lib/logger';
 import { syncTransactions, runTransactionSync } from '../sync/syncTransactions';
 import { syncEmployees, refreshSuggestions } from '../sync/syncEmployees';
 import { recompute } from '../engine/recompute';
+import { contextForUserId } from '../api/auth';
+import { generateExport, type ExportKind } from '../exports/generate';
 
 interface CommandRow {
   id: string;
   kind: string;
   params: Record<string, unknown>;
+  requested_by: string | null;
 }
 
 /** Take the oldest pending command, if there is one, and mark it running in the same statement. */
@@ -33,9 +36,60 @@ async function claimNext(): Promise<CommandRow | null> {
         limit 1
         for update skip locked
      )
-    returning id, kind, params
+    returning id, kind, params, requested_by::text as requested_by
   `;
   return rows[0] ?? null;
+}
+
+/** An export's file, handed back on the row the browser is already watching. */
+interface ExportResult {
+  filename: string;
+  base64: string;
+}
+
+const isExportResult = (v: unknown): v is ExportResult =>
+  typeof v === 'object' && v !== null && 'base64' in v && 'filename' in v;
+
+/**
+ * Build an export for whoever asked for it.
+ *
+ * The scope comes from `requested_by`, resolved the same way the HTTP route resolves it from a
+ * bearer token. Refusing outright when that lookup comes back empty is deliberate: this service
+ * bypasses RLS, so "no context" must mean no rows, never all of them — and a command whose
+ * requester has since been deleted has nobody's authority behind it.
+ */
+async function runExport(kind: ExportKind, cmd: CommandRow): Promise<ExportResult> {
+  const auth = await contextForUserId(cmd.requested_by);
+  if (!auth) {
+    throw new Error('Cannot identify who requested this export, so its scope cannot be established.');
+  }
+
+  const p = cmd.params ?? {};
+  const year = Number(p.year);
+  const month = Number(p.month);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error('an export needs a year and a month');
+  }
+
+  // scopeFor takes the comma-joined form the query string used, but the screens hand this over as
+  // JSON and one of them sends an array. Dropping an unrecognised shape here would not error — it
+  // would widen the export from the branch that was chosen to every branch the caller can see,
+  // which is the kind of wrong that looks like a successful download.
+  const branchIds = Array.isArray(p.branchIds)
+    ? (p.branchIds as unknown[]).filter((b): b is string => typeof b === 'string' && b !== '').join(',')
+    : str(p.branchIds);
+
+  const { filename, workbook } = await generateExport({
+    kind,
+    auth,
+    year,
+    month,
+    branchIds: branchIds || undefined,
+    columns: Array.isArray(p.columns) ? (p.columns as string[]) : undefined,
+  });
+
+  const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
+  return { filename, base64: buffer.toString('base64') };
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
@@ -79,6 +133,12 @@ async function execute(cmd: CommandRow, signal?: AbortSignal): Promise<unknown> 
       return result;
     }
 
+    case 'export_register':
+      return runExport('register', cmd);
+
+    case 'export_payroll':
+      return runExport('payroll', cmd);
+
     default:
       throw new Error(`unknown command kind "${cmd.kind}"`);
   }
@@ -94,11 +154,27 @@ export async function drainServiceCommands(signal?: AbortSignal): Promise<boolea
 
   try {
     const result = await execute(cmd, signal);
-    await prisma.$executeRaw`
-      update public.service_commands
-         set status = 'done', finished_at = now(), result = ${JSON.stringify(result ?? {})}::jsonb
-       where id = ${cmd.id}::uuid
-    `;
+
+    // An export's file goes in its own column, never into `result`. The admin screen lists recent
+    // commands and selects `result` for every one of them; a few hundred kilobytes of base64 in
+    // that jsonb would be re-downloaded on every poll of a list nobody asked to include a file in.
+    if (isExportResult(result)) {
+      await prisma.$executeRaw`
+        update public.service_commands
+           set status = 'done',
+               finished_at = now(),
+               result = ${JSON.stringify({ filename: result.filename, bytes: result.base64.length })}::jsonb,
+               result_file = ${result.base64},
+               result_filename = ${result.filename}
+         where id = ${cmd.id}::uuid
+      `;
+    } else {
+      await prisma.$executeRaw`
+        update public.service_commands
+           set status = 'done', finished_at = now(), result = ${JSON.stringify(result ?? {})}::jsonb
+         where id = ${cmd.id}::uuid
+      `;
+    }
     logger.info({ id: cmd.id, kind: cmd.kind, ms: Date.now() - started }, 'command finished');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

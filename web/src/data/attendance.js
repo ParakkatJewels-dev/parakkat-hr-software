@@ -6,11 +6,11 @@
 //
 // RLS decides which rows come back: a branch manager sees their branch, an employee sees only
 // their own. The client never filters for security, only for presentation.
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { formatClock } from '../lib/clock';
 import { getHour12 } from '../lib/timeFormat';
-import { apiPost, apiDownload } from '../lib/attendanceApi';
+
 
 const SELECT = `
   id, work_date, status, day_type, check_in, check_out, hours,
@@ -172,35 +172,10 @@ export function useRawPunches(employeeId, workDate) {
   });
 }
 
-export function useRecompute() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ from, to, employeeIds }) => apiPost('/api/recompute', { from, to, employeeIds }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['attendance'] }),
-  });
-}
-
-export function useExportRegister() {
-  return useMutation({
-    mutationFn: ({ year, month, branchIds }) =>
-      apiDownload(
-        '/api/exports/register',
-        { year, month, branchIds },
-        `attendance-register-${year}-${String(month).padStart(2, '0')}.xlsx`
-      ),
-  });
-}
-
-export function useExportPayroll() {
-  return useMutation({
-    mutationFn: ({ year, month, branchIds, columns }) =>
-      apiDownload(
-        '/api/exports/payroll',
-        { year, month, branchIds, columns },
-        `payroll-attendance-${year}-${String(month).padStart(2, '0')}.xlsx`
-      ),
-  });
-}
+// useRecompute / useExportRegister / useExportPayroll used to live here, calling the service's HTTP
+// API directly. They were unreachable from the deployed site — an HTTPS page cannot call the
+// service's plain-HTTP LAN address — so all three now go through the command queue in
+// data/syncStatus.js: useQueuedRecompute and useQueuedExport.
 
 export const STATUS_STYLES = {
   Present: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',

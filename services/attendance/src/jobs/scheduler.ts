@@ -151,10 +151,16 @@ export function startScheduler(): void {
   //    punch collection to make attendance a little fresher. Wrong trade.
   schedule('engine:queue', '*/2 * * * *', () => drainRecomputeQueue());
 
-  // 5. Work asked for from the admin screen. Every 20 seconds, because somebody is watching a
+  // 5. Work asked for from the admin screen. Every 5 seconds, because somebody is watching a
   //    spinner when they press one of those buttons — unlike the other jobs here, this one has a
   //    person waiting on it.
-  schedule('service:commands', '*/20 * * * * *', (signal) => drainServiceCommands(signal));
+  //
+  //    It was 20, which was fine while every command was a sync somebody expected to take minutes.
+  //    The Excel exports now come through here too, and those are a download button: the file takes
+  //    about a second and a half to build, so a 20 second collection delay was almost all of the
+  //    wait and read as a broken button. The poll is one indexed lookup against a partial index on
+  //    pending rows, so four times as often costs nothing worth measuring.
+  schedule('service:commands', '*/5 * * * * *', (signal) => drainServiceCommands(signal));
 
   // 6. Housekeeping. When a job exceeds its deadline the scheduler abandons it and releases the
   //    lock, but the abandoned work never reaches its own `finally` — so the sync_runs row it

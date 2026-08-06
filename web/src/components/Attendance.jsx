@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import {
   useAttendanceSummary, useMonthlyAttendance, useAttendanceExceptions,
-  useRawPunches, useRecompute, useExportRegister, useExportPayroll,
+  useRawPunches,
   todayIso, STATUS_STYLES, STATUS_CODES, fmtTime, fmtMinutes,
 } from '../data/attendance';
 import {
@@ -24,7 +24,7 @@ import { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
-import { useSyncHealth, DIAGNOSIS, forHumans } from '../data/syncStatus';
+import { useSyncHealth, DIAGNOSIS, forHumans, useQueuedExport, useQueuedRecompute } from '../data/syncStatus';
 import { useUrlTab } from '../lib/useUrlTab';
 
 /**
@@ -587,9 +587,12 @@ function ExceptionsView() {
   const { from, to } = range;
 
   const { data = [], isLoading, error, refetch } = useAttendanceExceptions(from, to);
-  const recompute = useRecompute();
-  const exportRegister = useExportRegister();
-  const exportPayroll = useExportPayroll();
+  // Queued through Supabase rather than called directly on the HR laptop. The direct route only
+  // ever worked from inside the office over plain http — from the deployed HTTPS site the browser
+  // refuses to call it at all, so all three of these buttons did nothing.
+  const recompute = useQueuedRecompute();
+  const exportRegister = useQueuedExport('register');
+  const exportPayroll = useQueuedExport('payroll');
 
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());

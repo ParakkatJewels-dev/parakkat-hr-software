@@ -5,14 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/pwa-icon-180.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta id="app-viewport" name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+    <script>
+      // WebKit miscalculates the bottom edge when an iOS home-screen app combines
+      // viewport-fit=cover with a locked root. Select the inset viewport before first layout.
+      if (window.navigator.standalone === true) {
+        document.getElementById('app-viewport').content = 'width=device-width, initial-scale=1.0';
+        document.documentElement.classList.add('ios-standalone');
+      }
+    </script>
     <meta name="theme-color" content="#080d0b" />
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f5f4" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#080d0b" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Parakkat HR" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="description" content="Parakkat HR — centralized, branch and department scoped HR management for the Parakkat group." />
     <title>Parakkat HR</title>
   </head>
