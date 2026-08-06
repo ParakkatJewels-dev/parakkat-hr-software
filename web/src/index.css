@@ -4391,7 +4391,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   :root {
     --radius-card: 10px;
     --radius-control: 9px;
-    --mobile-nav-control-height: 3.5rem;
+    --mobile-nav-extra-bottom-padding: .25rem;
+    --mobile-nav-control-height: calc(3.5rem + var(--mobile-nav-extra-bottom-padding));
     --mobile-nav-height: calc(var(--mobile-nav-control-height) + env(safe-area-inset-bottom));
     --mobile-nav-clearance: calc(var(--mobile-nav-height) + .75rem);
   }
@@ -6241,7 +6242,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     min-height: var(--mobile-nav-height);
     margin: 0;
     padding: .45rem max(.65rem, env(safe-area-inset-left))
-             calc(.45rem + env(safe-area-inset-bottom))
+             calc(.45rem + var(--mobile-nav-extra-bottom-padding) + env(safe-area-inset-bottom))
              max(.65rem, env(safe-area-inset-right));
     border: 0;
     border-top: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
@@ -6352,7 +6353,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   html.ios-standalone .mobile-bottom-nav {
-    padding: .45rem .65rem;
+    padding: .45rem .65rem calc(.45rem + var(--mobile-nav-extra-bottom-padding));
   }
 
   html.ios-standalone.app-root-lock body.app-body-lock {
