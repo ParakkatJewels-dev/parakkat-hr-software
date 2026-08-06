@@ -4404,8 +4404,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
      replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
      .page-shell so screens keep exactly one gutter, not two stacked. */
   .app-main {
-    padding: .65rem var(--space-shell) var(--mobile-nav-clearance);
-    scroll-padding-bottom: var(--mobile-nav-clearance);
+    padding: .65rem var(--space-shell) .75rem;
+    scroll-padding-bottom: .75rem;
   }
   /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
@@ -5092,7 +5092,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .form-section-actions {
     position: sticky;
-    bottom: var(--mobile-nav-clearance, calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .45rem));
+    bottom: .45rem;
     z-index: 5;
     padding: .5rem;
     border: 1px solid color-mix(in srgb, var(--surface-border-strong) 80%, transparent);
@@ -6228,14 +6228,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .mobile-bottom-nav {
-    position: fixed;
-    inset-inline: 0;
-    inset-block-end: 0;
+    position: relative;
     z-index: 40;
     display: grid;
+    flex: 0 0 var(--mobile-nav-height);
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
     gap: .25rem;
+    width: 100%;
     height: var(--mobile-nav-height);
     min-height: var(--mobile-nav-height);
     margin: 0;
@@ -6342,7 +6342,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .app-main {
-    height: 100%;
+    flex: 1 1 0;
+    height: auto;
     min-height: 0;
     overscroll-behavior-y: none;
     scroll-behavior: smooth;
