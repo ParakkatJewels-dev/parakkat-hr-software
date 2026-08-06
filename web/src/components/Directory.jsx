@@ -10,7 +10,7 @@ import {
   useAddDocument, useEmployeeAvatars, ACCEPTED_FILES, MAX_FILE_BYTES, fileSize, PHOTO_CATEGORY,
 } from '../data/documents';
 import { validateEmployeeFields, normaliseEmployeeFields } from '../lib/employeeFormat';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import { EmployeeOrgFields } from './EmployeeOrgFields';
 import ProfileDrawer from './EmployeeProfile';
@@ -128,7 +128,7 @@ function PeopleOverview({ employees, filtered, activeFilterCount }) {
 
 export default function Directory() {
   const { data: employees = [], isLoading, error } = useEmployees();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { canAny, isSuperAdmin } = usePermissions();
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();

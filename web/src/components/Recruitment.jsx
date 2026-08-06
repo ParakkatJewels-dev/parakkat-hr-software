@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Briefcase, Users, Plus, Award, ChevronRight, X, User, Loader2, AlertTriangle } from 'lucide-react';
 import { useJobs, useCandidates, useAddJob, useSetCandidateStage } from '../data/recruitment';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import PageHeader from './ui/PageHeader';
 
@@ -11,7 +11,7 @@ const nextStage = (s) => STAGES[STAGES.indexOf(s) + 1] || s;
 export default function Recruitment() {
   const { data: jobs = [], isLoading: jobsLoading, error: jobsError } = useJobs();
   const { data: candidates = [] } = useCandidates();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { canAny } = usePermissions();
   const addJob = useAddJob();
   const moveCand = useSetCandidateStage();

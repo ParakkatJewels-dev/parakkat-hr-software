@@ -89,8 +89,23 @@ export default function Organization() {
   const { data: org, isLoading, error } = useOrgAll();
   const { data: allEmployees = [] } = useEmployees();
   const mutation = useOrgMutation();
-  const { canAny, isSuperAdmin } = usePermissions();
-  const canManage = isSuperAdmin || canAny('org.manage');
+  const { can, isSuperAdmin } = usePermissions();
+  // canAny('org.manage') answered "somewhere" and was then used to decide "here", so an admin of
+  // one company saw Edit, Deactivate and Delete on every other company's branches and departments.
+  // The database refused the write, but only after the click. These mirror the write policies in
+  // 0007_rls.sql exactly — each table checks a different slice of the row's ancestry, which is why
+  // there is no single boolean that can stand for all of them.
+  const canEditRow = {
+    entities: (r) => can('org.manage', { entityId: r.id }),
+    zones: (r) => can('org.manage', { entityId: r.entity_id, zoneId: r.id }),
+    branches: (r) => can('org.manage', { entityId: r.entity_id, zoneId: r.zone_id, branchId: r.id }),
+    departments: (r) => can('org.manage', { entityId: r.entity_id, branchId: r.branch_id, deptId: r.id }),
+    designations: (r) => can('org.manage', { entityId: r.entity_id, deptId: r.department_id }),
+  };
+  // entities_insert checks org.manage against an all-NULL ancestry, which only a global grant or a
+  // super admin satisfies. It used to read `canAny(...) && isSuperAdmin`, which shut out the one
+  // non-super-admin the policy does admit: someone holding org.manage globally.
+  const canAddCompany = can('org.manage', {});
 
   const [selectedEntityId, setSelectedEntityId] = useState(null);
   const [modal, setModal] = useState({ open: false });
@@ -111,6 +126,24 @@ export default function Organization() {
   const designations = byEntity('designations');
   const listsByKey = { zones, branches, departments, designations };
   const activeEntity = entities.find((e) => e.id === activeEntityId);
+
+  /**
+   * May the user add a row to this section of the company on screen?
+   *
+   * The insert policies check the PARENT's ancestry, and the parent is picked in the form that has
+   * not been filled in yet — so the honest question is whether any permitted parent exists. Note
+   * which levels each one admits: branches_insert passes zone_id, so a zone-scoped grant can add a
+   * branch, while departments_insert passes NULL for zone and a zone grant cannot add a department.
+   * That asymmetry is in 0007_rls.sql; it is copied here rather than smoothed over.
+   */
+  const canAddTo = (key) => {
+    const scopes = { entityId: activeEntityId };
+    if (can('org.manage', scopes)) return true;
+    if (key === 'branches') return zones.some((z) => can('org.manage', { entityId: activeEntityId, zoneId: z.id }));
+    if (key === 'departments') return branches.some((b) => can('org.manage', { entityId: activeEntityId, branchId: b.id }));
+    if (key === 'designations') return departments.some((d) => can('org.manage', { entityId: activeEntityId, deptId: d.id }));
+    return false; // zones_insert checks the entity alone, already covered above.
+  };
   const activePeopleCount = allEmployees.filter((x) => x.entity_id === activeEntityId).length;
   const structureStats = [
     { label: 'People', value: activePeopleCount, sub: activeEntity?.code || 'Selected company', tone: 'green' },
@@ -223,7 +256,7 @@ export default function Organization() {
         icon={Network}
         title="Structure"
         subtitle="Companies and what sits inside them. Placement here decides who manages whom."
-        actions={canManage && isSuperAdmin && entities.length > 0 && !quickSetup && (
+        actions={canAddCompany && entities.length > 0 && !quickSetup && (
           <button onClick={() => setQuickSetup(true)} className="people-action-button people-action-button-primary">
             <Plus size={14} /> Add company
           </button>
@@ -285,7 +318,7 @@ export default function Organization() {
                       {allEmployees.filter((x) => x.entity_id === e.id).length} people
                     </span>
                   </button>
-                  {canManage && isActive && (
+                  {canEditRow.entities(e) && isActive && (
                     <>
                       <button
                         onClick={() => openEdit('entities', e)}
@@ -366,7 +399,8 @@ export default function Organization() {
                   section={s}
                   rows={listsByKey[s.key]}
                   columns={COLUMNS[s.key]}
-                  canManage={canManage}
+                  canEditRow={canEditRow[s.key]}
+                  canAdd={canAddTo(s.key)}
                   fields={FORM_FIELDS[s.key]}
                   fieldOptions={listsByKey}
                   busy={mutation.isPending}
@@ -640,7 +674,7 @@ function QuickSetup({ onDone, onCancel }) {
  * single toolbar that acted on whichever tab happened to be open. Empty sections say what they are
  * for and offer the action, instead of "No entries found."
  */
-function StructureSection({ section, rows, columns, canManage, fields, fieldOptions, onSave, onToggle, onDelete, busy, error }) {
+function StructureSection({ section, rows, columns, canEditRow, canAdd, fields, fieldOptions, onSave, onToggle, onDelete, busy, error }) {
   // null = nothing open, 'new' = adding, or the id of the row being edited. One at a time.
   const [editing, setEditing] = useState(null);
   // 50+ branches is normal here, so a section needs finding as well as listing. The box only
@@ -650,7 +684,10 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
   // back on, so they must stay reachable — but 46 branches reading INACTIVE, one per site with no
   // terminal yet, buries the two that are in use.
   const [showInactive, setShowInactive] = useState(false);
-  const colSpan = columns.length + (canManage ? 1 : 0);
+  // The Actions column is per-row now, so it is present whenever ANY row on screen offers one.
+  // Keying it off the whole list rather than each row keeps the header and the body in step.
+  const showActions = canAdd || rows.some((r) => canEditRow(r));
+  const colSpan = columns.length + (showActions ? 1 : 0);
 
   const inactiveCount = useMemo(() => rows.filter((r) => r.is_active === false).length, [rows]);
   const visible = useMemo(
@@ -709,7 +746,7 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{section.blurb}</p>
         </div>
-        {canManage && editing !== 'new' && (
+        {canAdd && editing !== 'new' && (
           <button
             onClick={() => setEditing('new')}
             className="people-action-button people-action-button-secondary"
@@ -747,11 +784,11 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
                 All {inactiveCount} {section.label.toLowerCase()} here are switched off
                 {' — '}
                 <button onClick={() => setShowInactive(true)} className="font-bold text-[#0ea971] hover:underline cursor-pointer">show them</button>
-                {canManage ? <> or <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add a new one</button>.</> : '.'}
+                {canAdd ? <> or <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add a new one</button>.</> : '.'}
               </>
             : <>
                 No {section.label.toLowerCase()} yet
-                {canManage ? <> — <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add the first one</button>.</> : '.'}
+                {canAdd ? <> — <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add the first one</button>.</> : '.'}
               </>}
         </p>
       ) : (
@@ -760,7 +797,7 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
             <thead>
               <tr className="text-neutral-500 text-2xs uppercase tracking-widest font-bold">
                 {columns.map((col) => <th key={col.h} className="py-2.5 font-bold">{col.h}</th>)}
-                {canManage && <th className="py-2.5 w-16 text-right">Actions</th>}
+                {showActions && <th className="py-2.5 w-16 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-neutral-100 dark:divide-neutral-900/50">
@@ -808,11 +845,14 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
                       )}
                     </td>
                   ))}
-                  {canManage && (
+                  {/* The cell itself is present whenever the column is, so rows stay aligned; the
+                      buttons inside it appear only for rows this user may actually change. */}
+                  {showActions && (
                     <td data-label="Actions" className="py-2.5 text-right">
                       {/* Always present, not revealed on hover — a control you cannot see is a
                           control you cannot reach with a keyboard or a finger. */}
                       <div className="flex items-center justify-end gap-1">
+                        {canEditRow(r) && (<>
                         <button onClick={() => setEditing(r.id)} className={ICON_BTN} aria-label={`Edit ${labelOf(r)}`} title="Edit">
                           <Pencil size={13} />
                         </button>
@@ -832,6 +872,7 @@ function StructureSection({ section, rows, columns, canManage, fields, fieldOpti
                         >
                           <Trash2 size={13} />
                         </button>
+                        </>)}
                       </div>
                     </td>
                   )}

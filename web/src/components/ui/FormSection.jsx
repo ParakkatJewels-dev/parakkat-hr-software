@@ -107,7 +107,7 @@ export default function FormSection({
           {Icon && <Icon size={15} className="text-[#0ea971] shrink-0" />}
           <div className="min-w-0">
             <h3 className="font-bold text-sm text-neutral-900 dark:text-white">{title}</h3>
-            {subtitle && <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
+            {subtitle && <p className="form-section-subtitle text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
           </div>
         </div>
         {onClose && (

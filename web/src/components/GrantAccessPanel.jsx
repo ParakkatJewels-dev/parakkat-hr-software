@@ -11,7 +11,7 @@ import React, { useMemo, useState } from 'react';
 import { UserPlus, Loader2, Check, Copy, AlertTriangle, ShieldCheck, X } from 'lucide-react';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { useGrantAppAccess, useManagedUsers } from '../data/admin';
 
 // What each system role means in plain language, and which field of the employee's own record
@@ -90,7 +90,7 @@ export const randomPassword = () => {
 
 export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onDone }) {
   const { data: employees = [] } = useEmployees();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { data: managedUsers = [] } = useManagedUsers();
   const grantAccess = useGrantAppAccess();
   const { rank: myRank } = useAuth();

@@ -274,11 +274,27 @@ export function StatusBadge({ status }) {
   );
 }
 
+function groupedUnreadNotifications(notifications) {
+  const groups = new Map();
+  notifications
+    .filter((n) => !n.read_at)
+    .forEach((n) => {
+      const key = [n.type || 'notification', n.tab || '', n.title || 'Notification'].join('|');
+      const group = groups.get(key);
+      if (group) {
+        group.count += 1;
+        return;
+      }
+      groups.set(key, { ...n, count: 1 });
+    });
+  return [...groups.values()];
+}
+
 /** Unread-notification strip shown on every dashboard, right under the greeting. */
 export function NotificationsStrip({ onNavigate }) {
   const { data: notifications = [] } = useNotifications();
-  const unread = notifications.filter((n) => !n.read_at).slice(0, 3);
-  if (unread.length === 0) return null;
+  const unreadGroups = groupedUnreadNotifications(notifications).slice(0, 3);
+  if (unreadGroups.length === 0) return null;
 
   return (
     <section className="premium-card dashboard-alert-strip border-amber-500/25 dark:border-amber-500/20">
@@ -286,13 +302,18 @@ export function NotificationsStrip({ onNavigate }) {
         <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 shrink-0">
           <BellRing size={12} /> Needs attention
         </span>
-        {unread.map((n) => (
+        {unreadGroups.map((n) => (
           <button
             key={n.id}
             onClick={() => n.tab && onNavigate?.(n.tab)}
             className="flex items-center gap-1.5 rounded-lg border border-neutral-200/70 dark:border-neutral-850 bg-neutral-50/60 dark:bg-charcoal-900/40 px-2.5 py-1 text-base font-semibold text-neutral-700 dark:text-warm-gray-300 hover:border-amber-500/40 transition-colors cursor-pointer max-w-full"
           >
             <span className="truncate">{n.title}</span>
+            {n.count > 1 && (
+              <span className="dashboard-alert-count" aria-label={`${n.count} unread`}>
+                {n.count}
+              </span>
+            )}
             <ArrowRight size={10} className="shrink-0 text-neutral-400" />
           </button>
         ))}

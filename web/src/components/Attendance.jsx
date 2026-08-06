@@ -27,8 +27,18 @@ import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import { useSyncHealth, DIAGNOSIS, forHumans } from '../data/syncStatus';
 import { useUrlTab } from '../lib/useUrlTab';
 
+/**
+ * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
+ * beyond your own record — canBeyondSelf, not canAny.
+ *
+ * Today is the whole-company roster board: a six-tile KPI strip and Company / Branch / Department
+ * pickers. It had no gate at all, and this screen is in the ESS sidebar as "My Attendance", so a
+ * self-scoped employee landed on it by default and was handed an admin-shaped control surface over
+ * a board containing exactly one row — their own. That is the "employee can see admin level
+ * filters" report, in its original form.
+ */
 const TABS = [
-  { id: 'today', label: 'Today', icon: Users },
+  { id: 'today', label: 'Today', icon: Users, perm: 'attendance.read', scoped: true },
   { id: 'calendar', label: 'Monthly calendar', icon: CalendarDays },
   { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle, perm: 'attendance.manage' },
   { id: 'regularizations', label: 'Regularizations', icon: CheckCircle2 },
@@ -584,6 +594,13 @@ function ExceptionsView() {
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [year, setYear] = useState(new Date().getFullYear());
 
+  // The export service resolves scope from branch/zone/entity/global grants only — a department- or
+  // self-scoped payslip.read contributes nothing and comes back 403 ("your role has no export
+  // scope"). So these are offered on canAcrossBranches, or the buttons would be dead controls.
+  const { canAcrossBranches } = usePermissions();
+  const canExportRegister = canAcrossBranches('report.read') || canAcrossBranches('attendance.read');
+  const canExportPayroll = canAcrossBranches('report.read') || canAcrossBranches('payslip.read');
+
   return (
     <div className="space-y-4">
       <div className="premium-card space-y-3">
@@ -609,6 +626,8 @@ function ExceptionsView() {
           </p>
         ) : null}
 
+        {canExportRegister || canExportPayroll ? (
+          <>
         <div className="soft-divider" />
 
         <div className="mobile-toolbar flex flex-wrap items-end gap-3">
@@ -624,27 +643,33 @@ function ExceptionsView() {
             </div>
           </label>
 
-          <button
-            onClick={() => exportRegister.mutate({ year, month })}
-            disabled={exportRegister.isPending}
-            className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {exportRegister.isPending ? <Loader2 size={13} className="animate-spin" /> : <FileSpreadsheet size={13} />}
-            Attendance register
-          </button>
+          {canExportRegister ? (
+            <button
+              onClick={() => exportRegister.mutate({ year, month })}
+              disabled={exportRegister.isPending}
+              className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {exportRegister.isPending ? <Loader2 size={13} className="animate-spin" /> : <FileSpreadsheet size={13} />}
+              Attendance register
+            </button>
+          ) : null}
 
-          <button
-            onClick={() => exportPayroll.mutate({ year, month })}
-            disabled={exportPayroll.isPending}
-            className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {exportPayroll.isPending ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-            Payroll export
-          </button>
+          {canExportPayroll ? (
+            <button
+              onClick={() => exportPayroll.mutate({ year, month })}
+              disabled={exportPayroll.isPending}
+              className="px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {exportPayroll.isPending ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              Payroll export
+            </button>
+          ) : null}
         </div>
 
         {exportRegister.isError || exportPayroll.isError ? (
           <ErrorNote error={exportRegister.error || exportPayroll.error} />
+        ) : null}
+          </>
         ) : null}
       </div>
 
@@ -885,12 +910,17 @@ function RegularizationsView({ employee, canApprove }) {
 
 export default function Attendance() {
   const { employee } = useAuth();
-  const { canAny } = usePermissions();
-  // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
-  const [tab, setTab] = useUrlTab('today', TABS.map((t) => t.id));
+  const { canAny, canBeyondSelf } = usePermissions();
   const [workDate, setWorkDate] = useState(todayIso());
 
-  const visibleTabs = TABS.filter((t) => !t.perm || canAny(t.perm));
+  // A `scoped` tab looks at other people, so it needs the permission held beyond your own record.
+  const visibleTabs = TABS.filter((t) => !t.perm || (t.scoped ? canBeyondSelf(t.perm) : canAny(t.perm)));
+
+  // Land on — and validate the URL against — only the tabs this person actually has. Without
+  // Today, a self-service employee opens on their own month instead of an empty roster board, and
+  // typing /attendance/today no longer draws it either.
+  // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
+  const [tab, setTab] = useUrlTab(visibleTabs[0]?.id ?? 'calendar', visibleTabs.map((t) => t.id));
   const canApprove = canAny('regularization.approve');
 
   return (

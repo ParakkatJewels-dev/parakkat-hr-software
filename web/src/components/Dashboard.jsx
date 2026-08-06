@@ -18,7 +18,7 @@ import { useEmployees } from '../data/employees';
 import { useLeaves } from '../data/leaves';
 import { useExpenses } from '../data/expenses';
 import { useTickets } from '../data/tickets';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { useJobs } from '../data/recruitment';
 import { useExits } from '../data/exits';
 import { useRegularizations } from '../data/regularizations';
@@ -156,7 +156,7 @@ function TeamKpis({ onNavigate }) {
 
 function ZonalKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { data: attendanceRows = [], summary } = useAttendanceSummary(todayIso());
   const { data: leaves = [] } = useLeaves();
   const { data: expenses = [] } = useExpenses();
@@ -206,7 +206,7 @@ function HrKpis({ onNavigate }) {
 
 function EntityKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { summary } = useAttendanceSummary(todayIso());
   const { data: jobs = [] } = useJobs();
   const { data: expenses = [] } = useExpenses();
@@ -234,7 +234,7 @@ function EntityKpis({ onNavigate }) {
 
 function SuperKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { summary } = useAttendanceSummary(todayIso());
   const { data: users = [] } = useManagedUsers();
   const { data: tickets = [] } = useTickets();

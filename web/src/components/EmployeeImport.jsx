@@ -10,7 +10,7 @@
 // The preview is the point. A bulk write into a live HR database should never be a surprise.
 import React, { useState, useCallback, useMemo } from 'react';
 import { Upload, FileSpreadsheet, AlertTriangle, Check, Loader2, X, ArrowLeft } from 'lucide-react';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { useEmployees } from '../data/employees';
 import { usePermissions } from '../auth/usePermissions';
 import { useQueryClient } from '@tanstack/react-query';
@@ -25,7 +25,7 @@ const STATUS_STYLE = {
 };
 
 export default function EmployeeImport({ onDone }) {
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { data: employees = [] } = useEmployees();
   const { canAny, isSuperAdmin } = usePermissions();
   const qc = useQueryClient();

@@ -3,11 +3,11 @@
 // The long-running ones (backfill, recompute) return 202 immediately and run in the background —
 // a browser request should not be held open for four minutes while six months of history loads.
 // Progress is visible through /api/status, which reads the same sync_runs rows.
-import { Router } from 'express';
+import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { prisma, jsonSafe } from '../../lib/db';
 import { logger } from '../../lib/logger';
-import { authenticate, requirePermission } from '../auth';
+import { authenticate, requirePermission, resolveScopedEmployeeIds, resolveVisibleScope } from '../auth';
 import { syncTransactions, catchUpTransactions, runTransactionSync } from '../../sync/syncTransactions';
 import { syncEmployees, refreshSuggestions, resolvePunchLinks } from '../../sync/syncEmployees';
 import { recompute, drainRecomputeQueue, enqueueRecompute } from '../../engine/recompute';
@@ -22,11 +22,37 @@ function background(label: string, fn: () => Promise<unknown>): void {
   void fn().catch((err) => logger.error({ err, task: label }, 'background task failed'));
 }
 
+/**
+ * Guard for operations that cannot be narrowed to the caller's scope.
+ *
+ * Pulling punches off the terminal, or draining a queue somebody else filled, touches every branch
+ * by construction — there is no per-branch version of it to run instead. requirePermission on its
+ * own only asks whether the permission is held SOMEWHERE, and this service reads through a
+ * connection that bypasses RLS, so without this a grant over one branch would drive the lot.
+ *
+ * Returns true when the caller was rejected, so handlers read: `if (await refuseUnlessOrgWide(...)) return;`
+ */
+async function refuseUnlessOrgWide(
+  req: Request,
+  res: Response,
+  permission: string,
+  what: string
+): Promise<boolean> {
+  const scope = await resolveVisibleScope(req.auth, [permission]);
+  if (scope.all) return false;
+  res.status(403).json({
+    error: 'forbidden',
+    message: `${what} affects every branch and needs an organisation-wide ${permission} grant.`,
+  });
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // sync
 // ---------------------------------------------------------------------------
 
-adminRouter.post('/api/sync/transactions', authenticate, requirePermission('device.manage'), async (_req, res) => {
+adminRouter.post('/api/sync/transactions', authenticate, requirePermission('device.manage'), async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A transaction sync')) return;
   try {
     const result = await syncTransactions();
     res.json({ ok: true, ...result });
@@ -39,7 +65,8 @@ adminRouter.post('/api/sync/transactions', authenticate, requirePermission('devi
   }
 });
 
-adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.manage'), async (_req, res) => {
+adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.manage'), async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'An employee sync')) return;
   try {
     const result = await syncEmployees();
     res.json({ ok: true, ...result });
@@ -52,7 +79,8 @@ adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.
   }
 });
 
-adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.manage'), (req, res) => {
+adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.manage'), async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A catch-up scan')) return;
   const days = Number(req.body?.days ?? 3);
   background('catchup', () => catchUpTransactions(Number.isFinite(days) ? days : 3));
   res.status(202).json({ ok: true, message: `Catch-up scan started for the last ${days} days.` });
@@ -68,7 +96,8 @@ const backfillSchema = z.object({
   recompute: z.boolean().optional(),
 });
 
-adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage'), (req, res) => {
+adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage'), async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A backfill')) return;
   const parsed = backfillSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
@@ -125,9 +154,29 @@ adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.m
     return;
   }
 
-  const { from, employeeIds, includeLocked } = parsed.data;
+  const { from, includeLocked } = parsed.data;
   const to = parsed.data.to ?? from;
   const days = eachWorkDate(from, to).length;
+
+  // requirePermission only asked whether attendance.manage is held SOMEWHERE. A recompute rewrites
+  // attendance rows, and this service bypasses RLS, so without this a branch manager's click would
+  // rebuild every employee in the company. 0071 closed the equivalent hole on the RPC path; this is
+  // the HTTP one. null means the whole organisation, which only a global grant or super admin gets.
+  const scopedEmployeeIds = await resolveScopedEmployeeIds(
+    req.auth,
+    ['attendance.manage'],
+    parsed.data.employeeIds
+  );
+  if (scopedEmployeeIds !== null && scopedEmployeeIds.length === 0) {
+    res.status(403).json({
+      error: 'forbidden',
+      message:
+        'No employees in your scope. A recompute needs attendance.manage over a branch, zone, ' +
+        'entity or the whole organisation.',
+    });
+    return;
+  }
+  const employeeIds = scopedEmployeeIds ?? undefined;
 
   // A short range is fast enough to answer synchronously, which makes the UI feel immediate.
   // Anything larger goes to the background.
@@ -149,7 +198,10 @@ adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.m
   res.status(202).json({ ok: true, message: `Recompute started for ${from} .. ${to} (${days} days).` });
 });
 
-adminRouter.post('/api/recompute/queue', authenticate, requirePermission('attendance.manage'), async (_req, res) => {
+// The queue holds whatever the sync enqueued, with no way to drain only one caller's share of it —
+// so this takes an org-wide grant rather than being narrowed like /api/recompute above.
+adminRouter.post('/api/recompute/queue', authenticate, requirePermission('attendance.manage'), async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'attendance.manage', 'Draining the recompute queue')) return;
   const summary = await drainRecomputeQueue();
   res.json({ ok: true, drained: summary !== null, ...(summary ?? {}) });
 });
@@ -204,6 +256,14 @@ adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.ma
     const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { id: true } });
     if (!employee) {
       res.status(404).json({ error: 'not_found', message: 'That employee does not exist.' });
+      return;
+    }
+    // Linking a device code adopts that code's punch history onto the employee, so it must be an
+    // employee the caller may act on — device.manage held over one branch is not authority over
+    // everyone enrolled on the terminal.
+    const allowed = await resolveScopedEmployeeIds(req.auth, ['device.manage'], [employeeId]);
+    if (allowed !== null && !allowed.length) {
+      res.status(403).json({ error: 'forbidden', message: 'That employee is outside your scope.' });
       return;
     }
   }

@@ -11,7 +11,7 @@ import {
 import {
   useAssets, useUpsertAsset, ASSET_CATEGORIES, ASSET_STATUSES, ASSET_CONDITIONS, ASSET_TYPES,
 } from '../data/assets';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import Pagination, { usePagination } from './ui/Pagination';
 import PageHeader from './ui/PageHeader';
@@ -48,7 +48,7 @@ const EMPTY_FORM = {
 
 export default function AssetManagement() {
   const { data: assets = [], isLoading, error } = useAssets();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { canAny } = usePermissions();
   const upsert = useUpsertAsset();
   const canManage = canAny('asset.manage');

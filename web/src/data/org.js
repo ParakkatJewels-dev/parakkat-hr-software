@@ -4,6 +4,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { visibleOrg } from '../lib/orgScope';
+import { useAuth } from '../auth/AuthContext';
 
 const ORG_TABLES = ['entities', 'zones', 'branches', 'departments', 'designations'];
 
@@ -57,6 +59,30 @@ export function useOrg() {
   }, [all.data]);
 
   return { ...all, data };
+}
+
+/**
+ * The hierarchy narrowed to what the caller's grants cover — what every PICKER should use.
+ *
+ * useOrg returns the whole group, because the query is unscoped and the org tables are readable by
+ * any signed-in user (entities_read is `using (true)`, migration 0007). That is right for the
+ * Structure screen, which exists to edit the tree, and wrong everywhere else: a manager scoped to
+ * one branch was offered all four companies and 48 branches in every placement dropdown and filter.
+ *
+ * The rule itself lives in lib/orgScope.js so it can be tested without Supabase.
+ *
+ * This narrows what is OFFERED, not what is fetched. Closing the read itself means tightening RLS
+ * on the org tables, which is a migration worth doing deliberately — Structure needs the full tree,
+ * and getting it wrong empties every placement dropdown in the application.
+ */
+export function useVisibleOrg() {
+  const org = useOrg();
+  const { permissions, isSuperAdmin } = useAuth();
+  const data = useMemo(
+    () => visibleOrg(org.data, permissions, isSuperAdmin),
+    [org.data, permissions, isSuperAdmin],
+  );
+  return { ...org, data };
 }
 
 // Single mutation covering insert / update / toggle-active for any org table.

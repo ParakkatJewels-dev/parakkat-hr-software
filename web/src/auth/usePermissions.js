@@ -29,6 +29,27 @@ export function usePermissions() {
     // Postgres reads NULL = NULL as NULL. See permissionMatch.test.js.
     const can = (perm, scope = {}) => hasPerm(list, perm, scope, { isSuperAdmin, myEmployeeId });
 
-    return { can, canAny, canBeyondSelf, isSuperAdmin };
+    /**
+     * Does the user hold `perm` at a scope that spans WHOLE BRANCHES — the UI mirror of
+     * resolveVisibleScope() in services/attendance/src/api/auth.ts.
+     *
+     * That resolver builds its branch list from global, entity, zone and branch grants only:
+     * department and self grants deliberately contribute nothing, because the exports it guards
+     * emit whole-branch sheets and a narrower grant would be silently widened. A caller whose
+     * grants resolve to nothing gets a 403, so `canBeyondSelf` is too generous here — it is true
+     * for a department-scoped grant, and the button would be a dead control.
+     */
+    const canAcrossBranches = (perm) =>
+      isSuperAdmin
+      || list.some(
+        (p) =>
+          p.permission === perm
+          && (p.scope_type === 'global'
+            || p.scope_type === 'entity'
+            || p.scope_type === 'zone'
+            || p.scope_type === 'branch')
+      );
+
+    return { can, canAny, canBeyondSelf, canAcrossBranches, isSuperAdmin };
   }, [permissions, isSuperAdmin, employee]);
 }

@@ -19,7 +19,7 @@ import {
   useDeletePayComponent,
 } from '../data/payroll';
 import { useEmployees } from '../data/employees';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import { useUrlTab } from '../lib/useUrlTab';
 import { todayIso } from '../data/attendance';
@@ -57,9 +57,14 @@ const Err = ({ e }) =>
  * bounced back to Payslips. No salary could be entered, no component configured and no payroll run
  * — from the app at all. Reports & Analytics had the identical bug.
  *
- * `show` is evaluated per render because it depends on permissions; the ID LIST deliberately is
- * not. A URL is valid or it is not, and gating it on permission too would mean a manager's
- * bookmark silently redirected for everyone else instead of the tab simply not being offered.
+ * The id list handed to useUrlTab is now the PERMITTED set, not the whole catalogue.
+ *
+ * It used to be every id, on the reasoning that "a URL is valid or it is not". That is true of a
+ * typo and false of a permission: the tab bar hid Run Payroll, Salary Structures and Deductions
+ * from anyone without payroll.manage, but the content below switches on `tab` alone — so typing
+ * /payroll/run drew the whole payroll console for a user who was never offered it. Validating
+ * against what this caller may see means an unpermitted id is simply not a tab they have, and
+ * useUrlTab falls back to Payslips exactly as it does for a stale bookmark.
  */
 const TAB_DEFS = [
   { id: 'payslips', label: 'Payslips', icon: FileText, managerOnly: false },
@@ -67,15 +72,14 @@ const TAB_DEFS = [
   { id: 'salary', label: 'Salary Structures', icon: Users, managerOnly: true },
   { id: 'components', label: 'Deductions & Allowances', icon: Settings2, managerOnly: true },
 ];
-const TAB_IDS = TAB_DEFS.map((t) => t.id);
 
 export default function Payroll() {
   const { canAny } = usePermissions();
   const canManage = canAny('payroll.manage');
-  // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
-  const [tab, setTab] = useUrlTab('payslips', TAB_IDS);
 
   const TABS = TAB_DEFS.filter((t) => !t.managerOnly || canManage);
+  // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
+  const [tab, setTab] = useUrlTab('payslips', TABS.map((t) => t.id));
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
@@ -218,7 +222,7 @@ function PayslipDetail({ payslip }) {
 
 // ---------------------------------------------------------------- run payroll
 function RunTab() {
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { data: runs = [] } = usePayrollRuns();
   const runPayroll = useRunPayroll();
   const publish = usePublishPayroll();
@@ -479,7 +483,7 @@ const BLANK = {
 
 function ComponentsTab() {
   const { data: components = [] } = usePayComponents();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const save = useSavePayComponent();
   const del = useDeletePayComponent();
   const [form, setForm] = useState(BLANK);

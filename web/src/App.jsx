@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target,
 } from 'lucide-react';
 
 // Import components
@@ -112,6 +112,20 @@ export default function App() {
   // shortcut. Always dismiss the drawer once the route changes so it cannot cover the new page.
   useEffect(() => {
     setMobileMenuOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    let frame = 0;
+    frame = window.requestAnimationFrame(() => {
+      const main = document.getElementById('main-content');
+      main?.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      main?.focus({ preventScroll: true });
+
+      document
+        .querySelector('.section-tab-button[aria-current="page"]')
+        ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [location.pathname]);
 
   // Sidebar collapsed state
@@ -234,6 +248,10 @@ export default function App() {
         { id: 'attendance', label: 'My Attendance', icon: Clock, perm: 'attendance.read' },
         { id: 'leave', label: 'My Leave', icon: Calendar, perm: 'leave.read' },
         { id: 'tasks', label: 'My Tasks', icon: ListChecks, perm: 'task.read' },
+        // The employee role holds goal.read AND goal.update — goals are something they are meant to
+        // keep up to date, not just something managers set. Without this the screen existed only at
+        // /performance, reachable by typing the URL, so in practice nobody used it.
+        { id: 'performance', label: 'My Goals', icon: Target, perm: 'goal.read' },
         { id: 'payroll', label: 'My Payslips', icon: DollarSign, perm: 'payslip.read' },
         { id: 'expense', label: 'My Expenses', icon: Receipt, perm: 'expense.read' },
         { id: 'documents', label: 'My Documents', icon: FolderOpen, perm: 'document.read' }

@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ShieldCheck, Clipboard, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Search } from 'lucide-react';
 import { useAuditLog } from '../data/audit';
 import { relativeTime } from '../lib/dates';
-import { useOrg, useScopeCoverage } from '../data/org';
+import { useVisibleOrg, useScopeCoverage } from '../data/org';
 import { useEmployees } from '../data/employees';
 import {
   useManagedUsers, useRoles, useRolesWithPermissions, useAssignRole, useRevokeRole, useLinkEmployee,
@@ -94,7 +94,7 @@ function AdminHeader({ view }) {
 function UsersAccess() {
   const { data: users = [], isLoading, error } = useManagedUsers();
   const { data: roles = [] } = useRoles();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { data: employees = [] } = useEmployees();
   const { isSuperAdmin } = usePermissions();
   const assign = useAssignRole();
@@ -103,7 +103,23 @@ function UsersAccess() {
   const createUser = useCreateUser();
   const setSuper = useSetSuperAdmin();
   const deleteLogin = useDeleteLogin();
-  const { user: me } = useAuth();
+  const { user: me, rank: myRank } = useAuth();
+
+  /**
+   * Which of a user's roles this admin may take away.
+   *
+   * The database already refuses the rest — role_assignments_delete goes through
+   * app.can_grant_to (migration 0033), and delete_login raises "that login belongs to an
+   * administrator account". So this is not what stops the action; it stops us OFFERING it. Every
+   * rbac.manage holder down to dept_head was shown a revoke cross beside a super admin's role and
+   * a delete button on their row, and clicking either produced a raw Postgres error.
+   *
+   * Same seniority rule the assign form already uses below: you may only take away a role you
+   * could have granted.
+   */
+  const rankOf = useMemo(() => new Map(roles.map((r) => [r.key, r.rank ?? 0])), [roles]);
+  const mayRevoke = (roleKey) =>
+    isSuperAdmin || (roleKey !== 'super_admin' && (rankOf.get(roleKey) ?? 0) < myRank);
 
   const [assignFor, setAssignFor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
@@ -198,13 +214,19 @@ function UsersAccess() {
           <button onClick={() => setShowGrant(true)} className={BTN}>
             <UserPlus size={12} /> Give app access
           </button>
-          <button
-            onClick={() => setShowInvite(true)}
-            className="text-xs font-semibold text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
-            title="For system accounts that do not belong to an employee"
-          >
-            Login without an employee
-          </button>
+          {/* admin_create_user opens with `if not app.is_super_admin() then raise`, and there is no
+              scope to check a login with no employee behind it against. For a delegated admin this
+              was a form that filled in, submitted, and came back "only a super admin may create
+              users" — the work was already done by then. */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => setShowInvite(true)}
+              className="text-xs font-semibold text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
+              title="For system accounts that do not belong to an employee"
+            >
+              Login without an employee
+            </button>
+          )}
         </div>
       </div>
 
@@ -293,6 +315,7 @@ function UsersAccess() {
                     >
                       <span className="font-semibold text-neutral-700 dark:text-neutral-200">{prettyRole(r.role_key)}</span>
                       <span className="text-neutral-400 dark:text-neutral-500">{scopeLabel(r.scope_type, r.scope_id)}</span>
+                      {mayRevoke(r.role_key) && (
                       <button
                         onClick={() => revoke.mutate(r.assignment_id)}
                         disabled={revoke.isPending}
@@ -302,6 +325,7 @@ function UsersAccess() {
                       >
                         <X size={11} />
                       </button>
+                      )}
                     </span>
                   ))}
                   {u.roles.length === 0 && !u.is_super_admin && (
@@ -380,7 +404,10 @@ function UsersAccess() {
                     {u.is_super_admin ? 'Super Admin' : 'Make Super Admin'}
                   </button>
                 )}
-                {u.user_id !== me?.id && (
+                {/* delete_login (0031, hardened in 0033) refuses an administrator account for
+                    anyone but a super admin, so offering it to a delegated admin only ever bought
+                    them a raw error. */}
+                {u.user_id !== me?.id && (isSuperAdmin || !u.is_super_admin) && (
                   <button
                     onClick={() => { deleteLogin.reset(); setConfirmDeleteUser(u); }}
                     className="p-2 rounded-lg cursor-pointer text-neutral-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40 focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-colors"
@@ -636,6 +663,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
   // shown Entity Admin. GrantAccessPanel already filtered correctly; this list did not, so the two
   // grant paths disagreed about the same rule.
   const { rank: myRank } = useAuth();
+  const { can } = usePermissions();
   const assignableRoles = useMemo(
     () => roles.filter((r) => r.key !== 'super_admin' && (r.rank ?? 0) < myRank),
     [roles, myRank]
@@ -649,13 +677,48 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
 
   const role = assignableRoles.find((r) => r.id === roleId) || null;
 
+  /**
+   * The places this admin may actually grant at, per scope level.
+   *
+   * app.can_grant ends with has_perm('rbac.manage', <the chosen scope's ancestry>), deriving that
+   * ancestry from the scope row itself — which is what each branch below reproduces. The list was
+   * unfiltered, so a branch manager saw every company and every zone in the dropdown and found out
+   * which ones were refused by picking one. useVisibleOrg is not enough on its own either: it
+   * narrows by ANY held permission, and a branch you may read attendance for is not a branch you
+   * may appoint managers to.
+   */
+  const grantableItems = useMemo(() => {
+    const branchById = new Map((orgList.branches ?? []).map((b) => [b.id, b]));
+    const keep = {
+      entities: (it) => can('rbac.manage', { entityId: it.id }),
+      zones: (it) => can('rbac.manage', { entityId: it.entity_id, zoneId: it.id }),
+      branches: (it) => can('rbac.manage', { entityId: it.entity_id, zoneId: it.zone_id, branchId: it.id }),
+      departments: (it) =>
+        can('rbac.manage', {
+          entityId: it.entity_id,
+          // can_grant reads the zone off the department's BRANCH, not off the department.
+          zoneId: branchById.get(it.branch_id)?.zone_id ?? null,
+          branchId: it.branch_id,
+          deptId: it.id,
+        }),
+    };
+    return Object.fromEntries(
+      Object.entries(keep).map(([from, ok]) => [from, (orgList[from] ?? []).filter(ok)])
+    );
+  }, [orgList, can]);
+
   // Scopes valid for the chosen role. Built-in roles are constrained to their level; custom roles
-  // may use any scope. Global stays super-admin-only.
+  // may use any scope. Global stays super-admin-only — can_grant returns false for it outright.
+  // A level with nothing grantable under it is dropped rather than shown with an empty picker.
   const allowedScopes = useMemo(() => {
     if (!role) return [];
     const base = ROLE_SCOPES[role.key] ?? SCOPE_TYPES.map((s) => s.key);
-    return base.filter((k) => k !== 'global' || isSuperAdmin);
-  }, [role, isSuperAdmin]);
+    return base.filter((k) => {
+      if (k === 'global') return isSuperAdmin;
+      const def = SCOPE_TYPES.find((s) => s.key === k);
+      return !def?.needsId || grantableItems[def.from]?.length > 0;
+    });
+  }, [role, isSuperAdmin, grantableItems]);
 
   // Keep scopeType valid whenever the allowed set changes (i.e. the role changed).
   useEffect(() => {
@@ -668,7 +731,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
   }, [allowedScopes, scopeType]);
 
   const scopeDef = SCOPE_TYPES.find((s) => s.key === scopeType);
-  const items = scopeDef?.needsId ? orgList[scopeDef.from] ?? [] : [];
+  const items = scopeDef?.needsId ? grantableItems[scopeDef.from] ?? [] : [];
   const itemLabel = (it) => {
     if (scopeType === 'entity') return `${it.code} — ${it.name}`;
     if (scopeType === 'zone') return `${ecode(it.entity_id)} · ${it.name}`;

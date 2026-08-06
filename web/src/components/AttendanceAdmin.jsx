@@ -20,7 +20,7 @@ import {
   useServiceStatus, useSyncState, useSyncRuns, useTriggerSync, useTriggerBackfill,
   useSyncHealth, useServiceCommands, DIAGNOSIS, forHumans, RUN_STATUS_STYLES, relativeTime,
 } from '../data/syncStatus';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
 import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
@@ -181,7 +181,7 @@ function MappingTab() {
 
   const { data: devices = [] } = useDevices();
   const saveDevice = useSaveDevice();
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const branches = org?.branches ?? [];
 
   // Branch mapping only decides something when two terminals could report the same device code.

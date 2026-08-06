@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { env, canVerifyTokens } from '../config/env';
 import { logger } from '../lib/logger';
 import { prisma } from '../lib/db';
+import { selectionFor, narrow, type VisibleScope } from './scopeSelection';
 
 export interface Grant {
   permission: string;
@@ -162,11 +163,8 @@ export function requirePermission(...permissions: string[]) {
  * rows, and a whole-branch export would silently over-grant them. A caller whose grants resolve
  * to nothing gets empty lists — routes must treat that as 403, never as "everything".
  */
-export interface VisibleScope {
-  all: boolean;
-  branchIds: string[];
-  entityIds: string[];
-}
+// Declared in scopeSelection.ts, which the fail-closed rules live in and which imports no database.
+export type { VisibleScope } from './scopeSelection';
 
 export async function resolveVisibleScope(
   auth: AuthContext | undefined,
@@ -195,6 +193,42 @@ export async function resolveVisibleScope(
   }
 
   return { all: false, branchIds: [...branchIds], entityIds: [...entityIds] };
+}
+
+/**
+ * Which employees may the caller ACT on — the write-side counterpart of resolveVisibleScope.
+ *
+ * Returns null for "everyone" (super admin or a global grant) and an explicit id list otherwise.
+ * `requested` narrows further; it never widens, so asking for an employee outside your scope drops
+ * them rather than granting them.
+ *
+ * Needed because requirePermission only asks whether a permission is held at SOME scope, and this
+ * service reads through a connection that bypasses RLS. Without this, a branch manager holding
+ * attendance.manage over one branch could drive an operation across every employee in the company:
+ * the permission check passes and there is no RLS underneath to narrow the rows.
+ *
+ * FAIL CLOSED throughout — an empty result is a refusal, which the caller must turn into a 403.
+ * Note that recompute() treats an empty id array as "no employees", so even a missed 403 does
+ * nothing rather than everything.
+ */
+export async function resolveScopedEmployeeIds(
+  auth: AuthContext | undefined,
+  permissions: string[],
+  requested?: string[]
+): Promise<string[] | null> {
+  const selection = selectionFor(await resolveVisibleScope(auth, permissions), requested);
+  if (selection.kind === 'all') return selection.ids;
+  if (selection.kind === 'none') return [];
+
+  // `x = any('{}')` is false, so an empty grant list contributes no rows — which is what makes the
+  // OR safe. Written as `array = '{}' or ...` it would read as "no branch grants means every
+  // branch", the exact fail-open this function exists to prevent.
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    select id from public.employees
+     where branch_id = any(${selection.branchIds}::uuid[])
+        or entity_id = any(${selection.entityIds}::uuid[])`;
+
+  return narrow(rows.map((r) => r.id), requested);
 }
 
 /** Branches that fall under a set of entities — used to intersect a requested branch filter. */

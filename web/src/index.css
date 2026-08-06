@@ -203,6 +203,10 @@
     overscroll-behavior: contain;
   }
 
+  .app-main:focus {
+    outline: none;
+  }
+
   button, input, select, textarea { font: inherit; }
   button:not(:disabled), [role="button"] { cursor: pointer; }
   button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
@@ -435,6 +439,28 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     line-height: 1;
   }
 
+  .dashboard-alert-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 999px;
+    padding: 0 .3rem;
+    background: color-mix(in srgb, #f59e0b 14%, var(--surface-elevated));
+    color: #b45309;
+    font-family: var(--font-mono);
+    font-size: .625rem;
+    font-weight: 900;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .dark .dashboard-alert-count {
+    background: rgba(245, 158, 11, .16);
+    color: #fbbf24;
+  }
+
   .dashboard-kpi {
     position: relative;
     display: flex;
@@ -606,7 +632,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     z-index: 60;
     left: max(.75rem, env(safe-area-inset-left));
     right: max(.75rem, env(safe-area-inset-right));
-    bottom: calc(var(--mobile-nav-height, 3.25rem) + env(safe-area-inset-bottom) + .75rem);
+    bottom: calc(var(--mobile-nav-clearance, calc(var(--mobile-nav-height, 3.25rem) + env(safe-area-inset-bottom) + .75rem)) + .25rem);
     display: flex;
     align-items: center;
     gap: .7rem;
@@ -4366,6 +4392,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     --radius-card: 10px;
     --radius-control: 9px;
     --mobile-nav-height: 3.25rem;
+    --mobile-nav-lift: max(.55rem, calc(env(safe-area-inset-bottom) * .55));
+    --mobile-nav-clearance: calc(var(--mobile-nav-height) + var(--mobile-nav-lift) + .75rem);
   }
 
   body { font-size: 13.5px; }
@@ -4377,8 +4405,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
      replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
      .page-shell so screens keep exactly one gutter, not two stacked. */
   .app-main {
-    padding: .65rem var(--space-shell) calc(var(--mobile-nav-height) + max(.9rem, env(safe-area-inset-bottom)) + .8rem);
-    scroll-padding-bottom: calc(var(--mobile-nav-height) + max(.9rem, env(safe-area-inset-bottom)) + .8rem);
+    padding: .65rem var(--space-shell) var(--mobile-nav-clearance);
+    scroll-padding-bottom: var(--mobile-nav-clearance);
   }
   /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
@@ -4946,7 +4974,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 1rem max(.9rem, env(safe-area-inset-left))
-             calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 1rem)
+             calc(var(--mobile-nav-clearance, calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .75rem)) + .25rem)
              max(.9rem, env(safe-area-inset-right));
     border-top: 1px solid var(--surface-border);
     border-radius: 1.35rem 1.35rem 0 0;
@@ -5001,7 +5029,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .directory-filter-fab {
     position: fixed;
     right: max(.9rem, env(safe-area-inset-right));
-    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + 1rem);
+    bottom: calc(var(--mobile-nav-clearance, calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .75rem)) + .25rem);
     z-index: 71;
     display: inline-flex;
     align-items: center;
@@ -5065,7 +5093,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .form-section-actions {
     position: sticky;
-    bottom: calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .45rem);
+    bottom: var(--mobile-nav-clearance, calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .45rem));
     z-index: 5;
     padding: .5rem;
     border: 1px solid color-mix(in srgb, var(--surface-border-strong) 80%, transparent);
@@ -5354,26 +5382,121 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
+  main .page-header-subtitle,
+  main .form-section-subtitle {
+    max-width: 100%;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
+    font-size: .72rem;
+    line-height: 1.25;
+  }
+
+  main .dashboard-shell {
+    gap: .75rem !important;
+  }
+
+  main .dashboard-widget {
+    padding: .75rem;
+  }
+
+  main .dashboard-widget-head {
+    margin-bottom: .55rem !important;
+  }
+
+  main .dashboard-widget-head h3 {
+    font-size: .68rem;
+    letter-spacing: .04em;
+  }
+
+  main .dashboard-widget-action {
+    font-size: .64rem;
+    padding: .25rem .4rem;
+  }
+
+  main .dashboard-alert-strip {
+    padding: .65rem .75rem;
+  }
+
+  main .dashboard-alert-strip > div {
+    gap: .4rem;
+  }
+
+  main .dashboard-alert-strip button {
+    max-width: 100%;
+    padding-block: .35rem;
+    font-size: .72rem;
+  }
+
   main .dashboard-priority-center {
     grid-template-columns: 1fr;
-    gap: .65rem;
+    gap: .5rem;
+    padding: .75rem;
   }
 
   main .dashboard-priority-copy {
-    align-items: flex-start;
+    align-items: center;
+    gap: .55rem;
+  }
+
+  main .dashboard-priority-copy p,
+  main .dashboard-priority-meta {
+    display: none;
+  }
+
+  main .dashboard-priority-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: .75rem;
+  }
+
+  main .dashboard-priority-copy h2 {
+    font-size: .9rem !important;
   }
 
   main .dashboard-priority-list {
     grid-template-columns: 1fr;
+    gap: .4rem;
   }
 
   main .dashboard-priority-list button {
-    min-height: 3.75rem;
+    grid-template-columns: 1.55rem minmax(0, 1fr) auto;
+    min-height: 2.8rem;
+    gap: .5rem;
+    padding: .5rem .55rem;
+    border-radius: .75rem;
   }
 
-  main .dashboard-priority-item-text strong,
+  main .dashboard-priority-item-icon {
+    width: 1.55rem;
+    height: 1.55rem;
+    border-radius: .55rem;
+  }
+
   main .dashboard-priority-item-text span {
-    white-space: normal;
+    display: none;
+  }
+
+  main .dashboard-priority-item-text strong {
+    white-space: nowrap;
+    font-size: .76rem;
+    line-height: 1.1;
+  }
+
+  main .dashboard-widget > p {
+    padding-block: .75rem;
+    font-size: .72rem;
+    line-height: 1.25;
+  }
+
+  main .dashboard-widget p,
+  main .dashboard-widget em {
+    max-width: 100%;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    -webkit-box-orient: vertical;
   }
 
   main .directory-overview {
@@ -5919,11 +6042,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   main .dashboard-kpi {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(2.6rem, auto);
+    grid-template-rows: auto minmax(2.1rem, auto);
     align-items: start;
     column-gap: .45rem;
     row-gap: .38rem;
-    min-height: 7.2rem;
+    min-height: 6.35rem;
     padding: .65rem;
   }
 
@@ -5949,14 +6072,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     font-size: clamp(1.05rem, 7vw, 1.42rem);
     line-height: 1;
     max-width: 100%;
+    display: block;
+    padding: 0;
+    -webkit-line-clamp: unset;
   }
 
   main .dashboard-kpi-body span {
-    margin-top: .25rem;
-    white-space: normal;
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
+    display: none;
   }
 
   main .dashboard-mini-chart {
@@ -6045,10 +6167,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .mobile-drawer-panel {
     width: min(100%, 27rem) !important;
     height: auto !important;
-    max-height: min(70dvh, 34rem);
+    max-height: min(82dvh, 38rem);
     padding: .75rem !important;
     border: 1px solid color-mix(in srgb, var(--surface-border-strong) 80%, transparent);
-    border-radius: 1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom) / 2) calc(1.5rem + env(safe-area-inset-bottom) / 2);
+    border-radius: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom) / 2) calc(1.25rem + env(safe-area-inset-bottom) / 2);
     background: color-mix(in srgb, var(--surface-elevated) 90%, transparent) !important;
     box-shadow: 0 24px 70px rgba(0, 0, 0, .32);
     backdrop-filter: blur(22px) saturate(1.15);
@@ -6063,56 +6185,71 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .mobile-drawer-panel nav {
-    max-height: 42dvh;
+    max-height: min(58dvh, 26rem);
   }
 
   .mobile-drawer-panel nav > div {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: .45rem;
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
   }
 
   .mobile-drawer-panel nav button {
-    min-height: 4.25rem;
-    flex-direction: column;
-    justify-content: center;
-    gap: .35rem !important;
-    border-radius: 1rem;
-    padding: .55rem !important;
-    text-align: center;
-    font-size: .7rem;
-    line-height: 1.15;
+    min-height: 3.15rem;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: .75rem !important;
+    border-radius: .9rem;
+    padding: .75rem .85rem !important;
+    text-align: left;
+    font-size: .82rem;
+    line-height: 1.1;
+    background: color-mix(in srgb, var(--surface-elevated) 70%, transparent);
+    border-color: color-mix(in srgb, var(--surface-border) 78%, transparent) !important;
+  }
+
+  .mobile-drawer-panel nav button svg {
+    width: 1.05rem;
+    height: 1.05rem;
+  }
+
+  .mobile-drawer-panel nav button[aria-current="page"] {
+    background: color-mix(in srgb, var(--accent) 12%, var(--surface-elevated));
+    border-color: color-mix(in srgb, var(--accent) 32%, transparent) !important;
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .mobile-drawer-panel nav button[aria-current="page"]::after {
+    content: '';
+    width: .42rem;
+    height: .42rem;
+    margin-left: auto;
+    border-radius: 999px;
+    background: var(--accent);
   }
 
   .mobile-bottom-nav {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    left: max(.75rem, env(safe-area-inset-left));
+    right: max(.75rem, env(safe-area-inset-right));
+    bottom: var(--mobile-nav-lift);
     z-index: 40;
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    gap: .2rem;
-    width: 100%;
-    /* The bar IS flush with the bottom of the screen — measured, gap below it is 0. What reads as
-       empty space is this padding: it used to reserve the WHOLE home-indicator inset (34px on an
-       iPhone, so 39px of nothing under the icons, a fifth of the bar's height).
-       The indicator is about 5px tall and sits ~8px up, so a little over half the inset clears it
-       comfortably while the icons sit where a thumb expects them. Devices with no inset — Android
-       with on-screen buttons, anything in a browser — fall back to the .45rem floor. */
-    --nav-safe-bottom: max(.45rem, calc(env(safe-area-inset-bottom) * .55));
-    min-height: calc(var(--mobile-nav-height) + var(--nav-safe-bottom));
-    padding: .32rem max(.55rem, env(safe-area-inset-left)) var(--nav-safe-bottom) max(.55rem, env(safe-area-inset-right));
+    gap: .25rem;
+    height: var(--mobile-nav-height);
+    min-height: var(--mobile-nav-height);
+    padding: .32rem;
     border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
-    border-width: 1px 0 0;
-    border-radius: 1.25rem 1.25rem 0 0;
+    border-radius: 1.25rem;
+    overflow: hidden;
     /* Opaque fallback. A see-through fill with no blur behind it is not glass, it is a bar you can
        read the page through — so the translucency only arrives inside the @supports below. */
     background: color-mix(in srgb, var(--surface-elevated) 96%, var(--surface-bg));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, .5),
-      0 -10px 30px rgba(16, 32, 26, .13);
+      0 10px 30px rgba(16, 32, 26, .16);
   }
 
   /* Glass, properly.
@@ -6131,13 +6268,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     }
   }
 
-  /* Installed iOS PWAs are especially sensitive to whether the nav is an in-flow child or an
-     edge-owned layer. Keeping it fixed at bottom:0 lets this element paint the home-indicator
-     safe area itself, while .app-main's padding above keeps scroll content clear of the overlay. */
-
   .mobile-bottom-nav-item {
     min-width: 0;
-    min-height: 2.35rem !important;
+    min-height: 0 !important;
+    height: 100%;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -9,7 +9,7 @@ import {
   BarChart3, CalendarDays, Clock, FileSpreadsheet, Loader2, ReceiptText,
   Users, AlertCircle, Download, SlidersHorizontal, X,
 } from 'lucide-react';
-import { useOrg } from '../data/org';
+import { useVisibleOrg } from '../data/org';
 import { useEmployees } from '../data/employees';
 import { useLeaves } from '../data/leaves';
 import { useLeaveTypes, useLeaveBalances } from '../data/leaveTypes';
@@ -104,7 +104,7 @@ export default function ReportsAnalytics() {
   const month = Number(period.slice(5, 7));
   const { from, to } = monthRange(year, month);
 
-  const { data: org } = useOrg();
+  const { data: org } = useVisibleOrg();
   const { data: employees = [] } = useEmployees();
   const branches = useMemo(
     () => [...(org?.branches ?? [])].sort((a, b) => (a.code || '').localeCompare(b.code || '')),

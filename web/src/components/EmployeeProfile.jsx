@@ -14,6 +14,7 @@ import {
 import { useEmployeeDocuments, useDocumentLink, useEmployeeAvatars, fileSize } from '../data/documents';
 import { useEmployeeAssets } from '../data/assets';
 import { usePermissions } from '../auth/usePermissions';
+import { useAuth } from '../auth/AuthContext';
 
 const initials = (name) =>
   (name || '')
@@ -225,7 +226,28 @@ function OrgNode({ icon: Icon, label, value, last }) {
 export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   const [copied, setCopied] = useState(false);
   const [activeSection, setActiveSection] = useState('contact');
-  const { canAny } = usePermissions();
+  const { canAny, can } = usePermissions();
+  const { employee: me } = useAuth();
+
+  /**
+   * Salary, bank account and statutory IDs are the most sensitive fields in the record, and they
+   * were rendered to anyone who could open a directory entry — no gate at all. Nothing about
+   * holding employee.read says you may read someone's PAN.
+   *
+   * The bar is the one the database already sets: salary_structures is readable by a
+   * payroll.manage holder over that person, or by the person themselves (migration 0040). Aadhaar
+   * carries an explicit column comment saying it is not for list views. So: payroll authority over
+   * this specific record, or it is your own record.
+   */
+  const empScope = {
+    entityId: emp.entity_id ?? null,
+    zoneId: emp.zone_id ?? null,
+    branchId: emp.branch_id ?? null,
+    deptId: emp.department_id ?? null,
+    employeeId: emp.id ?? null,
+  };
+  const isOwnRecord = Boolean(me?.id) && me.id === emp.id;
+  const canSeeSensitive = isOwnRecord || can('payroll.manage', empScope);
   // Their photograph, if one has been filed. Falls back to initials, which is what everyone
   // without a photo has always had.
   const { data: avatars = {} } = useEmployeeAvatars([emp.id]);
@@ -360,6 +382,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'statutory',
+      sensitive: true,
       label: 'Statutory IDs',
       icon: IdCard,
       body: (
@@ -386,6 +409,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'compensation',
+      sensitive: true,
       label: 'Compensation',
       icon: Award,
       body:
@@ -430,6 +454,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'banking',
+      sensitive: true,
       label: 'Banking',
       icon: Landmark,
       body: (
@@ -441,7 +466,10 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
         </div>
       ),
     },
-  ];
+  // Salary, bank details and statutory IDs only for payroll authority over this person, or
+  // for the person themselves. Filtered here rather than gated at each render site, so the
+  // rail's section index, the scroll-spy and the jump links all agree about what is on the page.
+  ].filter((s) => !s.sensitive || canSeeSensitive);
 
   // Both of these carry their own permission. Someone who may see a person but not their file
   // cabinet gets no section at all, rather than an empty one reading as "nothing was uploaded".

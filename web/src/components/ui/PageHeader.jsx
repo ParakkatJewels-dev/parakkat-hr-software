@@ -27,7 +27,7 @@ export default function PageHeader({ eyebrow, icon: Icon, title, subtitle, actio
           {title}
         </h1>
         {subtitle && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>
+          <p className="page-header-subtitle text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>
         )}
       </div>
 
