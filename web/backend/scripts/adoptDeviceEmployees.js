@@ -84,9 +84,42 @@ async function main() {
   const db = new Client({ connectionString: loadEnv().SUPABASE_DB_URL });
   await db.connect();
 
-  const { rows: entities } = await db.query('select id, code from public.entities');
+  const { rows: entities } = await db.query('select id, code, name from public.entities');
   const entityId = Object.fromEntries(entities.map((e) => [e.code, e.id]));
-  if (!entityId[HOME_ENTITY]) throw new Error(`entity ${HOME_ENTITY} not found`);
+
+  // The home entity is resolved, not assumed.
+  //
+  // HOME_ENTITY is 'HO90', which is what the company was coded as when the first roster was
+  // imported — every employee_code still carries that prefix. The entity has since been recoded
+  // (it reads PARAKKAT today), so this script threw "entity HO90 not found" and stopped, which is
+  // why device enrolments stopped becoming employees: NIRMAL TOM and VISHNU UNNIKRISHNAN sat in
+  // biotime_employees as `unmatched` with nothing able to adopt them.
+  //
+  // Falling back to the only entity is safe precisely while there IS only one — with a second
+  // company, "the obvious one" stops being obvious, so that case asks rather than guesses.
+  if (!entityId[HOME_ENTITY]) {
+    if (entities.length === 1) {
+      const only = entities[0];
+      console.log(
+        `note: no entity coded ${HOME_ENTITY}; using the only company on this deployment ` +
+        `— ${only.code} (${only.name}).`
+      );
+      entityId[HOME_ENTITY] = only.id;
+    } else {
+      throw new Error(
+        `entity ${HOME_ENTITY} not found, and there are ${entities.length} companies ` +
+        `(${entities.map((e) => e.code).join(', ')}) so the home one cannot be guessed. ` +
+        `Set HOME_ENTITY at the top of this script to the right code.`
+      );
+    }
+  }
+
+  // The department map above names PPL and PKT; on a deployment that does not have them, those
+  // people would land nowhere. Point any missing code at the home entity rather than crashing on
+  // an undefined id halfway through the run.
+  for (const code of ['PPL', 'PKT']) {
+    if (!entityId[code]) entityId[code] = entityId[HOME_ENTITY];
+  }
 
   const { rows: enrolments } = await db.query(`
     select b.emp_code, b.full_name, b.department_name, b.position_name, b.hire_date, b.is_active,

@@ -63,8 +63,16 @@ test('no preset ever produces a backwards range', () => {
       const r = rangeFor(p.key, today);
       if (!r) continue;
       assert.ok(r.from <= r.to, `${p.key} on ${today} gave ${r.from} to ${r.to}`);
-      assert.ok(r.to === today, `${p.key} on ${today} should end today`);
       assert.match(r.from, /^\d{4}-\d{2}-\d{2}$/);
+      assert.match(r.to, /^\d{4}-\d{2}-\d{2}$/);
+      // Every preset but one runs up to today. 'lastMonth' is a CLOSED calendar month by design —
+      // that is the whole reason it exists next to 'month', which on the 3rd answers with 3 days —
+      // so it ends before today rather than on it.
+      if (p.key === 'lastMonth') {
+        assert.ok(r.to < today, `${p.key} on ${today} should have closed before today`);
+      } else {
+        assert.equal(r.to, today, `${p.key} on ${today} should end today`);
+      }
     }
   }
 });
@@ -79,4 +87,30 @@ test('the arithmetic does not drift with the machine timezone', () => {
     assert.equal(addMonths('2026-05-31', -3), '2026-02-28', tz);
   }
   process.env.TZ = before;
+});
+
+test('"last month" is the whole previous calendar month, not a rolling 30 days', () => {
+  // Mid-month, month-end and the 1st all name the same closed month — the answer must not depend on
+  // which day you happen to ask.
+  for (const today of ['2026-08-06', '2026-08-01', '2026-08-31']) {
+    assert.deepEqual(rangeFor('lastMonth', today), { from: '2026-07-01', to: '2026-07-31' }, today);
+  }
+});
+
+test('"last month" crosses the year boundary and gets February right', () => {
+  assert.deepEqual(rangeFor('lastMonth', '2026-01-15'), { from: '2025-12-01', to: '2025-12-31' });
+  // 2024 is a leap year: asking in March must give 29 days, not 28.
+  assert.deepEqual(rangeFor('lastMonth', '2024-03-10'), { from: '2024-02-01', to: '2024-02-29' });
+  assert.deepEqual(rangeFor('lastMonth', '2026-03-10'), { from: '2026-02-01', to: '2026-02-28' });
+  // From the 31st, stepping back a month must not land on a day April does not have.
+  assert.deepEqual(rangeFor('lastMonth', '2026-05-31'), { from: '2026-04-01', to: '2026-04-30' });
+});
+
+test('"last month" and "this month" do not overlap or leave a gap', () => {
+  // Together they should cover an unbroken stretch: last month ends the day before this one starts.
+  for (const today of ['2026-08-06', '2026-01-01', '2026-03-01', '2024-03-05']) {
+    const last = rangeFor('lastMonth', today);
+    const thisM = rangeFor('month', today);
+    assert.equal(addDays(last.to, 1), thisM.from, `contiguous on ${today}`);
+  }
 });

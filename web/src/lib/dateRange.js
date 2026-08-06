@@ -40,6 +40,17 @@ export const addMonths = (isoDate, n) => {
 
 export const startOfMonth = (isoDate) => `${isoDate.slice(0, 8)}01`;
 
+/**
+ * The last day of the month `isoDate` falls in.
+ *
+ * Day 0 of the NEXT month is the last day of this one, which is how this avoids a 28/29/30/31
+ * table and gets February right in a leap year for free.
+ */
+export const endOfMonth = (isoDate) => {
+  const d = parse(isoDate);
+  return fmt(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)));
+};
+
 export const RANGE_PRESETS = [
   { key: 'today', label: 'Today', of: (t) => ({ from: t, to: t }) },
   // The last seven days including today, not the previous Monday-to-Sunday. "Last week" asked on a
@@ -47,6 +58,21 @@ export const RANGE_PRESETS = [
   // period that ended two days ago.
   { key: 'week', label: 'Last week', of: (t) => ({ from: addDays(t, -6), to: t }) },
   { key: 'month', label: 'This month', of: (t) => ({ from: startOfMonth(t), to: t }) },
+  // A WHOLE calendar month, 1st to last — unlike its neighbours, which both run up to today.
+  //
+  // That is the point of it: payroll, a month-end register and "how did we do in July" are all
+  // questions about a closed month, and "This month" on the 3rd answers with three days. Anchored
+  // to the 1st before stepping back so the arithmetic cannot land on a day the previous month does
+  // not have — from the 31st, addMonths already clamps, but starting from the 1st means there is
+  // nothing to clamp and the intent stays readable.
+  {
+    key: 'lastMonth',
+    label: 'Last month',
+    of: (t) => {
+      const inPreviousMonth = addMonths(startOfMonth(t), -1);
+      return { from: startOfMonth(inPreviousMonth), to: endOfMonth(inPreviousMonth) };
+    },
+  },
   { key: 'quarter', label: 'Last 3 months', of: (t) => ({ from: addMonths(t, -3), to: t }) },
   { key: 'custom', label: 'Custom', of: null },
 ];

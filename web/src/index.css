@@ -1458,23 +1458,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     white-space: nowrap;
   }
 
-  .directory-table-card .premium-table tbody tr[role="button"] {
-    position: relative;
-  }
-
-  .directory-table-card .premium-table tbody tr[role="button"]::before {
-    content: '';
-    position: absolute;
-    inset-block: .45rem;
-    left: 0;
-    width: 3px;
-    border-radius: 999px;
-    background: transparent;
-  }
-
-  .directory-table-card .premium-table tbody tr[aria-current="true"]::before,
-  .directory-table-card .premium-table tbody tr[role="button"]:hover::before {
-    background: var(--accent);
+  /* A pseudo-element directly on <tr> becomes an anonymous table cell in Chrome and shifts every
+     body value one column to the right. Paint the selection marker inside the real first cell. */
+  .directory-table-card .premium-table tbody tr[aria-current="true"] > td:first-child,
+  .directory-table-card .premium-table tbody tr[role="button"]:hover > td:first-child {
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .directory-avatar {
