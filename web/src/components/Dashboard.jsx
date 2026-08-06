@@ -648,9 +648,12 @@ function useQuickActions(role) {
   return (order[role] || order.employee).map((k) => all[k]).filter(Boolean);
 }
 
-export default function Dashboard({ onNavigate }) {
+export default function Dashboard({ onNavigate, viewRole }) {
   const { assignments, isSuperAdmin } = useAuth();
-  const role = resolvePrimaryRole(assignments, isSuperAdmin);
+  // `viewRole` is the role the person chose to work as (Settings -> Switch view). It falls back to
+  // their most senior one, which is what this always used. Every widget still gates on real
+  // permissions, so this picks the LAYOUT and never widens what a preset can show.
+  const role = viewRole ?? resolvePrimaryRole(assignments, isSuperAdmin);
   const actions = useQuickActions(role);
   const Preset = PRESETS[role];
 

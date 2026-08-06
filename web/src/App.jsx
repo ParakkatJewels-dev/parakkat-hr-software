@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell,
 } from 'lucide-react';
 
 // Import components
@@ -27,11 +27,13 @@ const Administration = lazy(() => import('./components/Administration'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
+const Notifications = lazy(() => import('./components/Notifications'));
 import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import { useAuth } from './auth/AuthContext';
 import { usePermissions } from './auth/usePermissions';
-import { resolvePrimaryRole } from './lib/roles';
+import { resolvePrimaryRole, ROLE_PRIORITY } from './lib/roles';
+import { useViewRole } from './lib/viewRole';
 import { appNameFor, documentTitleFor } from './lib/appName';
 import { useRealtimeSync } from './lib/realtime';
 import { useClockFormat } from './lib/timeFormat';
@@ -78,8 +80,25 @@ export default function App() {
 
   // Real role label for the header: the primary (highest) role, plus a count of any other
   // oversight roles. The auto-granted employee@self role is not counted — every manager has it.
-  const primaryRole = resolvePrimaryRole(assignments, isSuperAdmin);
+  const trueRole = resolvePrimaryRole(assignments, isSuperAdmin);
   const roleNames = [...new Set((assignments || []).map((a) => a.role))];
+  // Joined here rather than in the dependency array: a fresh array every render would rebuild the
+  // list every time, and the linter cannot check an expression written inline in the deps.
+  const roleKey = roleNames.join(',');
+
+  // Every role held, most senior first, with 'employee' always available: a manager is one too, and
+  // 0080 granted them attendance.punch / leave.create / expense.create / payslip.read to prove it.
+  const heldRoles = useMemo(() => {
+    const held = new Set(roleKey ? roleKey.split(',') : []);
+    if (isSuperAdmin) held.add('super_admin');
+    held.add('employee');
+    return ROLE_PRIORITY.filter((r) => held.has(r));
+  }, [roleKey, isSuperAdmin]);
+
+  // The role the app is PRESENTED as. Purely a lens — see lib/viewRole.js. canViewTab below still
+  // asks the real permissions, so switching to Employee hides the oversight tree without pretending
+  // the person cannot reach it.
+  const [primaryRole, setViewRole] = useViewRole(trueRole, heldRoles);
   const extraRoles = roleNames.filter((r) => r !== primaryRole && r !== 'employee').length;
   const roleLabel = isSuperAdmin
     ? 'Super Admin'
@@ -269,6 +288,7 @@ export default function App() {
       items: [
         { id: 'helpdesk', label: 'Help & Support', icon: HelpCircle, perm: 'ticket.read' },
         { id: 'profile', label: 'My Profile', icon: UserRound, perm: null },
+        { id: 'notifications', label: 'Notifications', icon: Bell, perm: null },
         { id: 'settings', label: 'Settings', icon: Settings, perm: null }
       ]
     }
@@ -358,18 +378,11 @@ export default function App() {
     },
     {
       id: 'account',
-      label: 'My Workspace',
+      label: 'My Profile',
       icon: UserRound,
       tabs: [
         { id: 'profile', label: 'Profile', perm: null },
-        // Named tabs, because these screens open on their oversight view for a manager: Attendance
-        // starts on the whole-branch roster board, Payroll on whatever the scope allows. The month
-        // calendar already renders employeeId={employee.id}, so it is the personal view — it was
-        // simply three clicks inside a screen that looks like somebody else's job.
-        { id: 'attendance', to: 'attendance/calendar', label: 'My Attendance', perm: 'attendance.read' },
-        { id: 'leave', to: 'leave?mine=1', label: 'My Leave', perm: 'leave.create' },
-        { id: 'expense', to: 'expense?mine=1', label: 'My Expenses', perm: 'expense.create' },
-        { id: 'payroll', to: 'payroll/payslips?mine=1', label: 'My Payslips', perm: 'payslip.read' },
+        { id: 'notifications', label: 'Notifications', perm: null },
       ],
     },
     {
@@ -815,7 +828,7 @@ export default function App() {
             }
             switch (activeTab) {
               case 'dashboard':
-                return <Dashboard onNavigate={setActiveTab} />;
+                return <Dashboard onNavigate={setActiveTab} viewRole={primaryRole} />;
               case 'employee-import':
                 return <EmployeeImport onDone={() => setActiveTab('directory')} />;
               case 'directory':
@@ -857,7 +870,16 @@ export default function App() {
               case 'admin-audit':
                 return <Administration view="logs" />;
               case 'settings':
-                return <SettingsPage />;
+                return (
+                  <SettingsPage
+                    viewRole={primaryRole}
+                    trueRole={trueRole}
+                    heldRoles={heldRoles}
+                    onViewRoleChange={setViewRole}
+                  />
+                );
+              case 'notifications':
+                return <Notifications onNavigate={setActiveTab} />;
               case 'profile':
                 return <UserProfile roleLabel={roleLabel} onOpenSettings={() => setActiveTab('settings')} />;
               default:
