@@ -3,6 +3,7 @@ import { Calendar, FileText, X, Loader2, AlertTriangle } from 'lucide-react';
 import { useHolidays } from '../data/holidays';
 import { useLeaves, useApplyLeave, useSetLeaveStatus } from '../data/leaves';
 import { useAuth } from '../auth/AuthContext';
+import { useMineOnly } from '../lib/useMineOnly';
 import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
@@ -50,6 +51,7 @@ export default function Leave() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: 'Casual Leave', start: '', end: '', reason: '' });
   const [statusFilter, setStatusFilter] = useState('All');
+  const [mineOnly, setMineOnly] = useMineOnly();
 
   const stats = useMemo(() => {
     const by = (s) => leaves.filter((l) => l.status === s).length;
@@ -79,10 +81,10 @@ export default function Leave() {
     } catch { /* error shown below */ }
   };
 
-  const visibleLeaves = useMemo(
-    () => statusFilter === 'All' ? leaves : leaves.filter((l) => l.status === statusFilter),
-    [leaves, statusFilter]
-  );
+  const visibleLeaves = useMemo(() => {
+    const scoped = mineOnly ? leaves.filter((l) => l.employee_id === employee?.id) : leaves;
+    return statusFilter === 'All' ? scoped : scoped.filter((l) => l.status === statusFilter);
+  }, [leaves, statusFilter, mineOnly, employee?.id]);
 
   // Paged: this list grows with the business and was rendering every row.
   const pager = usePagination(visibleLeaves);
@@ -96,6 +98,28 @@ export default function Leave() {
             {canApprove ? 'Review and approve requests within your scope.' : 'Submit time-off requests and track their status.'}
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          {/* Their whole branch by default. A manager also takes leave, and 0080 gave them
+              leave.create to request it — this is how they find their own requests in the list. */}
+          {canApprove && canApply && (
+            <div className="inline-flex rounded-xl border border-neutral-200 dark:border-neutral-800 p-0.5" role="group" aria-label="Whose requests">
+              {[['Mine', true], ['Everyone', false]].map(([label, v]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setMineOnly(v)}
+                  aria-pressed={mineOnly === v}
+                  className={`px-2.5 py-1 text-2xs font-bold rounded-lg transition-colors cursor-pointer ${
+                    mineOnly === v
+                      ? 'bg-[#0ea971] text-white'
+                      : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         {canApply && !showForm && (
           <button
             onClick={() => setShowForm(true)}
@@ -104,6 +128,7 @@ export default function Leave() {
             <span>Apply Leave</span>
           </button>
         )}
+        </div>
       </div>
 
       {/* stats from real data */}

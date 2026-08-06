@@ -358,9 +358,19 @@ export default function App() {
     },
     {
       id: 'account',
-      label: 'My Profile',
+      label: 'My Workspace',
       icon: UserRound,
-      tabs: [{ id: 'profile', label: 'Profile', perm: null }],
+      tabs: [
+        { id: 'profile', label: 'Profile', perm: null },
+        // Named tabs, because these screens open on their oversight view for a manager: Attendance
+        // starts on the whole-branch roster board, Payroll on whatever the scope allows. The month
+        // calendar already renders employeeId={employee.id}, so it is the personal view — it was
+        // simply three clicks inside a screen that looks like somebody else's job.
+        { id: 'attendance', to: 'attendance/calendar', label: 'My Attendance', perm: 'attendance.read' },
+        { id: 'leave', to: 'leave?mine=1', label: 'My Leave', perm: 'leave.create' },
+        { id: 'expense', to: 'expense?mine=1', label: 'My Expenses', perm: 'expense.create' },
+        { id: 'payroll', to: 'payroll/payslips?mine=1', label: 'My Payslips', perm: 'payslip.read' },
+      ],
     },
     {
       id: 'admin',
@@ -420,8 +430,11 @@ export default function App() {
 
   // Which section owns the screen on show? Drives sidebar highlighting and the tab bar, so a
   // shortcut from the dashboard lands in the right place without the caller knowing the tree.
+  const here = (location.pathname + location.search).replace(/^\/+/, '').replace(/\/+$/, '');
   const activeSection =
-    visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab)) ?? visibleSections[0];
+    visibleSections.find((sec) => sec.tabs.some((t) => t.to === here))
+    ?? visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab))
+    ?? visibleSections[0];
   const activeTabMeta = allTabs.find((t) => t.id === activeTab);
 
   /**
@@ -778,7 +791,7 @@ export default function App() {
                 return (
                   <button
                     key={t.id}
-                    onClick={() => setActiveTab(t.id)}
+                    onClick={() => setActiveTab(t.to ?? t.id)}
                     aria-current={on ? 'page' : undefined}
                     className={`section-tab-button shrink-0 whitespace-nowrap py-2.5 text-base font-semibold border-b-2 cursor-pointer transition-colors ${
                       on

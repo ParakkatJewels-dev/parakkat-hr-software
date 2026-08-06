@@ -34,12 +34,27 @@ export function useAddTicket() {
   });
 }
 
+/**
+ * Move a ticket along.
+ *
+ * The `.select()` is load-bearing, exactly as in expenses: PostgREST answers an UPDATE that RLS
+ * filtered to zero rows with a plain success, so changing the status of a ticket outside your scope
+ * did nothing, said nothing, and refetched the unchanged row. It reads as "the status is not
+ * updating" rather than as "you are not allowed to do that".
+ */
 export function useSetTicketStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }) => {
-      const { error } = await supabase.from('tickets').update({ status }).eq('id', id);
+      const { data, error } = await supabase
+        .from('tickets')
+        .update({ status })
+        .eq('id', id)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) {
+        throw new Error('That ticket is outside the area you handle, so nothing was changed.');
+      }
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['tickets'] }),
   });
