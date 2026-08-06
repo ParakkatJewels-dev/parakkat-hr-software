@@ -147,12 +147,22 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
 export default function AssetDetail({ assetId, onBack, onEdit }) {
   const { data: asset, isLoading, error } = useAsset(assetId);
   const { data: history = [], isLoading: historyLoading } = useAssetHistory(assetId);
-  const { canAny } = usePermissions();
+  const { can } = usePermissions();
   const assign = useAssignAsset();
   const takeBack = useReturnAsset();
   const setStatus = useSetAssetStatus();
 
-  const canManage = canAny('asset.manage');
+  // Per asset, mirroring assets_write, which checks the whole ancestry. asset.manage is only ever
+  // granted to entity_admin and above, so a blanket check was right in practice today — but it says
+  // "may I manage assets" where the database asks "may I manage THIS one", and the answer differs
+  // the moment a second company exists or the permission is delegated to a branch.
+  const canManage = Boolean(asset) && can('asset.manage', {
+    entityId: asset.entity_id,
+    zoneId: asset.zone_id,
+    branchId: asset.branch_id,
+    deptId: asset.department_id,
+    employeeId: asset.employee_id,
+  });
   const [mode, setMode] = useState(null); // 'assign' | 'return'
   const [pick, setPick] = useState(null);
   const [condition, setCondition] = useState('');

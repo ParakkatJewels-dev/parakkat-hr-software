@@ -65,7 +65,7 @@ export function subscribeToViewRole(listener) {
  * would look like a broken screen rather than a removed permission.
  */
 export function useViewRole(primaryRole, held) {
-  const stored = useSyncExternalStore(subscribe, getChosenRole, () => null);
+  const stored = useSyncExternalStore(subscribeToViewRole, getChosenRole, () => null);
   const valid = stored && held.includes(stored) ? stored : primaryRole;
   return [valid, setChosenRole];
 }

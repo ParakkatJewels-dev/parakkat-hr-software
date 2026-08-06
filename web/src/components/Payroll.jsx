@@ -223,6 +223,11 @@ function PayslipDetail({ payslip }) {
 
 // ---------------------------------------------------------------- run payroll
 function RunTab() {
+  // payroll_runs_write checks ONLY the entity — has_perm('payroll.manage', entity_id, null, null,
+  // null, null) — so that is exactly what this asks. Publish and Delete were drawn on every draft
+  // regardless of which company it belonged to.
+  const { can } = usePermissions();
+  const canManageRun = (r) => can('payroll.manage', { entityId: r.entity_id });
   const { data: org } = useVisibleOrg();
   const { data: runs = [] } = usePayrollRuns();
   const runPayroll = useRunPayroll();
@@ -317,7 +322,7 @@ function RunTab() {
                   <span className={`text-2xs font-bold uppercase px-2 py-1 rounded ${statusClass(r.status)}`}>
                     {r.status}
                   </span>
-                  {r.status === 'Draft' && (
+                  {r.status === 'Draft' && canManageRun(r) && (
                     <>
                       <button onClick={() => publish.mutate(r.id)} disabled={publish.isPending} className={BTN}>
                         {publish.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Publish
@@ -530,6 +535,15 @@ const BLANK = {
 };
 
 function ComponentsTab() {
+  // pay_components_write checks the full ancestry, unlike payroll_runs_write which stops at the
+  // entity — so this helper is deliberately a different shape from RunTab's.
+  const { can } = usePermissions();
+  const canManageComponent = (c) => can('payroll.manage', {
+    entityId: c.entity_id,
+    zoneId: c.zone_id,
+    branchId: c.branch_id,
+    deptId: c.department_id,
+  });
   const { data: components = [] } = usePayComponents();
   const { data: org } = useVisibleOrg();
   const save = useSavePayComponent();
@@ -687,6 +701,8 @@ function ComponentsTab() {
                   </span>
                 </div>
                 <div className="mobile-list-actions flex items-center gap-1.5 shrink-0">
+                  {canManageComponent(c) && (
+                  <>
                   <button onClick={() => edit(c)} className={BTN_GHOST}>Edit</button>
                   <button
                     onClick={() => del.mutate(c.id)}
@@ -696,6 +712,8 @@ function ComponentsTab() {
                   >
                     <Trash2 size={13} />
                   </button>
+                  </>
+                  )}
                 </div>
               </div>
             ))}

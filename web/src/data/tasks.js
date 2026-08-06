@@ -11,9 +11,12 @@ export function useTasks() {
       const { data, error } = await supabase
         .from('tasks')
         .select(
-          // tasks has two FKs to employees (employee_id = assignee, assigned_by = delegator)
+          // tasks has two FKs to employees (employee_id = assignee, assigned_by = delegator).
+          // The ancestry columns are here so each row's controls can be gated the way tasks_update
+          // and tasks_delete check them, rather than from one blanket canAny.
           `id, title, description, priority, status, due_date, completed_at, created_at,
            parent_task_id, employee_id, assigned_by,
+           entity_id, zone_id, branch_id, department_id,
            assignee:employees!tasks_employee_id_fkey(id, full_name, employee_code, branch:branches(code), department:departments(name)),
            assigner:employees!tasks_assigned_by_fkey(id, full_name, employee_code)`
         )

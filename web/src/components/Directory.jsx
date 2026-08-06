@@ -130,17 +130,33 @@ function PeopleOverview({ employees, filtered, activeFilterCount }) {
 export default function Directory() {
   const { data: employees = [], isLoading, error } = useEmployees();
   const { data: org } = useVisibleOrg();
-  const { canAny, isSuperAdmin } = usePermissions();
+  const { canAny, can, canAcrossBranches, isSuperAdmin } = usePermissions();
   const createEmployee = useCreateEmployee();
   const updateEmployee = useUpdateEmployee();
   const addDocument = useAddDocument();
   const grantAccess = useGrantAppAccess();
   const canCreate = canAny('employee.create');
-  const canUpdate = canAny('employee.update');
+  /**
+   * Per row, mirroring employees_update / can_grant_to — both of which check the person's whole
+   * ancestry. The blanket versions offered Edit and Give-app-access on every row in the directory,
+   * so a dept_head was invited to edit anyone their employee.read reached, which is wider than
+   * their employee.update scope. Note the 6th argument is the employee's own id: employees_update
+   * passes `id`, so a self-scoped grant matches your own row and nobody else's.
+   */
+  const rowScope = (emp) => ({
+    entityId: emp.entity_id,
+    zoneId: emp.zone_id,
+    branchId: emp.branch_id,
+    deptId: emp.department_id,
+    employeeId: emp.id,
+  });
+  const canEditRow = (emp) => can('employee.update', rowScope(emp));
+  // Bulk extract of everyone on screen — the same bar the Excel exports use.
+  const canExport = canAcrossBranches('report.read') || canAcrossBranches('employee.read');
+  const canGrantRow = (emp) => isSuperAdmin || can('rbac.manage', rowScope(emp));
   // Matches grant_app_access's own rule (0030): super admins anywhere, rbac.manage holders
   // inside their own scope. This was hardcoded to isSuperAdmin, which hid the action from the
   // entity admins and (since 0044) the managers who can actually perform it.
-  const canManageAccess = isSuperAdmin || canAny('rbac.manage');
   const [editing, setEditing] = useState(null); // null = closed, {} = new, {...emp} = edit
   const [grantFor, setGrantFor] = useState(null);
   const [newLogin, setNewLogin] = useState(null); // credentials to hand over after a create+access
@@ -449,8 +465,12 @@ export default function Directory() {
         <ProfileDrawer
           emp={selectedEmp}
           onClose={() => setSelectedEmp(null)}
-          onEdit={canUpdate ? () => { setEditing(selectedEmp); setSelectedEmp(null); } : null}
-          onGrantAccess={canManageAccess ? () => setGrantFor(selectedEmp) : null}
+          onEdit={selectedEmp && canEditRow(selectedEmp)
+            ? () => { setEditing(selectedEmp); setSelectedEmp(null); }
+            : null}
+          onGrantAccess={selectedEmp && canGrantRow(selectedEmp)
+            ? () => setGrantFor(selectedEmp)
+            : null}
         />
       </div>
     );
@@ -566,6 +586,11 @@ export default function Directory() {
           </div>
 
           <div className="directory-action-group">
+            {/* The one control in this screen that had no permission expression at all. It writes
+                every visible person's code, name, email, phone and placement to a file. It cannot
+                exceed what RLS already returned, so it is not a data leak — but a bulk PII extract
+                should ask the same question the Excel exports ask, and this asked nothing. */}
+            {canExport && (
             <button
               onClick={handleExport}
               className="directory-action-button directory-action-button-secondary"
@@ -575,6 +600,7 @@ export default function Directory() {
               <span className="hidden sm:inline">Export CSV</span>
               <span className="sm:hidden">CSV</span>
             </button>
+            )}
             {/* Add employee */}
             {canCreate && (
               <button

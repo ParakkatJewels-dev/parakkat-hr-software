@@ -6,8 +6,11 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 
+// The ancestry is selected because reg_update checks all five columns, so the Approve/Reject
+// buttons can be drawn per row instead of from one blanket canAny.
 const SELECT = `
   id, work_date, check_in, check_out, reason, status, decision_note, decided_at, created_at,
+  entity_id, zone_id, branch_id, department_id, employee_id,
   employee:employees!attendance_regularizations_employee_id_fkey(
     id, full_name, employee_code, branch:branches(id, name)
   ),

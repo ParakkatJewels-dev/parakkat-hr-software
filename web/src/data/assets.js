@@ -28,7 +28,8 @@ const ASSET_COLUMNS = `
   id, category, asset_type, asset_code, name, make, model, serial, status, condition, location,
   notes, purchase_date, purchase_cost, vendor, invoice_no, warranty_expires,
   licence_key, licence_seats, licence_expires,
-  owner_entity_id, owner_branch_id, entity_id, branch_id, employee_id, created_at, updated_at,
+  owner_entity_id, owner_branch_id, entity_id, zone_id, branch_id, department_id, employee_id,
+  created_at, updated_at,
   owner_entity:entities(code,name),
   owner_branch:branches(code,name),
   employee:employees(id, full_name, employee_code, entity_id, branch:branches(code))

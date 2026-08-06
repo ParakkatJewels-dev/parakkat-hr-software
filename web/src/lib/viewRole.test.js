@@ -9,7 +9,10 @@
 // follows. These pin that narrowing, and the two rules that keep it honest.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hasPerm } from './permissionMatch.js';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { hasPerm, applyViewLens } from './permissionMatch.js';
+import { useViewRole } from './viewRole.js';
 
 // What an hr_manager@entity actually carries — including the employee@self grant that
 // app.tg_autogrant_ess adds automatically, which is why the lens has something to fall back to.
@@ -25,13 +28,25 @@ const HR_MANAGER = [
   { permission: 'employee.read', scope_type: 'self', scope_id: null },
 ];
 
-/** The narrowing usePermissions applies. Kept in step with it by the tests below. */
+// THE REAL FUNCTION, imported. The first version of this file reimplemented the narrowing here,
+// which meant the tests agreed with a copy of the rule and could not fail when the code broke —
+// and they did not, when a rename left `subscribe is not defined` in viewRole.js and the app
+// crashed on load with all 143 green.
 const lens = (list, viewingAsEmployee) =>
-  (viewingAsEmployee ? list.filter((p) => p.scope_type === 'self') : list);
+  applyViewLens(list, { chosenRole: viewingAsEmployee ? 'employee' : null }).list;
 
 const canAny = (list, perm) => list.some((p) => p.permission === perm);
 const canBeyondSelf = (list, perm) =>
   list.some((p) => p.permission === perm && p.scope_type !== 'self');
+
+test('the view-role hook can render with its external-store subscription', () => {
+  function Probe() {
+    const [role] = useViewRole('hr_manager', ['hr_manager', 'employee']);
+    return createElement('span', null, role);
+  }
+
+  assert.equal(renderToStaticMarkup(createElement(Probe)), '<span>hr_manager</span>');
+});
 
 test('as themselves, an HR manager keeps every manager gate', () => {
   const l = lens(HR_MANAGER, false);
@@ -74,8 +89,10 @@ test('the self grants survive — the point is to be an employee, not to be lock
 // A super admin bypasses every check inside hasPerm, so narrowing the list alone would leave them
 // seeing everything while the app claimed they were an employee.
 test('a super admin in employee view is not still a super admin', () => {
-  const asEmployee = lens([], true);
-  const effectiveSuperAdmin = false; // what usePermissions computes when viewingAsEmployee
+  const { list: asEmployee, effectiveSuperAdmin, viewingAsEmployee } =
+    applyViewLens([], { isSuperAdmin: true, chosenRole: 'employee' });
+  assert.equal(viewingAsEmployee, true, 'a super admin always holds more than self');
+  assert.equal(effectiveSuperAdmin, false, 'the bypass is dropped with the grants');
   assert.equal(
     hasPerm(asEmployee, 'payroll.manage', {}, { isSuperAdmin: effectiveSuperAdmin, myEmployeeId: 'me' }),
     false,

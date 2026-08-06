@@ -20,12 +20,24 @@ const statusClass = (s) =>
 export default function HelpdeskExit() {
   const { data: tickets = [], isLoading, error } = useTickets();
   const { employee } = useAuth();
-  const { canAny } = usePermissions();
+  const { can, canBeyondSelf } = usePermissions();
   const add = useAddTicket();
   const setStatus = useSetTicketStatus();
 
   const canRaise = Boolean(employee?.id);
-  const canHandle = canAny('ticket.manage');
+  // Per row, mirroring tickets_update. The blanket version put an editable status on every ticket
+  // RLS returned; outside the handler's scope the update matches nothing and reports success.
+  const canHandleTicket = (t) => can('ticket.manage', {
+    entityId: t.entity_id,
+    zoneId: t.zone_id,
+    branchId: t.branch_id,
+    deptId: t.department_id,
+    employeeId: t.employee_id,
+  });
+  // The exit clearances panel lists other people's separations — name, department, last day — and
+  // had no permission expression at all. RLS spared a plain employee (exits_select admits your own
+  // row unconditionally); everyone else saw the queue whether or not they handle exits.
+  const canSeeExits = canBeyondSelf('exit.manage') || canBeyondSelf('exit.create');
 
   const { data: exits = [] } = useExits();
   const [showForm, setShowForm] = useState(false);
@@ -105,7 +117,7 @@ export default function HelpdeskExit() {
                       </div>
                       <div className="mobile-list-actions shrink-0 flex items-center gap-1.5">
                         <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase border ${statusClass(t.status)}`}>{t.status}</span>
-                        {canHandle && t.status !== 'Resolved' && (
+                        {canHandleTicket(t) && t.status !== 'Resolved' && (
                           <select
                             value={t.status}
                             onChange={(e) => setStatus.mutate({ id: t.id, status: e.target.value })}
@@ -125,6 +137,7 @@ export default function HelpdeskExit() {
 
         {/* Exit clearances, from public.exits — the note that used to say "sample data"
             outlived the sample data by some months. */}
+        {canSeeExits && (
         <div className="space-y-4">
           <div className="premium-card space-y-3.5">
             <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-850 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2 flex items-center">
@@ -157,6 +170,7 @@ export default function HelpdeskExit() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       <Pagination {...pager} noun="tickets" />

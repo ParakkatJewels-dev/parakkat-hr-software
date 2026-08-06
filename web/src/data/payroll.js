@@ -48,7 +48,10 @@ export function usePayrollRuns() {
       const { data, error } = await supabase
         .from('payroll_runs')
         .select(
-          'id, period, status, employees, total_gross, total_net, published_at, created_at, entity:entities(code, name)'
+          // entity_id as well as the embed: payroll_runs_write checks the id, and the embed comes
+          // back null when RLS hides the entity row — which would silently disable Publish.
+          'id, period, status, employees, total_gross, total_net, published_at, created_at, '
+          + 'entity_id, entity:entities(code, name)'
         )
         .order('period', { ascending: false })
         .limit(36);

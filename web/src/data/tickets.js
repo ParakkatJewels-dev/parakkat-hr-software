@@ -11,7 +11,10 @@ export function useTickets() {
       const { data, error } = await supabase
         .from('tickets')
         .select(
+          // The ancestry columns are selected so the status control can be gated per row, the way
+          // tickets_update checks it. They are part of the column list, so no comments inside it.
           `id, category, subject, description, priority, status, created_at,
+           entity_id, zone_id, branch_id, department_id, employee_id,
            employee:employees!tickets_employee_id_fkey(full_name, employee_code, branch:branches(code))`
         )
         .gte('created_at', windowStartIso(180))

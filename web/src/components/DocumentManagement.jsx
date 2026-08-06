@@ -48,12 +48,22 @@ const EMPTY = { title: '', category: 'Policy', attachSelf: false, url: '' };
 
 export default function DocumentManagement() {
   const { data: docs = [], isLoading, error } = useDocuments();
-  const { canAny } = usePermissions();
+  const { canAny, can } = usePermissions();
   const { employee } = useAuth();
   const add = useAddDocument();
   const link = useDocumentLink();
   const remove = useDeleteDocument();
   const canManage = canAny('document.manage');
+  // Per row, mirroring documents_write, which checks the whole ancestry. The blanket version drew a
+  // Delete button on every document RLS returned, including ones outside the caller's scope where
+  // the delete silently removes nothing.
+  const canDelete = (d) => can('document.manage', {
+    entityId: d.entity_id,
+    zoneId: d.zone_id,
+    branchId: d.branch_id,
+    deptId: d.department_id,
+    employeeId: d.employee_id,
+  });
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY);
@@ -366,7 +376,7 @@ export default function DocumentManagement() {
                   >
                     {link.isPending ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                   </button>
-                  {canManage && (
+                  {canDelete(d) && (
                     <button
                       onClick={() => setConfirming(d)}
                       title="Delete" aria-label={`Delete ${d.title}`}

@@ -972,15 +972,18 @@ export default function Attendance() {
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
   const [tab, setTab] = useUrlTab(visibleTabs[0]?.id ?? 'calendar', visibleTabs.map((t) => t.id));
   const canApprove = canAny('regularization.approve');
+  const showSourceNote = canAny('device.manage');
 
   return (
     <div className="page-shell space-y-5 animate-slide-up py-3">
       <div>
         <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Attendance</h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes
-          and the engine derives each day against the assigned shift.
-        </p>
+        {showSourceNote && (
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes
+            and the engine derives each day against the assigned shift.
+          </p>
+        )}
       </div>
 
       <div className="mobile-segmented flex flex-wrap gap-1.5">

@@ -44,7 +44,7 @@ export default function TaskManagement() {
   const { data: tasks = [], isLoading, error } = useTasks();
   const { data: employees = [] } = useEmployees();
   const { employee } = useAuth();
-  const { canAny } = usePermissions();
+  const { canAny, can, canBeyondSelf } = usePermissions();
 
   const create = useCreateTask();
   const update = useUpdateTask();
@@ -53,28 +53,52 @@ export default function TaskManagement() {
   // A task is assigned to someone (the assignee is picked in the composer), so — unlike leave —
   // the creator need NOT be linked to an employee themselves. Only the permission matters.
   const canCreate = canAny('task.create');
-  const canUpdate = canAny('task.update') || canAny('task.manage');
-  const canManage = canAny('task.manage');
+  const canViewTeamTasks = canBeyondSelf('task.read');
+
+  /**
+   * Per-row authority, mirroring tasks_update / tasks_delete / tasks_create — each of which checks
+   * the row's whole ancestry, not merely whether the permission is held somewhere.
+   *
+   * The blanket canAny versions were drawn on every visible task. For an employee that mattered
+   * most: they hold task.update at SELF scope, so canAny was true and an editable status dropdown
+   * appeared on every task RLS returned — including a colleague's, where the update silently
+   * matched nothing.
+   */
+  const scopeOf = (t) => ({
+    entityId: t.entity_id,
+    zoneId: t.zone_id,
+    branchId: t.branch_id,
+    deptId: t.department_id,
+    employeeId: t.employee_id,
+  });
+  const rowCan = {
+    update: (t) => can('task.update', scopeOf(t)) || can('task.manage', scopeOf(t)),
+    manage: (t) => can('task.manage', scopeOf(t)),
+    // A sub-task is filed against the same assignee, so it is the parent's ancestry that decides.
+    create: (t) => can('task.create', scopeOf(t)),
+  };
 
   // In the URL, so a refresh comes back to the view you were reading.
   const [view, setView] = useUrlTab('flow', ['flow', 'people']);
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | null
+  const effectiveMineOnly = !canViewTeamTasks || mineOnly;
+  const effectiveView = canViewTeamTasks ? view : 'flow';
 
   // ---- filtering ----
   const filtered = useMemo(() => {
     return tasks.filter((t) => {
-      if (mineOnly && t.employee_id !== employee?.id) return false;
+      if (effectiveMineOnly && t.employee_id !== employee?.id) return false;
       if (statusFilter === 'All') return true;
       if (statusFilter === 'Active') return t.status !== 'Done' && t.status !== 'Cancelled';
       if (statusFilter === 'Overdue') return isOverdue(t);
       return t.status === statusFilter;
     });
-  }, [tasks, mineOnly, statusFilter, employee]);
+  }, [tasks, effectiveMineOnly, statusFilter, employee]);
 
   const stats = useMemo(() => {
-    const scope = mineOnly ? tasks.filter((t) => t.employee_id === employee?.id) : tasks;
+    const scope = effectiveMineOnly ? tasks.filter((t) => t.employee_id === employee?.id) : tasks;
     return {
       total: scope.length,
       todo: scope.filter((t) => t.status === 'To Do').length,
@@ -82,7 +106,7 @@ export default function TaskManagement() {
       done: scope.filter((t) => t.status === 'Done').length,
       overdue: scope.filter(isOverdue).length,
     };
-  }, [tasks, mineOnly, employee]);
+  }, [tasks, effectiveMineOnly, employee]);
 
   // ---- hierarchy: build parent → children from the FILTERED set ----
   const { roots, childrenOf } = useMemo(() => {
@@ -118,9 +142,11 @@ export default function TaskManagement() {
     setStatus: (id, status) => update.mutate({ id, status }),
     addSubtask: (task) => setComposer({ parentId: task.id, defaultAssignee: task.employee_id }),
     remove: (id) => del.mutate(id),
-    canUpdate,
-    canManage,
-    canCreate,
+    // Functions of the row, not booleans: tasks_update, _delete and _insert each check the whole
+    // ancestry, so "may I" is a question about THIS task and not about the module.
+    canUpdate: rowCan.update,
+    canManage: rowCan.manage,
+    canCreate: rowCan.create,
   };
 
   return (
@@ -128,10 +154,12 @@ export default function TaskManagement() {
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-            <ListChecks size={20} className="text-[#0ea971]" /> Task Management
+            <ListChecks size={20} className="text-[#0ea971]" /> {canViewTeamTasks ? 'Task Management' : 'My Tasks'}
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Assign work down your branch, zone or entity and track it as it flows through the hierarchy.
+            {canViewTeamTasks
+              ? 'Assign work down your branch, zone or entity and track it as it flows through the hierarchy.'
+              : 'Track your assigned work and update its status.'}
           </p>
         </div>
         {canCreate && (
@@ -172,7 +200,7 @@ export default function TaskManagement() {
           ))}
         </div>
         <div className="mobile-toolbar-actions flex items-center gap-2">
-          {employee?.id && (
+          {canViewTeamTasks && employee?.id && (
             <button
               onClick={() => setMineOnly((v) => !v)}
               className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
@@ -184,10 +212,12 @@ export default function TaskManagement() {
               My tasks
             </button>
           )}
-          <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-850 overflow-hidden">
-            <ViewBtn active={view === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
-            <ViewBtn active={view === 'people'} onClick={() => setView('people')} icon={Users} label="By Person" />
-          </div>
+          {canViewTeamTasks && (
+            <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-850 overflow-hidden">
+              <ViewBtn active={view === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
+              <ViewBtn active={view === 'people'} onClick={() => setView('people')} icon={Users} label="By Person" />
+            </div>
+          )}
         </div>
       </div>
 
@@ -209,7 +239,7 @@ export default function TaskManagement() {
           No tasks {statusFilter !== 'All' ? `in "${statusFilter}"` : ''} to show.
           {canCreate && ' Create one to get started.'}
         </div>
-      ) : view === 'flow' ? (
+      ) : effectiveView === 'flow' ? (
         <div className="space-y-3">
           {roots.map((t) => (
             <TaskTree key={t.id} task={t} childrenOf={childrenOf} depth={0} actions={actions} />
@@ -299,7 +329,7 @@ function TaskTree({ task, childrenOf, depth, actions }) {
         </div>
 
         <div className="mobile-list-actions flex flex-col items-end gap-2 shrink-0">
-          {actions.canUpdate ? (
+          {actions.canUpdate(task) ? (
             <select
               value={task.status}
               onChange={(e) => actions.setStatus(task.id, e.target.value)}
@@ -313,13 +343,13 @@ function TaskTree({ task, childrenOf, depth, actions }) {
             </span>
           )}
           <div className="flex items-center gap-1">
-            {actions.canCreate && (
+            {actions.canCreate(task) && (
               <button onClick={() => actions.addSubtask(task)} title="Add sub-task" aria-label="Add sub-task"
                 className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white cursor-pointer">
                 <Plus size={13} />
               </button>
             )}
-            {actions.canManage && (
+            {actions.canManage(task) && (
               <button onClick={() => actions.remove(task.id)} title="Delete task" aria-label="Delete task"
                 className="p-1.5 rounded-lg text-neutral-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-950/40 cursor-pointer">
                 <Trash2 size={13} />

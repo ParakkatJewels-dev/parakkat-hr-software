@@ -3,7 +3,7 @@
 // (A user who bypasses these checks still gets nothing back from the database.)
 import { useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from './AuthContext';
-import { hasPerm } from '../lib/permissionMatch';
+import { hasPerm, applyViewLens } from '../lib/permissionMatch';
 import { getChosenRole, subscribeToViewRole } from '../lib/viewRole';
 
 export function usePermissions() {
@@ -17,30 +17,10 @@ export function usePermissions() {
     const raw = permissions || [];
     const myEmployeeId = employee?.id ?? null;
 
-    /**
-     * Working as an employee means seeing the app the way one does.
-     *
-     * Rather than teach twenty screens about the switcher, narrow the PERMISSIONS to the ones a
-     * plain employee holds — the self-scoped ones — and every existing gate follows: Payroll drops
-     * its manager tabs, Attendance drops the roster board, Tasks hides New Task, Directory refuses
-     * the route. They were all written against these helpers already.
-     *
-     * `viewingAsEmployee` is exported too, because hiding the CONTROLS is only half of it: RLS still
-     * returns the whole branch's rows, since the database answers to the account and not to a
-     * toggle. Lists use it to narrow themselves to the signed-in employee.
-     *
-     * NOT A SECURITY BOUNDARY, and it must never be mistaken for one. This is the same class of
-     * mirror as hasPerm: it decides what to OFFER. A manager in employee view is still a manager to
-     * Postgres, which is why the route guard and RLS both keep asking the real question.
-     */
-    const viewingAsEmployee = chosen === 'employee' && !isSuperAdmin
-      ? raw.some((p) => p.scope_type !== 'self')      // they hold more, and chose to set it aside
-      : chosen === 'employee' && isSuperAdmin;
-
-    const list = viewingAsEmployee ? raw.filter((p) => p.scope_type === 'self') : raw;
-    // A super admin bypasses every check in hasPerm, so filtering the list alone would leave them
-    // seeing everything while claiming to be an employee.
-    const effectiveSuperAdmin = viewingAsEmployee ? false : isSuperAdmin;
+    // The lens lives in permissionMatch.js so it can be tested by importing it — see the note
+    // there. This hook is untestable by construction: it imports Supabase through useAuth.
+    const { list, viewingAsEmployee, effectiveSuperAdmin } =
+      applyViewLens(raw, { isSuperAdmin, chosenRole: chosen });
 
     // Does the user hold `perm` at ANY scope? Used for nav / whole-module visibility.
     const canAny = (perm) => effectiveSuperAdmin || list.some((p) => p.permission === perm);
