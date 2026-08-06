@@ -19,11 +19,33 @@ const statusClass = (s) =>
 export default function Expense() {
   const { data: expenses = [], isLoading, error } = useExpenses();
   const { employee } = useAuth();
-  const { canAny } = usePermissions();
+  const { canAny, can } = usePermissions();
+  const { user } = useAuth();
   const add = useAddExpense();
   const setStatus = useSetExpenseStatus();
 
+  // Whether the module is on show at all. Deciding a PARTICULAR claim is a separate question,
+  // answered per row below.
   const canApprove = canAny('expense.approve');
+
+  /**
+   * May this viewer decide THIS claim?
+   *
+   * Mirrors expenses_update, which checks the whole ancestry, plus the two rules the database
+   * enforces with a trigger: you cannot decide your own claim, and you cannot decide one you filed.
+   * Drawing the buttons from canAny alone put them on every branch's claims, and pressing one there
+   * silently did nothing — the update matched no rows and PostgREST called that success.
+   */
+  const canDecide = (exp) =>
+    can('expense.approve', {
+      entityId: exp.entity_id,
+      zoneId: exp.zone_id,
+      branchId: exp.branch_id,
+      deptId: exp.department_id,
+      employeeId: exp.employee_id,
+    })
+    && exp.employee_id !== employee?.id
+    && !(exp.created_by && exp.created_by === user?.id);
   const canClaim = Boolean(employee?.id);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ category: 'Local Conveyance', amount: '', expense_date: '', description: '' });
@@ -138,6 +160,17 @@ export default function Expense() {
         )}
       </div>
 
+      {/* A refused decision has to say so. The database rejects two of these outright — your own
+          claim, and one you filed — and both used to arrive as a thrown error nothing rendered, so
+          the row simply stayed Pending and the screen looked broken rather than principled. */}
+      <div>
+        {setStatus.isError ? (
+          <p role="alert" className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl px-3 py-2">
+            {setStatus.error?.message || 'That decision could not be saved.'}
+          </p>
+        ) : null}
+      </div>
+
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Stat label="Total Claims" value={totals.count} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="Pending ₹" value={totals.pending.toLocaleString()} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
@@ -174,7 +207,7 @@ export default function Expense() {
                       <span className="font-mono font-bold text-neutral-800 dark:text-slate-100 text-sm">₹{Number(exp.amount).toLocaleString()}</span>
                       <div className="flex items-center gap-1.5">
                         <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold border ${statusClass(exp.status)}`}>{exp.status}</span>
-                        {canApprove && exp.status === 'Pending' && (
+                        {canDecide(exp) && exp.status === 'Pending' && (
                           <>
                             <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Approved' })} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 cursor-pointer"><Check size={13} /></button>
                             <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Rejected' })} title="Reject" aria-label="Reject" className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 cursor-pointer"><Ban size={13} /></button>

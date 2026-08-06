@@ -16,7 +16,7 @@ import {
 import {
   usePayslips, usePayslipLines, usePayrollRuns, useRunPayroll, usePublishPayroll,
   useSalaryStructures, useSaveSalaryStructure, usePayComponents, useSavePayComponent,
-  useDeletePayComponent,
+  useDeletePayComponent, useDeletePayrollRun,
 } from '../data/payroll';
 import { useEmployees } from '../data/employees';
 import { useVisibleOrg } from '../data/org';
@@ -26,6 +26,7 @@ import { todayIso } from '../data/attendance';
 import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
+import ConfirmDialog from './ui/ConfirmDialog';
 
 const money = (n) =>
   n == null
@@ -226,11 +227,13 @@ function RunTab() {
   const { data: runs = [] } = usePayrollRuns();
   const runPayroll = useRunPayroll();
   const publish = usePublishPayroll();
+  const deleteRun = useDeletePayrollRun();
   const entities = org?.entities ?? [];
 
   const [entityId, setEntityId] = useState('');
   const [period, setPeriod] = useState(todayIso().slice(0, 7));
   const [result, setResult] = useState(null);
+  const [draftToDelete, setDraftToDelete] = useState(null);
 
   const go = async () => {
     setResult(null);
@@ -315,9 +318,23 @@ function RunTab() {
                     {r.status}
                   </span>
                   {r.status === 'Draft' && (
-                    <button onClick={() => publish.mutate(r.id)} disabled={publish.isPending} className={BTN}>
-                      {publish.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Publish
-                    </button>
+                    <>
+                      <button onClick={() => publish.mutate(r.id)} disabled={publish.isPending} className={BTN}>
+                        {publish.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Publish
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          deleteRun.reset();
+                          setDraftToDelete(r);
+                        }}
+                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50"
+                        title="Delete draft payroll"
+                        aria-label={`Delete ${r.period} draft payroll`}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -326,6 +343,37 @@ function RunTab() {
         )}
         <Err e={publish.error} />
       </section>
+
+      {draftToDelete && (
+        <ConfirmDialog
+          title="Delete draft payroll?"
+          confirmLabel="Delete draft"
+          busy={deleteRun.isPending}
+          error={deleteRun.error?.message}
+          onCancel={() => {
+            deleteRun.reset();
+            setDraftToDelete(null);
+          }}
+          onConfirm={async () => {
+            try {
+              await deleteRun.mutateAsync(draftToDelete.id);
+              if (result?.run_id === draftToDelete.id) setResult(null);
+              setDraftToDelete(null);
+            } catch {
+              /* shown in the dialog */
+            }
+          }}
+        >
+          <p>
+            The <b>{draftToDelete.period}</b> payroll draft for{' '}
+            <b>{draftToDelete.entity?.name || draftToDelete.entity?.code}</b> will be removed.
+          </p>
+          <p className="text-neutral-500 dark:text-neutral-400">
+            Its generated draft payslips and breakdown lines will also be deleted. You can run the
+            month again later. Published payroll cannot be deleted.
+          </p>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

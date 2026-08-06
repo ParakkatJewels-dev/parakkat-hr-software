@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound,
 } from 'lucide-react';
 
 // Import components
@@ -26,6 +26,7 @@ const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
 const Administration = lazy(() => import('./components/Administration'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
+const UserProfile = lazy(() => import('./components/UserProfile'));
 import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import { useAuth } from './auth/AuthContext';
@@ -267,6 +268,7 @@ export default function App() {
       title: 'Support',
       items: [
         { id: 'helpdesk', label: 'Help & Support', icon: HelpCircle, perm: 'ticket.read' },
+        { id: 'profile', label: 'My Profile', icon: UserRound, perm: null },
         { id: 'settings', label: 'Settings', icon: Settings, perm: null }
       ]
     }
@@ -353,6 +355,12 @@ export default function App() {
       label: 'Reports',
       icon: BarChart3,
       tabs: [{ id: 'reports', label: 'Reports', perm: 'report.read' }],
+    },
+    {
+      id: 'account',
+      label: 'My Profile',
+      icon: UserRound,
+      tabs: [{ id: 'profile', label: 'Profile', perm: null }],
     },
     {
       id: 'admin',
@@ -454,6 +462,7 @@ export default function App() {
     { label: 'View Asset Inventory', action: () => setActiveTab('assets') },
     { label: 'Run Payroll', action: () => setActiveTab('payroll') },
     { label: 'Open Reports & Analytics', action: () => setActiveTab('reports') },
+    { label: 'Open My Profile', action: () => setActiveTab('profile') },
     { label: 'Toggle Light/Dark Theme', action: () => toggleTheme() },
   ]
     .filter((c) => c.label === 'Toggle Light/Dark Theme' || true)
@@ -566,7 +575,13 @@ export default function App() {
         {/* Footer profile metadata */}
         <div className={`p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-charcoal-900 flex transition-colors duration-300 ${isSidebarCollapsed ? 'flex-col items-center space-y-3 px-2' : 'items-center justify-between'
           }`}>
-          <div className="flex items-center space-x-2.5 min-w-0">
+          <button
+            type="button"
+            onClick={() => setActiveTab('profile')}
+            className="flex items-center space-x-2.5 min-w-0 text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
+            title="Open my profile"
+            aria-label="Open my profile"
+          >
             <div className="w-9 h-9 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
               {displayInitials}
             </div>
@@ -576,7 +591,7 @@ export default function App() {
                 <span className="block text-2xs text-neutral-455 dark:text-neutral-500 truncate">{displaySubtitle}</span>
               </div>
             )}
-          </div>
+          </button>
           <button
             onClick={signOut}
             className={`p-1.5 bg-neutral-105 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-505 dark:text-neutral-455 hover:text-neutral-900 dark:hover:text-neutral-200 rounded-lg cursor-pointer transition-colors ${isSidebarCollapsed ? 'w-8 h-8 flex items-center justify-center' : ''
@@ -689,7 +704,13 @@ export default function App() {
             <NotificationBell onNavigate={setActiveTab} />
 
             {/* User chip */}
-            <div className="hidden sm:flex items-center gap-2.5 pl-2 sm:pl-3 ml-0.5 border-l border-neutral-200 dark:border-neutral-800">
+            <button
+              type="button"
+              onClick={() => setActiveTab('profile')}
+              className="flex min-h-11 min-w-11 sm:min-w-0 items-center justify-center gap-2.5 pl-0 sm:pl-3 ml-0.5 sm:border-l border-neutral-200 dark:border-neutral-800 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
+              title="Open my profile"
+              aria-label="Open my profile"
+            >
               <div className="w-8 h-8 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
                 {displayInitials}
               </div>
@@ -697,7 +718,7 @@ export default function App() {
                 <span className="text-xs font-bold text-neutral-800 dark:text-warm-gray-100 truncate">{displayName}</span>
                 <span className="text-2xs text-neutral-455 dark:text-neutral-500 truncate mt-0.5">{roleLabel}</span>
               </div>
-            </div>
+            </button>
 
           </div>
         </header>
@@ -824,6 +845,8 @@ export default function App() {
                 return <Administration view="logs" />;
               case 'settings':
                 return <SettingsPage />;
+              case 'profile':
+                return <UserProfile roleLabel={roleLabel} onOpenSettings={() => setActiveTab('settings')} />;
               default:
                 // A screen name in the URL that this build does not have: a stale bookmark, a
                 // typo, a link from an older version. Now that the address bar can name a screen,

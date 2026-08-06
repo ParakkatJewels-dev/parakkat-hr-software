@@ -374,7 +374,8 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
         <div className="emp-field-grid">
           <Field label="Date of birth" value={fmtDate(emp.date_of_birth)} />
           <Field label="Gender" value={emp.gender} />
-          <Field label="Father name" value={emp.father_name} />
+          <Field label="Father's name" value={emp.father_name} />
+          <Field label="Mother's name" value={emp.mother_name} />
           <Field label="Blood group" value={emp.blood_group} mono />
           <Field label="Address" value={emp.address} />
         </div>

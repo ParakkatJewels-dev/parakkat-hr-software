@@ -4,6 +4,7 @@ import {
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
   Users, Building2, MapPin, Briefcase, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
   Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
+  HeartPulse,
 } from 'lucide-react';
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from '../data/employees';
 import {
@@ -1031,6 +1032,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     date_of_birth: employee?.date_of_birth ?? '',
     gender: employee?.gender ?? '',
     father_name: employee?.father_name ?? '',
+    mother_name: employee?.mother_name ?? '',
     pan: employee?.pan ?? '',
     aadhaar: employee?.aadhaar ?? '',
     uan: employee?.uan ?? '',
@@ -1165,6 +1167,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         date_of_birth: form.date_of_birth || null,
         gender: form.gender || null,
         father_name: form.father_name.trim() || null,
+        mother_name: form.mother_name.trim() || null,
         pan: form.pan.trim() || null,
         aadhaar: form.aadhaar.trim() || null,
         uan: form.uan.trim() || null,
@@ -1231,35 +1234,88 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     <div className="employee-form-layout">
       <form id={FORM_ID} onSubmit={submit} className="employee-form-main">
         <FormBlock step={1} title="Personal Details" hint="Start with the details every department will use.">
-          {/* Six fields, three even rows — paired by what they have to do with each other:
-              who they are, how to reach them, when and on what terms they joined. The name used
-              to span the full width, which left the join date stranded alone on the last row. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className={L} htmlFor="emp-full-name">Full name *</label>
-              <input id="emp-full-name" className={FORM_INPUT} value={form.full_name} onChange={(e) => patch({ full_name: e.target.value })} placeholder="e.g. Anita Rao" required autoFocus />
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={L} htmlFor="emp-full-name">Full name *</label>
+                <input id="emp-full-name" className={FORM_INPUT} value={form.full_name} onChange={(e) => patch({ full_name: e.target.value })} placeholder="e.g. Anita Rao" required autoFocus />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-code">Employee code</label>
+                <input id="emp-code" className={FORM_INPUT} value={form.employee_code} onChange={(e) => patch({ employee_code: e.target.value })} placeholder="e.g. PPI-0243" />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-email">Email</label>
+                <input id="emp-email" type="email" className={FORM_INPUT} value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="name@parakkatjewels.com" />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-phone">Phone</label>
+                <input id="emp-phone" className={FORM_INPUT} value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder="+91…" />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-join-date">Join date</label>
+                <input id="emp-join-date" type="date" className={FORM_INPUT} value={form.join_date || ''} onChange={(e) => patch({ join_date: e.target.value })} />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-status">Status</label>
+                <select id="emp-status" className={FORM_INPUT} value={form.status} onChange={(e) => patch({ status: e.target.value })}>
+                  {EMP_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
             </div>
-            <div>
-              <label className={L} htmlFor="emp-code">Employee code</label>
-              <input id="emp-code" className={FORM_INPUT} value={form.employee_code} onChange={(e) => patch({ employee_code: e.target.value })} placeholder="e.g. PPI-0243" />
+
+            <div className="border-t border-neutral-200 dark:border-neutral-850 pt-3 space-y-2.5">
+              <h3 className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-200">
+                <User size={13} className="text-[#0ea971]" /> Family &amp; identity
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className={L} htmlFor="emp-dob">Date of birth</label>
+                  <input id="emp-dob" type="date" className={FORM_INPUT} value={form.date_of_birth || ''}
+                    onChange={(e) => patch({ date_of_birth: e.target.value })} />
+                </div>
+                <div>
+                  <label className={L} htmlFor="emp-gender">Gender</label>
+                  <select id="emp-gender" className={FORM_INPUT} value={form.gender}
+                    onChange={(e) => patch({ gender: e.target.value })}>
+                    <option value="">—</option>
+                    {['Male', 'Female', 'Other'].map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={L} htmlFor="emp-father-name">Father's name</label>
+                  <input id="emp-father-name" className={FORM_INPUT} value={form.father_name}
+                    onChange={(e) => patch({ father_name: e.target.value })} />
+                </div>
+                <div>
+                  <label className={L} htmlFor="emp-mother-name">Mother's name</label>
+                  <input id="emp-mother-name" className={FORM_INPUT} value={form.mother_name}
+                    onChange={(e) => patch({ mother_name: e.target.value })} />
+                </div>
+              </div>
             </div>
-            <div>
-              <label className={L} htmlFor="emp-email">Email</label>
-              <input id="emp-email" type="email" className={FORM_INPUT} value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="name@parakkatjewels.com" />
-            </div>
-            <div>
-              <label className={L} htmlFor="emp-phone">Phone</label>
-              <input id="emp-phone" className={FORM_INPUT} value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder="+91…" />
-            </div>
-            <div>
-              <label className={L} htmlFor="emp-join-date">Join date</label>
-              <input id="emp-join-date" type="date" className={FORM_INPUT} value={form.join_date || ''} onChange={(e) => patch({ join_date: e.target.value })} />
-            </div>
-            <div>
-              <label className={L} htmlFor="emp-status">Status</label>
-              <select id="emp-status" className={FORM_INPUT} value={form.status} onChange={(e) => patch({ status: e.target.value })}>
-                {EMP_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-              </select>
+
+            <div className="border-t border-neutral-200 dark:border-neutral-850 pt-3 space-y-2.5">
+              <h3 className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-200">
+                <HeartPulse size={13} className="text-rose-500" /> Emergency contact
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className={L} htmlFor="emp-emg-name">Name</label>
+                  <input id="emp-emg-name" className={FORM_INPUT} value={form.emergency_name}
+                    onChange={(e) => patch({ emergency_name: e.target.value })} />
+                </div>
+                <div>
+                  <label className={L} htmlFor="emp-emg-phone">Phone</label>
+                  <input id="emp-emg-phone" className={FORM_INPUT} value={form.emergency_phone}
+                    onChange={(e) => patch({ emergency_phone: e.target.value })} placeholder="+91…" />
+                </div>
+                <div>
+                  <label className={L} htmlFor="emp-emg-rel">Relationship</label>
+                  <input id="emp-emg-rel" className={FORM_INPUT} value={form.emergency_relation}
+                    onChange={(e) => patch({ emergency_relation: e.target.value })} placeholder="Spouse, parent…" />
+                </div>
+              </div>
             </div>
           </div>
         </FormBlock>
@@ -1291,11 +1347,16 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
                 <label className={L} htmlFor="emp-pan">PAN</label>
                 <input id="emp-pan" className={FORM_INPUT + ' font-mono uppercase'} value={form.pan}
                   onChange={(e) => patch({ pan: e.target.value })} placeholder="ABCPE1234F" maxLength={10} />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-aadhaar">Aadhaar</label>
+                <input id="emp-aadhaar" className={FORM_INPUT + ' font-mono'} value={form.aadhaar}
+                  onChange={(e) => patch({ aadhaar: e.target.value })} placeholder="12 digits" maxLength={14} />
               </div>
               <div>
                 <label className={L} htmlFor="emp-uan">UAN <span className="font-normal text-neutral-400">(PF)</span></label>
@@ -1308,51 +1369,10 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                   onChange={(e) => patch({ esi_number: e.target.value })} />
               </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className={L} htmlFor="emp-dob">Date of birth</label>
-                <input id="emp-dob" type="date" className={FORM_INPUT} value={form.date_of_birth || ''}
-                  onChange={(e) => patch({ date_of_birth: e.target.value })} />
-              </div>
-              <div>
-                <label className={L} htmlFor="emp-gender">Gender</label>
-                <select id="emp-gender" className={FORM_INPUT} value={form.gender}
-                  onChange={(e) => patch({ gender: e.target.value })}>
-                  <option value="">—</option>
-                  {['Male', 'Female', 'Other'].map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className={L} htmlFor="emp-aadhaar">Aadhaar</label>
-                <input id="emp-aadhaar" className={FORM_INPUT + ' font-mono'} value={form.aadhaar}
-                  onChange={(e) => patch({ aadhaar: e.target.value })} placeholder="12 digits" maxLength={14} />
-              </div>
-            </div>
           </div>
         </FormBlock>
 
-        <FormBlock step={4} title="Emergency contact" hint="Who to contact in an emergency. Optional.">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className={L} htmlFor="emp-emg-name">Name</label>
-              <input id="emp-emg-name" className={FORM_INPUT} value={form.emergency_name}
-                onChange={(e) => patch({ emergency_name: e.target.value })} />
-            </div>
-            <div>
-              <label className={L} htmlFor="emp-emg-phone">Phone</label>
-              <input id="emp-emg-phone" className={FORM_INPUT} value={form.emergency_phone}
-                onChange={(e) => patch({ emergency_phone: e.target.value })} placeholder="+91…" />
-            </div>
-            <div>
-              <label className={L} htmlFor="emp-emg-rel">Relationship</label>
-              <input id="emp-emg-rel" className={FORM_INPUT} value={form.emergency_relation}
-                onChange={(e) => patch({ emergency_relation: e.target.value })} placeholder="Spouse, parent…" />
-            </div>
-          </div>
-        </FormBlock>
-
-        <FormBlock step={5} title="Employee documents" hint={`Upload PDF, image, Word or Excel files up to ${fileSize(MAX_FILE_BYTES)} each.`}>
+        <FormBlock step={4} title="Employee documents" hint={`Upload PDF, image, Word or Excel files up to ${fileSize(MAX_FILE_BYTES)} each.`}>
           <div className="employee-document-upload-grid">
             {EMPLOYEE_DOCUMENT_TYPES.map((doc) => (
               <DocumentSlot
@@ -1375,7 +1395,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
             Only on create: an existing employee's access is managed from their profile, where
             you can see what they already have. */}
         {!isEdit && roleOptions.length > 0 && (
-          <FormBlock step={6} title="App access" hint="Everyone added here gets a login. Pick what it lets them reach.">
+          <FormBlock step={5} title="App access" hint="Everyone added here gets a login. Pick what it lets them reach.">
                 <div className="space-y-3">
                   <div>
                     <label className={L} htmlFor="emp-role">Role</label>

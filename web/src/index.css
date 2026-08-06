@@ -3637,8 +3637,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 /* ---- Shared page shell + standardized page header (structural, unlayered) - */
 .page-shell { width: min(100%, 1600px); margin-inline: auto; }
-.page-shell > :first-child:not(.emp-profile):has(h1),
-.page-shell > :first-child:not(.emp-profile):has(h2) {
+.page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1),
+.page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3651,12 +3651,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   color: var(--surface-text);
   box-shadow: var(--shadow-card);
 }
-.page-shell > :first-child:not(.emp-profile):has(h1) h1,
-.page-shell > :first-child:not(.emp-profile):has(h2) h2 { margin: 0; }
-.page-shell > :first-child:not(.emp-profile):has(h1) p,
-.page-shell > :first-child:not(.emp-profile):has(h2) p { max-width: 46rem; margin-top: .25rem; font-size: .8125rem !important; line-height: 1.5; color: var(--surface-text-soft); }
-.dark .page-shell > :first-child:not(.emp-profile):has(h1),
-.dark .page-shell > :first-child:not(.emp-profile):has(h2) { background: var(--surface-elevated); border-color: var(--surface-border); }
+.page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) h1,
+.page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) h2 { margin: 0; }
+.page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) p,
+.page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) p { max-width: 46rem; margin-top: .25rem; font-size: .8125rem !important; line-height: 1.5; color: var(--surface-text-soft); }
+.dark .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1),
+.dark .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) { background: var(--surface-elevated); border-color: var(--surface-border); }
 .page-shell .premium-card > h3,
 .page-shell .premium-card > div > h3 { color: #142720; }
 .dark .page-shell .premium-card > h3,
@@ -4093,8 +4093,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   --work-line: color-mix(in srgb, var(--surface-border-strong) 78%, transparent);
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h1),
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h2) {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1),
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) {
   position: relative;
   overflow: hidden;
   align-items: flex-start;
@@ -4105,8 +4105,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   box-shadow: 0 1px 2px rgba(16, 32, 26, .035);
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h1)::before,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h2)::before {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1)::before,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2)::before {
   content: '';
   position: absolute;
   inset-block: .85rem;
@@ -4116,16 +4116,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   background: linear-gradient(180deg, var(--accent), var(--tone-blue));
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h1) h1,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h2) h2 {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) h1,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) h2 {
   display: flex;
   align-items: center;
   gap: .45rem;
   font-weight: 800 !important;
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h1) h1 svg,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h2) h2 svg {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) h1 svg,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) h2 svg {
   width: 1.05rem;
   height: 1.05rem;
   color: var(--accent-strong);
@@ -4362,6 +4362,407 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .mobile-drawer { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-left); }
 .mobile-bottom-nav { display: none; }
 
+/* ---- Signed-in user profile --------------------------------------------- */
+.user-profile {
+  display: grid;
+  gap: .85rem;
+}
+
+.user-profile-hero {
+  position: relative;
+  min-height: 10.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--surface-border) 82%, transparent);
+  border-radius: var(--radius-card);
+  padding: 1.25rem;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-elevated) 90%, #dcfce7), var(--surface-elevated) 58%),
+    var(--surface-elevated);
+  box-shadow: var(--shadow-card);
+}
+
+.user-profile-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--tone-blue), var(--tone-amber));
+}
+
+.user-profile-identity {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-profile-avatar {
+  width: 5rem;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 3px solid color-mix(in srgb, #fff 80%, transparent);
+  border-radius: 1.15rem;
+  background: linear-gradient(145deg, var(--accent), color-mix(in srgb, var(--tone-blue) 60%, var(--accent)));
+  color: #fff;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--accent) 20%, transparent);
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 900;
+}
+
+.user-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.user-profile-heading {
+  min-width: 0;
+}
+
+.user-profile-eyebrow {
+  display: block;
+  margin-bottom: .2rem;
+  color: var(--accent-strong);
+  font-size: .66rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.user-profile-heading h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--surface-text);
+  font-size: 1.65rem;
+  font-weight: 900;
+  line-height: 1.12;
+}
+
+.user-profile-heading p {
+  margin-top: .28rem;
+  color: var(--surface-text-soft);
+  font-size: .78rem;
+  line-height: 1.4;
+}
+
+.user-profile-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  margin-top: .65rem;
+}
+
+.user-profile-chips span {
+  min-height: 1.45rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  padding: .24rem .5rem;
+  background: color-mix(in srgb, var(--surface-subtle) 72%, var(--surface-elevated));
+  color: var(--surface-text-soft);
+  font-family: var(--font-mono);
+  font-size: .62rem;
+  font-weight: 800;
+}
+
+.user-profile-chips span.is-active {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.user-profile-summary {
+  position: relative;
+  z-index: 1;
+  width: min(14rem, 32%);
+  flex: 0 0 auto;
+  display: grid;
+  gap: .75rem;
+}
+
+.user-profile-completion {
+  display: grid;
+  gap: .42rem;
+}
+
+.user-profile-completion > span {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  color: var(--surface-text-soft);
+}
+
+.user-profile-completion small {
+  font-size: .68rem;
+  font-weight: 750;
+}
+
+.user-profile-completion strong {
+  color: var(--surface-text);
+  font-family: var(--font-mono);
+  font-size: .78rem;
+}
+
+.user-profile-completion > i {
+  height: .38rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
+}
+
+.user-profile-completion > i > b {
+  height: 100%;
+  display: block;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--tone-blue));
+}
+
+.user-profile-summary > button,
+.user-profile-settings-link {
+  min-height: 2.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--surface-border));
+  border-radius: var(--radius-control);
+  padding: .55rem .75rem;
+  background: color-mix(in srgb, var(--surface-elevated) 82%, transparent);
+  color: var(--accent-strong);
+  font-size: .72rem;
+  font-weight: 800;
+  transition: border-color .18s ease, background-color .18s ease;
+}
+
+.user-profile-summary > button:hover,
+.user-profile-settings-link:hover {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--surface-border));
+  background: var(--accent-soft);
+}
+
+.user-profile-alert {
+  min-height: 2.65rem;
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  border: 1px solid color-mix(in srgb, var(--tone-amber) 28%, var(--surface-border));
+  border-radius: var(--radius-control);
+  padding: .65rem .8rem;
+  background: color-mix(in srgb, var(--tone-amber) 8%, var(--surface-elevated));
+  color: var(--surface-text-soft);
+  font-size: .72rem;
+}
+
+.user-profile-alert.is-info {
+  border-color: color-mix(in srgb, var(--tone-blue) 25%, var(--surface-border));
+  background: color-mix(in srgb, var(--tone-blue) 7%, var(--surface-elevated));
+}
+
+.user-profile-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(17rem, .8fr);
+  gap: .85rem;
+  align-items: start;
+}
+
+.user-profile-column {
+  min-width: 0;
+  display: grid;
+  gap: .85rem;
+}
+
+.user-profile-section {
+  min-height: 8rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-card);
+  padding: .95rem;
+  background: var(--surface-elevated);
+  box-shadow: var(--shadow-card);
+}
+
+.user-profile-section > header {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  padding-bottom: .7rem;
+  color: var(--accent-strong);
+}
+
+.user-profile-section > header h2 {
+  margin: 0;
+  color: var(--surface-text);
+  font-size: .82rem;
+  font-weight: 850;
+}
+
+.user-profile-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .15rem .75rem;
+}
+
+.user-profile-value {
+  min-width: 0;
+  min-height: 3.15rem;
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  align-items: center;
+  gap: .35rem;
+  border-top: 1px solid color-mix(in srgb, var(--surface-border) 72%, transparent);
+  padding: .5rem 0;
+}
+
+.user-profile-value.is-wide,
+.user-profile-settings-link,
+.user-profile-error,
+.user-profile-saved {
+  grid-column: 1 / -1;
+}
+
+.user-profile-value-icon {
+  width: 1.65rem;
+  height: 1.65rem;
+  display: grid;
+  place-items: center;
+  border-radius: .5rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text-soft);
+}
+
+.user-profile-value-copy {
+  min-width: 0;
+  display: grid;
+  gap: .12rem;
+}
+
+.user-profile-value-copy small {
+  color: var(--surface-text-soft);
+  font-size: .61rem;
+  font-weight: 700;
+}
+
+.user-profile-value-copy strong,
+.user-profile-value-copy a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--surface-text);
+  font-size: .73rem;
+  font-style: normal;
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.user-profile-value-copy a:hover {
+  color: var(--accent-strong);
+}
+
+.user-profile-value-copy strong.is-empty {
+  color: var(--surface-text-soft);
+  font-weight: 600;
+}
+
+.user-profile-editable-value {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.user-profile-editable-value > a,
+.user-profile-editable-value > strong {
+  min-width: 0;
+  flex: 1;
+}
+
+.user-profile-editable-value > button,
+.user-profile-phone-editor > button {
+  width: 1.85rem;
+  height: 1.85rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--surface-border);
+  border-radius: .55rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text-soft);
+}
+
+.user-profile-editable-value > button:hover,
+.user-profile-phone-editor > button:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--surface-border));
+  color: var(--accent-strong);
+}
+
+.user-profile-phone-editor {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+}
+
+.user-profile-phone-editor input {
+  width: 100%;
+  min-width: 0;
+  height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--surface-border));
+  border-radius: .55rem;
+  padding: 0 .55rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text);
+  font-size: .75rem;
+  outline: none;
+}
+
+.user-profile-phone-editor input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent);
+}
+
+.user-profile-phone-editor > button:disabled {
+  opacity: .4;
+}
+
+.user-profile-error,
+.user-profile-saved {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  margin-top: .2rem;
+  font-size: .68rem;
+}
+
+.user-profile-error {
+  color: var(--tone-red);
+}
+
+.user-profile-saved {
+  color: var(--accent-strong);
+}
+
+.user-profile-settings-link {
+  width: 100%;
+  margin-top: .55rem;
+}
+
+.skeleton.user-profile-hero {
+  min-height: 10.5rem;
+}
+
+.user-profile-grid > .skeleton.user-profile-section {
+  min-height: 16rem;
+}
+
 .login-brand-panel {
   position: relative;
   background:
@@ -4407,13 +4808,17 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     position: static;
     order: -1;
   }
+
+  .user-profile-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 640px) {
   :root {
     --radius-card: 10px;
     --radius-control: 9px;
-    --mobile-nav-extra-bottom-padding: .375rem;
+    --mobile-nav-extra-bottom-padding: .5rem;
     --mobile-nav-control-height: calc(3.5rem + var(--mobile-nav-extra-bottom-padding));
     --mobile-nav-height: calc(var(--mobile-nav-control-height) + env(safe-area-inset-bottom));
     --mobile-nav-clearance: calc(var(--mobile-nav-height) + .75rem);
@@ -4423,6 +4828,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .page-shell { width: 100%; }
   main .page-shell > * + * {
     margin-top: .65rem !important;
+  }
+
+  main .user-profile > * + * {
+    margin-top: 0 !important;
   }
   /* The scroll area's gutter. Fluid, so it does not jump from 8px to 16px at one breakpoint —
      replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
@@ -4435,8 +4844,110 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
      bottom edge instead of stopping flush against it. */
   .app-main::after { content: ''; display: block; height: .35rem; }
-  .page-shell > :first-child:not(.emp-profile):has(h1),
-  .page-shell > :first-child:not(.emp-profile):has(h2) {
+
+  .user-profile {
+    gap: .65rem;
+  }
+
+  .user-profile-hero {
+    min-height: 0;
+    display: grid;
+    gap: .9rem;
+    padding: .9rem;
+  }
+
+  .user-profile-identity {
+    align-items: flex-start;
+    gap: .75rem;
+  }
+
+  .user-profile-avatar {
+    width: 3.65rem;
+    border-width: 2px;
+    border-radius: .9rem;
+    font-size: 1rem;
+  }
+
+  .user-profile-heading h1 {
+    font-size: 1.2rem !important;
+    line-height: 1.15;
+  }
+
+  .user-profile-heading p {
+    margin-top: .18rem;
+    font-size: .69rem;
+  }
+
+  .user-profile-chips {
+    gap: .28rem;
+    margin-top: .45rem;
+  }
+
+  .user-profile-chips span {
+    min-height: 1.3rem;
+    padding: .2rem .4rem;
+    font-size: .56rem;
+  }
+
+  .user-profile-summary {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: .65rem;
+  }
+
+  .user-profile-summary > button {
+    min-height: 2.35rem;
+  }
+
+  .user-profile-grid,
+  .user-profile-column {
+    gap: .65rem;
+  }
+
+  .user-profile-section {
+    min-height: 0;
+    padding: .75rem;
+  }
+
+  .user-profile-section > header {
+    padding-bottom: .5rem;
+  }
+
+  .user-profile-section > header h2 {
+    font-size: .78rem !important;
+  }
+
+  .user-profile-details {
+    gap: .1rem .65rem;
+  }
+
+  .user-profile-value {
+    min-height: 2.85rem;
+    grid-template-columns: 1.55rem minmax(0, 1fr);
+    padding: .4rem 0;
+  }
+
+  .user-profile-value-icon {
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+
+  .user-profile-value-copy small {
+    font-size: .57rem;
+  }
+
+  .user-profile-value-copy strong,
+  .user-profile-value-copy a {
+    font-size: .68rem;
+  }
+
+  .user-profile-value:has(.user-profile-phone-editor) {
+    grid-column: 1 / -1;
+  }
+
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1),
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) {
     padding: .7rem .8rem;
     flex-direction: column;
     align-items: flex-start;
@@ -4446,34 +4957,34 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       var(--surface-elevated);
   }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h1),
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h2) {
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1),
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) {
     border-radius: .9rem;
     background: var(--surface-elevated);
     box-shadow: none;
   }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h1)::before,
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):has(h2)::before {
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1)::before,
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2)::before {
     inset-block: .7rem;
     width: 2px;
   }
 
-  .page-shell > :first-child:not(.emp-profile):has(h1) p,
-  .page-shell > :first-child:not(.emp-profile):has(h2) p {
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) p,
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) p {
     margin-top: .15rem;
     font-size: .75rem !important;
     line-height: 1.35;
   }
-  .page-shell > :first-child:not(.emp-profile):has(h1) > *,
-  .page-shell > :first-child:not(.emp-profile):has(h2) > * {
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) > *,
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) > * {
     min-width: 0;
     width: 100%;
   }
-  .page-shell > :first-child:not(.emp-profile):has(h1) > button,
-  .page-shell > :first-child:not(.emp-profile):has(h1) > a,
-  .page-shell > :first-child:not(.emp-profile):has(h2) > button,
-  .page-shell > :first-child:not(.emp-profile):has(h2) > a {
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) > button,
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1) > a,
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) > button,
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) > a {
     justify-content: center;
   }
   .page-header-actions {
@@ -6272,23 +6783,41 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     isolation: isolate;
     contain: layout paint;
     transform: translate3d(0, 0, 0);
-    background: color-mix(in srgb, var(--surface-elevated) 98%, var(--surface-bg));
+    background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .5),
-      0 -8px 24px rgba(16, 32, 26, .12);
+      inset 0 1px 0 rgba(255, 255, 255, .72),
+      0 -12px 34px rgba(16, 32, 26, .14);
+  }
+
+  .mobile-bottom-nav::before {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    inset: 0 0 auto;
+    height: 1px;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent 2%,
+      rgba(255, 255, 255, .92) 22%,
+      rgba(255, 255, 255, .62) 78%,
+      transparent 98%
+    );
   }
 
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .mobile-bottom-nav {
       background:
-        linear-gradient(180deg, color-mix(in srgb, #fff 18%, transparent), transparent 70%),
-        color-mix(in srgb, var(--surface-elevated) 86%, transparent);
-      -webkit-backdrop-filter: blur(18px) saturate(160%);
-      backdrop-filter: blur(18px) saturate(160%);
+        linear-gradient(180deg, rgba(255, 255, 255, .38), rgba(255, 255, 255, .08) 52%, transparent),
+        color-mix(in srgb, var(--surface-elevated) 68%, transparent);
+      -webkit-backdrop-filter: blur(26px) saturate(185%);
+      backdrop-filter: blur(26px) saturate(185%);
     }
   }
 
   .mobile-bottom-nav-item {
+    position: relative;
+    z-index: 1;
     min-width: 0;
     min-height: 0 !important;
     height: 100%;
@@ -6296,17 +6825,27 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     align-items: center;
     justify-content: center;
     border-radius: .95rem;
+    border: 1px solid transparent;
     color: var(--surface-text-soft);
     background: transparent;
-    transition: background .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease;
+    transition: background .18s ease, border-color .18s ease, color .18s ease,
+      transform .18s ease, box-shadow .18s ease;
   }
 
   .mobile-bottom-nav-item-active {
-    background: var(--accent);
-    color: #fff;
+    border-color: rgba(255, 255, 255, .72);
+    color: var(--accent);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, .72), rgba(255, 255, 255, .24)),
+      color-mix(in srgb, var(--accent) 10%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255,255,255,.28),
-      0 8px 18px color-mix(in srgb, var(--accent) 26%, transparent);
+      inset 0 1px 0 rgba(255, 255, 255, .88),
+      inset 0 -1px 0 color-mix(in srgb, var(--accent) 10%, transparent),
+      0 6px 16px rgba(16, 32, 26, .12);
+  }
+
+  .mobile-bottom-nav-item-active svg {
+    filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--accent) 22%, transparent));
   }
 
   /* Native-mobile guardrails ------------------------------------------------
@@ -6546,24 +7085,32 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .dark .mobile-bottom-nav {
     border-color: rgba(255, 255, 255, .12);
-    background: color-mix(in srgb, var(--surface-elevated) 96%, #20352c);
+    background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .09),
-      0 -14px 40px rgba(0, 0, 0, .48);
+      inset 0 1px 0 rgba(255, 255, 255, .12),
+      0 -14px 40px rgba(0, 0, 0, .42);
   }
 
-  /* On a dark ground the sheen has to be much fainter — the same 26% white that reads as a
+  /* On a dark ground the sheen has to be much fainter - the same 26% white that reads as a
      highlight over white reads as fog over near-black. */
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .dark .mobile-bottom-nav {
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 70%),
-        color-mix(in srgb, var(--surface-elevated) 86%, transparent);
+        linear-gradient(180deg, rgba(255, 255, 255, .13), rgba(255, 255, 255, .03) 56%, transparent),
+        color-mix(in srgb, var(--surface-elevated) 70%, transparent);
     }
   }
 
   .dark .mobile-bottom-nav-item-active {
-    color: #04120c;
+    border-color: rgba(255, 255, 255, .18);
+    color: var(--accent);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, .15), rgba(255, 255, 255, .04)),
+      color-mix(in srgb, var(--accent) 14%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .18),
+      inset 0 -1px 0 rgba(0, 0, 0, .18),
+      0 7px 18px rgba(0, 0, 0, .2);
   }
 }
 
@@ -6590,9 +7137,20 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: 0;
   }
 
-  .page-shell > :first-child:not(.emp-profile):has(h1),
-  .page-shell > :first-child:not(.emp-profile):has(h2) {
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h1),
+  .page-shell > :first-child:not(.emp-profile):not(.user-profile-hero):has(h2) {
     padding: .75rem;
+  }
+
+  .user-profile-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-profile-value.is-wide,
+  .user-profile-settings-link,
+  .user-profile-error,
+  .user-profile-saved {
+    grid-column: auto;
   }
 
   main h1 {

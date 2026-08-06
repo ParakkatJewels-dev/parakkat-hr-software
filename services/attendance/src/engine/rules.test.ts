@@ -249,7 +249,7 @@ test('Sunday is a weekly off and is paid', () => {
   assert.equal(r.dayFraction, 1);
 });
 
-test('working on a weekly off makes the whole day overtime', () => {
+test('working on a weekly off reads as Present, and the whole day is overtime', () => {
   const r = processDay(
     day({
       workDate: '2026-07-19',
@@ -257,9 +257,52 @@ test('working on a weekly off makes the whole day overtime', () => {
     })
   );
 
-  assert.equal(r.status, 'Weekly Off');
+  // Present, because they were. The status used to stay 'Weekly Off' whatever the punches said, so
+  // a Sunday somebody worked drew the same 'W' in the calendar as one spent at home and was left
+  // out of the monthly present count.
+  assert.equal(r.status, 'Present');
   assert.equal(r.otMinutes, 240); // 5h on site, minus the 60m break
+
+  // The day was STILL a rest day, and everything that depends on knowing that must survive the
+  // relabelling: day_type is what reports ask to find who is working weekends, and dayFraction is
+  // what payroll sums — if this moved off 1, the change would have quietly altered pay.
+  assert.equal(r.dayType, 'weekly_off');
+  assert.equal(r.dayFraction, 1);
   assert.match(r.remarks ?? '', /Worked on weekly off/);
+});
+
+test('a rest day nobody worked is untouched', () => {
+  const r = processDay(day({ workDate: '2026-07-19' }));
+  assert.equal(r.status, 'Weekly Off');
+  assert.equal(r.otMinutes, 0);
+});
+
+// The hours cannot be measured from one press of the button, and a working day's trick of
+// rebuilding the missing half from the schedule cannot apply — nobody was scheduled. Calling that
+// Present would be a guess dressed as a fact, so it stays an exception for HR to regularize.
+test('a lone punch on a rest day is still an exception, not Present', () => {
+  const r = processDay(
+    day({ workDate: '2026-07-19', punches: [punchAt('2026-07-19', '10:00')] })
+  );
+
+  assert.equal(r.status, 'Weekly Off');
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.otMinutes, 0);
+});
+
+test('working a holiday reads as Present too', () => {
+  const r = processDay(
+    day({
+      dayType: 'holiday',
+      holidayName: 'Onam',
+      punches: [punchAt('2026-07-15', '10:00'), punchAt('2026-07-15', '15:00')],
+    })
+  );
+
+  assert.equal(r.status, 'Present');
+  assert.equal(r.dayType, 'holiday');
+  assert.equal(r.dayFraction, 1);
+  assert.match(r.remarks ?? '', /Worked on holiday/);
 });
 
 test('a holiday is Holiday and paid', () => {

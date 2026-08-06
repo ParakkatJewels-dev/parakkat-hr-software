@@ -90,6 +90,21 @@ export function usePublishPayroll() {
   });
 }
 
+export function useDeletePayrollRun() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (runId) => {
+      const { error } = await supabase.rpc('delete_draft_payroll', { _run_id: runId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payslips'] });
+      qc.invalidateQueries({ queryKey: ['payslip-lines'] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------- salary structures
 export function useSalaryStructures(employeeId) {
   return useQuery({

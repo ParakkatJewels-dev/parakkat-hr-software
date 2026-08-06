@@ -339,9 +339,32 @@ export function processDay(input: DayInput): DayResult {
     result.dayFraction = Math.max(result.dayFraction, 1); // paid rest day
     result.remarks = input.holidayName ?? result.remarks;
 
-    // Worked on a day off? Every minute is overtime.
-    if (checkIn && checkOut && result.workedMinutes >= shift.minOtMinutes) {
-      result.otMinutes = result.workedMinutes;
+    // Worked on a day off? Every minute is overtime, and the day reads as PRESENT.
+    //
+    // The status used to stay 'Weekly Off' whatever the punches said. 594 days on which people
+    // actually came in were therefore indistinguishable from the 7,700-odd spent at home: both drew
+    // a 'W' in the calendar, and the monthly "present" count left them out. The hours and the
+    // overtime were on the record, but you had to open the day to discover anyone had been there,
+    // which is not where you look when you are asking whether you were credited for working Sunday.
+    //
+    // Present is also what this shift does on every other day. GENERAL is flexible, and the rule
+    // further down is "turning up settles the day" — full credit, short hours flagged rather than
+    // docked. A rest day somebody chose to work should not be scored more harshly than a Tuesday.
+    //
+    // PAY DOES NOT MOVE. dayFraction was already 1 for the rest day and stays 1, so payable_days is
+    // untouched. `day_type` still records that the day WAS an off day, so nothing downstream loses
+    // the distinction — a report can still ask who is working weekends. And overtime still counts
+    // every minute rather than only those past a full day, because nothing was scheduled: there is
+    // no normal length for the day to be over.
+    //
+    // Both punches required. A lone punch stays a flagged exception below for the reason given
+    // there — the hours cannot be measured, and Present on an unmeasurable day would be a guess
+    // dressed as a fact. Regularizing it supplies the times, and then this branch marks it Present.
+    if (checkIn && checkOut) {
+      result.status = 'Present';
+      if (result.workedMinutes >= shift.minOtMinutes) {
+        result.otMinutes = result.workedMinutes;
+      }
       result.remarks = [result.remarks, `Worked on ${dayType === 'holiday' ? 'holiday' : 'weekly off'}`]
         .filter(Boolean)
         .join(' — ');

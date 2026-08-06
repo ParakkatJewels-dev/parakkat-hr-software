@@ -15,7 +15,7 @@ export function useEmployees({ enabled = true } = {}) {
         .select(
           `id, full_name, employee_code, status, email, phone, join_date, salary, user_id,
            entity_id, zone_id, branch_id, department_id, designation_id,
-           date_of_birth, gender, father_name, personal_email, address, blood_group,
+           date_of_birth, gender, father_name, mother_name, personal_email, address, blood_group,
            pan, aadhaar, uan, pf_number, esi_number,
            bank_name, bank_account, bank_ifsc, account_holder,
            emergency_name, emergency_phone, emergency_relation,
@@ -40,7 +40,7 @@ const EMPLOYEE_COLS = [
   'full_name', 'employee_code', 'email', 'phone', 'join_date', 'status',
   'entity_id', 'branch_id', 'department_id', 'designation_id',
   // identity
-  'date_of_birth', 'gender', 'father_name', 'personal_email', 'address', 'blood_group',
+  'date_of_birth', 'gender', 'father_name', 'mother_name', 'personal_email', 'address', 'blood_group',
   // statutory — needed before anyone can be paid or filed for
   'pan', 'aadhaar', 'uan', 'pf_number', 'esi_number',
   // how they get paid
