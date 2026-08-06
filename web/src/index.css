@@ -6331,6 +6331,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
      whole. index.html selects the inset viewport for this mode before first layout. Locking html,
      with body as a normal 100%-height child, then leaves .app-main as the only scroll owner. */
   html.ios-standalone.app-root-lock {
+    --mobile-nav-height: var(--mobile-nav-control-height);
     position: fixed;
     inset: 0;
     width: 100%;
@@ -6339,6 +6340,19 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     overflow: hidden;
     overscroll-behavior: none;
     background: var(--surface-elevated);
+  }
+
+  /* The standalone viewport is already inset by WebKit, so applying env(safe-area-inset-*) again
+     creates empty bands inside the header and nav. Other display modes still need the env values. */
+  html.ios-standalone .app-header {
+    min-height: 3.75rem;
+    padding-top: 0;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  html.ios-standalone .mobile-bottom-nav {
+    padding: .45rem .65rem;
   }
 
   html.ios-standalone.app-root-lock body.app-body-lock {

@@ -1,4 +1,4 @@
-const VERSION = 'parakkat-hr-pwa-v4';
+const VERSION = 'parakkat-hr-pwa-v5';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 90;
