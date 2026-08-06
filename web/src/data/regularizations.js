@@ -17,9 +17,9 @@ const SELECT = `
   approver:employees!attendance_regularizations_approver_id_fkey(id, full_name)
 `;
 
-export function useRegularizations(status) {
+export function useRegularizations(status, employeeId) {
   return useQuery({
-    queryKey: ['regularizations', status ?? 'all'],
+    queryKey: ['regularizations', status ?? 'all', employeeId ?? 'everyone'],
     queryFn: async () => {
       let query = supabase
         .from('attendance_regularizations')
@@ -28,6 +28,11 @@ export function useRegularizations(status) {
         .limit(500);
 
       if (status) query = query.eq('status', status);
+      // Narrowing to one person is a SEPARATE axis from the status filter. Attendance.jsx used to
+      // pass `canApprove ? 'Pending' : undefined`, so losing the approver permission removed the
+      // only filter on the query and WIDENED it — a non-approver got every request RLS would
+      // return, names and reasons included, under a heading reading "Recent requests".
+      if (employeeId) query = query.eq('employee_id', employeeId);
 
       const { data, error } = await query;
       if (error) throw error;

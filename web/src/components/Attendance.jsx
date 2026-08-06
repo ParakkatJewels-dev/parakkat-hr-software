@@ -784,8 +784,14 @@ function ExceptionsView() {
 // ---------------------------------------------------------------------------
 
 function RegularizationsView({ employee, canApprove }) {
-  const { data: queue = [], isLoading } = useRegularizations(canApprove ? 'Pending' : undefined);
-  const { can } = usePermissions();
+  const { can, viewingAsEmployee } = usePermissions();
+  // A reviewer sees the pending queue; everybody else sees THEIR OWN requests. The second argument
+  // is what stops "not an approver" from meaning "no filter at all".
+  const reviewing = canApprove && !viewingAsEmployee;
+  const { data: queue = [], isLoading } = useRegularizations(
+    reviewing ? 'Pending' : undefined,
+    reviewing ? undefined : employee?.id
+  );
 
   /**
    * May this reviewer decide THIS request?

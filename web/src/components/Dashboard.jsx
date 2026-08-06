@@ -113,7 +113,14 @@ function EssKpis({ onNavigate }) {
   const present = monthRows.filter((r) => r.status === 'Present' || r.status === 'Half Day').length;
   const late = monthRows.filter((r) => r.is_late).length;
   const available = balances.reduce((n, b) => n + Number(b.available || 0), 0);
-  const pending = leaves.filter((l) => l.status === 'Pending').length + expenses.filter((e) => e.status === 'Pending').length;
+  // MY pending requests. Every sibling KPI on this row already filters by employee?.id; this one did
+  // not, so on the employee dashboard it showed the whole company's approval backlog under the
+  // heading "Awaiting approval" — for an HR manager working as an employee, a number in the dozens
+  // where the true answer was nought or one.
+  const myLeaves = leaves.filter((l) => l.employee_id === employee?.id);
+  const myExpenses = expenses.filter((e) => e.employee_id === employee?.id);
+  const pending = myLeaves.filter((l) => l.status === 'Pending').length
+    + myExpenses.filter((e) => e.status === 'Pending').length;
 
   return (
     <KpiRow
@@ -122,7 +129,7 @@ function EssKpis({ onNavigate }) {
         { label: 'Days Present', value: present, icon: CalendarCheck2, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'This month', tab: 'attendance', trend: attendanceDaySeries(monthRows, (r) => r.status === 'Present' || r.status === 'Half Day') },
         { label: 'Late Marks', value: late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'This month', tab: 'attendance', trend: attendanceDaySeries(monthRows, (r) => r.is_late) },
         { label: 'Leave Available', value: available, icon: CalendarDays, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'Across all types', tab: 'leave', trend: balances.map((b) => Number(b.available || 0)) },
-        { label: 'Pending Requests', value: pending, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Awaiting approval', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length) },
+        { label: 'Pending Requests', value: pending, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Awaiting approval', tab: 'leave', trend: queueSeries(myLeaves.filter((l) => l.status === 'Pending').length, myExpenses.filter((e) => e.status === 'Pending').length) },
       ]}
     />
   );

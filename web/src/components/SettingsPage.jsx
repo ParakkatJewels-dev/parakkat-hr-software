@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { UserRound, Building2, Check, Loader2, Clock, Eye } from 'lucide-react';
 import ChangePassword from './ChangePassword';
 import { useAuth } from '../auth/AuthContext';
+import { usePermissions } from '../auth/usePermissions';
 import { useEmployees } from '../data/employees';
 import { useWorkspaceSettings, useSaveWorkspaceSettings, useUpdateMyProfile } from '../data/settings';
 import { useClockFormat } from '../lib/timeFormat';
@@ -168,7 +169,11 @@ function DisplayPreferences() {
 }
 
 function WorkspaceCard() {
-  const { isSuperAdmin } = useAuth();
+  // usePermissions, NOT useAuth: applyViewLens drops the super-admin bypass when you choose to work
+  // as an employee, and useAuth hands back the raw flag. Settings has `perm: null`, so it is one of
+  // the few screens still open in that view — which made this the one place a super admin kept a
+  // live, editable Workspace card while the rest of the app treated them as an employee.
+  const { isSuperAdmin } = usePermissions();
   const { data: settings = {} } = useWorkspaceSettings();
   const saveSettings = useSaveWorkspaceSettings();
 

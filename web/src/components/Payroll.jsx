@@ -21,6 +21,7 @@ import {
 import { useEmployees } from '../data/employees';
 import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
+import { useAuth } from '../auth/AuthContext';
 import { useUrlTab } from '../lib/useUrlTab';
 import { todayIso } from '../data/attendance';
 import { SkeletonRows } from './ui/Skeleton';
@@ -124,7 +125,12 @@ export default function Payroll() {
 
 // ---------------------------------------------------------------- payslips
 function PayslipsTab() {
-  const { data: payslips = [], isLoading, error } = usePayslips();
+  // "My Payslips" must mean it. Without this the tab shows every payslip RLS returns — for an HR
+  // manager that is the whole company, names and net pay, under an ESS heading.
+  const { employee } = useAuth();
+  const { viewingAsEmployee, canBeyondSelf } = usePermissions();
+  const mineOnly = viewingAsEmployee || !canBeyondSelf('payslip.read');
+  const { data: payslips = [], isLoading, error } = usePayslips(mineOnly ? employee?.id : undefined);
   const [openId, setOpenId] = useState(null);
 
   // A payroll run produces one payslip per person — 242 rows. Hook sits above the early

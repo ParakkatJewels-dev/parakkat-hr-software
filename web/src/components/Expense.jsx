@@ -239,8 +239,8 @@ export default function Expense() {
                         <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold border ${statusClass(exp.status)}`}>{exp.status}</span>
                         {canDecide(exp) && exp.status === 'Pending' && (
                           <>
-                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Approved' })} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 cursor-pointer"><Check size={13} /></button>
-                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Rejected' })} title="Reject" aria-label="Reject" className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 cursor-pointer"><Ban size={13} /></button>
+                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id })} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 cursor-pointer"><Check size={13} /></button>
+                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Rejected', approverEmployeeId: employee?.id })} title="Reject" aria-label="Reject" className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 cursor-pointer"><Ban size={13} /></button>
                           </>
                         )}
                       </div>

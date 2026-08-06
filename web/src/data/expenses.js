@@ -50,17 +50,24 @@ export function useAddExpense() {
  *
  * approver_id is stamped here because nothing was stamping it: the column has existed since the
  * table was created and every claim ever decided still has it null, so "who approved this?" had no
- * answer. The database cannot default it — auth.uid() would be right for the DEFAULT on insert, but
- * this is an update — so the caller has to supply it.
+ * answer. The database cannot default it — auth.uid() would be right for a DEFAULT on insert, but
+ * this is an update — so the caller supplies it.
+ *
+ * It must be an EMPLOYEE id, not an auth user id. `expenses_approver_id_fkey` references
+ * employees(id), and the two id spaces do not overlap at all — a join of employees to auth.users on
+ * id returns zero rows. The first version of this stamped `supabase.auth.getUser()`, which made
+ * EVERY approval fail with 23503, for every role including super admins, and surfaced the raw
+ * constraint text to the user because the throw happens before the friendly branch below.
+ * `created_by` is the opposite: it really does reference auth.users, which is why Expense.jsx
+ * compares it against user?.id.
  */
 export function useSetExpenseStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }) => {
-      const { data: me } = await supabase.auth.getUser();
+    mutationFn: async ({ id, status, approverEmployeeId }) => {
       const { data, error } = await supabase
         .from('expenses')
-        .update({ status, approver_id: me?.user?.id ?? null })
+        .update({ status, approver_id: approverEmployeeId ?? null })
         .eq('id', id)
         .select('id');
       if (error) throw error;

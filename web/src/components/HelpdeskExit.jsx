@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { HelpCircle, MailOpen, Plus, X, Loader2, AlertTriangle } from 'lucide-react';
 import { useTickets, useAddTicket, useSetTicketStatus } from '../data/tickets';
 import { useExits } from '../data/exits';
@@ -18,9 +18,17 @@ const statusClass = (s) =>
     : 'bg-neutral-105 text-neutral-500 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-450 dark:border-neutral-800';
 
 export default function HelpdeskExit() {
-  const { data: tickets = [], isLoading, error } = useTickets();
+  const { data: allTickets = [], isLoading, error } = useTickets();
   const { employee } = useAuth();
-  const { can, canBeyondSelf } = usePermissions();
+  const { can, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  // Ticket subjects carry other people's problems by name. Same rule as Documents.
+  const ticketsMineOnly = viewingAsEmployee || !canBeyondSelf('ticket.read');
+  // Declared AFTER the two values it reads: `const` is not hoisted, so putting this above them
+  // throws "Cannot access before initialization" on first render.
+  const tickets = useMemo(
+    () => (ticketsMineOnly ? allTickets.filter((t) => t.employee_id === employee?.id) : allTickets),
+    [allTickets, ticketsMineOnly, employee?.id]
+  );
   const add = useAddTicket();
   const setStatus = useSetTicketStatus();
 

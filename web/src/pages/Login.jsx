@@ -58,7 +58,7 @@ export default function Login() {
   return (
     <div className="login-screen min-h-screen bg-[#eef3ef] text-neutral-900 dark:bg-charcoal-900 dark:text-warm-gray-100">
       <div className="login-shell mx-auto grid min-h-screen w-full max-w-6xl items-center gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[1.05fr_.95fr] lg:px-8">
-        <section className="login-brand-panel hidden min-h-[34rem] overflow-hidden rounded-[2rem] border border-white/60 bg-[#073f31] p-8 text-white shadow-2xl shadow-emerald-950/20 lg:flex lg:flex-col lg:justify-between">
+        <section className="login-brand-panel hidden min-h-[34rem] overflow-hidden rounded-sm border border-white/60 bg-[#073f31] p-8 text-white shadow-2xl shadow-emerald-950/20 lg:flex lg:flex-col lg:justify-between">
           <div className="relative z-10 flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#073f31] shadow-lg">
               <BrandMark size={30} title="Parakkat Jewels" />
@@ -115,7 +115,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="login-card overflow-hidden rounded-[1.75rem] border border-white/80 bg-white/90 p-6 shadow-2xl shadow-emerald-950/10 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/72 dark:shadow-black/30 sm:p-7">
+            <div className="login-card overflow-hidden rounded-sm border border-white/80 bg-white/90 p-6 shadow-2xl shadow-emerald-950/10 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/72 dark:shadow-black/30 sm:p-7">
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
                   <p className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f7f0] px-2.5 py-1 text-xs font-bold text-[#087a53] dark:bg-[#0ea971]/15 dark:text-[#7be0b7]">

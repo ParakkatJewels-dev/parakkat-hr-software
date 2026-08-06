@@ -17,7 +17,7 @@ export const chartTooltip = {
     background: 'rgba(17, 26, 22, 0.95)',
     backdropFilter: 'blur(8px)',
     border: '1px solid rgba(16, 185, 129, 0.2)',
-    borderRadius: '12px',
+    borderRadius: '4px',
     color: '#e6f0eb',
     fontSize: '11px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.25)',

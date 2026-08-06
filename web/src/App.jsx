@@ -45,6 +45,19 @@ import { syncNativeTheme } from './mobile/native';
 const prettyRole = (key) =>
   key.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+const MOBILE_NAV_LABELS = {
+  dashboard: 'Home',
+  attendance: 'Time',
+  leave: 'Leave',
+  tasks: 'Tasks',
+  performance: 'Goals',
+  home: 'Home',
+  people: 'People',
+  time: 'Time',
+  pay: 'Pay',
+  'asset-management': 'Assets',
+};
+
 // Shown when a user lands on a section they lack permission for.
 function AccessDenied() {
   return (
@@ -60,7 +73,7 @@ function AccessDenied() {
 }
 
 export default function App() {
-  const { employee, user, isSuperAdmin, signOut, assignments } = useAuth();
+  const { employee, user, isSuperAdmin, signOut, assignments, permissions } = useAuth();
   const { canAny, canBeyondSelf } = usePermissions();
   useRealtimeSync(); // live-sync data across devices via Supabase Realtime
   // Subscribed at the root so switching the clock format repaints every screen at once. Times are
@@ -85,15 +98,25 @@ export default function App() {
   // Joined here rather than in the dependency array: a fresh array every render would rebuild the
   // list every time, and the linter cannot check an expression written inline in the deps.
   const roleKey = roleNames.join(',');
+  // Can this person act as an employee at all? Their own records only exist if something grants
+  // them self scope, and Settings should not offer a view that resolves to an empty app.
+  const hasSelfScopedGrants = (permissions || []).some((p) => p.scope_type === 'self');
 
   // Every role held, most senior first, with 'employee' always available: a manager is one too, and
   // 0080 granted them attendance.punch / leave.create / expense.create / payslip.read to prove it.
   const heldRoles = useMemo(() => {
     const held = new Set(roleKey ? roleKey.split(',') : []);
     if (isSuperAdmin) held.add('super_admin');
-    held.add('employee');
+    // 'employee' is offered only to someone who can actually BE one — i.e. who holds self-scoped
+    // grants, which app.tg_autogrant_ess adds to any login linked to an employee record.
+    //
+    // Without this check the production super admin (employee_id null, zero role_assignments) could
+    // pick Employee and land on a four-item sidebar: the lens filters their permissions to the
+    // self-scoped ones, they have none, and every screen the feature exists to reach — My
+    // Attendance, My Leave, My Payslips, My Tasks — refuses them. A dead end with no explanation.
+    if (hasSelfScopedGrants) held.add('employee');
     return ROLE_PRIORITY.filter((r) => held.has(r));
-  }, [roleKey, isSuperAdmin]);
+  }, [roleKey, isSuperAdmin, hasSelfScopedGrants]);
 
   // The role the app is PRESENTED as. Purely a lens — see lib/viewRole.js. canViewTab below still
   // asks the real permissions, so switching to Employee hides the oversight tree without pretending
@@ -352,7 +375,10 @@ export default function App() {
       label: 'Asset Management',
       icon: Boxes,
       tabs: [
-        { id: 'assets', label: 'Assets', perm: 'asset.read' },
+        // scoped: the register lists who holds every item. An employee's own equipment is on their
+        // profile instead; without this, 0088's self-scoped asset.read opened the whole register by
+        // URL for anyone.
+        { id: 'assets', label: 'Assets', perm: 'asset.read', scoped: true },
       ],
     },
     {
@@ -468,10 +494,11 @@ export default function App() {
     document.title = documentTitleFor(primaryRole, screen);
   }, [primaryRole, activeSection, activeTab]);
 
-  // Five, not four. The bar is icon-only, so five plus the More button still leaves ~60px a
-  // target on a 390px screen — and at four, Asset Management fell off the end of the bar and into
-  // the More drawer, which is exactly where nobody looked for it.
+  // Five, not four. Short mobile labels keep the targets legible while Asset Management remains
+  // on the bar instead of falling into More, which is exactly where nobody looked for it.
   const mobilePrimarySections = visibleSections.slice(0, 5);
+  const mobileOverflowActive =
+    Boolean(activeSection) && !mobilePrimarySections.some((sec) => sec.id === activeSection.id);
 
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {
@@ -907,6 +934,7 @@ export default function App() {
           {mobilePrimarySections.map((sec) => {
             const Icon = sec.icon;
             const on = activeSection?.id === sec.id;
+            const mobileLabel = MOBILE_NAV_LABELS[sec.id] ?? sec.label;
             return (
               <button
                 key={sec.id}
@@ -917,8 +945,8 @@ export default function App() {
                 title={sec.label}
                 className={`mobile-bottom-nav-item ${on ? 'mobile-bottom-nav-item-active' : ''}`}
               >
-                <Icon size={18} />
-                <span className="sr-only">{sec.label}</span>
+                <Icon size={20} />
+                <span className="mobile-bottom-nav-label" aria-hidden="true">{mobileLabel}</span>
               </button>
             );
           })}
@@ -929,11 +957,12 @@ export default function App() {
               aria-label="Open all sections"
               aria-expanded={mobileMenuOpen}
               aria-controls="mobile-navigation"
+              aria-current={mobileOverflowActive ? 'page' : undefined}
               title="More"
-              className="mobile-bottom-nav-item"
+              className={`mobile-bottom-nav-item ${mobileOverflowActive ? 'mobile-bottom-nav-item-active' : ''}`}
             >
-              <Menu size={18} />
-              <span className="sr-only">More</span>
+              <Menu size={20} />
+              <span className="mobile-bottom-nav-label" aria-hidden="true">More</span>
             </button>
           )}
         </nav>

@@ -48,7 +48,10 @@ const EMPTY = { title: '', category: 'Policy', attachSelf: false, url: '' };
 
 export default function DocumentManagement() {
   const { data: docs = [], isLoading, error } = useDocuments();
-  const { canAny, can } = usePermissions();
+  const { canAny, can, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  // The employee library is other people's identity papers. Narrow it to your own whenever you
+  // cannot see beyond yourself — which now includes a manager working as an employee.
+  const documentsMineOnly = viewingAsEmployee || !canBeyondSelf('document.read');
   const { employee } = useAuth();
   const add = useAddDocument();
   const link = useDocumentLink();
@@ -79,10 +82,14 @@ export default function DocumentManagement() {
   const [scope, setScope] = useUrlTab(SCOPES[0].id, SCOPE_IDS);
 
   const { employeeDocs, companyDocs } = useMemo(() => {
+    // Company documents belong to everyone and stay; the personal library narrows to your own.
+    const visible = documentsMineOnly
+      ? docs.filter((d) => !d.employee_id || d.employee_id === employee?.id)
+      : docs;
     const owned = [], shared = [];
-    for (const d of docs) (d.employee_id ? owned : shared).push(d);
+    for (const d of visible) (d.employee_id ? owned : shared).push(d);
     return { employeeDocs: owned, companyDocs: shared };
-  }, [docs]);
+  }, [docs, documentsMineOnly, employee?.id]);
 
   const scoped = scope === 'employee' ? employeeDocs : companyDocs;
 

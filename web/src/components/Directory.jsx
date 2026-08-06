@@ -4,11 +4,12 @@ import {
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
   Users, Building2, MapPin, Briefcase, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
   Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
-  HeartPulse,
+  HeartPulse, FileText, Eye,
 } from 'lucide-react';
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from '../data/employees';
 import {
-  useAddDocument, useEmployeeAvatars, ACCEPTED_FILES, MAX_FILE_BYTES, fileSize, PHOTO_CATEGORY,
+  useAddDocument, useEmployeeDocuments, useDocumentLink, useEmployeeAvatars,
+  ACCEPTED_FILES, MAX_FILE_BYTES, fileSize, PHOTO_CATEGORY,
 } from '../data/documents';
 import { validateEmployeeFields, normaliseEmployeeFields } from '../lib/employeeFormat';
 import { useVisibleOrg } from '../data/org';
@@ -1042,6 +1043,8 @@ const SUBMIT_BTN = btnClass('primary');
 const CANCEL_BTN = btnClass('ghost');
 function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const isEdit = Boolean(employee);
+  const existingDocumentsQuery = useEmployeeDocuments(employee?.id);
+  const documentLink = useDocumentLink();
   const [form, setForm] = useState(() => ({
     full_name: employee?.full_name ?? '',
     employee_code: employee?.employee_code ?? '',
@@ -1075,6 +1078,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     Object.fromEntries(EMPLOYEE_DOCUMENT_TYPES.map((doc) => [doc.key, null]))
   );
   const [documentError, setDocumentError] = useState(null);
+  const [openingDocumentId, setOpeningDocumentId] = useState(null);
   // Format problems, keyed by field. Cleared and recomputed on every save attempt.
   const [formatErrors, setFormatErrors] = useState({});
   const patch = (p) => setForm((f) => ({ ...f, ...p }));
@@ -1152,6 +1156,27 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     .map((doc) => ({ ...doc, file: documents[doc.key] }))
     .filter((doc) => doc.file);
   const selectedDocumentCount = selectedDocuments.length;
+  const existingDocuments = existingDocumentsQuery.data ?? [];
+  const savedDocumentCount = existingDocuments.length;
+  const totalDocumentCount = savedDocumentCount + selectedDocumentCount;
+
+  const openExistingDocument = async (doc) => {
+    setOpeningDocumentId(doc.id);
+    try {
+      const href = await documentLink.mutateAsync({ doc, download: false });
+      const anchor = document.createElement('a');
+      anchor.href = href;
+      anchor.target = '_blank';
+      anchor.rel = 'noopener';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+    } catch {
+      /* The mutation error is rendered with the saved-document list. */
+    } finally {
+      setOpeningDocumentId(null);
+    }
+  };
 
   const pickDocument = (key, file) => {
     setDocumentError(null);
@@ -1250,7 +1275,13 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     { label: 'Profile', done: Boolean(form.full_name.trim() && form.entity_id), sub: 'Name and company' },
     { label: 'Placement', done: Boolean(form.branch_id || form.department_id || form.designation_id), sub: 'Branch, dept or role' },
     { label: 'Payroll', done: Boolean(form.bank_account.trim() && form.bank_ifsc.trim() && form.pan.trim()), sub: 'Bank, IFSC and PAN' },
-    { label: 'Documents', done: selectedDocumentCount > 0, sub: `${selectedDocumentCount}/${EMPLOYEE_DOCUMENT_TYPES.length} uploaded` },
+    {
+      label: 'Documents',
+      done: totalDocumentCount > 0,
+      sub: isEdit
+        ? `${savedDocumentCount} saved${selectedDocumentCount ? ` · ${selectedDocumentCount} new` : ''}`
+        : `${selectedDocumentCount}/${EMPLOYEE_DOCUMENT_TYPES.length} selected`,
+    },
     { label: 'Access', done: !wantsAccess || Boolean(accessReady), sub: isEdit ? 'Managed from profile' : rolePreset?.label || 'Login' },
   ];
   const completion = pct(completionItems.filter((item) => item.done).length, completionItems.length);
@@ -1398,7 +1429,24 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           </div>
         </FormBlock>
 
-        <FormBlock step={4} title="Employee documents" hint={`Upload PDF, image, Word or Excel files up to ${fileSize(MAX_FILE_BYTES)} each.`}>
+        <FormBlock
+          step={4}
+          title="Employee documents"
+          hint={isEdit
+            ? `Saved documents are shown below. Add PDF, image, Word or Excel files up to ${fileSize(MAX_FILE_BYTES)} each.`
+            : `Upload PDF, image, Word or Excel files up to ${fileSize(MAX_FILE_BYTES)} each.`}
+        >
+          {isEdit && (
+            <ExistingEmployeeDocuments
+              documents={existingDocuments}
+              isLoading={existingDocumentsQuery.isLoading}
+              error={existingDocumentsQuery.error}
+              linkError={documentLink.error}
+              openingDocumentId={openingDocumentId}
+              onOpen={openExistingDocument}
+            />
+          )}
+          {isEdit && <p className="section-title mt-4 mb-2">Add documents</p>}
           <div className="employee-document-upload-grid">
             {EMPLOYEE_DOCUMENT_TYPES.map((doc) => (
               <DocumentSlot
@@ -1606,12 +1654,16 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           <div className="mt-3.5 pt-3.5 border-t border-neutral-100 dark:border-neutral-855">
             <p className="text-2xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">Documents</p>
             <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">
-              {selectedDocumentCount} selected
+              {isEdit
+                ? `${savedDocumentCount} saved${selectedDocumentCount ? ` · ${selectedDocumentCount} ready to upload` : ''}`
+                : `${selectedDocumentCount} selected`}
             </p>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
               {selectedDocumentCount
                 ? selectedDocuments.map((doc) => doc.label).join(', ')
-                : 'Attach joining documents before saving, or add them later from Documents.'}
+                : isEdit && savedDocumentCount
+                  ? 'Existing files stay attached unless they are removed from Documents.'
+                  : 'Attach joining documents before saving, or add them later from Documents.'}
             </p>
           </div>
 
@@ -1659,6 +1711,72 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           </div>
         </div>
       </aside>
+    </div>
+  );
+}
+
+function ExistingEmployeeDocuments({
+  documents, isLoading, error, linkError, openingDocumentId, onOpen,
+}) {
+  if (isLoading) {
+    return (
+      <p className="emp-doc-note">
+        <Loader2 size={13} className="animate-spin" /> Loading saved documents...
+      </p>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="emp-doc-error" role="alert">
+        <AlertTriangle size={14} /> <span>{error.message}</span>
+      </div>
+    );
+  }
+
+  if (!documents.length) {
+    return <p className="emp-doc-note">No documents are currently attached to this employee.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="section-title">Saved documents ({documents.length})</p>
+      <ul className="emp-doc-list">
+        {documents.map((doc) => {
+          const meta = [doc.category, doc.file_name, fileSize(doc.size_bytes)]
+            .filter(Boolean)
+            .join(' · ');
+          const canOpen = Boolean(doc.storage_path || doc.url);
+          return (
+            <li key={doc.id} className="emp-doc">
+              <span className="emp-doc-icon"><FileText size={15} /></span>
+              <span className="emp-doc-copy">
+                <strong>{doc.title}</strong>
+                <em>{meta || 'No file attached'}</em>
+              </span>
+              <span className="emp-doc-actions">
+                <button
+                  type="button"
+                  onClick={() => onOpen(doc)}
+                  disabled={!canOpen || openingDocumentId === doc.id}
+                  title={canOpen ? 'View document' : 'No file attached'}
+                  aria-label={`View ${doc.title}`}
+                >
+                  {openingDocumentId === doc.id
+                    ? <Loader2 size={12} className="animate-spin" />
+                    : <Eye size={12} />}
+                  View
+                </button>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {linkError && (
+        <div className="emp-doc-error" role="alert">
+          <AlertTriangle size={14} /> <span>{linkError.message}</span>
+        </div>
+      )}
     </div>
   );
 }

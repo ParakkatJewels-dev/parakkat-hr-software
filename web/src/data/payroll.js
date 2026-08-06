@@ -6,18 +6,26 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 
-export function usePayslips() {
+/**
+ * @param {string} [employeeId]  Narrow to one person. The screen passes this whenever the viewer is
+ *   working as an employee: RLS answers to the ACCOUNT, so an HR manager's payslip list is the
+ *   whole company's — names, and net pay — and the screen it renders on is titled "My Payslips".
+ */
+export function usePayslips(employeeId) {
   return useQuery({
-    queryKey: ['payslips'],
+    queryKey: ['payslips', employeeId ?? 'all'],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from('payslips')
         .select(
           `id, period, gross, deductions, net, status, paid_days, lop_days, employer_cost, run_id,
+           employee_id,
            employee:employees(id, full_name, employee_code, branch:branches(code))`
         )
         .order('period', { ascending: false })
         .limit(60);
+      if (employeeId) q = q.eq('employee_id', employeeId);
+      const { data, error } = await q;
       if (error) throw error;
       return data ?? [];
     },

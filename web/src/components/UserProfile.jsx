@@ -1,22 +1,30 @@
-import React, { useEffect, useState } from 'react';
+// The signed-in person's own profile.
+//
+// DESIGNED AROUND ONE FACT: update_my_profile takes exactly one argument — `_phone`. That is the
+// whole of what an employee may change about themselves; HR owns every other field on this page.
+// The previous version did not say so anywhere. It laid twenty-odd label/value pairs out at uniform
+// weight across six sections, put the one editable field third in the middle list behind a pencil,
+// and topped the page with a completion meter reading "75%" — a number nobody could act on, because
+// the fields it was counting were HR's to fill in.
+//
+// So the order here is: who you are, the four facts you actually quote, the one thing you own, then
+// what HR holds about you. Nothing is dropped — the earlier request was that every detail show —
+// but "Not recorded" eight times crowds out what IS known, so absent fields are collected into one
+// quiet line per section instead of taking a row each.
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
   BriefcaseBusiness,
-  Building2,
-  CalendarDays,
   Check,
   HeartPulse,
   Loader2,
   Mail,
   Package,
-  MapPin,
-  Pencil,
   Phone,
   Settings,
   ShieldCheck,
   UserRound,
-  X,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useEmployeeAvatars } from '../data/documents';
@@ -37,11 +45,7 @@ const formatDate = (value) => {
   if (!value) return null;
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString('en-IN', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
 const tenureFrom = (value) => {
@@ -50,9 +54,7 @@ const tenureFrom = (value) => {
   if (Number.isNaN(joined.getTime())) return null;
   const today = new Date();
   let months =
-    (today.getFullYear() - joined.getFullYear()) * 12 +
-    today.getMonth() -
-    joined.getMonth();
+    (today.getFullYear() - joined.getFullYear()) * 12 + today.getMonth() - joined.getMonth();
   if (today.getDate() < joined.getDate()) months -= 1;
   if (months < 0) return null;
   const years = Math.floor(months / 12);
@@ -60,93 +62,96 @@ const tenureFrom = (value) => {
   return years ? `${years}y ${remainingMonths}m` : `${remainingMonths}m`;
 };
 
-function ProfileSection({ icon: Icon, title, children }) {
+/**
+ * A group of facts.
+ *
+ * `fields` is [label, value, extra]; a null value means the field exists but is not on file. Those
+ * are named once at the foot of the section rather than each taking a full row — a section with two
+ * of six filled then reads as two facts and a footnote, not as four absences.
+ */
+function Facts({ icon: Icon, title, fields, children, note }) {
+  const known = fields.filter(([, value]) => value);
+  const missing = fields.filter(([, value]) => !value).map(([label]) => label.toLowerCase());
+
   return (
-    <section className="user-profile-section">
+    <section className="profile-card">
       <header>
-        <Icon size={15} />
+        <span className="profile-card-icon"><Icon size={13} /></span>
         <h2>{title}</h2>
       </header>
-      <div className="user-profile-details">{children}</div>
+
+      {known.length > 0 && (
+        <dl className="profile-facts">
+          {known.map(([label, value, extra]) => (
+            <div key={label}>
+              <dt>{label}</dt>
+              <dd>
+                {value}
+                {extra ? <em>{extra}</em> : null}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
+      {children}
+
+      {missing.length > 0 && (
+        <p className="profile-missing">
+          Not on file: {missing.join(', ')}
+          {note ? ` — ${note}` : ''}
+        </p>
+      )}
     </section>
   );
 }
 
-function ProfileValue({ icon: Icon, label, value, href, wide = false, children }) {
+/**
+ * What company property this person is holding.
+ *
+ * `asset.read` was never granted to the employee role, so the laptop signed out in somebody's name
+ * was invisible to the one person responsible for returning it. 0088 grants it at self scope, and
+ * assets_select passes the row's employee_id, so this resolves to their own kit and nothing else.
+ */
+function MyAssets({ employeeId }) {
+  const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
+
+  if (isLoading) {
+    return <p className="profile-note"><Loader2 size={12} className="animate-spin" /> Loading…</p>;
+  }
+  if (error) return <p className="profile-error" role="alert">{error.message}</p>;
+  if (!assets.length) return <p className="profile-note">Nothing is signed out to you.</p>;
+
   return (
-    <div className={`user-profile-value${wide ? ' is-wide' : ''}`}>
-      <span className="user-profile-value-icon" aria-hidden="true">
-        <Icon size={14} />
-      </span>
-      <span className="user-profile-value-copy">
-        <small>{label}</small>
-        {children ||
-          (value ? (
-            href ? <a href={href}>{value}</a> : <strong>{value}</strong>
-          ) : (
-            <strong className="is-empty">Not recorded</strong>
-          ))}
-      </span>
-    </div>
+    <ul className="profile-assets">
+      {assets.map((a) => (
+        <li key={a.id}>
+          <span className="profile-asset-icon"><Package size={14} /></span>
+          <span className="profile-asset-copy">
+            <strong>{a.name}</strong>
+            <em>
+              {[a.category, [a.make, a.model].filter(Boolean).join(' '), a.asset_code, a.serial]
+                .filter(Boolean)
+                .join(' · ') || '—'}
+            </em>
+          </span>
+          {/* The condition it was signed out in — what a return is measured against. */}
+          <span className="profile-asset-state">{a.condition || a.status}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 
 function ProfileLoading() {
   return (
     <div className="page-shell user-profile animate-fade-in" aria-label="Loading profile">
-      <div className="user-profile-hero skeleton" />
-      <div className="user-profile-grid">
-        <div className="user-profile-section skeleton" />
-        <div className="user-profile-section skeleton" />
+      <div className="profile-hero skeleton" />
+      <div className="profile-grid">
+        <div className="profile-card skeleton" />
+        <div className="profile-card skeleton" />
       </div>
     </div>
-  );
-}
-
-
-/**
- * What company property this person is holding.
- *
- * `asset.read` was never granted to the employee role, so the laptop or phone signed out in
- * somebody's name was invisible to the one person actually responsible for returning it — while
- * being the thing they are most likely to want to check. 0088 grants it at self scope, and
- * assets_select passes the row's employee_id, so this resolves to their own kit and nothing else:
- * not the register, not the unallocated pool, not a colleague's.
- */
-function MyAssets({ employeeId }) {
-  const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
-
-  if (isLoading) {
-    return <p className="text-2xs text-neutral-500 flex items-center gap-1.5"><Loader2 size={12} className="animate-spin" /> Loading…</p>;
-  }
-  if (error) {
-    return <p className="text-2xs text-red-600 dark:text-red-300" role="alert">{error.message}</p>;
-  }
-  if (!assets.length) {
-    return <p className="text-2xs text-neutral-500 dark:text-neutral-400">Nothing is signed out to you.</p>;
-  }
-
-  return (
-    <ul className="space-y-2">
-      {assets.map((a) => (
-        <li key={a.id} className="flex items-start gap-2.5">
-          <span className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-600 dark:text-[#10b981] flex items-center justify-center shrink-0">
-            <Package size={14} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs font-bold text-neutral-800 dark:text-warm-gray-100 truncate">{a.name}</span>
-            <span className="block text-2xs text-neutral-500 dark:text-neutral-400 truncate">
-              {[a.category, [a.make, a.model].filter(Boolean).join(' '), a.asset_code, a.serial]
-                .filter(Boolean).join(' · ') || '—'}
-            </span>
-          </span>
-          {/* The condition it was handed over in, which is what a return is measured against. */}
-          <span className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 shrink-0 mt-0.5">
-            {a.condition || a.status}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -159,7 +164,6 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) 
   const { data: avatars = {} } = useEmployeeAvatars(record?.id ? [record.id] : []);
   const updateProfile = useUpdateMyProfile();
 
-  const [editingPhone, setEditingPhone] = useState(false);
   const [phone, setPhone] = useState('');
   const [saved, setSaved] = useState(false);
 
@@ -167,244 +171,194 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) 
     setPhone(record?.phone || '');
   }, [record?.phone]);
 
-  if (linkedEmployee && employeeQuery.isLoading && !employeeQuery.data) {
-    return <ProfileLoading />;
-  }
-
   const displayName =
-    record?.full_name ||
-    user?.user_metadata?.full_name ||
-    user?.email?.split('@')[0] ||
-    'User';
-  const avatarUrl = record?.id ? avatars[record.id] : null;
-  const designation = record?.designation?.title || roleLabel;
-  const department = record?.department?.name;
-  const branch = record?.branch?.name || record?.branch?.code;
-  const joined = formatDate(record?.join_date);
-  const tenure = tenureFrom(record?.join_date);
+    record?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  const workEmail = record?.email || user?.email;
+
+  // The four things people actually read off this page — quoted to HR, to payroll, onto a form.
+  const strip = useMemo(() => ([
+    ['Employee code', record?.employee_code],
+    ['Department', record?.department?.name],
+    ['Branch', record?.branch?.name || record?.branch?.code],
+    ['Joined', formatDate(record?.join_date), tenureFrom(record?.join_date)],
+  ]), [record]);
+
+  if (linkedEmployee && employeeQuery.isLoading && !employeeQuery.data) return <ProfileLoading />;
+
   const phoneChanged = phone.trim() !== (record?.phone || '');
-
-  const completionFields = record
-    ? [
-        record.full_name,
-        record.employee_code,
-        record.email || user?.email,
-        record.phone,
-        record.join_date,
-        record.branch?.name || record.branch?.code,
-        record.department?.name,
-        record.designation?.title,
-      ]
-    : [];
-  const completion = completionFields.length
-    ? Math.round((completionFields.filter(Boolean).length / completionFields.length) * 100)
-    : null;
-
-  const savePhone = () => {
+  const savePhone = (event) => {
+    event?.preventDefault();
     if (!phoneChanged || updateProfile.isPending) return;
-    updateProfile.mutate(
-      { phone: phone.trim() },
-      {
-        onSuccess: () => {
-          setEditingPhone(false);
-          setSaved(true);
-          window.setTimeout(() => setSaved(false), 2000);
-        },
+    updateProfile.mutate({ phone: phone.trim() }, {
+      onSuccess: () => {
+        setSaved(true);
+        window.setTimeout(() => setSaved(false), 2400);
       },
-    );
+    });
   };
 
   return (
     <div className="page-shell user-profile animate-fade-in">
-      <header className="user-profile-hero">
-        <div className="user-profile-identity">
-          <div className="user-profile-avatar">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt={`Photograph of ${displayName}`} />
-            ) : (
-              initials(displayName)
+      <header className="profile-hero">
+        <div className="profile-avatar">
+          {avatars[record?.id] ? (
+            <img src={avatars[record.id]} alt={`Photograph of ${displayName}`} />
+          ) : (
+            initials(displayName)
+          )}
+        </div>
+
+        <div className="profile-identity">
+          <h1>{displayName}</h1>
+          <p>{record?.designation?.title || roleLabel}</p>
+          <div className="profile-chips">
+            {record?.status && (
+              <span className={record.status === 'Active' ? 'is-active' : ''}>
+                <BadgeCheck size={11} /> {record.status}
+              </span>
             )}
-          </div>
-          <div className="user-profile-heading">
-            <span className="user-profile-eyebrow">My profile</span>
-            <h1>{displayName}</h1>
-            <p>{[designation, department, branch].filter(Boolean).join(' / ')}</p>
-            <div className="user-profile-chips">
-              {record?.status && (
-                <span className={record.status === 'Active' ? 'is-active' : ''}>
-                  <BadgeCheck size={12} /> {record.status}
-                </span>
-              )}
-              {record?.employee_code && <span>{record.employee_code}</span>}
-              <span>{roleLabel}</span>
-            </div>
+            <span>{roleLabel}</span>
           </div>
         </div>
 
-        <div className="user-profile-summary">
-          {record && (
-            <div className="user-profile-completion">
-              <span>
-                <small>Profile</small>
-                <strong>{completion}%</strong>
-              </span>
-              <i><b style={{ width: `${completion}%` }} /></i>
-            </div>
-          )}
-          <button type="button" onClick={onOpenSettings}>
-            <Settings size={15} />
-            <span>Account settings</span>
-          </button>
-        </div>
+        <button type="button" className="profile-settings" onClick={onOpenSettings}>
+          <Settings size={14} /> <span>Settings</span>
+        </button>
       </header>
 
+      {/* Given their own row so they are answerable at a glance rather than found inside a list. */}
+      {record && (
+        <div className="profile-strip">
+          {strip.map(([label, value, extra]) => (
+            <div key={label}>
+              <small>{label}</small>
+              <strong>{value || '—'}</strong>
+              {extra ? <em>{extra}</em> : null}
+            </div>
+          ))}
+        </div>
+      )}
+
       {employeeQuery.error && (
-        <div className="user-profile-alert" role="alert">
+        <div className="profile-alert" role="alert">
           <AlertTriangle size={15} />
-          <span>Some employee details could not be loaded. Basic account information is shown.</span>
+          <span>Some details could not be loaded. Basic account information is shown.</span>
         </div>
       )}
 
       {!linkedEmployee && (
-        <div className="user-profile-alert is-info">
+        <div className="profile-alert is-info">
           <ShieldCheck size={15} />
           <span>This administrator login is not linked to an employee record.</span>
         </div>
       )}
 
-      <div className="user-profile-grid">
-        <div className="user-profile-column">
-          <ProfileSection icon={UserRound} title="Contact">
-            <ProfileValue
-              icon={Mail}
-              label="Work email"
-              value={record?.email || user?.email}
-              href={(record?.email || user?.email) ? `mailto:${record?.email || user?.email}` : null}
-            />
-            <ProfileValue
-              icon={Mail}
-              label="Personal email"
-              value={record?.personal_email}
-              href={record?.personal_email ? `mailto:${record.personal_email}` : null}
-            />
-            <ProfileValue icon={Phone} label="Phone" value={record?.phone}>
-              {linkedEmployee && editingPhone ? (
-                <div className="user-profile-phone-editor">
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(event) => setPhone(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter') savePhone();
-                      if (event.key === 'Escape') {
-                        setPhone(record?.phone || '');
-                        setEditingPhone(false);
-                      }
-                    }}
-                    autoFocus
-                    aria-label="Phone number"
-                  />
-                  <button
-                    type="button"
-                    onClick={savePhone}
-                    disabled={!phoneChanged || updateProfile.isPending}
-                    title="Save phone number"
-                    aria-label="Save phone number"
-                  >
-                    {updateProfile.isPending ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Check size={14} />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhone(record?.phone || '');
-                      setEditingPhone(false);
-                    }}
-                    title="Cancel"
-                    aria-label="Cancel phone edit"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              ) : (
-                <span className="user-profile-editable-value">
-                  {record?.phone ? <a href={`tel:${record.phone}`}>{record.phone}</a> : <strong className="is-empty">Not recorded</strong>}
-                  {linkedEmployee && (
-                    <button
-                      type="button"
-                      onClick={() => setEditingPhone(true)}
-                      title="Edit phone number"
-                      aria-label="Edit phone number"
-                    >
-                      <Pencil size={12} />
-                    </button>
-                  )}
-                </span>
-              )}
-            </ProfileValue>
-            {updateProfile.isError && (
-              <p className="user-profile-error">{updateProfile.error?.message}</p>
-            )}
-            {saved && <p className="user-profile-saved"><Check size={12} /> Phone updated</p>}
-          </ProfileSection>
-
-          {record && (
-            <ProfileSection icon={BriefcaseBusiness} title="Work">
-              <ProfileValue icon={Building2} label="Company" value={record.entity?.name} />
-              <ProfileValue icon={MapPin} label="Branch" value={branch} />
-              <ProfileValue icon={UserRound} label="Department" value={department} />
-              <ProfileValue icon={BriefcaseBusiness} label="Designation" value={record.designation?.title} />
-              <ProfileValue icon={CalendarDays} label="Joined" value={joined} />
-              <ProfileValue icon={CalendarDays} label="Tenure" value={tenure} />
-            </ProfileSection>
-          )}
-
-          {record?.id && (
-            <ProfileSection icon={Package} title="My assets">
-              <MyAssets employeeId={record.id} />
-            </ProfileSection>
-          )}
-        </div>
-
-        <div className="user-profile-column">
-          <ProfileSection icon={ShieldCheck} title="Account">
-            <ProfileValue icon={Mail} label="Login email" value={user?.email} />
-            <ProfileValue icon={BadgeCheck} label="Access role" value={roleLabel} />
-            {record?.employee_code && (
-              <ProfileValue icon={UserRound} label="Employee code" value={record.employee_code} />
-            )}
-            <button type="button" className="user-profile-settings-link" onClick={onOpenSettings}>
-              <Settings size={14} /> Password and display settings
-            </button>
-          </ProfileSection>
-
-          {record && (
-            <ProfileSection icon={UserRound} title="Personal">
-              <ProfileValue icon={CalendarDays} label="Date of birth" value={formatDate(record.date_of_birth)} />
-              <ProfileValue icon={UserRound} label="Gender" value={record.gender} />
-              <ProfileValue icon={UserRound} label="Father's name" value={record.father_name} />
-              <ProfileValue icon={UserRound} label="Mother's name" value={record.mother_name} />
-              <ProfileValue icon={BadgeCheck} label="Blood group" value={record.blood_group} />
-              <ProfileValue icon={MapPin} label="Address" value={record.address} wide />
-            </ProfileSection>
-          )}
-
-          {record && (
-            <ProfileSection icon={HeartPulse} title="Emergency contact">
-              <ProfileValue icon={UserRound} label="Name" value={record.emergency_name} />
-              <ProfileValue
-                icon={Phone}
-                label="Phone"
-                value={record.emergency_phone}
-                href={record.emergency_phone ? `tel:${record.emergency_phone}` : null}
+      <div className="profile-grid">
+        {/* Yours to change. update_my_profile accepts a phone number and nothing else, so this is
+            the whole of what the page can offer as an action — worth saying plainly rather than
+            leaving people to work it out by finding no other pencil. */}
+        {linkedEmployee && (
+          <section className="profile-card is-editable">
+            <header>
+              <span className="profile-card-icon"><Phone size={13} /></span>
+              <h2>Your phone number</h2>
+            </header>
+            <form className="profile-phone" onSubmit={savePhone}>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="Not recorded"
+                aria-label="Your phone number"
               />
-              <ProfileValue icon={HeartPulse} label="Relationship" value={record.emergency_relation} />
-            </ProfileSection>
-          )}
-        </div>
+              <button type="submit" disabled={!phoneChanged || updateProfile.isPending}>
+                {updateProfile.isPending
+                  ? <Loader2 size={13} className="animate-spin" />
+                  : <Check size={13} />}
+                Save
+              </button>
+            </form>
+            {updateProfile.isError && <p className="profile-error">{updateProfile.error?.message}</p>}
+            {saved && <p className="profile-saved"><Check size={12} /> Phone updated</p>}
+            <p className="profile-note">
+              The only detail you can change here. Everything else is maintained by HR — ask them if
+              something below is wrong.
+            </p>
+          </section>
+        )}
+
+        <Facts
+          icon={Mail}
+          title="Contact"
+          fields={[
+            ['Work email', workEmail ? <a href={`mailto:${workEmail}`}>{workEmail}</a> : null],
+            ['Personal email', record?.personal_email
+              ? <a href={`mailto:${record.personal_email}`}>{record.personal_email}</a> : null],
+            ['Address', record?.address],
+          ]}
+        />
+
+        {record && (
+          <Facts
+            icon={BriefcaseBusiness}
+            title="Placement"
+            fields={[
+              ['Company', record.entity?.name],
+              ['Designation', record.designation?.title],
+              ['Department', record.department?.name],
+              ['Branch', record.branch?.name || record.branch?.code],
+            ]}
+          />
+        )}
+
+        {/* Ahead of Personal on purpose: the section most worth checking is right, and the one whose
+            being wrong costs the most. */}
+        {record && (
+          <Facts
+            icon={HeartPulse}
+            title="Emergency contact"
+            fields={[
+              ['Name', record.emergency_name],
+              ['Phone', record.emergency_phone
+                ? <a href={`tel:${record.emergency_phone}`}>{record.emergency_phone}</a> : null],
+              ['Relationship', record.emergency_relation],
+            ]}
+            note="ask HR to add them"
+          />
+        )}
+
+        {record && (
+          <Facts
+            icon={UserRound}
+            title="Personal"
+            fields={[
+              ['Date of birth', formatDate(record.date_of_birth)],
+              ['Gender', record.gender],
+              ["Father's name", record.father_name],
+              ["Mother's name", record.mother_name],
+              ['Blood group', record.blood_group],
+            ]}
+          />
+        )}
+
+        <Facts
+          icon={ShieldCheck}
+          title="Account"
+          fields={[
+            ['Login email', user?.email],
+            ['Access role', roleLabel],
+          ]}
+        >
+          <button type="button" className="profile-inline-link" onClick={onOpenSettings}>
+            <Settings size={13} /> Password and display settings
+          </button>
+        </Facts>
+
+        {record?.id && (
+          <Facts icon={Package} title="Assets you hold" fields={[]}>
+            <MyAssets employeeId={record.id} />
+          </Facts>
+        )}
       </div>
     </div>
   );
