@@ -6,14 +6,15 @@
 //
 // RLS decides which rows come back: a branch manager sees their branch, an employee sees only
 // their own. The client never filters for security, only for presentation.
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { formatClock } from '../lib/clock';
 import { getHour12 } from '../lib/timeFormat';
 
 
 const SELECT = `
-  id, work_date, status, day_type, check_in, check_out, hours,
+  id, employee_id, entity_id, zone_id, branch_id, department_id,
+  work_date, status, day_type, check_in, check_out, hours, is_locked,
   worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
   is_late, is_early_exit, is_missing_punch, is_lop, day_fraction,
   leave_type, remarks, punch_count, scheduled_in, scheduled_out, computed_at,
@@ -198,6 +199,36 @@ export const STATUS_CODES = {
   'Missing Punch': 'M',
   'No Shift': '?',
 };
+
+export const ATTENDANCE_STATUSES = [
+  'Present',
+  'Absent',
+  'Half Day',
+  'On Leave',
+  'Weekly Off',
+  'Holiday',
+  'Missing Punch',
+  'No Shift',
+];
+
+/**
+ * Stores a scoped HR override. The engine keeps recalculating punches and durations but preserves
+ * this status and its matching payable-day credit on future recomputes.
+ */
+export function useSetAttendanceStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, status, note }) => {
+      const { error } = await supabase.rpc('set_attendance_status', {
+        _attendance_id: id,
+        _status: status,
+        _note: note ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['attendance'] }),
+  });
+}
 
 // Kept as a plain function so the dozen existing `fmtTime(row.check_in)` calls are untouched; the
 // reader's 12-or-24-hour choice is picked up by default. Components that print times subscribe with

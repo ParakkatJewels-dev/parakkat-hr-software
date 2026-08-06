@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import {
   useAttendanceSummary, useMonthlyAttendance, useAttendanceExceptions,
-  useRawPunches,
+  useRawPunches, useSetAttendanceStatus,
   todayIso, STATUS_STYLES, STATUS_CODES, fmtTime, fmtMinutes,
 } from '../data/attendance';
 import {
@@ -26,6 +26,7 @@ import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import { useSyncHealth, DIAGNOSIS, forHumans, useQueuedExport, useQueuedRecompute } from '../data/syncStatus';
 import { useUrlTab } from '../lib/useUrlTab';
+import AttendanceStatusSelect from './ui/AttendanceStatusSelect';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -52,6 +53,15 @@ function StatusBadge({ status, isLop }) {
     <span className={`badge ${STATUS_STYLES[status] ?? 'badge-muted'}`}>
       {isLop ? 'LOP' : status}
     </span>
+  );
+}
+
+function AttendanceStatusControl({ row, editable, mutation }) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <StatusBadge status={row.status} isLop={row.is_lop} />
+      {editable ? <AttendanceStatusSelect row={row} mutation={mutation} /> : null}
+    </div>
   );
 }
 
@@ -123,8 +133,9 @@ function hasAttendanceException(row) {
 // Today — who is in
 // ---------------------------------------------------------------------------
 
-function TodayView({ workDate, setWorkDate }) {
+function TodayView({ workDate, setWorkDate, canManageRow }) {
   const { data = [], isLoading, error, summary, refetch, isFetching } = useAttendanceSummary(workDate);
+  const setAttendanceStatus = useSetAttendanceStatus();
   // Only meaningful while looking at today: a stalled terminal cannot explain a gap in last March.
   const { data: health } = useSyncHealth();
   const isToday = workDate === todayIso();
@@ -383,7 +394,13 @@ function TodayView({ workDate, setWorkDate }) {
                     <td data-label="OT" className="font-mono text-emerald-600 dark:text-emerald-400">
                       {fmtMinutes(row.ot_minutes)}
                     </td>
-                    <td data-label="Status"><StatusBadge status={row.status} isLop={row.is_lop} /></td>
+                    <td data-label="Status">
+                      <AttendanceStatusControl
+                        row={row}
+                        editable={canManageRow(row)}
+                        mutation={setAttendanceStatus}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -393,6 +410,7 @@ function TodayView({ workDate, setWorkDate }) {
           </>
         )}
       </div>
+      <ErrorNote error={setAttendanceStatus.error} />
     </div>
   );
 }
@@ -581,12 +599,13 @@ function CalendarView({ employeeId, employeeName }) {
 // Exceptions + reports
 // ---------------------------------------------------------------------------
 
-function ExceptionsView() {
+function ExceptionsView({ canManageRow }) {
   // Exceptions are chased down while they are fresh, so the last week is the useful default.
   const range = useDateRange('week');
   const { from, to } = range;
 
   const { data = [], isLoading, error, refetch } = useAttendanceExceptions(from, to);
+  const setAttendanceStatus = useSetAttendanceStatus();
   // Queued through Supabase rather than called directly on the HR laptop. The direct route only
   // ever worked from inside the office over plain http — from the deployed HTTPS site the browser
   // refuses to call it at all, so all three of these buttons did nothing.
@@ -737,7 +756,13 @@ function ExceptionsView() {
                       </td>
                       <td data-label="In" className="font-mono">{fmtTime(row.check_in)}</td>
                       <td data-label="Out" className="font-mono">{fmtTime(row.check_out)}</td>
-                      <td data-label="Status"><StatusBadge status={row.status} isLop={row.is_lop} /></td>
+                      <td data-label="Status">
+                        <AttendanceStatusControl
+                          row={row}
+                          editable={canManageRow(row)}
+                          mutation={setAttendanceStatus}
+                        />
+                      </td>
                     </tr>
                   );
                 })}
@@ -746,6 +771,7 @@ function ExceptionsView() {
           </div>
         )}
       </div>
+      <ErrorNote error={setAttendanceStatus.error} />
     </div>
   );
 }
@@ -913,7 +939,7 @@ function RegularizationsView({ employee, canApprove }) {
 
 export default function Attendance() {
   const { employee } = useAuth();
-  const { canAny, canBeyondSelf } = usePermissions();
+  const { can, canAny, canBeyondSelf } = usePermissions();
   const [workDate, setWorkDate] = useState(todayIso());
 
   // A `scoped` tab looks at other people, so it needs the permission held beyond your own record.
@@ -925,6 +951,13 @@ export default function Attendance() {
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
   const [tab, setTab] = useUrlTab(visibleTabs[0]?.id ?? 'calendar', visibleTabs.map((t) => t.id));
   const canApprove = canAny('regularization.approve');
+  const canManageRow = (row) => can('attendance.manage', {
+    entityId: row.entity_id,
+    zoneId: row.zone_id,
+    branchId: row.branch_id,
+    deptId: row.department_id,
+    employeeId: row.employee_id,
+  });
 
   return (
     <div className="page-shell space-y-5 animate-slide-up py-3">
@@ -953,9 +986,11 @@ export default function Attendance() {
         })}
       </div>
 
-      {tab === 'today' ? <TodayView workDate={workDate} setWorkDate={setWorkDate} /> : null}
+      {tab === 'today' ? (
+        <TodayView workDate={workDate} setWorkDate={setWorkDate} canManageRow={canManageRow} />
+      ) : null}
       {tab === 'calendar' ? <CalendarView employeeId={employee?.id} employeeName={employee?.full_name} /> : null}
-      {tab === 'exceptions' ? <ExceptionsView /> : null}
+      {tab === 'exceptions' ? <ExceptionsView canManageRow={canManageRow} /> : null}
       {tab === 'regularizations' ? <RegularizationsView employee={employee} canApprove={canApprove} /> : null}
     </div>
   );

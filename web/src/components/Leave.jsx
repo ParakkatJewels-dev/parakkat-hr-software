@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, FileText, X, Check, Ban, Loader2, AlertTriangle } from 'lucide-react';
+import { Calendar, FileText, X, Loader2, AlertTriangle } from 'lucide-react';
 import { useHolidays } from '../data/holidays';
 import { useLeaves, useApplyLeave, useSetLeaveStatus } from '../data/leaves';
 import { useAuth } from '../auth/AuthContext';
@@ -8,12 +8,15 @@ import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 
 const LEAVE_TYPES = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Maternity Leave', 'Paternity Leave', 'Comp Off', 'Loss of Pay (LOP)'];
+const LEAVE_REVIEW_STATUSES = ['Pending', 'On Hold', 'Approved', 'Rejected'];
 
 const statusClass = (s) =>
   s === 'Approved'
     ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-900/30'
     : s === 'Rejected'
     ? 'bg-rose-100 text-rose-805 border-rose-200 dark:bg-rose-950/40 dark:text-rose-450 dark:border-rose-900/30'
+    : s === 'On Hold'
+    ? 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/30'
     : s === 'Cancelled'
     ? 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-500 dark:border-neutral-800'
     : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-450 dark:border-amber-900/30';
@@ -30,11 +33,18 @@ export default function Leave() {
   const { data: holidays = [] } = useHolidays(null, currentYear);
   const { data: leaves = [], isLoading, error } = useLeaves();
   const { employee } = useAuth();
-  const { canAny } = usePermissions();
+  const { can, canAny } = usePermissions();
   const apply = useApplyLeave();
   const setStatus = useSetLeaveStatus();
 
   const canApprove = canAny('leave.approve');
+  const canReview = (request) => can('leave.approve', {
+    entityId: request.entity_id,
+    zoneId: request.zone_id,
+    branchId: request.branch_id,
+    deptId: request.department_id,
+    employeeId: request.employee_id,
+  });
   const canApply = Boolean(employee?.id); // only employee-linked logins can request leave
 
   const [showForm, setShowForm] = useState(false);
@@ -43,7 +53,13 @@ export default function Leave() {
 
   const stats = useMemo(() => {
     const by = (s) => leaves.filter((l) => l.status === s).length;
-    return { total: leaves.length, pending: by('Pending'), approved: by('Approved'), rejected: by('Rejected') };
+    return {
+      total: leaves.length,
+      pending: by('Pending'),
+      onHold: by('On Hold'),
+      approved: by('Approved'),
+      rejected: by('Rejected'),
+    };
   }, [leaves]);
 
   const submit = async (e) => {
@@ -91,9 +107,10 @@ export default function Leave() {
       </div>
 
       {/* stats from real data */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <Stat label="Total Requests" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="Pending" value={stats.pending} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
+        <Stat label="On Hold" value={stats.onHold} active={statusFilter === 'On Hold'} onClick={() => setStatusFilter('On Hold')} />
         <Stat label="Approved" value={stats.approved} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
         <Stat label="Rejected" value={stats.rejected} active={statusFilter === 'Rejected'} onClick={() => setStatusFilter('Rejected')} />
       </div>
@@ -130,34 +147,48 @@ export default function Leave() {
                         {req.employee?.branch?.code ? ` (${req.employee.branch.code})` : ''}
                       </span>
                       {req.reason && <p className="text-2xs text-neutral-450 italic font-mono truncate">"{req.reason}"</p>}
+                      {req.auto_cancellation_note && (
+                        <p className="text-2xs text-amber-700 dark:text-amber-300">
+                          {req.auto_cancellation_note}
+                          {req.status === 'Approved' && req.cancelled_dates?.length
+                            ? ` · ${req.cancelled_dates.length} date${req.cancelled_dates.length === 1 ? '' : 's'} removed`
+                            : ''}
+                        </p>
+                      )}
                     </div>
 
                     <div className="mobile-list-actions flex items-center gap-2 shrink-0">
                       <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border ${statusClass(req.status)}`}>
                         {req.status}
                       </span>
-                      {canApprove && req.status === 'Pending' && (
-                        <>
-                          <button
-                            onClick={() => setStatus.mutate({ id: req.id, status: 'Approved' })}
-                            title="Approve" aria-label="Approve"
-                            className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-950/50 cursor-pointer"
-                          >
-                            <Check size={13} />
-                          </button>
-                          <button
-                            onClick={() => setStatus.mutate({ id: req.id, status: 'Rejected' })}
-                            title="Reject" aria-label="Reject"
-                            className="p-1.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/50 cursor-pointer"
-                          >
-                            <Ban size={13} />
-                          </button>
-                        </>
+                      {canReview(req) && req.status !== 'Cancelled' && (
+                        <select
+                          value={req.status}
+                          onChange={(event) => {
+                            if (event.target.value !== req.status) {
+                              setStatus.mutate({ id: req.id, status: event.target.value });
+                            }
+                          }}
+                          disabled={setStatus.isPending}
+                          aria-label={`Change status for ${req.employee?.full_name || req.type}`}
+                          title="Change leave status"
+                          className="min-w-24 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-2xs font-bold text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 disabled:opacity-50"
+                        >
+                          {LEAVE_REVIEW_STATUSES.map((status) => (
+                            <option key={status} value={status}>{status}</option>
+                          ))}
+                        </select>
                       )}
                     </div>
                   </div>
                 ))}
                 <Pagination {...pager} noun="requests" />
+              </div>
+            )}
+            {setStatus.error && (
+              <div className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <span>{setStatus.error.message}</span>
               </div>
             )}
           </div>

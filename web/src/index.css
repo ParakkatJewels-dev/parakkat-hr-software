@@ -6625,3 +6625,31 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
+
+/* The Parakkat mark. See components/ui/BrandMark.jsx for why this is a mask and not an <img>:
+   the artwork is pure white, so as an image it disappears on every light surface in the app.
+   Masked, the PNG gives the shape and currentColor gives the colour, and one file serves the
+   white-on-green sidebar tile, the dark-on-white login card and dark mode alike. */
+.brand-mark {
+  display: inline-block;
+  flex: none;
+  background-image: url('/brand-mark.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+@supports ((mask-image: url('')) or (-webkit-mask-image: url(''))) {
+  .brand-mark {
+    background-image: none;
+    background-color: currentColor;
+    -webkit-mask-image: url('/brand-mark.png');
+    mask-image: url('/brand-mark.png');
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+}

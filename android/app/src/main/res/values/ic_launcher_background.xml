@@ -1,4 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!--
+      The plate behind the adaptive icon's foreground. It was #FFFFFF, left over from the Capacitor
+      scaffold, and the brand mark is pure white with no outline — so on Android 8 and up the
+      launcher would have composited a white P onto a white square and drawn, convincingly, nothing.
+
+      #080d0b matches the web manifest's background_color and the dark theme-color, so the launcher
+      icon, the splash and the installed title bar are one colour rather than three near-misses.
+    -->
+    <color name="ic_launcher_background">#080d0b</color>
 </resources>

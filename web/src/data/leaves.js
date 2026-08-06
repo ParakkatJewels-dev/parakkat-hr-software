@@ -13,7 +13,9 @@ export function useLeaves({ enabled = true } = {}) {
         .from('leaves')
         .select(
           // disambiguate: leaves has two FKs to employees (employee_id + approver_id)
-          `id, type, start_date, end_date, days, reason, status, created_at,
+          `id, employee_id, entity_id, zone_id, branch_id, department_id,
+           type, start_date, end_date, days, reason, status, created_at,
+           cancelled_dates, auto_cancelled_at, auto_cancellation_note,
            employee:employees!leaves_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
         // Bounded: the whole table was fetched on every dashboard. Screens show recent activity;
@@ -43,8 +45,14 @@ export function useSetLeaveStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }) => {
-      const { error } = await supabase.from('leaves').update({ status }).eq('id', id);
+      const { data, error } = await supabase
+        .from('leaves')
+        .update({ status })
+        .eq('id', id)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error('That leave request is outside the scope you can manage.');
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['leaves'] }),
   });

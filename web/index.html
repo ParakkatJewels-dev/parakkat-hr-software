@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Sized separately on purpose. The mark is a crowned P inside a ring, and at 16px that ring
+         is under one pixel and turns the whole thing into a grey blob — so favicon-16 drops it and
+         gives the letter the frame. A single SVG favicon cannot vary like that, which is why there
+         isn't one. -->
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" sizes="180x180" href="/pwa-icon-180.png" />
     <meta id="app-viewport" name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />

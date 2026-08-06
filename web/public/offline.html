@@ -48,16 +48,28 @@
         backdrop-filter: blur(22px) saturate(1.15);
       }
 
+      /* The brand mark, masked so it takes the colour below rather than shipping a second
+         white-only asset. This page is precached and must render with no network, so the image is
+         a local file and the whole rule degrades to a plain tile if masking is unsupported. */
       .mark {
-        width: 2.5rem;
-        height: 2.5rem;
+        width: 3rem;
+        height: 3rem;
         display: grid;
         place-items: center;
         border-radius: .9rem;
-        background: #0ea971;
+        background: #080d0b;
         color: #fff;
         font-weight: 800;
         letter-spacing: 0;
+      }
+
+      .mark span {
+        display: block;
+        width: 1.85rem;
+        height: 1.85rem;
+        background-color: currentColor;
+        -webkit-mask: url('/brand-mark.png') center / contain no-repeat;
+        mask: url('/brand-mark.png') center / contain no-repeat;
       }
 
       h1 {
@@ -89,7 +101,7 @@
   </head>
   <body>
     <main>
-      <div class="mark">HR</div>
+      <div class="mark" role="img" aria-label="Parakkat"><span></span></div>
       <h1>You're offline</h1>
       <p>Parakkat HR can open from your device, but live attendance, payroll, and approval data need the network before they can refresh.</p>
       <button type="button" onclick="window.location.reload()">Try again</button>

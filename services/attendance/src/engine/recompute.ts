@@ -11,7 +11,7 @@ import { prisma } from '../lib/db';
 import { logger } from '../lib/logger';
 import { eachWorkDate, punchWindowBounds, toWorkDate, resolveRecomputeRange } from './windows';
 import { todayWorkDate } from '../lib/time';
-import { processDay } from './processDay';
+import { fullDayLeaveConflictsWithPunch, processDay } from './processDay';
 import { punchWindow } from './processDay';
 import type { DayInput, DayResult, LeaveOverlay, PunchRecord, ShiftDefinition } from './types';
 import { SyncRun } from '../sync/runLog';
@@ -199,9 +199,16 @@ async function loadHolidays(from: string, to: string): Promise<Map<string, strin
   return map;
 }
 
-/** 'employeeId|yyyy-MM-dd' -> the approved leave covering it. */
-async function loadLeaves(from: string, to: string, employeeIds: string[]): Promise<Map<string, LeaveOverlay>> {
-  if (employeeIds.length === 0) return new Map();
+interface LoadedLeaves {
+  /** Approved leave that affects attendance scoring. */
+  approved: Map<string, LeaveOverlay>;
+  /** Pending, held, or approved requests that a real punch can cancel. */
+  cancellable: Map<string, LeaveOverlay[]>;
+}
+
+/** Leave requests covering each employee-date in the requested range. */
+async function loadLeaves(from: string, to: string, employeeIds: string[]): Promise<LoadedLeaves> {
+  if (employeeIds.length === 0) return { approved: new Map(), cancellable: new Map() };
 
   // leave_types / day_fraction arrive in 0014; left-joined so this works before that migration and
   // degrades to "approved leave = a full paid day".
@@ -212,40 +219,61 @@ async function loadLeaves(from: string, to: string, employeeIds: string[]): Prom
       start_date: Date;
       end_date: Date;
       type: string;
+      status: 'Pending' | 'On Hold' | 'Approved';
       is_lop: boolean | null;
       is_paid: boolean | null;
       day_fraction: number | null;
+      cancelled_dates: Array<Date | string> | null;
     }>
   >`
-    select l.id, l.employee_id, l.start_date, l.end_date, l.type,
+    select l.id, l.employee_id, l.start_date, l.end_date, l.type, l.status,
            coalesce(l.is_lop, false)                as is_lop,
            coalesce(lt.is_paid, true)               as is_paid,
-           coalesce(l.day_fraction, 1)::float8      as day_fraction
+           coalesce(l.day_fraction, 1)::float8      as day_fraction,
+           coalesce(l.cancelled_dates, '{}'::date[]) as cancelled_dates
       from public.leaves l
       left join public.leave_types lt on lt.code = l.type
-     where l.status = 'Approved'
+     where l.status in ('Pending', 'On Hold', 'Approved')
        and l.employee_id = any(${employeeIds}::uuid[])
        and l.start_date <= ${to}::date
        and l.end_date   >= ${from}::date
   `;
 
-  const map = new Map<string, LeaveOverlay>();
+  const approved = new Map<string, LeaveOverlay>();
+  const cancellable = new Map<string, LeaveOverlay[]>();
   for (const r of rows) {
+    const cancelledDates = new Set(
+      (r.cancelled_dates ?? []).map((d) =>
+        d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10)
+      )
+    );
     for (const d of eachWorkDate(
       r.start_date.toISOString().slice(0, 10),
       r.end_date.toISOString().slice(0, 10)
     )) {
-      if (d < from || d > to) continue;
-      map.set(`${r.employee_id}|${d}`, {
+      if (d < from || d > to || cancelledDates.has(d)) continue;
+      const key = `${r.employee_id}|${d}`;
+      const overlay = {
         id: r.id,
         type: r.type,
         dayFraction: Number(r.day_fraction ?? 1),
         isLop: Boolean(r.is_lop),
         isPaid: r.is_paid !== false,
-      });
+      };
+      cancellable.set(key, [...(cancellable.get(key) ?? []), overlay]);
+      if (r.status === 'Approved') approved.set(key, overlay);
     }
   }
-  return map;
+  return { approved, cancellable };
+}
+
+type LeavePunchOutcome = 'day' | 'leave' | 'ignored' | 'locked';
+
+async function cancelLeaveForPunch(leaveId: string, workDate: string): Promise<LeavePunchOutcome> {
+  const rows = await prisma.$queryRaw<Array<{ outcome: LeavePunchOutcome }>>`
+    select app.cancel_leave_day_for_punch(${leaveId}::uuid, ${workDate}::date) as outcome
+  `;
+  return rows[0]?.outcome ?? 'leave';
 }
 
 /** 'employeeId|yyyy-MM-dd' -> approved regularization. */
@@ -372,7 +400,8 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
       on conflict (employee_id, work_date) do update set
         employee_id        = excluded.employee_id,
         shift_id           = excluded.shift_id,
-        status             = excluded.status,
+        -- HR may override the headline status while punches and metrics continue to recompute.
+        status             = coalesce(public.attendance.status_override, excluded.status),
         day_type           = excluded.day_type,
         check_in           = excluded.check_in,
         check_out          = excluded.check_out,
@@ -391,11 +420,34 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
         is_missing_punch   = excluded.is_missing_punch,
         leave_id           = excluded.leave_id,
         leave_type         = excluded.leave_type,
-        is_lop             = excluded.is_lop,
-        day_fraction       = excluded.day_fraction,
+        is_lop             = case
+                               when public.attendance.status_override is not null
+                                and public.attendance.status_override <> 'On Leave' then false
+                               else excluded.is_lop
+                             end,
+        day_fraction       = case public.attendance.status_override
+                               when 'Present'       then 1
+                               when 'Weekly Off'    then 1
+                               when 'Holiday'       then 1
+                               when 'On Leave'      then 1
+                               when 'Half Day'      then 0.5
+                               when 'Missing Punch' then 0.5
+                               when 'Absent'        then 0
+                               when 'No Shift'      then 0
+                               else excluded.day_fraction
+                             end,
         regularization_id  = excluded.regularization_id,
-        source             = excluded.source,
-        remarks            = excluded.remarks,
+        source             = case
+                               when public.attendance.status_override is not null then 'manual'
+                               else excluded.source
+                             end,
+        remarks            = case
+                               when public.attendance.status_override is not null then coalesce(
+                                 public.attendance.status_override_note,
+                                 'Status manually set to ' || public.attendance.status_override
+                               )
+                               else excluded.remarks
+                             end,
         computed_at        = excluded.computed_at,
         punches            = excluded.punches,
         break_minutes      = excluded.break_minutes,
@@ -456,7 +508,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
       };
     }
 
-    const [shifts, assignments, defaultShifts, calendars, holidays, leaves, regularizations] =
+    const [shifts, assignments, defaultShifts, calendars, holidays, loadedLeaves, regularizations] =
       await Promise.all([
         loadShifts(),
         loadAssignments(from, to),
@@ -466,6 +518,8 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
         loadLeaves(from, to, employeeIds),
         loadRegularizations(from, to, employeeIds),
       ]);
+    const leaves = loadedLeaves.approved;
+    const cancellableLeaves = loadedLeaves.cancellable;
 
     // Widen the punch query to cover night shifts spilling past either end of the range.
     const { from: punchFrom, to: punchTo } = punchWindowBounds(from, to);
@@ -532,11 +586,50 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
         const holidayName = calendarId ? holidays.get(`${calendarId}|${workDate}`) ?? null : null;
 
         const { from: winFrom, to: winTo } = punchWindow(workDate, shift);
-        const dayPunches = [];
+        const dayPunches: PunchRecord[] = [];
         for (let i = lowerBound(allPunches, winFrom); i < allPunches.length; i++) {
           const p = allPunches[i]!;
           if (p.punchTime >= winTo) break;
           dayPunches.push(p);
+        }
+
+        const leaveKey = `${employee.id}|${workDate}`;
+        let leave = leaves.get(leaveKey) ?? null;
+
+        // A real terminal punch wins over a full-day leave request. The database function cancels
+        // this date or the whole one-day request and recalculates the balance when it was approved.
+        // Half-day leave remains in force because punching is expected for its worked half.
+        const leaveConflicts = (cancellableLeaves.get(leaveKey) ?? [])
+          .filter((request) => fullDayLeaveConflictsWithPunch(request, dayPunches));
+        for (const request of leaveConflicts) {
+          const leaveId = request.id;
+          const outcome = await cancelLeaveForPunch(leaveId, workDate);
+          if (outcome === 'day' || outcome === 'leave') {
+            const remaining = (cancellableLeaves.get(leaveKey) ?? [])
+              .filter((candidate) => candidate.id !== leaveId);
+            if (remaining.length > 0) cancellableLeaves.set(leaveKey, remaining);
+            else cancellableLeaves.delete(leaveKey);
+            if (leave?.id === leaveId) {
+              leaves.delete(leaveKey);
+              leave = null;
+            }
+          }
+          if (outcome === 'leave') {
+            for (const [key, overlay] of leaves) {
+              if (overlay.id === leaveId) leaves.delete(key);
+            }
+            for (const [key, requests] of cancellableLeaves) {
+              const remaining = requests.filter((candidate) => candidate.id !== leaveId);
+              if (remaining.length > 0) cancellableLeaves.set(key, remaining);
+              else cancellableLeaves.delete(key);
+            }
+          }
+          const details = { employeeId: employee.id, workDate, leaveId, outcome };
+          if (outcome === 'locked') {
+            logger.warn(details, 'payroll lock prevented automatic leave cancellation');
+          } else {
+            logger.info(details, 'attendance punch reconciled with leave request');
+          }
         }
 
         const input: DayInput = {
@@ -546,7 +639,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
           dayType: holidayName ? 'holiday' : 'working',
           holidayName,
           punches: dayPunches,
-          leave: leaves.get(`${employee.id}|${workDate}`) ?? null,
+          leave,
           regularization: regularizations.get(`${employee.id}|${workDate}`) ?? null,
           // Read once per run, not per day, so every row in one recompute describes the same
           // instant. The engine never reads a clock itself — see DayInput.asOf.

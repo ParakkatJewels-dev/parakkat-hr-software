@@ -8,8 +8,12 @@ const APP_SHELL = [
   '/index.html',
   '/offline.html',
   '/manifest.webmanifest',
-  '/favicon.svg',
-  '/pwa-icon.svg',
+  '/favicon.ico',
+  '/favicon-16.png',
+  '/favicon-32.png',
+  // offline.html masks this to draw the logo, so it has to be cached alongside the page itself —
+  // an offline page that cannot render its own mark is the one case where it definitely matters.
+  '/brand-mark.png',
   '/pwa-icon-180.png',
   '/pwa-icon-192.png',
   '/pwa-icon-512.png',

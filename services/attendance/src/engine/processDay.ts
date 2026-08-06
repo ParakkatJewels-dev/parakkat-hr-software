@@ -11,7 +11,7 @@
 //   - no shift assigned      -> No Shift; the person is NOT marked absent on a guess
 import { env } from '../config/env';
 import { workDateAtTime, weekdayOf, minutesBetween, minutesToHours } from '../lib/time';
-import type { DayInput, DayResult, PunchRecord, ShiftDefinition } from './types';
+import type { DayInput, DayResult, LeaveOverlay, PunchRecord, ShiftDefinition } from './types';
 
 /** How far either side of the scheduled shift a punch still counts as that shift's punch. */
 const WINDOW_MARGIN_MINUTES = 6 * 60;
@@ -105,6 +105,14 @@ export function dedupePunches(punches: PunchRecord[], withinSeconds = env.PUNCH_
   }
 
   return out;
+}
+
+/** Full-day leave conflicts with any real terminal attendance; half-day leave expects punches. */
+export function fullDayLeaveConflictsWithPunch(
+  leave: LeaveOverlay | null,
+  punches: PunchRecord[]
+): leave is LeaveOverlay {
+  return leave !== null && leave.dayFraction >= 1 && punches.length > 0;
 }
 
 /**
@@ -306,8 +314,9 @@ export function processDay(input: DayInput): DayResult {
   }
 
   // --- leave overrides the punch story ----------------------------------------
-  // Approved leave decides the day even if a punch exists (someone came in to hand over work on
-  // an approved leave day is still on leave).
+  // Full-day punch conflicts are reconciled by recompute before they reach this pure rule. A
+  // full-day overlay here therefore has no attendance, while half-day leave deliberately falls
+  // through because punching is expected for the worked half.
   if (input.leave) {
     result.leaveId = input.leave.id;
     result.leaveType = input.leave.type;

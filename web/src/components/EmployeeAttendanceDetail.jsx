@@ -11,7 +11,8 @@ import {
   CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search,
 } from 'lucide-react';
 import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
-import { fmtMinutes, fmtTime } from '../data/attendance';
+import { fmtMinutes, fmtTime, useSetAttendanceStatus } from '../data/attendance';
+import { usePermissions } from '../auth/usePermissions';
 import { formatMinutesOfDay } from '../lib/clock';
 import { useClockFormat } from '../lib/timeFormat';
 import { explainDay, asHoursMinutes, onSiteMinutes, insideMinutes } from '../lib/attendanceSummary';
@@ -23,6 +24,7 @@ import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import PageHeader from './ui/PageHeader';
 import { btnClass } from './ui/Btn';
 import { SkeletonRows } from './ui/Skeleton';
+import AttendanceStatusSelect from './ui/AttendanceStatusSelect';
 
 const SHOW = [
   { key: 'all', label: 'Every day' },
@@ -45,6 +47,7 @@ const fmtDate = (d) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
 export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }) {
+  const { can } = usePermissions();
   const { data: employees = [] } = useEmployees();
   const [employeeId, setEmployeeId] = useState(fixedId ?? '');
   // Defaults to the current month: the period anyone asking about someone's attendance means
@@ -63,6 +66,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
 
   const person = employees.find((e) => e.id === employeeId) ?? null;
   const { data: rows = [], isLoading, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
+  const setAttendanceStatus = useSetAttendanceStatus();
 
   // Only the statuses this person actually has in the range, so the list never offers a dead end.
   const statusOptions = useMemo(() => {
@@ -347,6 +351,13 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                         // to be only what the terminal actually recorded.
                         const onSite = onSiteMinutes(r);
                         const inside = insideMinutes(r);
+                        const canManage = can('attendance.manage', {
+                          entityId: r.entity_id,
+                          zoneId: r.zone_id,
+                          branchId: r.branch_id,
+                          deptId: r.department_id,
+                          employeeId: r.employee_id,
+                        });
                         return (
                           <React.Fragment key={r.id}>
                           <tr
@@ -355,9 +366,14 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                             <td data-label="Date" className="font-semibold text-neutral-900 dark:text-white">{fmtDate(r.work_date)}</td>
                             <td data-label="Day" className="text-neutral-450 text-xs">{DOW[dow]}</td>
                             <td data-label="Status" className={`font-semibold ${statusTone(r)}`}>
-                              {r.status}
-                              {r.leave_type && <span className="text-neutral-450 font-normal"> · {r.leave_type}</span>}
-                              {r.is_missing_punch && <span className="ml-1.5 text-2xs text-amber-600 dark:text-amber-400">no punch out</span>}
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span>
+                                  {r.status}
+                                  {r.leave_type && <span className="text-neutral-450 font-normal"> · {r.leave_type}</span>}
+                                  {r.is_missing_punch && <span className="ml-1.5 text-2xs text-amber-600 dark:text-amber-400">no punch out</span>}
+                                </span>
+                                {canManage ? <AttendanceStatusSelect row={r} mutation={setAttendanceStatus} /> : null}
+                              </div>
                             </td>
                             <td data-label="In" className={`font-mono ${r.is_late ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                               {fmtTime(r.check_in)}
@@ -460,6 +476,11 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
               </div>
 
               <Pagination {...pager} noun="days" sizes={[31, 62, 93, 366]} />
+              {setAttendanceStatus.error && (
+                <p className="text-xs text-red-600 dark:text-red-300">
+                  {setAttendanceStatus.error.message}
+                </p>
+              )}
             </>
           )}
         </>

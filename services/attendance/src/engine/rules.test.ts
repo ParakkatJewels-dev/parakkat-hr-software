@@ -7,7 +7,9 @@
 // ones that produce plausible-looking wrong numbers rather than obvious errors.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { processDay, dedupePunches, punchWindow } from './processDay';
+import {
+  processDay, dedupePunches, fullDayLeaveConflictsWithPunch, punchWindow,
+} from './processDay';
 import { workDateAtTime } from '../lib/time';
 import type { DayInput, PunchRecord, ShiftDefinition } from './types';
 
@@ -303,6 +305,31 @@ test('half-day leave plus a worked half is one full paid day', () => {
 
   assert.equal(r.status, 'On Leave');
   assert.equal(r.dayFraction, 1);
+});
+
+test('a terminal punch cancels full-day leave before the day is scored', () => {
+  const leave = { id: 'lv-4', type: 'CL', dayFraction: 1, isLop: false, isPaid: true };
+  const punches = [punchAt('2026-07-15', '09:25'), punchAt('2026-07-15', '18:35')];
+
+  assert.equal(fullDayLeaveConflictsWithPunch(leave, punches), true);
+
+  const r = processDay(day({
+    punches,
+    // recompute removes the conflicting leave overlay after cancelling it in the database
+    leave: fullDayLeaveConflictsWithPunch(leave, punches) ? null : leave,
+  }));
+  assert.equal(r.status, 'Present');
+  assert.equal(r.leaveId, null);
+  assert.equal(r.dayFraction, 1);
+});
+
+test('leave is not auto-cancelled without a punch or when it covers only half a day', () => {
+  const fullDay = { id: 'lv-5', type: 'CL', dayFraction: 1, isLop: false, isPaid: true };
+  const halfDay = { ...fullDay, id: 'lv-6', dayFraction: 0.5 };
+  const punches = [punchAt('2026-07-15', '14:00')];
+
+  assert.equal(fullDayLeaveConflictsWithPunch(fullDay, []), false);
+  assert.equal(fullDayLeaveConflictsWithPunch(halfDay, punches), false);
 });
 
 // ---------------------------------------------------------------------------

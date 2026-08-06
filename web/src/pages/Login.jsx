@@ -1,6 +1,7 @@
 // Login screen. Guards the entire app: no session -> this is all you can see.
 import { useState } from 'react';
 import { LogIn, Loader2, ShieldCheck, AlertTriangle } from 'lucide-react';
+import BrandMark from '../components/ui/BrandMark';
 import { useAuth } from '../auth/AuthContext';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 
@@ -28,8 +29,16 @@ export default function Login() {
     <div className="login-screen min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-neutral-900 dark:text-warm-gray-100 px-4">
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center justify-center mb-6 gap-2.5">
-          <div className="w-12 h-12 bg-[#0ea971] text-white rounded-2xl flex items-center justify-center shadow-[0_8px_24px_rgba(14,169,113,.28)]">
-            <ShieldCheck size={22} />
+          {/* The company's own mark, not a padlock. This is the first screen anyone sees and it
+              was carrying a generic shield — the same one still used, correctly, next to "Sign in"
+              below, where it means something about access rather than about who this is.
+
+              The tile stays green rather than going ink-dark: the mark is white, so an ink tile
+              disappears into the dark theme and a white one disappears into the light theme, while
+              green holds in both. It is also the tile the sidebar uses, so the mark looks the same
+              before and after signing in. */}
+          <div className="w-14 h-14 bg-[#0ea971] text-white rounded-2xl flex items-center justify-center shadow-[0_8px_24px_rgba(14,169,113,.28)]">
+            <BrandMark size={34} title="Parakkat Jewels" />
           </div>
           <div className="text-center leading-tight">
             <div className="font-extrabold tracking-wide text-neutral-900 dark:text-warm-gray-100">PARAKKAT HR</div>

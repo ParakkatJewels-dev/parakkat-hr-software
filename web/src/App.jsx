@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, Sparkles, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target,
 } from 'lucide-react';
 
 // Import components
@@ -27,9 +27,11 @@ const Administration = lazy(() => import('./components/Administration'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 import NotificationBell from './components/NotificationBell';
+import BrandMark from './components/ui/BrandMark';
 import { useAuth } from './auth/AuthContext';
 import { usePermissions } from './auth/usePermissions';
 import { resolvePrimaryRole } from './lib/roles';
+import { appNameFor, documentTitleFor } from './lib/appName';
 import { useRealtimeSync } from './lib/realtime';
 import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
@@ -413,6 +415,25 @@ export default function App() {
   const activeSection =
     visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab)) ?? visibleSections[0];
   const activeTabMeta = allTabs.find((t) => t.id === activeTab);
+
+  /**
+   * What this application calls itself for THIS person.
+   *
+   * "HR SYSTEM" was shown to everybody. It is accurate for the people who run HR and wrong for the
+   * 160-odd employees whose whole use of it is a punch, a payslip and a leave request — it names
+   * somebody else's tool. The nav tree already splits on exactly this (an employee gets essSections
+   * under "My Workspace"), so the title now agrees with the screen instead of contradicting it.
+   */
+  const appName = appNameFor(primaryRole);
+
+  // The browser tab, which is the one piece of chrome a person sees without looking at the app.
+  // Dashboard is left off deliberately: "Dashboard · My Workspace · Parakkat" says nothing the next
+  // two words do not.
+  useEffect(() => {
+    const screen = activeSection?.id === 'home' || activeTab === 'dashboard' ? null : activeSection?.label;
+    document.title = documentTitleFor(primaryRole, screen);
+  }, [primaryRole, activeSection, activeTab]);
+
   // Five, not four. The bar is icon-only, so five plus the More button still leaves ~60px a
   // target on a 390px screen — and at four, Asset Management fell off the end of the bar and into
   // the More drawer, which is exactly where nobody looked for it.
@@ -506,10 +527,10 @@ export default function App() {
             <>
               <div className="flex items-center space-x-2.5 min-w-0">
                 <div className="p-2 bg-[#0ea971] text-white rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center shrink-0">
-                  <Sparkles size={15} />
+                  <BrandMark size={15} />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-extrabold text-xs tracking-wider text-neutral-900 dark:text-warm-gray-100 uppercase truncate">HR SYSTEM</span>
+                  <span className="font-extrabold text-xs tracking-wider text-neutral-900 dark:text-warm-gray-100 uppercase truncate">{appName}</span>
 
                 </div>
               </div>
@@ -524,7 +545,7 @@ export default function App() {
           ) : (
             <>
               <div className="p-2 bg-[#0ea971] text-white rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center">
-                <Sparkles size={16} />
+                <BrandMark size={16} />
               </div>
               <button
                 onClick={() => setIsSidebarCollapsed(false)}
@@ -891,7 +912,7 @@ export default function App() {
             <div className="flex flex-col flex-1 min-h-0 gap-4">
               <div className="flex items-center space-x-2 dark:border-neutral-900 pb-3">
                 <div className="p-1.5  text-black  dark:text-white rounded-lg">
-                  HR System
+                  {appName}
                 </div>
               </div>
               <nav className="space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
