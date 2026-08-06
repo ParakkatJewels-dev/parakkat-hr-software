@@ -1433,6 +1433,31 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     background: color-mix(in srgb, var(--surface-subtle) 74%, var(--surface-elevated));
   }
 
+  .directory-employee-table {
+    table-layout: fixed;
+  }
+
+  .directory-employee-table th,
+  .directory-employee-table td {
+    box-sizing: border-box;
+    vertical-align: middle;
+  }
+
+  .directory-employee-table .directory-col-code { width: 8.25rem; }
+  .directory-employee-table .directory-col-location { width: 9.5rem; }
+  .directory-employee-table .directory-col-department { width: 10rem; }
+  .directory-employee-table .directory-col-email { width: 13.5rem; }
+  .directory-employee-table .directory-col-company { width: 10rem; }
+  .directory-employee-table .directory-col-status { width: 6.5rem; }
+
+  .directory-missing-code {
+    color: var(--surface-text-soft);
+    font-family: var(--font-sans);
+    font-size: .72rem;
+    font-style: italic;
+    white-space: nowrap;
+  }
+
   .directory-table-card .premium-table tbody tr[role="button"] {
     position: relative;
   }
@@ -4809,6 +4834,17 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .user-profile-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Keep Directory as one real table on tablets. Turning the table itself into a block gives the
+   header and body separate anonymous table boxes, so their columns size independently. Phones use
+   the card-row treatment below; anything wider keeps one shared column grid. */
+@media (min-width: 641px) and (max-width: 768px) {
+  main .directory-table-card .directory-employee-table {
+    display: table;
+    overflow: visible;
+    white-space: nowrap;
   }
 }
 

@@ -670,7 +670,7 @@ export default function Directory() {
             >
               <option value="name-asc" className="bg-white dark:bg-black">Name (A–Z)</option>
               <option value="name-desc" className="bg-white dark:bg-black">Name (Z–A)</option>
-              <option value="code-asc" className="bg-white dark:bg-black">Employee ID</option>
+              <option value="code-asc" className="bg-white dark:bg-black">Employee code</option>
               <option value="join-date" className="bg-white dark:bg-black">Date joined</option>
             </select>
           </div>
@@ -729,14 +729,14 @@ export default function Directory() {
         /* High Density Table View */
         <div className="premium-card directory-table-card overflow-hidden shadow-xs border border-neutral-200/80 dark:border-neutral-850 rounded-2xl">
           <div className="table-scroll">
-            <table className={`premium-table ${compact ? 'is-compact' : ''}`}>
+            <table className={`premium-table directory-employee-table ${compact ? 'is-compact' : ''}`}>
               <thead>
                 <tr>
-                  <th className="w-24 hidden lg:table-cell">
-                    <SortHeader label="Employee ID" active={sortBy === 'code-asc'} dir="asc"
+                  <th scope="col" className="directory-col-code hidden lg:table-cell">
+                    <SortHeader label="Employee code" active={sortBy === 'code-asc'} dir="asc"
                       onClick={() => setSortBy('code-asc')} />
                   </th>
-                  <th>
+                  <th scope="col" className="directory-col-name">
                     <SortHeader
                       label="Name & title"
                       active={sortBy === 'name-asc' || sortBy === 'name-desc'}
@@ -744,11 +744,11 @@ export default function Directory() {
                       onClick={() => toggleSort('name-asc', 'name-desc')}
                     />
                   </th>
-                  <th className="hidden sm:table-cell">Location</th>
-                  <th className="hidden md:table-cell">Department</th>
-                  <th className={`hidden ${selectedEmp ? 'xl:table-cell' : 'lg:table-cell'}`}>Email</th>
-                  <th className={`hidden ${selectedEmp ? '' : 'xl:table-cell'}`}>Company</th>
-                  <th className="text-center w-24">Status</th>
+                  <th scope="col" className="directory-col-location hidden sm:table-cell">Location</th>
+                  <th scope="col" className="directory-col-department hidden md:table-cell">Department</th>
+                  <th scope="col" className="directory-col-email hidden lg:table-cell">Email</th>
+                  <th scope="col" className="directory-col-company hidden xl:table-cell">Company</th>
+                  <th scope="col" className="directory-col-status text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -780,10 +780,10 @@ export default function Directory() {
                           : 'hover:bg-neutral-50 dark:hover:bg-charcoal-900/40'
                       }`}
                     >
-                      <td data-label="Employee ID" className="font-mono text-sm text-neutral-500 py-3 hidden lg:table-cell">
-                        {emp.employee_code || '—'}
+                      <td data-label="Employee code" className="directory-col-code font-mono text-sm text-neutral-500 py-3 hidden lg:table-cell">
+                        {emp.employee_code || <span className="directory-missing-code">Not assigned</span>}
                       </td>
-                      <td data-label="Name & title" className="py-3">
+                      <td data-label="Name & title" className="directory-col-name py-3">
                         <div className="flex items-center gap-2.5 min-w-0">
                           {/* Steady colours. The avatar used to invert to solid black on hover,
                               which flickered down the whole list as the pointer travelled. */}
@@ -803,19 +803,19 @@ export default function Directory() {
                           </div>
                         </div>
                       </td>
-                      <td data-label="Location" className="text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden sm:table-cell">
+                      <td data-label="Location" className="directory-col-location text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden sm:table-cell">
                         {emp.branch ? `${emp.branch.name || emp.branch.code}` : '—'}
                       </td>
-                      <td data-label="Department" className="text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden md:table-cell">
+                      <td data-label="Department" className="directory-col-department text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden md:table-cell">
                         {emp.department?.name || '—'}
                       </td>
-                      <td data-label="Email" className={`text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate max-w-[180px] hidden ${selectedEmp ? 'xl:table-cell' : 'lg:table-cell'}`}>
+                      <td data-label="Email" className="directory-col-email text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate hidden lg:table-cell">
                         {emp.email || '—'}
                       </td>
-                      <td data-label="Company" className={`text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate max-w-[120px] hidden ${selectedEmp ? '' : 'xl:table-cell'}`}>
+                      <td data-label="Company" className="directory-col-company text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate hidden xl:table-cell">
                         {emp.entity?.name || '—'}
                       </td>
-                      <td data-label="Status" className="py-3 text-center">
+                      <td data-label="Status" className="directory-col-status py-3 text-center">
                         <span className={`text-2xs inline-block px-2 py-0.5 rounded-full font-bold tracking-wide uppercase leading-none ${statusClass(emp.status)}`}>
                           {emp.status}
                         </span>
