@@ -4391,8 +4391,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   :root {
     --radius-card: 10px;
     --radius-control: 9px;
-    --mobile-nav-height: 3.25rem;
-    --mobile-nav-lift: 0px;
+    --mobile-nav-height: 3.5rem;
     --mobile-nav-clearance: calc(var(--mobile-nav-height) + .75rem);
   }
 
@@ -6230,42 +6229,37 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .mobile-bottom-nav {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset-inline: 0;
+    inset-block-end: 0;
     z-index: 40;
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    gap: .2rem;
+    gap: .25rem;
     height: var(--mobile-nav-height);
     min-height: var(--mobile-nav-height);
-    padding: .32rem max(.55rem, env(safe-area-inset-left)) .32rem max(.55rem, env(safe-area-inset-right));
-    border: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
-    border-width: 1px 0 0;
-    border-radius: 1.15rem 1.15rem 0 0;
+    margin: 0;
+    padding: .45rem max(.65rem, env(safe-area-inset-left)) .45rem max(.65rem, env(safe-area-inset-right));
+    border: 0;
+    border-top: 1px solid color-mix(in srgb, #fff 52%, var(--surface-border-strong));
+    border-radius: 0;
     overflow: hidden;
-    /* Opaque fallback. A see-through fill with no blur behind it is not glass, it is a bar you can
-       read the page through — so the translucency only arrives inside the @supports below. */
-    background: color-mix(in srgb, var(--surface-elevated) 96%, var(--surface-bg));
+    isolation: isolate;
+    contain: layout paint;
+    transform: translate3d(0, 0, 0);
+    background: color-mix(in srgb, var(--surface-elevated) 98%, var(--surface-bg));
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, .5),
-      0 -10px 30px rgba(16, 32, 26, .13);
+      0 -8px 24px rgba(16, 32, 26, .12);
   }
 
-  /* Glass, properly.
-     The old rule stacked a white gradient over a fill that was 94% opaque and then asked for a
-     24px blur — nothing of the page could ever show through it, so the blur was doing no work and
-     the bar read as a solid slab. Glass needs the fill to be genuinely see-through; the blur and
-     the saturation are what stop the content behind it becoming noise. */
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .mobile-bottom-nav {
       background:
-        /* a sheen along the top edge, where light would catch a pane */
-        linear-gradient(180deg, color-mix(in srgb, #fff 26%, transparent), transparent 58%),
-        color-mix(in srgb, var(--surface-elevated) 62%, transparent);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      backdrop-filter: blur(20px) saturate(180%);
+        linear-gradient(180deg, color-mix(in srgb, #fff 18%, transparent), transparent 70%),
+        color-mix(in srgb, var(--surface-elevated) 86%, transparent);
+      -webkit-backdrop-filter: blur(18px) saturate(160%);
+      backdrop-filter: blur(18px) saturate(160%);
     }
   }
 
@@ -6276,9 +6270,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 999px;
+    border-radius: .95rem;
     color: var(--surface-text-soft);
-    transition: background .16s ease, color .16s ease, transform .16s ease;
+    background: transparent;
+    transition: background .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease;
   }
 
   .mobile-bottom-nav-item-active {
@@ -6286,7 +6281,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     color: #fff;
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,.28),
-      0 8px 18px color-mix(in srgb, var(--accent) 30%, transparent);
+      0 8px 18px color-mix(in srgb, var(--accent) 26%, transparent);
   }
 
   /* Native-mobile guardrails ------------------------------------------------
@@ -6498,8 +6493,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .dark .mobile-bottom-nav {
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, .09), transparent 58%),
-        color-mix(in srgb, var(--surface-elevated) 58%, transparent);
+        linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 70%),
+        color-mix(in srgb, var(--surface-elevated) 86%, transparent);
     }
   }
 

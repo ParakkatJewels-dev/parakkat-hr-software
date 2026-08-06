@@ -818,7 +818,8 @@ export default function App() {
 
         <nav
           aria-label="Primary mobile navigation"
-          className="mobile-bottom-nav  lg:hidden"
+          data-pwa={isPwaInstalled ? 'true' : 'false'}
+          className="mobile-bottom-nav lg:hidden"
         >
           {mobilePrimarySections.map((sec) => {
             const Icon = sec.icon;
