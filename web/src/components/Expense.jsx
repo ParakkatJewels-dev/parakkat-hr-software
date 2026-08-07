@@ -158,9 +158,7 @@ export default function Expense() {
       <div className="mobile-list-row flex justify-between items-center">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Expense Management</h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {canApprove ? 'Review and approve reimbursement claims within your scope.' : 'Submit reimbursement claims and track their status.'}
-          </p>
+          
         </div>
         <div className="flex items-center gap-2">
           {/* A manager's list is their whole branch. Without this there is no way to answer "what
@@ -263,7 +261,7 @@ export default function Expense() {
               <Limit k="Broadband / Mobile" v="₹1,500 / mo" />
               <Limit k="Medical" v="₹15,000 / yr" />
               <Limit k="Outstation Travel" v="Actual (pre-approved)" />
-              <p className="text-2xs text-neutral-400 pt-1">Claims must be filed within 30 days of the bill date.</p>
+              
             </div>
           </div>
         </div>

@@ -49,7 +49,7 @@ export default function NotificationBell({ onNavigate }) {
   };
 
   return (
-    <div className="relative" ref={wrapRef}>
+    <div className="header-notifications relative" ref={wrapRef}>
       <button
         onClick={() => (hasRoomForDropdown ? setOpen((v) => !v) : onNavigate?.('notifications'))}
         className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer relative"

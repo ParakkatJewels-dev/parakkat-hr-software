@@ -11,7 +11,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   DollarSign, FileText, Loader2, AlertTriangle, Play, Check, Plus, Trash2, X,
-  Settings2, Users,
+  Settings2, Users, Calculator,
 } from 'lucide-react';
 import {
   usePayslips, usePayslipLines, usePayrollRuns, useRunPayroll, usePublishPayroll,
@@ -28,6 +28,8 @@ import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import ConfirmDialog from './ui/ConfirmDialog';
+import IconInput from './ui/IconInput';
+import { otherGrossFromTotal, parseMoneyDraft, totalGrossFromParts } from '../lib/salaryDraft';
 
 const money = (n) =>
   n == null
@@ -399,7 +401,7 @@ function SalaryTab() {
     employee_id: '',
     effective_from: `${todayIso().slice(0, 7)}-01`,
     basic: '',
-    gross: '',
+    other_gross: '',
   });
 
   // The newest row already in force per employee is the one payroll will use today. Future-dated
@@ -419,8 +421,9 @@ function SalaryTab() {
     e.preventDefault();
     setFormError(null);
     save.reset();
-    const basic = Number(form.basic);
-    const gross = Number(form.gross);
+    const basic = parseMoneyDraft(form.basic);
+    const otherGross = parseMoneyDraft(form.other_gross) ?? 0;
+    const gross = parseMoneyDraft(totalGrossFromParts(form.basic, form.other_gross));
     if (!form.employee_id) {
       setFormError(new Error('Choose an employee.'));
       return;
@@ -429,16 +432,12 @@ function SalaryTab() {
       setFormError(new Error('Choose an effective-from date.'));
       return;
     }
-    if (!Number.isFinite(basic) || !Number.isFinite(gross)) {
-      setFormError(new Error('Monthly basic and gross have to be amounts.'));
+    if (basic == null || gross == null || (String(form.other_gross).trim() && parseMoneyDraft(form.other_gross) == null)) {
+      setFormError(new Error('Monthly basic and other gross have to be amounts.'));
       return;
     }
-    if (basic < 0 || gross < 0) {
+    if (basic < 0 || otherGross < 0 || gross < 0) {
       setFormError(new Error('Pay cannot be negative.'));
-      return;
-    }
-    if (basic > gross) {
-      setFormError(new Error('Monthly basic cannot be more than monthly gross.'));
       return;
     }
 
@@ -453,7 +452,7 @@ function SalaryTab() {
         basic,
         gross,
       });
-      setForm({ ...form, employee_id: '', basic: '', gross: '' });
+      setForm({ ...form, employee_id: '', basic: '', other_gross: '' });
     } catch {
       /* surfaced below */
     }
@@ -463,7 +462,7 @@ function SalaryTab() {
     <div className="space-y-4">
       <form onSubmit={submit} className="premium-card space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Set salary</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <select
             required
             value={form.employee_id}
@@ -485,7 +484,8 @@ function SalaryTab() {
             className={INPUT}
             title="Effective from" aria-label="Effective from"
           />
-          <input
+          <IconInput
+            icon={DollarSign}
             type="number"
             required
             min="0"
@@ -493,17 +493,29 @@ function SalaryTab() {
             placeholder="Basic"
             value={form.basic}
             onChange={(e) => setForm({ ...form, basic: e.target.value })}
-            className={INPUT}
+            inputClassName={INPUT + ' font-mono'}
           />
-          <input
+          <IconInput
+            icon={Plus}
             type="number"
-            required
             min="0"
             step="0.01"
-            placeholder="Monthly gross"
-            value={form.gross}
-            onChange={(e) => setForm({ ...form, gross: e.target.value })}
-            className={INPUT}
+            placeholder="Other gross"
+            value={form.other_gross}
+            onChange={(e) => setForm({ ...form, other_gross: e.target.value })}
+            inputClassName={INPUT + ' font-mono'}
+            title="Other gross / allowances"
+            aria-label="Other gross / allowances"
+          />
+          <IconInput
+            icon={Calculator}
+            type="text"
+            readOnly
+            placeholder="Gross total"
+            value={totalGrossFromParts(form.basic, form.other_gross)}
+            inputClassName={INPUT + ' font-mono bg-neutral-100 dark:bg-neutral-950'}
+            title="Monthly gross total"
+            aria-label="Monthly gross total"
           />
         </div>
         <div className="form-section-actions flex flex-wrap items-center gap-3">
@@ -511,7 +523,7 @@ function SalaryTab() {
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Save salary
           </button>
           <span className="text-2xs text-neutral-400">
-            Effective-dated: a raise is a new row, so history is preserved. Basic must not exceed gross.
+            Effective-dated: a raise is a new row. Gross total is Basic + Other gross.
           </span>
         </div>
         <Err e={formError || save.error} />
@@ -533,6 +545,7 @@ function SalaryTab() {
                   <th className="py-1.5 pr-2">Employee</th>
                   <th className="py-1.5 px-2">Effective</th>
                   <th className="py-1.5 px-2 text-right">Basic</th>
+                  <th className="py-1.5 px-2 text-right">Other gross</th>
                   <th className="py-1.5 pl-2 text-right">Gross</th>
                 </tr>
               </thead>
@@ -545,6 +558,7 @@ function SalaryTab() {
                     </td>
                     <td data-label="Effective" className="py-1.5 px-2 font-mono text-neutral-500">{s.effective_from}</td>
                     <td data-label="Basic" className="py-1.5 px-2 text-right font-mono">{money(s.basic)}</td>
+                    <td data-label="Other gross" className="py-1.5 px-2 text-right font-mono">{money(otherGrossFromTotal(s.basic, s.gross))}</td>
                     <td data-label="Gross" className="py-1.5 pl-2 text-right font-mono font-bold">{money(s.gross)}</td>
                   </tr>
                 ))}

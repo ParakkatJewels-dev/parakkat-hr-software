@@ -5,7 +5,7 @@ import {
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
   Users, Building2, MapPin, Briefcase, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
   Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
-  HeartPulse, FileText, Eye, Award,
+  HeartPulse, FileText, Eye, Award, Calculator,
 } from 'lucide-react';
 import { useEmployees, useEmployee, useCreateEmployee, useUpdateEmployee } from '../data/employees';
 import { useSalaryStructures, useSaveSalaryStructure } from '../data/payroll';
@@ -24,6 +24,8 @@ import { useGrantAppAccess } from '../data/admin';
 import { SkeletonRows } from './ui/Skeleton';
 import FilterSelect from './ui/FilterSelect';
 import { btnClass } from './ui/Btn';
+import IconInput from './ui/IconInput';
+import { otherGrossFromTotal, parseMoneyDraft, totalGrossFromParts } from '../lib/salaryDraft';
 
 const initials = (name) =>
   (name || '')
@@ -1166,7 +1168,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const payLatest = payQuery.data?.[0] ?? null;
   const [pay, setPay] = useState(() => ({
     basic: '',
-    gross: '',
+    other_gross: '',
     // The first of this month, matching the Payroll screen — pay revisions land on month
     // boundaries, and a mid-month date is nearly always a slip.
     effective_from: monthStartIso(),
@@ -1180,7 +1182,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     if (!payLatest) return;
     setPay((s) => (s.seeded ? s : {
       basic: payLatest.basic == null ? '' : String(payLatest.basic),
-      gross: payLatest.gross == null ? '' : String(payLatest.gross),
+      other_gross: otherGrossFromTotal(payLatest.basic, payLatest.gross),
       effective_from: payLatest.effective_from ?? monthStartIso(),
       seeded: true,
     }));
@@ -1300,21 +1302,21 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const paySave = () => {
     if (!canManagePay) return {};
     const basic = pay.basic.trim();
-    const gross = pay.gross.trim();
-    if (!basic && !gross) return {};
+    const otherGross = pay.other_gross.trim();
+    if (!basic && !otherGross) return {};
     if (!basic) return { error: 'Enter Monthly basic too, or leave both pay fields blank to set pay later from Payroll.' };
-    if (!gross) return { error: 'Monthly gross is needed when monthly basic is entered.' };
     if (!pay.effective_from) return { error: 'Compensation needs an effective-from date.' };
-    if (!Number.isFinite(Number(basic)) || !Number.isFinite(Number(gross))) {
-      return { error: 'Monthly basic and gross have to be amounts.' };
+    const basicAmount = parseMoneyDraft(basic);
+    const otherAmount = parseMoneyDraft(otherGross) ?? 0;
+    const grossAmount = parseMoneyDraft(totalGrossFromParts(basic, otherGross));
+    if (basicAmount == null || grossAmount == null || (otherGross && parseMoneyDraft(otherGross) == null)) {
+      return { error: 'Monthly basic and other gross have to be amounts.' };
     }
-    if (Number(basic) < 0 || Number(gross) < 0) return { error: 'Pay cannot be negative.' };
-    // The salary_basic_le_gross constraint, said in words rather than left to a 400.
-    if (Number(basic) > Number(gross)) return { error: 'Monthly basic cannot be more than monthly gross.' };
+    if (basicAmount < 0 || otherAmount < 0 || grossAmount < 0) return { error: 'Pay cannot be negative.' };
 
     const unchanged = payLatest
-      && Number(payLatest.basic) === Number(basic)
-      && Number(payLatest.gross) === Number(gross)
+      && Number(payLatest.basic) === basicAmount
+      && Number(payLatest.gross) === grossAmount
       && payLatest.effective_from === pay.effective_from;
     if (unchanged) return {};
 
@@ -1322,8 +1324,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
       row: {
         id: payLatest?.effective_from === pay.effective_from ? payLatest.id : undefined,
         effective_from: pay.effective_from,
-        basic: Number(basic),
-        gross: Number(gross),
+        basic: basicAmount,
+        gross: grossAmount,
       },
     };
   };
@@ -1625,18 +1627,47 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                   <Award size={13} className="text-[#0ea971]" /> Compensation
                   <span className="font-normal text-neutral-400">— monthly, effective-dated</span>
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
                     <label className={L} htmlFor="emp-pay-basic">Monthly basic</label>
-                    <input id="emp-pay-basic" type="number" min="0" step="0.01"
-                      className={FORM_INPUT + ' font-mono'} value={pay.basic}
-                      onChange={(e) => patchPay({ basic: e.target.value })} placeholder="0.00" />
+                    <IconInput
+                      id="emp-pay-basic"
+                      icon={Award}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputClassName={FORM_INPUT + ' font-mono'}
+                      value={pay.basic}
+                      onChange={(e) => patchPay({ basic: e.target.value })}
+                      placeholder="0.00"
+                    />
                   </div>
                   <div>
-                    <label className={L} htmlFor="emp-pay-gross">Monthly gross</label>
-                    <input id="emp-pay-gross" type="number" min="0" step="0.01"
-                      className={FORM_INPUT + ' font-mono'} value={pay.gross}
-                      onChange={(e) => patchPay({ gross: e.target.value })} placeholder="0.00" />
+                    <label className={L} htmlFor="emp-pay-other-gross">Other gross</label>
+                    <IconInput
+                      id="emp-pay-other-gross"
+                      icon={Plus}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputClassName={FORM_INPUT + ' font-mono'}
+                      value={pay.other_gross}
+                      onChange={(e) => patchPay({ other_gross: e.target.value })}
+                      placeholder="0.00"
+                      title="Other gross / allowances"
+                    />
+                  </div>
+                  <div>
+                    <label className={L} htmlFor="emp-pay-gross-total">Gross total</label>
+                    <IconInput
+                      id="emp-pay-gross-total"
+                      icon={Calculator}
+                      type="text"
+                      readOnly
+                      inputClassName={FORM_INPUT + ' font-mono bg-neutral-100 dark:bg-neutral-950'}
+                      value={totalGrossFromParts(pay.basic, pay.other_gross)}
+                      placeholder="0.00"
+                    />
                   </div>
                   <div>
                     <label className={L} htmlFor="emp-pay-from">Effective from</label>
@@ -1647,7 +1678,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                 <p className="text-2xs text-neutral-400">
                   {payLatest
                     ? `Currently ${inrShort(payLatest.gross)} gross from ${payLatest.effective_from}. Saving a different date adds a revision; the same date replaces it.`
-                    : 'Leave Basic blank to save now and set pay later from Payroll. If Basic is entered, Gross is required and Basic cannot exceed Gross.'}
+                    : 'Leave Basic and Other gross blank to save now and set pay later from Payroll. Gross total is Basic + Other gross.'}
                 </p>
               </div>
             )}

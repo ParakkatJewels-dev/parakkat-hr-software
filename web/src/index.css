@@ -4912,7 +4912,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
        --mobile-nav-height keeps its old meaning — the band the nav covers — because the install
        nudge, the mobile filter sheet and the filter FAB all measure their clearance from it. */
     --mobile-nav-control-height: 3.65rem;
-    --mobile-nav-float-gap: .45rem;
+    --mobile-nav-float-gap: .85rem;
     --mobile-nav-safe-bottom: env(safe-area-inset-bottom);
     --mobile-nav-safe-left: env(safe-area-inset-left);
     --mobile-nav-safe-right: env(safe-area-inset-right);
@@ -6763,15 +6763,30 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .app-header {
     align-items: center;
+    justify-content: stretch;
+    gap: .45rem;
     min-height: calc(3.75rem + env(safe-area-inset-top));
     background:
       color-mix(in srgb, var(--surface-elevated) 88%, transparent) !important;
     box-shadow: 0 1px 0 var(--surface-border);
   }
 
+  .app-header-title {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: .5rem !important;
+  }
+
+  .app-header-title-label {
+    min-width: 0;
+    max-width: min(38vw, 9.5rem);
+  }
+
   .app-header-actions {
+    min-width: 0;
     gap: .125rem;
-    flex-shrink: 0;
+    flex: 0 1 auto;
+    margin-left: auto;
   }
 
   .app-header-actions > button,
@@ -6794,7 +6809,24 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .mobile-menu-trigger {
-    display: none;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+
+  .mobile-search-trigger,
+  .header-update-action,
+  .header-install-action,
+  .header-offline-status,
+  .header-theme-toggle,
+  .header-profile-trigger,
+  .header-notifications > button {
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0 !important;
+    flex: none;
+    justify-content: center;
   }
 
   .mobile-drawer {
@@ -7402,6 +7434,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   :root {
     --space-shell: .5rem;
     --space-card: .625rem;
+    --mobile-nav-float-gap: 1rem;
   }
 
   .app-header {
@@ -7411,14 +7444,52 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: .25rem;
   }
 
-  .app-header > div:first-of-type {
+  .app-header-title {
     min-width: 0;
     gap: .25rem;
   }
 
-  .app-header > div:last-of-type {
+  .app-header-title-label {
+    max-width: 34vw;
+  }
+
+  .app-header-actions {
     flex-shrink: 0;
     gap: 0;
+  }
+
+  .header-theme-toggle {
+    display: none !important;
+  }
+
+  .header-update-action {
+    display: none !important;
+  }
+
+  .role-chip {
+    max-width: 3rem;
+    padding-inline: .45rem;
+    justify-content: center;
+  }
+
+  .role-chip-label {
+    display: none;
+  }
+
+  .role-chip-caret {
+    display: block;
+  }
+
+  .mobile-bottom-nav {
+    --nav-gap: .06rem;
+    --nav-pad: .24rem;
+
+    right: max(.45rem, calc(var(--mobile-nav-safe-right) + .2rem));
+    left: max(.45rem, calc(var(--mobile-nav-safe-left) + .2rem));
+  }
+
+  .mobile-bottom-nav-label {
+    font-size: .56rem;
   }
 
   .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
@@ -7774,6 +7845,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   display: inline-flex;
   align-items: center;
   gap: .35rem;
+  min-width: 0;
   max-width: 11rem;
   padding: .3rem .55rem;
   border: 1px solid var(--surface-border);
@@ -7801,6 +7873,7 @@ button.role-chip:hover,
 .role-chip > svg { flex: none; }
 
 .role-chip-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -7919,13 +7992,45 @@ button.role-chip:hover,
 /* On a phone the label is the first thing to go — the shield and the caret still say what it is
    and that it opens, and the header has three other controls competing for the same row. */
 @media (max-width: 480px) {
-  .role-chip {
-    max-width: 6.5rem;
-    padding: .3rem .45rem;
+  .app-header-actions {
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .mobile-search-trigger,
+  .header-theme-toggle,
+  .header-install-action,
+  .header-profile-trigger {
+    display: none !important;
   }
 
   .role-chip.is-static {
     display: none;
+  }
+
+  .role-chip {
+    max-width: 3rem;
+    padding-inline: .45rem;
+    justify-content: center;
+  }
+
+  .role-chip-label {
+    display: none;
+  }
+
+  .role-chip-caret {
+    display: block;
+  }
+}
+
+@media (min-width: 381px) and (max-width: 480px) {
+  .app-header {
+    padding-left: max(.75rem, env(safe-area-inset-left));
+    padding-right: max(.75rem, env(safe-area-inset-right));
+  }
+
+  .app-header-title-label {
+    max-width: min(50vw, 10rem);
   }
 }
 

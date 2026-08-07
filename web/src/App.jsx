@@ -491,9 +491,9 @@ export default function App() {
     document.title = documentTitleFor(primaryRole, screen);
   }, [primaryRole, activeSection, activeTab]);
 
-  // Five, not four. Short mobile labels keep the targets legible while Asset Management remains
-  // on the bar instead of falling into More, which is exactly where nobody looked for it.
-  const mobilePrimarySections = visibleSections.slice(0, 5);
+  // Four plus More. Five primary sections became six physical buttons as soon as a user had any
+  // overflow, which crowded labels and tap targets on 360px phones.
+  const mobilePrimarySections = visibleSections.slice(0, 4);
   const mobileOverflowActive =
     Boolean(activeSection) && !mobilePrimarySections.some((sec) => sec.id === activeSection.id);
 
@@ -726,7 +726,7 @@ export default function App() {
         {/* Header toolbar */}
         <header className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
           {/* Mobile menu toggle & Title */}
-          <div className="flex items-center space-x-3.5">
+          <div className="app-header-title flex items-center space-x-3.5">
             <button
               onClick={() => setMobileMenuOpen(true)}
               aria-label="Open navigation menu"
@@ -736,7 +736,7 @@ export default function App() {
             >
               <Menu size={18} />
             </button>
-            <span className="font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
+            <span className="app-header-title-label font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
               {activeSection?.label || ''}
               {activeSection && activeSection.tabs.length > 1 && activeTabMeta && (
                 <span className="hidden sm:inline text-neutral-400 dark:text-neutral-500 font-normal">
@@ -762,7 +762,7 @@ export default function App() {
             {/* Mobile search icon */}
             <button
               onClick={() => setShowCommandPalette(true)}
-              className="md:hidden p-2 hover:bg-neutral-100 dark:hover:bg-charcoal-800/80 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+              className="mobile-search-trigger md:hidden p-2 hover:bg-neutral-100 dark:hover:bg-charcoal-800/80 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
             >
               <Search size={16} />
             </button>
@@ -783,7 +783,7 @@ export default function App() {
             {pwaUpdateRegistration && (
               <button
                 onClick={applyPwaUpdate}
-                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-[#0ea971] hover:bg-[#0c9765] text-white rounded-xl text-2xs font-bold transition-colors cursor-pointer"
+                className="header-update-action inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-[#0ea971] hover:bg-[#0c9765] text-white rounded-xl text-2xs font-bold transition-colors cursor-pointer"
                 title="Update app"
                 aria-label="Update app"
               >
@@ -795,7 +795,7 @@ export default function App() {
             {installPrompt && !isPwaInstalled && (
               <button
                 onClick={installPwa}
-                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-neutral-100 dark:bg-charcoal-800/60 hover:bg-neutral-200 dark:hover:bg-charcoal-800 border border-neutral-200/85 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-xl text-2xs font-bold transition-colors cursor-pointer"
+                className="header-install-action inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-neutral-100 dark:bg-charcoal-800/60 hover:bg-neutral-200 dark:hover:bg-charcoal-800 border border-neutral-200/85 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 rounded-xl text-2xs font-bold transition-colors cursor-pointer"
                 title="Install app"
                 aria-label="Install app"
               >
@@ -806,7 +806,7 @@ export default function App() {
 
             {!isOnline && (
               <div
-                className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-amber-100 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-amber-700 dark:text-amber-300 rounded-xl text-2xs font-bold"
+                className="header-offline-status inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-amber-100 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/60 text-amber-700 dark:text-amber-300 rounded-xl text-2xs font-bold"
                 role="status"
                 aria-live="polite"
               >
@@ -817,7 +817,7 @@ export default function App() {
 
             <button
               onClick={toggleTheme}
-              className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="header-theme-toggle p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -830,7 +830,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className="flex min-h-11 min-w-11 sm:min-w-0 items-center justify-center gap-2.5 pl-0 sm:pl-3 ml-0.5 sm:border-l border-neutral-200 dark:border-neutral-800 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
+              className="header-profile-trigger flex min-h-11 min-w-11 sm:min-w-0 items-center justify-center gap-2.5 pl-0 sm:pl-3 ml-0.5 sm:border-l border-neutral-200 dark:border-neutral-800 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
               title="Open my profile"
               aria-label="Open my profile"
             >

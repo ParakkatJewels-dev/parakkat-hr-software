@@ -151,7 +151,7 @@ function TeamKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Team Size', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active in your scope', tab: 'directory', trend: employeeStatusSeries(employees) },
+        { label: 'Team Size', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active', tab: 'directory', trend: employeeStatusSeries(employees) },
         { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
         { label: 'Late Today', value: summary.late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Past shift start', tab: 'attendance', trend: countsBy(attendanceRows.filter((r) => r.is_late), (r) => r.employee?.branch?.code || r.employee?.department?.name) },
         { label: 'Absent Today', value: summary.absent, icon: Users, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'No punch, no leave', tab: 'attendance', trend: countsBy(attendanceRows.filter((r) => r.status === 'Absent'), (r) => r.employee?.branch?.code || r.employee?.department?.name) },
@@ -203,7 +203,7 @@ function HrKpis({ onNavigate }) {
     <KpiRow
       onNavigate={onNavigate}
       kpis={[
-        { label: 'Headcount', value: active, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active in your scope', tab: 'directory', trend: countsBy(employees.filter((e) => e.status === 'Active'), (e) => e.branch?.code || e.department?.name) },
+        { label: 'Headcount', value: active, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active', tab: 'directory', trend: countsBy(employees.filter((e) => e.status === 'Active'), (e) => e.branch?.code || e.department?.name) },
         { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
         { label: 'Joiners (MTD)', value: joiners, icon: UserPlus, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'This month', tab: 'directory', trend: datedCountSeries(employees, 'join_date', (e) => e.join_date && e.join_date >= start) },
         { label: 'Exits Open', value: exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length, icon: DoorOpen, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'In clearance', tab: 'helpdesk', trend: countsBy(exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared'), (x) => x.status) },
