@@ -2977,106 +2977,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     color: var(--surface-text-soft);
   }
 
-  .my-assets-list {
-    display: grid;
-    gap: .55rem;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .my-asset-card {
-    display: grid;
-    grid-template-columns: 3rem minmax(0, 1fr) auto;
-    align-items: center;
-    gap: .8rem;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-sm);
-    padding: .7rem;
-    background: color-mix(in srgb, var(--surface-subtle) 55%, var(--surface-elevated));
-  }
-
-  .my-asset-media {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 3rem;
-    height: 3rem;
-    overflow: hidden;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-sm);
-    background: var(--surface-elevated);
-    color: var(--accent-strong);
-  }
-
-  .my-asset-media img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .my-asset-copy {
-    display: grid;
-    gap: .12rem;
-    min-width: 0;
-  }
-
-  .my-asset-copy > strong {
-    overflow: hidden;
-    color: var(--surface-text);
-    font-size: .86rem;
-    font-weight: 850;
-    line-height: 1.25;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .my-asset-copy > em,
-  .my-asset-copy > small {
-    overflow: hidden;
-    color: var(--surface-text-soft);
-    font-size: .67rem;
-    font-style: normal;
-    font-weight: 700;
-    line-height: 1.3;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .my-asset-condition {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-    border-radius: 999px;
-    padding: .28rem .6rem;
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-    font-size: .65rem;
-    font-weight: 850;
-    line-height: 1;
-    white-space: nowrap;
-  }
-
-  @media (max-width: 520px) {
-    .my-asset-card {
-      grid-template-columns: 2.65rem minmax(0, 1fr);
-      align-items: flex-start;
-      gap: .65rem;
-    }
-
-    .my-asset-media {
-      width: 2.65rem;
-      height: 2.65rem;
-    }
-
-    .my-asset-condition {
-      grid-column: 2;
-      justify-self: start;
-      max-width: 100%;
-    }
-  }
-
   .asset-avatar {
     background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--tone-blue) 70%, var(--accent))) !important;
     color: #fff;
@@ -5012,7 +4912,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
        --mobile-nav-height keeps its old meaning — the band the nav covers — because the install
        nudge, the mobile filter sheet and the filter FAB all measure their clearance from it. */
     --mobile-nav-control-height: 3.65rem;
-    --mobile-nav-float-gap: .85rem;
+    --mobile-nav-float-gap: .45rem;
     --mobile-nav-safe-bottom: env(safe-area-inset-bottom);
     --mobile-nav-safe-left: env(safe-area-inset-left);
     --mobile-nav-safe-right: env(safe-area-inset-right);
@@ -6878,7 +6778,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .app-header-title-label {
-    min-width: 0;
     max-width: min(38vw, 9.5rem);
   }
 
@@ -6916,9 +6815,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .mobile-search-trigger,
-  .header-update-action,
-  .header-install-action,
-  .header-offline-status,
   .header-theme-toggle,
   .header-profile-trigger,
   .header-notifications > button {
@@ -6926,7 +6822,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     height: 2.5rem;
     padding: 0 !important;
     flex: none;
-    justify-content: center;
   }
 
   .mobile-drawer {
@@ -7534,7 +7429,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   :root {
     --space-shell: .5rem;
     --space-card: .625rem;
-    --mobile-nav-float-gap: 1rem;
   }
 
   .app-header {
@@ -7562,13 +7456,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: none !important;
   }
 
-  .header-update-action {
-    display: none !important;
-  }
-
   .role-chip {
-    max-width: 3rem;
-    padding-inline: .45rem;
+    max-width: 2.6rem;
     justify-content: center;
   }
 
@@ -7945,7 +7834,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   display: inline-flex;
   align-items: center;
   gap: .35rem;
-  min-width: 0;
   max-width: 11rem;
   padding: .3rem .55rem;
   border: 1px solid var(--surface-border);
@@ -7973,7 +7861,6 @@ button.role-chip:hover,
 .role-chip > svg { flex: none; }
 
 .role-chip-label {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -8092,45 +7979,22 @@ button.role-chip:hover,
 /* On a phone the label is the first thing to go — the shield and the caret still say what it is
    and that it opens, and the header has three other controls competing for the same row. */
 @media (max-width: 480px) {
-  .app-header-actions {
-    gap: 0;
-    flex-shrink: 0;
-  }
-
   .mobile-search-trigger,
-  .header-theme-toggle,
-  .header-install-action,
   .header-profile-trigger {
     display: none !important;
   }
 
-  .role-chip.is-static {
-    display: none;
+  .app-header-title-label {
+    max-width: min(42vw, 8.5rem);
   }
 
   .role-chip {
-    max-width: 3rem;
-    padding-inline: .45rem;
-    justify-content: center;
+    max-width: 5.8rem;
+    padding: .3rem .45rem;
   }
 
-  .role-chip-label {
+  .role-chip.is-static {
     display: none;
-  }
-
-  .role-chip-caret {
-    display: block;
-  }
-}
-
-@media (min-width: 381px) and (max-width: 480px) {
-  .app-header {
-    padding-left: max(.75rem, env(safe-area-inset-left));
-    padding-right: max(.75rem, env(safe-area-inset-right));
-  }
-
-  .app-header-title-label {
-    max-width: min(50vw, 10rem);
   }
 }
 
