@@ -21,6 +21,7 @@ const Onboarding = lazy(() => import('./components/Onboarding'));
 const HelpdeskExit = lazy(() => import('./components/HelpdeskExit'));
 const Organization = lazy(() => import('./components/Organization'));
 const AssetManagement = lazy(() => import('./components/AssetManagement'));
+const MyAssets = lazy(() => import('./components/MyAssets'));
 const DocumentManagement = lazy(() => import('./components/DocumentManagement'));
 const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
 const Administration = lazy(() => import('./components/Administration'));
@@ -57,6 +58,7 @@ const MOBILE_NAV_LABELS = {
   time: 'Time',
   pay: 'Pay',
   'asset-management': 'Assets',
+  'my-assets': 'Assets',
 };
 
 // Shown when a user lands on a section they lack permission for.
@@ -289,6 +291,7 @@ export default function App() {
         // /performance, reachable by typing the URL, so in practice nobody used it.
         { id: 'performance', label: 'My Goals', icon: Target, perm: 'goal.read' },
         { id: 'payroll', label: 'My Payslips', icon: DollarSign, perm: 'payslip.read' },
+        { id: 'my-assets', label: 'My Assets', icon: Boxes, perm: 'asset.read' },
         { id: 'expense', label: 'My Expenses', icon: Receipt, perm: 'expense.read' },
         { id: 'documents', label: 'My Documents', icon: FolderOpen, perm: 'document.read' }
       ]
@@ -425,7 +428,7 @@ export default function App() {
     },
   ];
 
-  // ESS keeps a flat list: with nine items, adding a second level would be friction, not order.
+  // ESS keeps a flat list: with a compact self-service set, adding a second level would be friction.
   const essSections = essNavSections.flatMap((g) =>
     g.items.map((it) => ({ id: it.id, label: it.label, icon: it.icon, tabs: [{ ...it }] }))
   );
@@ -950,6 +953,8 @@ export default function App() {
                 return <Performance />;
               case 'assets':
                 return <AssetManagement />;
+              case 'my-assets':
+                return <MyAssets />;
               case 'documents':
                 return <DocumentManagement />;
               case 'recruitment':

@@ -104,7 +104,9 @@ export function useEmployeeAssets(employeeId) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('assets')
-        .select('id, category, asset_type, name, make, model, serial, asset_code, status, condition')
+        .select(
+          'id, category, asset_type, name, make, model, serial, asset_code, status, condition, location, photo_path'
+        )
         .eq('employee_id', employeeId)
         .order('name', { ascending: true });
       if (error) throw error;
