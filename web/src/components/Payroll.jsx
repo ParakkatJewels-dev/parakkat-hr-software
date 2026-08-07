@@ -29,7 +29,15 @@ import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import ConfirmDialog from './ui/ConfirmDialog';
 import IconInput from './ui/IconInput';
-import { otherGrossFromTotal, parseMoneyDraft, totalGrossFromParts } from '../lib/salaryDraft';
+import {
+  blankGrossComponent,
+  grossComponentsFromNotes,
+  normalizeGrossComponentsDraft,
+  parseMoneyDraft,
+  salaryNotesFromGrossComponents,
+  totalGrossComponentsDraft,
+  totalGrossFromParts,
+} from '../lib/salaryDraft';
 
 const money = (n) =>
   n == null
@@ -401,8 +409,26 @@ function SalaryTab() {
     employee_id: '',
     effective_from: `${todayIso().slice(0, 7)}-01`,
     basic: '',
-    other_gross: '',
+    gross_components: [blankGrossComponent()],
   });
+
+  const patchGrossComponent = (index, patch) => {
+    setForm((s) => ({
+      ...s,
+      gross_components: s.gross_components.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    }));
+  };
+
+  const addGrossComponent = () => {
+    setForm((s) => ({ ...s, gross_components: [...s.gross_components, blankGrossComponent()] }));
+  };
+
+  const removeGrossComponent = (index) => {
+    setForm((s) => {
+      const next = s.gross_components.filter((_, i) => i !== index);
+      return { ...s, gross_components: next.length ? next : [blankGrossComponent()] };
+    });
+  };
 
   // The newest row already in force per employee is the one payroll will use today. Future-dated
   // raises stay in history without replacing the current row on profile/dashboard surfaces.
@@ -422,8 +448,8 @@ function SalaryTab() {
     setFormError(null);
     save.reset();
     const basic = parseMoneyDraft(form.basic);
-    const otherGross = parseMoneyDraft(form.other_gross) ?? 0;
-    const gross = parseMoneyDraft(totalGrossFromParts(form.basic, form.other_gross));
+    const componentDraft = normalizeGrossComponentsDraft(form.gross_components);
+    const gross = parseMoneyDraft(totalGrossFromParts(form.basic, form.gross_components));
     if (!form.employee_id) {
       setFormError(new Error('Choose an employee.'));
       return;
@@ -432,11 +458,15 @@ function SalaryTab() {
       setFormError(new Error('Choose an effective-from date.'));
       return;
     }
-    if (basic == null || gross == null || (String(form.other_gross).trim() && parseMoneyDraft(form.other_gross) == null)) {
-      setFormError(new Error('Monthly basic and other gross have to be amounts.'));
+    if (componentDraft.error) {
+      setFormError(new Error(componentDraft.error));
       return;
     }
-    if (basic < 0 || otherGross < 0 || gross < 0) {
+    if (basic == null || gross == null) {
+      setFormError(new Error('Monthly basic and gross component amounts have to be valid amounts.'));
+      return;
+    }
+    if (basic < 0 || componentDraft.total < 0 || gross < 0) {
       setFormError(new Error('Pay cannot be negative.'));
       return;
     }
@@ -451,8 +481,9 @@ function SalaryTab() {
         effective_from: form.effective_from,
         basic,
         gross,
+        notes: salaryNotesFromGrossComponents(form.gross_components, existing?.notes),
       });
-      setForm({ ...form, employee_id: '', basic: '', other_gross: '' });
+      setForm({ ...form, employee_id: '', basic: '', gross_components: [blankGrossComponent()] });
     } catch {
       /* surfaced below */
     }
@@ -462,7 +493,7 @@ function SalaryTab() {
     <div className="space-y-4">
       <form onSubmit={submit} className="premium-card space-y-3">
         <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Set salary</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <select
             required
             value={form.employee_id}
@@ -496,34 +527,81 @@ function SalaryTab() {
             inputClassName={INPUT + ' font-mono'}
           />
           <IconInput
-            icon={Plus}
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="Other gross"
-            value={form.other_gross}
-            onChange={(e) => setForm({ ...form, other_gross: e.target.value })}
-            inputClassName={INPUT + ' font-mono'}
-            title="Other gross / allowances"
-            aria-label="Other gross / allowances"
-          />
-          <IconInput
             icon={Calculator}
             type="text"
             readOnly
             placeholder="Gross total"
-            value={totalGrossFromParts(form.basic, form.other_gross)}
+            value={totalGrossFromParts(form.basic, form.gross_components)}
             inputClassName={INPUT + ' font-mono bg-neutral-100 dark:bg-neutral-950'}
             title="Monthly gross total"
             aria-label="Monthly gross total"
           />
+        </div>
+
+        <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50/70 dark:bg-neutral-950/35 p-3 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-200">Gross components</h4>
+              <p className="text-2xs text-neutral-400">Name each gross part and enter its monthly amount.</p>
+            </div>
+            <button type="button" onClick={addGrossComponent} className={BTN_GHOST}>
+              <Plus size={12} /> Add gross
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {form.gross_components.map((component, index) => (
+              <div key={index} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                <IconInput
+                  icon={FileText}
+                  type="text"
+                  placeholder="Gross name, e.g. HRA"
+                  value={component.name}
+                  onChange={(e) => patchGrossComponent(index, { name: e.target.value })}
+                  inputClassName={INPUT}
+                  className="sm:col-span-6"
+                  title="Gross component name"
+                  aria-label={`Gross component ${index + 1} name`}
+                />
+                <IconInput
+                  icon={Plus}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="Amount"
+                  value={component.amount}
+                  onChange={(e) => patchGrossComponent(index, { amount: e.target.value })}
+                  inputClassName={INPUT + ' font-mono'}
+                  className="sm:col-span-5"
+                  title="Gross component amount"
+                  aria-label={`Gross component ${index + 1} amount`}
+                />
+                <button
+                  type="button"
+                  onClick={() => removeGrossComponent(index)}
+                  className="sm:col-span-1 inline-flex min-h-10 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-850 text-neutral-500 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-900/60 transition-colors"
+                  title="Remove gross component"
+                  aria-label={`Remove gross component ${index + 1}`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/75 dark:bg-neutral-950/60 border border-neutral-200/80 dark:border-neutral-850 px-3 py-2">
+            <span className="text-2xs font-bold uppercase tracking-wider text-neutral-400">Components total</span>
+            <span className="font-mono text-xs font-bold text-neutral-800 dark:text-neutral-100">
+              {money(totalGrossComponentsDraft(form.gross_components) || 0)}
+            </span>
+          </div>
         </div>
         <div className="form-section-actions flex flex-wrap items-center gap-3">
           <button type="submit" disabled={save.isPending} className={BTN}>
             {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Save salary
           </button>
           <span className="text-2xs text-neutral-400">
-            Effective-dated: a raise is a new row. Gross total is Basic + Other gross.
+            Effective-dated: a raise is a new row. Gross total is Basic + named gross components.
           </span>
         </div>
         <Err e={formError || save.error} />
@@ -545,23 +623,40 @@ function SalaryTab() {
                   <th className="py-1.5 pr-2">Employee</th>
                   <th className="py-1.5 px-2">Effective</th>
                   <th className="py-1.5 px-2 text-right">Basic</th>
-                  <th className="py-1.5 px-2 text-right">Other gross</th>
+                  <th className="py-1.5 px-2 text-right">Gross components</th>
                   <th className="py-1.5 pl-2 text-right">Gross</th>
                 </tr>
               </thead>
               <tbody>
-                {[...latest.values()].map((s) => (
-                  <tr key={s.id} className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs">
-                    <td data-label="Employee" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100">
-                      {s.employee?.full_name}{' '}
-                      <span className="font-mono text-2xs text-neutral-400">{s.employee?.employee_code}</span>
-                    </td>
-                    <td data-label="Effective" className="py-1.5 px-2 font-mono text-neutral-500">{s.effective_from}</td>
-                    <td data-label="Basic" className="py-1.5 px-2 text-right font-mono">{money(s.basic)}</td>
-                    <td data-label="Other gross" className="py-1.5 px-2 text-right font-mono">{money(otherGrossFromTotal(s.basic, s.gross))}</td>
-                    <td data-label="Gross" className="py-1.5 pl-2 text-right font-mono font-bold">{money(s.gross)}</td>
-                  </tr>
-                ))}
+                {[...latest.values()].map((s) => {
+                  const grossComponents = grossComponentsFromNotes(s.notes, s.basic, s.gross)
+                    .filter((row) => row.name || String(row.amount ?? '').trim());
+                  return (
+                    <tr key={s.id} className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs">
+                      <td data-label="Employee" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100">
+                        {s.employee?.full_name}{' '}
+                        <span className="font-mono text-2xs text-neutral-400">{s.employee?.employee_code}</span>
+                      </td>
+                      <td data-label="Effective" className="py-1.5 px-2 font-mono text-neutral-500">{s.effective_from}</td>
+                      <td data-label="Basic" className="py-1.5 px-2 text-right font-mono">{money(s.basic)}</td>
+                      <td data-label="Gross components" className="py-1.5 px-2 text-right">
+                        {grossComponents.length ? (
+                          <div className="space-y-0.5">
+                            {grossComponents.map((component, index) => (
+                              <div key={`${component.name}-${index}`} className="flex items-center justify-end gap-2">
+                                <span className="truncate text-neutral-500 dark:text-neutral-400">{component.name}</span>
+                                <span className="font-mono">{money(parseMoneyDraft(component.amount))}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="font-mono text-neutral-400">—</span>
+                        )}
+                      </td>
+                      <td data-label="Gross" className="py-1.5 pl-2 text-right font-mono font-bold">{money(s.gross)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

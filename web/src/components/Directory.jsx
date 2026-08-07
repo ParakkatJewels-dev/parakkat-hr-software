@@ -25,7 +25,16 @@ import { SkeletonRows } from './ui/Skeleton';
 import FilterSelect from './ui/FilterSelect';
 import { btnClass } from './ui/Btn';
 import IconInput from './ui/IconInput';
-import { otherGrossFromTotal, parseMoneyDraft, totalGrossFromParts } from '../lib/salaryDraft';
+import {
+  blankGrossComponent,
+  grossComponentsFromNotes,
+  hasGrossComponentDrafts,
+  normalizeGrossComponentsDraft,
+  parseMoneyDraft,
+  salaryNotesFromGrossComponents,
+  totalGrossComponentsDraft,
+  totalGrossFromParts,
+} from '../lib/salaryDraft';
 
 const initials = (name) =>
   (name || '')
@@ -1168,13 +1177,41 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const payLatest = payQuery.data?.[0] ?? null;
   const [pay, setPay] = useState(() => ({
     basic: '',
-    other_gross: '',
+    gross_components: [blankGrossComponent()],
     // The first of this month, matching the Payroll screen — pay revisions land on month
     // boundaries, and a mid-month date is nearly always a slip.
     effective_from: monthStartIso(),
     seeded: false,
+    componentsTouched: false,
   }));
   const patchPay = (p) => setPay((s) => ({ ...s, ...p, seeded: true }));
+  const patchPayGrossComponent = (index, patch) => {
+    setPay((s) => ({
+      ...s,
+      gross_components: s.gross_components.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+      seeded: true,
+      componentsTouched: true,
+    }));
+  };
+  const addPayGrossComponent = () => {
+    setPay((s) => ({
+      ...s,
+      gross_components: [...s.gross_components, blankGrossComponent()],
+      seeded: true,
+      componentsTouched: true,
+    }));
+  };
+  const removePayGrossComponent = (index) => {
+    setPay((s) => {
+      const next = s.gross_components.filter((_, i) => i !== index);
+      return {
+        ...s,
+        gross_components: next.length ? next : [blankGrossComponent()],
+        seeded: true,
+        componentsTouched: true,
+      };
+    });
+  };
 
   // Editing somebody who already has pay on file: show what they are on, so a save that only
   // meant to fix a phone number does not silently look like a pay cut to zero.
@@ -1182,9 +1219,10 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     if (!payLatest) return;
     setPay((s) => (s.seeded ? s : {
       basic: payLatest.basic == null ? '' : String(payLatest.basic),
-      other_gross: otherGrossFromTotal(payLatest.basic, payLatest.gross),
+      gross_components: grossComponentsFromNotes(payLatest.notes, payLatest.basic, payLatest.gross),
       effective_from: payLatest.effective_from ?? monthStartIso(),
       seeded: true,
+      componentsTouched: false,
     }));
   }, [payLatest]);
 
@@ -1302,22 +1340,23 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const paySave = () => {
     if (!canManagePay) return {};
     const basic = pay.basic.trim();
-    const otherGross = pay.other_gross.trim();
-    if (!basic && !otherGross) return {};
-    if (!basic) return { error: 'Enter Monthly basic too, or leave both pay fields blank to set pay later from Payroll.' };
+    const hasComponents = hasGrossComponentDrafts(pay.gross_components);
+    if (!basic && !hasComponents) return {};
+    if (!basic) return { error: 'Enter Monthly basic too, or leave compensation blank to set pay later from Payroll.' };
     if (!pay.effective_from) return { error: 'Compensation needs an effective-from date.' };
     const basicAmount = parseMoneyDraft(basic);
-    const otherAmount = parseMoneyDraft(otherGross) ?? 0;
-    const grossAmount = parseMoneyDraft(totalGrossFromParts(basic, otherGross));
-    if (basicAmount == null || grossAmount == null || (otherGross && parseMoneyDraft(otherGross) == null)) {
-      return { error: 'Monthly basic and other gross have to be amounts.' };
-    }
-    if (basicAmount < 0 || otherAmount < 0 || grossAmount < 0) return { error: 'Pay cannot be negative.' };
+    const componentDraft = normalizeGrossComponentsDraft(pay.gross_components);
+    const grossAmount = parseMoneyDraft(totalGrossFromParts(basic, pay.gross_components));
+    if (componentDraft.error) return { error: componentDraft.error };
+    if (basicAmount == null || grossAmount == null) return { error: 'Monthly basic and gross component amounts have to be valid amounts.' };
+    if (basicAmount < 0 || componentDraft.total < 0 || grossAmount < 0) return { error: 'Pay cannot be negative.' };
+    const notes = salaryNotesFromGrossComponents(pay.gross_components, payLatest?.notes);
 
     const unchanged = payLatest
       && Number(payLatest.basic) === basicAmount
       && Number(payLatest.gross) === grossAmount
-      && payLatest.effective_from === pay.effective_from;
+      && payLatest.effective_from === pay.effective_from
+      && (!pay.componentsTouched || (payLatest.notes ?? null) === notes);
     if (unchanged) return {};
 
     return {
@@ -1326,6 +1365,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         effective_from: pay.effective_from,
         basic: basicAmount,
         gross: grossAmount,
+        notes,
       },
     };
   };
@@ -1627,7 +1667,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                   <Award size={13} className="text-[#0ea971]" /> Compensation
                   <span className="font-normal text-neutral-400">— monthly, effective-dated</span>
                 </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className={L} htmlFor="emp-pay-basic">Monthly basic</label>
                     <IconInput
@@ -1643,21 +1683,6 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                     />
                   </div>
                   <div>
-                    <label className={L} htmlFor="emp-pay-other-gross">Other gross</label>
-                    <IconInput
-                      id="emp-pay-other-gross"
-                      icon={Plus}
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      inputClassName={FORM_INPUT + ' font-mono'}
-                      value={pay.other_gross}
-                      onChange={(e) => patchPay({ other_gross: e.target.value })}
-                      placeholder="0.00"
-                      title="Other gross / allowances"
-                    />
-                  </div>
-                  <div>
                     <label className={L} htmlFor="emp-pay-gross-total">Gross total</label>
                     <IconInput
                       id="emp-pay-gross-total"
@@ -1665,7 +1690,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                       type="text"
                       readOnly
                       inputClassName={FORM_INPUT + ' font-mono bg-neutral-100 dark:bg-neutral-950'}
-                      value={totalGrossFromParts(pay.basic, pay.other_gross)}
+                      value={totalGrossFromParts(pay.basic, pay.gross_components)}
                       placeholder="0.00"
                     />
                   </div>
@@ -1675,10 +1700,69 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                       value={pay.effective_from} onChange={(e) => patchPay({ effective_from: e.target.value })} />
                   </div>
                 </div>
+
+                <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50/70 dark:bg-neutral-950/35 p-3 space-y-2.5">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-200">Gross components</h4>
+                      <p className="text-2xs text-neutral-400">Add each gross name and monthly amount.</p>
+                    </div>
+                    <button type="button" onClick={addPayGrossComponent} className={CANCEL_BTN}>
+                      <Plus size={12} /> Add gross
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {pay.gross_components.map((component, index) => (
+                      <div key={index} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                        <IconInput
+                          id={`emp-pay-gross-name-${index}`}
+                          icon={FileText}
+                          type="text"
+                          inputClassName={FORM_INPUT}
+                          value={component.name}
+                          onChange={(e) => patchPayGrossComponent(index, { name: e.target.value })}
+                          placeholder="Gross name, e.g. HRA"
+                          className="sm:col-span-6"
+                          title="Gross component name"
+                        />
+                        <IconInput
+                          id={`emp-pay-gross-amount-${index}`}
+                          icon={Plus}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          inputClassName={FORM_INPUT + ' font-mono'}
+                          value={component.amount}
+                          onChange={(e) => patchPayGrossComponent(index, { amount: e.target.value })}
+                          placeholder="Amount"
+                          className="sm:col-span-5"
+                          title="Gross component amount"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removePayGrossComponent(index)}
+                          className="sm:col-span-1 inline-flex min-h-10 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-850 text-neutral-500 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-900/60 transition-colors"
+                          title="Remove gross component"
+                          aria-label={`Remove gross component ${index + 1}`}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/75 dark:bg-neutral-950/60 border border-neutral-200/80 dark:border-neutral-850 px-3 py-2">
+                    <span className="text-2xs font-bold uppercase tracking-wider text-neutral-400">Components total</span>
+                    <span className="font-mono text-xs font-bold text-neutral-800 dark:text-neutral-100">
+                      {inrShort(totalGrossComponentsDraft(pay.gross_components) || 0)}
+                    </span>
+                  </div>
+                </div>
                 <p className="text-2xs text-neutral-400">
                   {payLatest
                     ? `Currently ${inrShort(payLatest.gross)} gross from ${payLatest.effective_from}. Saving a different date adds a revision; the same date replaces it.`
-                    : 'Leave Basic and Other gross blank to save now and set pay later from Payroll. Gross total is Basic + Other gross.'}
+                    : 'Leave compensation blank to save now and set pay later from Payroll. Gross total is Basic + named gross components.'}
                 </p>
               </div>
             )}
