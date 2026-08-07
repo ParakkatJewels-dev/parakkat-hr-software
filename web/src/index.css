@@ -4840,11 +4840,18 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   :root {
     --radius-card: var(--radius-sm);
     --radius-control: var(--radius-sm);
-    --mobile-nav-control-height: 4.35rem;
+    /* The nav is a floating glass capsule rather than a bar bolted to the bottom edge, so its own
+       height, the gap it leaves beneath itself and the safe area are three separate numbers.
+       --mobile-nav-height keeps its old meaning — the band the nav covers — because the install
+       nudge, the mobile filter sheet and the filter FAB all measure their clearance from it. */
+    --mobile-nav-control-height: 3.65rem;
+    --mobile-nav-float-gap: .45rem;
     --mobile-nav-safe-bottom: env(safe-area-inset-bottom);
     --mobile-nav-safe-left: env(safe-area-inset-left);
     --mobile-nav-safe-right: env(safe-area-inset-right);
-    --mobile-nav-height: calc(var(--mobile-nav-control-height) + var(--mobile-nav-safe-bottom));
+    --mobile-nav-height: calc(
+      var(--mobile-nav-control-height) + var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom)
+    );
     --mobile-nav-clearance: calc(var(--mobile-nav-height) + .75rem);
   }
 
@@ -4860,9 +4867,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   /* The scroll area's gutter. Fluid, so it does not jump from 8px to 16px at one breakpoint —
      replaces the `p-2 sm:p-4` this element used to carry. Applied here rather than on
      .page-shell so screens keep exactly one gutter, not two stacked. */
+  /* The bottom padding is the nav's band, not a fixed .75rem: the glass capsule now floats over
+     this scroller instead of sitting below it, so the last card has to clear it by itself. */
   .app-main {
-    padding: .65rem var(--space-shell) .75rem;
-    scroll-padding-bottom: .75rem;
+    padding: .65rem var(--space-shell) calc(var(--mobile-nav-height) + .5rem);
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + .5rem);
   }
   /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
@@ -6785,80 +6794,129 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     background: var(--accent);
   }
 
+  /* ---- Bottom navigation ---------------------------------------------------
+     A floating glass capsule in the current iOS idiom: the bar is detached from the screen edges,
+     the screen scrolls underneath it, and the blur therefore has real content to refract instead
+     of the flat page background it used to sit on. It anchors to .app-content rather than the
+     viewport, because `position: fixed` on iOS Safari gets dragged around by the on-screen
+     keyboard and by URL-bar collapse; .app-main reserves the band it covers, so nothing ends up
+     permanently trapped behind the glass. */
   .mobile-bottom-nav {
-    position: relative;
+    /* Column count and current column come from App.jsx as inline custom properties; the
+       fallbacks here keep the bar sane if it ever renders before they are set. */
+    --nav-count: 5;
+    --nav-active: 0;
+    --nav-gap: .12rem;
+    --nav-pad: .3rem;
+
+    position: absolute;
     z-index: 40;
+    right: max(.7rem, calc(var(--mobile-nav-safe-right) + .35rem));
+    bottom: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom));
+    left: max(.7rem, calc(var(--mobile-nav-safe-left) + .35rem));
     display: grid;
-    flex: 0 0 var(--mobile-nav-height);
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    gap: .25rem;
-    width: 100%;
-    height: var(--mobile-nav-height);
-    min-height: var(--mobile-nav-height);
+    gap: var(--nav-gap);
+    height: var(--mobile-nav-control-height);
     margin: 0;
-    padding-top: .5rem;
-    padding-right: max(.8rem, calc(var(--mobile-nav-safe-right) + .35rem));
-    padding-bottom: calc(.55rem + var(--mobile-nav-safe-bottom));
-    padding-left: max(.8rem, calc(var(--mobile-nav-safe-left) + .35rem));
-    border: 0;
-    border-radius: 0;
-    overflow: visible;
+    padding: var(--nav-pad);
+    border: 1px solid rgba(255, 255, 255, .55);
+    border-radius: 999px;
+    overflow: hidden;
     isolation: isolate;
-    contain: layout;
     transform: translate3d(0, 0, 0);
     background:
-      linear-gradient(
-        180deg,
-        transparent,
-        color-mix(in srgb, var(--surface-bg) 72%, transparent) 45%,
-        var(--surface-bg)
-      );
+      linear-gradient(180deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .44)),
+      color-mix(in srgb, var(--surface-elevated) 76%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .95),
+      inset 0 -1px 0 rgba(255, 255, 255, .3),
+      0 1px 2px rgba(16, 32, 26, .06),
+      0 12px 30px rgba(16, 32, 26, .14),
+      0 26px 56px rgba(16, 32, 26, .1);
   }
 
+  /* Frosted only where the platform can actually frost. The fallback above stays near-opaque on
+     purpose: a 40%-alpha bar over content that is not blurred is unreadable, not glassy. */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-bottom-nav {
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, .2)),
+        color-mix(in srgb, var(--surface-elevated) 38%, transparent);
+      -webkit-backdrop-filter: blur(32px) saturate(190%) contrast(104%);
+      backdrop-filter: blur(32px) saturate(190%) contrast(104%);
+    }
+  }
+
+  /* Scroll-edge effect, in the strip the capsule leaves beneath itself. Content scrolls into that
+     strip the way it does under any floating iOS bar, and without this a page ends on a hard
+     half-line of text at the very bottom of the screen. A masked blur rather than a gradient
+     scrim: it needs no opinion about what colour the page behind it is, and where the platform
+     cannot do backdrop-filter it simply does nothing. Below the nav, above the scroller. */
+  .app-content::after {
+    content: '';
+    position: absolute;
+    z-index: 39;
+    inset: auto 0 0 0;
+    height: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom) + .5rem);
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
+    mask-image: linear-gradient(to top, #000 45%, transparent);
+  }
+
+  /* Specular highlight — the bright arc real glass picks up along its top edge. Decorative, so it
+     never takes a touch from the button beneath it. */
   .mobile-bottom-nav::before {
     content: '';
     position: absolute;
     z-index: 0;
-    top: .25rem;
-    right: max(.55rem, var(--mobile-nav-safe-right));
-    bottom: calc(.25rem + var(--mobile-nav-safe-bottom));
-    left: max(.55rem, var(--mobile-nav-safe-left));
-    border: 1px solid rgba(255, 255, 255, .7);
-    border-radius: 1.4rem;
+    top: 0;
+    right: 5%;
+    left: 5%;
+    height: 48%;
+    border-radius: 999px 999px 60% 60% / 999px 999px 100% 100%;
     pointer-events: none;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, .72), rgba(255, 255, 255, .3)),
-      color-mix(in srgb, var(--surface-elevated) 68%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .92),
-      inset 0 -1px 0 rgba(255, 255, 255, .22),
-      0 10px 28px rgba(16, 32, 26, .13),
-      0 2px 7px rgba(16, 32, 26, .08);
+    background: linear-gradient(180deg, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0));
+    opacity: .75;
   }
 
-  .mobile-bottom-nav::after {
-    content: '';
+  /* The travelling selection capsule. Its column is arithmetic rather than a measured DOM
+     position: every item is one equal grid column, so the left edge is padding + n × (column +
+     gap). Percentages on an absolutely positioned child resolve against the nav's padding box —
+     which is exactly the box those columns divide up — so the two always agree. */
+  .mobile-bottom-nav-indicator {
+    --nav-col: calc(
+      (100% - 2 * var(--nav-pad) - (var(--nav-count) - 1) * var(--nav-gap)) / var(--nav-count)
+    );
+
     position: absolute;
     z-index: 0;
-    top: .36rem;
-    right: max(1.15rem, calc(var(--mobile-nav-safe-right) + .6rem));
-    left: max(1.15rem, calc(var(--mobile-nav-safe-left) + .6rem));
-    height: 42%;
-    border-radius: 1.15rem 1.15rem 50% 50%;
+    top: var(--nav-pad);
+    bottom: var(--nav-pad);
+    left: calc(var(--nav-pad) + var(--nav-active) * (var(--nav-col) + var(--nav-gap)));
+    width: var(--nav-col);
+    border-radius: 999px;
     pointer-events: none;
-    background: linear-gradient(180deg, rgba(255, 255, 255, .52), transparent);
-    opacity: .72;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, .34)),
+      color-mix(in srgb, var(--accent) 20%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .95),
+      inset 0 -1px 0 color-mix(in srgb, var(--accent) 14%, transparent),
+      0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent);
+    transition:
+      left .42s cubic-bezier(.32, .72, 0, 1),
+      width .42s cubic-bezier(.32, .72, 0, 1),
+      opacity .2s ease;
   }
 
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .mobile-bottom-nav::before {
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, .52), rgba(255, 255, 255, .16)),
-        color-mix(in srgb, var(--surface-elevated) 48%, transparent);
-      -webkit-backdrop-filter: blur(28px) saturate(180%) contrast(106%);
-      backdrop-filter: blur(28px) saturate(180%) contrast(106%);
-    }
+  /* No section on the bar is current — hide rather than park the capsule on the first tab and
+     claim something that is not true. */
+  .mobile-bottom-nav-indicator[data-visible="false"] {
+    opacity: 0;
   }
 
   .mobile-bottom-nav-item {
@@ -6868,26 +6926,28 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     min-height: 0 !important;
     height: 100%;
     display: grid;
-    grid-template-rows: 1.35rem .75rem;
+    grid-template-rows: 1.32rem auto;
     align-items: center;
     justify-content: center;
     align-content: center;
-    gap: .12rem;
-    padding: .28rem .15rem .2rem;
-    border-radius: 1rem;
-    border: 1px solid transparent;
+    gap: .1rem;
+    padding: 0 .1rem;
+    border: 0;
+    border-radius: 999px;
     color: var(--surface-text-soft);
     background: transparent;
-    transition: background .18s ease, border-color .18s ease, color .18s ease,
-      transform .18s ease, box-shadow .18s ease;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .22s ease, transform .24s cubic-bezier(.32, .72, 0, 1);
   }
 
   .mobile-bottom-nav-item svg {
     justify-self: center;
-    width: 1.22rem;
-    height: 1.22rem;
-    stroke-width: 1.9;
-    transition: transform .18s ease, filter .18s ease;
+    width: 1.3rem;
+    height: 1.3rem;
+    stroke-width: 1.85;
+    fill: transparent;
+    transition: fill .22s ease, stroke-width .22s ease,
+      transform .3s cubic-bezier(.32, .72, 0, 1);
   }
 
   .mobile-bottom-nav-label {
@@ -6895,39 +6955,53 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     max-width: 100%;
     overflow: hidden;
     color: inherit;
-    font-size: .59rem;
-    font-weight: 650;
-    line-height: .75rem;
-    letter-spacing: 0;
+    font-size: .625rem;
+    font-weight: 600;
+    line-height: .85rem;
+    letter-spacing: -.005em;
     text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  /* Active state is weight, not chrome: the glyph fills and thickens the way an SF Symbol swaps
+     to its filled variant, and the capsule behind it supplies the surface. The button itself
+     stays flat so the two layers cannot disagree while the capsule is mid-travel. */
   .mobile-bottom-nav-item-active {
-    border-color: rgba(255, 255, 255, .74);
     color: var(--accent-strong);
-    background:
-      linear-gradient(155deg, rgba(255, 255, 255, .68), rgba(255, 255, 255, .2)),
-      color-mix(in srgb, var(--accent) 14%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .92),
-      inset 0 -1px 0 color-mix(in srgb, var(--accent) 12%, transparent),
-      0 5px 14px rgba(16, 32, 26, .11);
-    transform: translateY(-1px);
   }
 
   .mobile-bottom-nav-item-active svg {
-    transform: scale(1.06);
-    filter: drop-shadow(0 2px 4px color-mix(in srgb, var(--accent) 22%, transparent));
+    fill: color-mix(in srgb, currentColor 20%, transparent);
+    stroke-width: 2.1;
   }
 
   .mobile-bottom-nav-item-active .mobile-bottom-nav-label {
-    font-weight: 800;
+    font-weight: 700;
   }
 
   .mobile-bottom-nav-item:active {
+    transform: scale(.92);
+  }
+
+  .mobile-bottom-nav-item:active svg {
     transform: scale(.94);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-bottom-nav-indicator {
+      transition: opacity .2s ease;
+    }
+
+    .mobile-bottom-nav-item,
+    .mobile-bottom-nav-item svg {
+      transition: color .22s ease, fill .22s ease;
+    }
+
+    .mobile-bottom-nav-item:active,
+    .mobile-bottom-nav-item:active svg {
+      transform: none;
+    }
   }
 
   /* Native-mobile guardrails ------------------------------------------------
@@ -6977,7 +7051,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     --mobile-nav-safe-bottom: 0px;
     --mobile-nav-safe-left: 0px;
     --mobile-nav-safe-right: 0px;
-    --mobile-nav-height: var(--mobile-nav-control-height);
+    /* Standalone has no URL bar under the capsule, so the home indicator is the only thing it
+       shares that strip with — it can afford a slightly wider float than a browser tab gets.
+       Derived, not hard-coded, so the reserved band below still matches what is drawn. */
+    --mobile-nav-float-gap: .7rem;
+    --mobile-nav-height: calc(var(--mobile-nav-control-height) + var(--mobile-nav-float-gap));
     position: fixed;
     inset: 0;
     width: 100%;
@@ -6997,9 +7075,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     padding-right: 1rem;
   }
 
-  html.ios-standalone .mobile-bottom-nav {
-    padding-bottom: .55rem;
-  }
 
   html.ios-standalone.app-root-lock body.app-body-lock {
     position: static;
@@ -7017,7 +7092,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     overflow-x: hidden;
   }
 
+  /* Positioned so the floating nav capsule anchors to the app column rather than the viewport.
+     See .mobile-bottom-nav for why it is not `position: fixed`. */
   .app-content {
+    position: relative;
     height: 100%;
     min-height: 0;
     overflow: hidden;
@@ -7168,41 +7246,46 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     transform: translateZ(0);
   }
 
-  .dark .mobile-bottom-nav::before {
-    border-color: rgba(255, 255, 255, .16);
+  /* Dark glass is a dark pane lit from above, not the light one dimmed: the tint drops to a thin
+     white film, the rim is a hairline rather than a highlight, and the shadow carries the lift. */
+  .dark .mobile-bottom-nav {
+    border-color: rgba(255, 255, 255, .12);
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .04)),
-      color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+      linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03)),
+      color-mix(in srgb, var(--surface-elevated) 84%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .2),
-      inset 0 -1px 0 rgba(0, 0, 0, .18),
-      0 12px 32px rgba(0, 0, 0, .4),
-      0 2px 7px rgba(0, 0, 0, .24);
-  }
-
-  .dark .mobile-bottom-nav::after {
-    background: linear-gradient(180deg, rgba(255, 255, 255, .13), transparent);
-    opacity: .65;
+      inset 0 1px 0 rgba(255, 255, 255, .16),
+      inset 0 -1px 0 rgba(0, 0, 0, .3),
+      0 1px 2px rgba(0, 0, 0, .3),
+      0 14px 34px rgba(0, 0, 0, .48),
+      0 28px 60px rgba(0, 0, 0, .34);
   }
 
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .dark .mobile-bottom-nav::before {
+    .dark .mobile-bottom-nav {
       background:
-        linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .025)),
-        color-mix(in srgb, var(--surface-elevated) 62%, transparent);
+        linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02)),
+        color-mix(in srgb, var(--surface-elevated) 54%, transparent);
     }
   }
 
-  .dark .mobile-bottom-nav-item-active {
-    border-color: rgba(255, 255, 255, .2);
-    color: #54d99d;
+  .dark .mobile-bottom-nav::before {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0));
+    opacity: .6;
+  }
+
+  .dark .mobile-bottom-nav-indicator {
     background:
-      linear-gradient(155deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, .035)),
-      color-mix(in srgb, var(--accent) 16%, transparent);
+      linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .04)),
+      color-mix(in srgb, var(--accent) 26%, transparent);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .2),
-      inset 0 -1px 0 rgba(0, 0, 0, .2),
-      0 6px 16px rgba(0, 0, 0, .22);
+      inset 0 1px 0 rgba(255, 255, 255, .22),
+      inset 0 -1px 0 rgba(0, 0, 0, .22),
+      0 4px 14px rgba(0, 0, 0, .3);
+  }
+
+  .dark .mobile-bottom-nav-item-active {
+    color: #54d99d;
   }
 }
 

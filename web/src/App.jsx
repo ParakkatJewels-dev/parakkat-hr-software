@@ -500,6 +500,17 @@ export default function App() {
   const mobileOverflowActive =
     Boolean(activeSection) && !mobilePrimarySections.some((sec) => sec.id === activeSection.id);
 
+  // The glass bar's selection capsule travels between tabs instead of cross-fading, so the column
+  // count and the current column go to CSS as numbers and one absolutely positioned element does
+  // the moving. Arithmetic beats measuring the DOM here: every item is one equal grid column, so
+  // CSS can work out where the capsule belongs without a ref, a resize observer or a re-render.
+  // -1 means nothing on the bar is current — the capsule hides rather than parking on Home.
+  const mobileNavHasOverflow = visibleSections.length > mobilePrimarySections.length;
+  const mobileNavCount = mobilePrimarySections.length + (mobileNavHasOverflow ? 1 : 0);
+  const mobileNavActiveIndex = mobileOverflowActive
+    ? (mobileNavHasOverflow ? mobilePrimarySections.length : -1)
+    : mobilePrimarySections.findIndex((sec) => sec.id === activeSection?.id);
+
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {
     if (!sec.tabs.some((t) => t.id === activeTab)) setActiveTab(sec.tabs[0].id);
@@ -930,7 +941,16 @@ export default function App() {
           aria-label="Primary mobile navigation"
           data-pwa={isPwaInstalled ? 'true' : 'false'}
           className="mobile-bottom-nav lg:hidden"
+          style={{
+            '--nav-count': String(Math.max(mobileNavCount, 1)),
+            '--nav-active': String(Math.max(mobileNavActiveIndex, 0)),
+          }}
         >
+          <span
+            className="mobile-bottom-nav-indicator"
+            data-visible={mobileNavActiveIndex >= 0 ? 'true' : 'false'}
+            aria-hidden="true"
+          />
           {mobilePrimarySections.map((sec) => {
             const Icon = sec.icon;
             const on = activeSection?.id === sec.id;
