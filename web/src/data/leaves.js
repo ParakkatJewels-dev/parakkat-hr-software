@@ -37,7 +37,10 @@ export function useApplyLeave() {
       const { error } = await supabase.from('leaves').insert({ ...payload, status: 'Pending' });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leaves'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leaves'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }
 
@@ -54,6 +57,9 @@ export function useSetLeaveStatus() {
       if (error) throw error;
       if (!data) throw new Error('That leave request is outside the scope you can manage.');
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['leaves'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['leaves'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }

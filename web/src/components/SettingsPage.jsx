@@ -4,14 +4,13 @@
 // are managed by HR. Workspace settings are editable by super admins only — everyone else sees
 // them read-only (RLS enforces this server-side too).
 import React, { useEffect, useState } from 'react';
-import { UserRound, Building2, Check, Loader2, Clock, Eye } from 'lucide-react';
+import { UserRound, Building2, Check, Loader2, Clock } from 'lucide-react';
 import ChangePassword from './ChangePassword';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { useEmployees } from '../data/employees';
 import { useWorkspaceSettings, useSaveWorkspaceSettings, useUpdateMyProfile } from '../data/settings';
 import { useClockFormat } from '../lib/timeFormat';
-import { appNameFor } from '../lib/appName';
 import { CLOCK_FORMATS } from '../lib/clock';
 
 const inputClass =
@@ -237,67 +236,7 @@ function WorkspaceCard() {
 }
 
 
-/**
- * Work as one of your own roles.
- *
- * An HR manager is also an employee: they punch in, take leave, read their own payslip. The
- * navigation only ever handed the self-service layout to someone whose top role IS employee, so
- * everybody senior got the oversight tree and nowhere to be an employee in it.
- *
- * Switching changes the SIDEBAR, the DASHBOARD preset and the name in the corner — the whole app,
- * rather than a duplicate set of "My…" links bolted onto the oversight tree. It does not change
- * what you are allowed to read: RLS answers to the signed-in user, and the route guard still checks
- * real permissions. Narrower view, same account.
- */
-function ViewAsCard({ viewRole, trueRole, heldRoles, onViewRoleChange }) {
-  const pretty = (key) => key.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
-
-  // Nothing to choose between. Somebody who only holds `employee` has one view and always did.
-  if (!heldRoles || heldRoles.length < 2) return null;
-
-  return (
-    <section className="premium-card space-y-3">
-      <div className="flex items-center gap-2">
-        <Eye size={14} className="text-[#0ea971]" />
-        <h2 className="text-sm font-bold text-neutral-900 dark:text-white">Switch view</h2>
-      </div>
-      <p className="text-xs text-neutral-500 dark:text-neutral-400">
-        You hold more than one role. Pick the one to work as — it changes the menu and the dashboard,
-        not what you are allowed to see.
-      </p>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {heldRoles.map((r) => {
-          const active = r === viewRole;
-          return (
-            <button
-              key={r}
-              type="button"
-              onClick={() => onViewRoleChange(r === trueRole ? null : r)}
-              aria-pressed={active}
-              className={`text-left rounded-xl border px-3 py-2.5 transition-colors cursor-pointer ${
-                active
-                  ? 'border-[#0ea971] bg-[#0ea971]/10'
-                  : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
-              }`}
-            >
-              <span className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-neutral-900 dark:text-white">{pretty(r)}</span>
-                {active && <Check size={13} className="text-[#0ea971] shrink-0" />}
-              </span>
-              <span className="block text-2xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                {appNameFor(r)}
-                {r === trueRole ? ' · your usual view' : ''}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-export default function SettingsPage({ viewRole, trueRole, heldRoles, onViewRoleChange }) {
+export default function SettingsPage() {
   return (
     <div className="page-shell space-y-6 animate-fade-in text-xs text-neutral-500">
       <div>
@@ -306,12 +245,6 @@ export default function SettingsPage({ viewRole, trueRole, heldRoles, onViewRole
           Profile, password, display preferences, and workspace defaults.
         </p>
       </div>
-      <ViewAsCard
-        viewRole={viewRole}
-        trueRole={trueRole}
-        heldRoles={heldRoles}
-        onViewRoleChange={onViewRoleChange}
-      />
       <ChangePassword />
       <MyProfileCard />
       <DisplayPreferences />

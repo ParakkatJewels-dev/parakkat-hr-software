@@ -12,9 +12,10 @@ import { useAuth } from '../auth/AuthContext';
 // query whose key starts with it (e.g. ['attendance'] covers ['attendance','day',date]).
 const TABLE_KEYS = {
   notifications: [['notifications']],
-  tasks: [['tasks']],
-  leaves: [['leaves']],
-  expenses: [['expenses']],
+  tasks: [['tasks'], ['notification-ref-statuses']],
+  leaves: [['leaves'], ['notification-ref-statuses']],
+  expenses: [['expenses'], ['notification-ref-statuses']],
+  attendance_regularizations: [['regularizations'], ['notification-ref-statuses']],
   attendance: [['attendance']],
   // Punches invalidate ONLY the punch drill-down. They used to also invalidate ['attendance'],
   // which meant every punch re-pulled the (large) attendance queries on every connected admin's
@@ -24,7 +25,7 @@ const TABLE_KEYS = {
   // Queued work for the sync service. Pushed rather than polled so a button press shows its
   // outcome the moment the service writes it back, instead of on the next 5-second tick.
   service_commands: [['service-commands'], ['sync-runs'], ['sync-health']],
-  tickets: [['tickets']],
+  tickets: [['tickets'], ['notification-ref-statuses']],
   assets: [['assets']],
   employees: [['employees']],
   documents: [['documents']],

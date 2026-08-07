@@ -33,7 +33,10 @@ export function useAddTicket() {
       const { error } = await supabase.from('tickets').insert({ ...payload, status: 'Open' });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tickets'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tickets'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }
 
@@ -59,6 +62,9 @@ export function useSetTicketStatus() {
         throw new Error('That ticket is outside the area you handle, so nothing was changed.');
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tickets'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tickets'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }

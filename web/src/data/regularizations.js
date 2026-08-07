@@ -99,6 +99,7 @@ export function useDecideRegularization() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['regularizations'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
       // The recompute trigger has queued the date; attendance updates once the queue drains.
       qc.invalidateQueries({ queryKey: ['attendance'] });
     },

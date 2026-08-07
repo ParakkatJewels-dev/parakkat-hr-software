@@ -27,7 +27,7 @@ export const ASSET_TYPES = {
 const ASSET_COLUMNS = `
   id, category, asset_type, asset_code, name, make, model, serial, status, condition, location,
   notes, purchase_date, purchase_cost, vendor, invoice_no, warranty_expires,
-  licence_key, licence_seats, licence_expires,
+  licence_key, licence_seats, licence_expires, photo_path,
   owner_entity_id, owner_branch_id, entity_id, zone_id, branch_id, department_id, employee_id,
   created_at, updated_at,
   owner_entity:entities(code,name),
@@ -128,6 +128,8 @@ const ASSET_COLS = [
   'purchase_date', 'purchase_cost', 'vendor', 'invoice_no', 'warranty_expires',
   'licence_key', 'licence_seats', 'licence_expires',
   'owner_entity_id', 'owner_branch_id',
+  // Written by useUpsertAsset after the file itself is in the bucket — see below.
+  'photo_path',
 ];
 
 /**
@@ -168,21 +170,96 @@ function describeAssetError(error) {
   return error;
 }
 
+/** Object names are `<asset_id>/<filename>`; the storage policy reads that id back out. */
+const PHOTO_BUCKET = 'asset-photos';
+
+function safePhotoName(name) {
+  const cleaned = String(name || 'photo')
+    .normalize('NFKD')
+    .replace(/[^\w.\- ]+/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/_{2,}/g, '_')
+    .slice(-80);
+  return cleaned.replace(/^[._]+/, '') || 'photo';
+}
+
+/**
+ * Register or edit an asset, optionally with a photograph of it.
+ *
+ * Row first, then the file, then the path back onto the row. It has to be that order for a new
+ * asset — the object name contains the asset id, which does not exist until the insert returns,
+ * and the storage policy resolves that id back to the row to decide whether the upload is allowed.
+ *
+ * A failed upload does not fail the save: an asset registered without its picture is a complete
+ * record missing a nicety, and throwing here would leave the caller thinking nothing was written
+ * when the row is already there. The error is reported separately.
+ */
 export function useUpsertAsset() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...rest }) => {
+    mutationFn: async ({ id, photoFile, ...rest }) => {
       const payload = cleanAssetPayload(rest);
       const q = id
         ? supabase.from('assets').update(payload).eq('id', id).select('id').single()
         : supabase.from('assets').insert(payload).select('id').single();
       const { data, error } = await q;
       if (error) throw describeAssetError(error);
+
+      if (!photoFile) return data;
+
+      const path = `${data.id}/${Date.now()}-${safePhotoName(photoFile.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .upload(path, photoFile, { contentType: photoFile.type || undefined, upsert: false });
+      if (uploadError) return { ...data, photoError: uploadError.message };
+
+      const { error: pathError } = await supabase
+        .from('assets')
+        .update({ photo_path: path })
+        .eq('id', data.id);
+      if (pathError) return { ...data, photoError: pathError.message };
+
       return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['assets'] });
       qc.invalidateQueries({ queryKey: ['asset-history'] });
+      qc.invalidateQueries({ queryKey: ['asset-photos'] });
+    },
+  });
+}
+
+/**
+ * Signed URLs for a set of asset photographs, keyed by asset id.
+ *
+ * Batched like useEmployeeAvatars and for the same reason: a page of the register would otherwise
+ * be one signing request per row. Pass only what is on screen.
+ */
+const PHOTO_URL_SECONDS = 600;
+
+export function useAssetPhotos(assets) {
+  const paths = (assets ?? [])
+    .filter((a) => a?.photo_path)
+    .map((a) => [a.id, a.photo_path]);
+  // Sorted so the same page produces the same key however the rows were ordered.
+  const key = paths.map(([id, path]) => `${id}:${path}`).sort();
+
+  return useQuery({
+    enabled: key.length > 0,
+    queryKey: ['asset-photos', key],
+    staleTime: (PHOTO_URL_SECONDS - 120) * 1000,
+    queryFn: async () => {
+      const { data: signed, error } = await supabase.storage
+        .from(PHOTO_BUCKET)
+        .createSignedUrls(paths.map(([, path]) => path), PHOTO_URL_SECONDS);
+      if (error) throw error;
+      const byPath = new Map((signed ?? []).filter((s) => s.signedUrl).map((s) => [s.path, s.signedUrl]));
+      const byAsset = {};
+      for (const [id, path] of paths) {
+        const url = byPath.get(path);
+        if (url) byAsset[id] = url;
+      }
+      return byAsset;
     },
   });
 }

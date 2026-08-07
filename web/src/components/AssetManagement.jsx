@@ -3,13 +3,15 @@
 // Master-detail, the same shape the Directory uses — the list stands in for the detail screen
 // rather than sitting beside it, so a phone gets one thing at a time and the filters and page you
 // had are still there when you come back.
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Package, Laptop, Smartphone, Monitor, KeyRound, Car, Armchair, Loader2, AlertTriangle,
   Plus, Search, X, SearchX, ChevronRight, Boxes,
 } from 'lucide-react';
 import {
-  useAssets, useUpsertAsset, ASSET_CATEGORIES, ASSET_STATUSES, ASSET_CONDITIONS, ASSET_TYPES,
+  useAssets, useUpsertAsset, useAssetPhotos,
+  ASSET_CATEGORIES, ASSET_STATUSES, ASSET_CONDITIONS, ASSET_TYPES,
 } from '../data/assets';
 import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
@@ -18,6 +20,8 @@ import PageHeader from './ui/PageHeader';
 import FilterSelect from './ui/FilterSelect';
 import FormSection, { Field, FIELD } from './ui/FormSection';
 import AssetDetail from './AssetDetail';
+import EmployeeLink from './ui/EmployeeLink';
+import AssetPhotoField from './ui/AssetPhotoField';
 
 const categoryIcon = (a) => {
   if (a?.category === 'Software') return KeyRound;
@@ -53,10 +57,28 @@ export default function AssetManagement() {
   const upsert = useUpsertAsset();
   const canManage = canAny('asset.manage');
 
-  const [selectedId, setSelectedId] = useState(null);
+  /**
+   * Which asset is open, held in the URL rather than in component state.
+   *
+   * App.jsx routes on the first path segment, so `/assets/<id>` is still this screen; the second
+   * segment is where a page keeps its own position (see lib/urlTab.js — this screen has no tabs, so
+   * it spends it on the record). That buys three things state could not: an employee profile can
+   * link straight to a specific item under "Assets held", the Back button leaves the record instead
+   * of leaving the screen, and a reload or a pasted link lands on the same asset.
+   */
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const selectedId = pathname.replace(/^\/+|\/+$/g, '').split('/')[1] || null;
+  const setSelectedId = useCallback(
+    (id) => navigate(id ? `/assets/${id}` : '/assets', { replace: !id }),
+    [navigate]
+  );
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  // Held apart from `form`: it is a File, not a column, and it is uploaded after the row exists.
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoError, setPhotoError] = useState(null);
 
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All categories');
@@ -87,6 +109,11 @@ export default function AssetManagement() {
   }, [assets, search, category, status]);
 
   const pager = usePagination(filtered);
+  // Signed per page, not per register: 400 assets would otherwise be 400 signing requests to
+  // show 25 rows. The open editing row is included so its current photo can be shown in the form.
+  const { data: photoUrls = {} } = useAssetPhotos(
+    editing ? [...pager.slice, editing] : pager.slice
+  );
   const activeFilters = (search.trim() ? 1 : 0)
     + (category !== 'All categories' ? 1 : 0) + (status !== 'All statuses' ? 1 : 0);
 
@@ -95,6 +122,8 @@ export default function AssetManagement() {
     setForm(asset
       ? { ...EMPTY_FORM, ...Object.fromEntries(Object.keys(EMPTY_FORM).map((k) => [k, asset[k] ?? ''])) }
       : EMPTY_FORM);
+    setPhotoFile(null);
+    setPhotoError(null);
     upsert.reset();
     setShowForm(true);
   };
@@ -102,11 +131,16 @@ export default function AssetManagement() {
   const submit = async (e) => {
     e.preventDefault();
     if (!form.name.trim()) return;
+    setPhotoError(null);
     try {
-      await upsert.mutateAsync({ id: editing?.id, ...form });
+      const saved = await upsert.mutateAsync({ id: editing?.id, ...form, photoFile });
+      // The asset is registered either way — a photograph that would not upload is a missing
+      // nicety, not a failed save, and closing the form while saying nothing would be a lie.
+      if (saved?.photoError) setPhotoError(saved.photoError);
       setShowForm(false);
       setEditing(null);
       setForm(EMPTY_FORM);
+      setPhotoFile(null);
     } catch { /* surfaced in the form */ }
   };
 
@@ -142,6 +176,18 @@ export default function AssetManagement() {
         )}
       />
 
+      {photoError && (
+        <div className="premium-card border-amber-300 dark:border-amber-900/60" role="alert">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            The asset was saved, but its photo did not upload.
+          </p>
+          <details className="detail-disclosure is-error mt-1.5">
+            <summary>Why</summary>
+            <p className="font-mono">{photoError}</p>
+          </details>
+        </div>
+      )}
+
       <section className="people-insight-grid">
         {stats.map((s) => (
           <div key={s.label} className="people-insight-card" data-tone={s.tone}>
@@ -163,6 +209,12 @@ export default function AssetManagement() {
           busy={upsert.isPending}
           error={upsert.error?.message}
         >
+          <AssetPhotoField
+            file={photoFile}
+            existingUrl={editing ? photoUrls[editing.id] : null}
+            onPick={setPhotoFile}
+          />
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <Field label="Name" htmlFor="as-name" required>
               <input id="as-name" required value={form.name} className={FIELD}
@@ -371,7 +423,14 @@ export default function AssetManagement() {
                     className="asset-row"
                     onClick={() => { setSelectedId(a.id); setShowForm(false); setEditing(null); upsert.reset(); }}
                   >
-                    <span className="asset-row-icon"><Icon size={16} /></span>
+                    {/* The photograph identifies the item; the category icon is what stands in
+                        when there isn't one. On a list of near-identical black laptops the picture
+                        is faster to read than any code. */}
+                    <span className="asset-row-icon" data-photo={photoUrls[a.id] ? 'true' : 'false'}>
+                      {photoUrls[a.id]
+                        ? <img src={photoUrls[a.id]} alt="" loading="lazy" />
+                        : <Icon size={16} />}
+                    </span>
                     <span className="asset-row-main">
                       <strong>{a.name}</strong>
                       <em>
@@ -380,8 +439,10 @@ export default function AssetManagement() {
                       </em>
                     </span>
                     <span className="asset-row-holder">
+                      {/* The row opens the asset; the name opens the person. EmployeeLink stops
+                          the click from doing both. */}
                       {a.employee?.full_name
-                        ? <><strong>{a.employee.full_name}</strong><em>{a.employee.employee_code || 'Holding it now'}</em></>
+                        ? <><strong><EmployeeLink employee={a.employee} /></strong><em>{a.employee.employee_code || 'Holding it now'}</em></>
                         : <em>Not allocated</em>}
                     </span>
                     <span className={`asset-status ${statusTone(a.status)}`}>{a.status}</span>

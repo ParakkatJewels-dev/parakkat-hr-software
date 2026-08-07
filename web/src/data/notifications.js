@@ -1,8 +1,18 @@
 // Data hooks for in-app notifications. Rows are created only by DB triggers (migration 0023);
 // RLS scopes every query to the signed-in user's own notifications, and realtime.js invalidates
 // ['notifications'] the moment a new row streams in, so the bell updates live.
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { filterActionableNotifications } from '../lib/actionableNotifications';
+
+const REF_TABLES = {
+  leave: 'leaves',
+  expense: 'expenses',
+  regularization: 'attendance_regularizations',
+  task: 'tasks',
+  ticket: 'tickets',
+};
 
 export function useNotifications() {
   return useQuery({
@@ -17,6 +27,80 @@ export function useNotifications() {
       return data ?? [];
     },
   });
+}
+
+function idsForType(notifications, type) {
+  return [
+    ...new Set(
+      (notifications ?? [])
+        .filter((n) => !n.read_at && n.type === type && n.ref_id)
+        .map((n) => n.ref_id)
+    ),
+  ].sort();
+}
+
+function useNotificationRefStatuses(type, ids) {
+  return useQuery({
+    enabled: ids.length > 0,
+    queryKey: ['notification-ref-statuses', type, ids],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from(REF_TABLES[type])
+        .select('id, status')
+        .in('id', ids);
+      if (error) throw error;
+      return Object.fromEntries((data ?? []).map((row) => [row.id, row.status]));
+    },
+  });
+}
+
+export function useActionableNotifications() {
+  const notificationsQuery = useNotifications();
+  const notifications = notificationsQuery.data ?? [];
+  const leaveIds = idsForType(notifications, 'leave');
+  const expenseIds = idsForType(notifications, 'expense');
+  const regularizationIds = idsForType(notifications, 'regularization');
+  const taskIds = idsForType(notifications, 'task');
+  const ticketIds = idsForType(notifications, 'ticket');
+
+  const leaveStatuses = useNotificationRefStatuses('leave', leaveIds);
+  const expenseStatuses = useNotificationRefStatuses('expense', expenseIds);
+  const regularizationStatuses = useNotificationRefStatuses('regularization', regularizationIds);
+  const taskStatuses = useNotificationRefStatuses('task', taskIds);
+  const ticketStatuses = useNotificationRefStatuses('ticket', ticketIds);
+
+  const refStatuses = useMemo(() => {
+    const statuses = {};
+    if (leaveIds.length === 0 || leaveStatuses.isSuccess) statuses.leave = leaveStatuses.data ?? {};
+    if (expenseIds.length === 0 || expenseStatuses.isSuccess) statuses.expense = expenseStatuses.data ?? {};
+    if (regularizationIds.length === 0 || regularizationStatuses.isSuccess) {
+      statuses.regularization = regularizationStatuses.data ?? {};
+    }
+    if (taskIds.length === 0 || taskStatuses.isSuccess) statuses.task = taskStatuses.data ?? {};
+    if (ticketIds.length === 0 || ticketStatuses.isSuccess) statuses.ticket = ticketStatuses.data ?? {};
+    return statuses;
+  }, [
+    expenseIds.length,
+    expenseStatuses.data,
+    expenseStatuses.isSuccess,
+    leaveIds.length,
+    leaveStatuses.data,
+    leaveStatuses.isSuccess,
+    regularizationIds.length,
+    regularizationStatuses.data,
+    regularizationStatuses.isSuccess,
+    taskIds.length,
+    taskStatuses.data,
+    taskStatuses.isSuccess,
+    ticketIds.length,
+    ticketStatuses.data,
+    ticketStatuses.isSuccess,
+  ]);
+
+  return {
+    ...notificationsQuery,
+    data: filterActionableNotifications(notifications, refStatuses),
+  };
 }
 
 export function useMarkNotificationRead() {

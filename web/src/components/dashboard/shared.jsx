@@ -3,7 +3,7 @@
 // plus the two cross-role widgets (notifications strip, holidays & anniversaries).
 import React from 'react';
 import { ArrowRight, BellRing, CalendarHeart, PartyPopper } from 'lucide-react';
-import { useNotifications } from '../../data/notifications';
+import { useActionableNotifications } from '../../data/notifications';
 import { useHolidays } from '../../data/holidays';
 import { useEmployees } from '../../data/employees';
 import { todayIso } from '../../data/attendance';
@@ -292,7 +292,7 @@ function groupedUnreadNotifications(notifications) {
 
 /** Unread-notification strip shown on every dashboard, right under the greeting. */
 export function NotificationsStrip({ onNavigate }) {
-  const { data: notifications = [] } = useNotifications();
+  const { data: notifications = [] } = useActionableNotifications();
   const unreadGroups = groupedUnreadNotifications(notifications).slice(0, 3);
   if (unreadGroups.length === 0) return null;
 

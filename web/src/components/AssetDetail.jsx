@@ -11,12 +11,13 @@ import {
   Loader2, AlertTriangle, Eye, EyeOff, Search, X, Check,
 } from 'lucide-react';
 import {
-  useAsset, useAssetHistory, useAssignAsset, useReturnAsset, useSetAssetStatus,
+  useAsset, useAssetHistory, useAssignAsset, useReturnAsset, useSetAssetStatus, useAssetPhotos,
   ASSET_CONDITIONS, ASSET_MANUAL_STATUSES,
 } from '../data/assets';
 import { useEmployees } from '../data/employees';
 import { usePermissions } from '../auth/usePermissions';
 import { spanLabel } from '../lib/assetSpan';
+import EmployeeLink from './ui/EmployeeLink';
 
 const categoryIcon = (asset) => {
   if (asset?.category === 'Software') return KeyRound;
@@ -147,6 +148,7 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
 export default function AssetDetail({ assetId, onBack, onEdit }) {
   const { data: asset, isLoading, error } = useAsset(assetId);
   const { data: history = [], isLoading: historyLoading } = useAssetHistory(assetId);
+  const { data: photoUrls = {} } = useAssetPhotos(asset ? [asset] : []);
   const { can } = usePermissions();
   const assign = useAssignAsset();
   const takeBack = useReturnAsset();
@@ -203,6 +205,8 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
   }
 
   const Icon = categoryIcon(asset);
+  // One asset, so this signs one URL. Same hook as the register, so the picture is the same one.
+  const photoUrl = photoUrls[asset.id];
   const isSoftware = asset.category === 'Software';
   // Out of service: 0078 refuses to open a custody row for either of these.
   const outOfService = asset.status === 'Retired' || asset.status === 'Lost';
@@ -226,7 +230,11 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
         </div>
 
         <div className="emp-hero-id">
-          <div className="emp-avatar asset-avatar"><Icon size={30} /></div>
+          <div className="emp-avatar asset-avatar" data-photo={photoUrl ? 'true' : 'false'}>
+            {photoUrl
+              ? <img src={photoUrl} alt={`Photograph of ${asset.name}`} />
+              : <Icon size={30} />}
+          </div>
           <div className="emp-hero-text">
             <h1>{asset.name}</h1>
             <p>
@@ -403,7 +411,12 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
                       <span className="asset-timeline-mark"><UserRound size={13} /></span>
                       <div className="asset-timeline-body">
                         <div className="asset-timeline-who">
-                          <strong>{h.employee?.full_name ?? 'Somebody no longer on record'}</strong>
+                          <strong>
+                            <EmployeeLink
+                              employee={h.employee}
+                              name={h.employee?.full_name ?? 'Somebody no longer on record'}
+                            />
+                          </strong>
                           {current && <span className="asset-timeline-now">Holding it now</span>}
                         </div>
                         <span className="asset-timeline-meta">
@@ -448,7 +461,11 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
               <div className="asset-holder">
                 <UserRound size={15} />
                 <span>
-                  <strong>{open.employee?.full_name ?? 'Unknown holder'}</strong>
+                  {/* The whole point of the register is knowing who has it — so the answer is a
+                      way to reach them, not a dead name you have to go and look up in People. */}
+                  <strong>
+                    <EmployeeLink employee={open.employee} name={open.employee?.full_name ?? 'Unknown holder'} />
+                  </strong>
                   <em>since {fmtDate(open.assigned_at)}{spanLabel(open.assigned_at) ? ` · ${spanLabel(open.assigned_at)}` : ''}</em>
                 </span>
               </div>

@@ -35,7 +35,10 @@ export function useAddExpense() {
       const { error } = await supabase.from('expenses').insert({ ...payload, status: 'Pending' });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }
 
@@ -77,6 +80,9 @@ export function useSetExpenseStatus() {
         );
       }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['expenses'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }

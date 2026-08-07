@@ -117,8 +117,17 @@ export function useDeletePayrollRun() {
 }
 
 // ---------------------------------------------------------------- salary structures
-export function useSalaryStructures(employeeId) {
+/**
+ * Salary rows, newest first. Pass an employee id for one person's history, nothing for everyone's.
+ *
+ * `enabled` matters more here than on most queries: with no employee id this fetches the whole
+ * table, so a caller that only wants one person's pay — and does not have an id yet, or is not
+ * allowed to read pay at all — has to be able to say "not yet" rather than accidentally asking for
+ * every salary in the company.
+ */
+export function useSalaryStructures(employeeId, { enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['salary-structures', employeeId ?? 'all'],
     queryFn: async () => {
       let q = supabase

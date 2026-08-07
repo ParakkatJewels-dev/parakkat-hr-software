@@ -5,14 +5,18 @@
 // question: what is their PAN, when did they join, which branch. A sticky rail carries the summary,
 // the quick actions, and a section index, so a long page stays one jump away from any answer.
 // Shows only real record data — nothing estimated or mocked.
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft, Pencil, Mail, Phone, Copy, Check, Calendar, Building2, MapPin, Layers,
   Briefcase, Award, ShieldAlert, ExternalLink, KeyRound, UserRound, HeartPulse,
   Landmark, IdCard, Paperclip, FileText, Download, Eye, Loader2, AlertTriangle, Boxes, Package,
+  ChevronRight,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useEmployeeDocuments, useDocumentLink, useEmployeeAvatars, fileSize } from '../data/documents';
 import { useEmployeeAssets } from '../data/assets';
+import { useSalaryStructures } from '../data/payroll';
+import { currentSectionId } from '../lib/sectionSpy';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
 
@@ -166,7 +170,11 @@ function DocumentsSection({ employeeId }) {
 
 // What company property this person is holding right now. The register is the authority; this is
 // the same question asked from the other end, and it is the one exit clearance actually needs.
-function EmployeeAssetsSection({ employeeId }) {
+//
+// Each row opens that item's record in the asset register. Reading "Dell Latitude 5420" here and
+// then having to go to Assets and search for it again is the same lookup done twice by hand; the
+// register's detail page is where the serial, the warranty and the custody history already live.
+function EmployeeAssetsSection({ employeeId, onOpenAsset }) {
   const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
 
   if (isLoading) {
@@ -191,10 +199,18 @@ function EmployeeAssetsSection({ employeeId }) {
   return (
     <ul className="emp-doc-list">
       {assets.map((a) => (
-        <li key={a.id} className="emp-doc">
+        <li key={a.id} className={`emp-doc${onOpenAsset ? ' is-linked' : ''}`}>
           <span className="emp-doc-icon"><Package size={15} /></span>
           <span className="emp-doc-copy">
-            <strong>{a.name}</strong>
+            {onOpenAsset ? (
+              <button type="button" className="emp-doc-link" onClick={() => onOpenAsset(a.id)}>
+                {a.name}
+                <ChevronRight size={13} aria-hidden="true" />
+                <span className="sr-only">Open this asset in the register</span>
+              </button>
+            ) : (
+              <strong>{a.name}</strong>
+            )}
             <em>
               {[a.category, [a.make, a.model].filter(Boolean).join(' '), a.asset_code, a.serial]
                 .filter(Boolean).join(' · ')}
@@ -226,8 +242,9 @@ function OrgNode({ icon: Icon, label, value, last }) {
 export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   const [copied, setCopied] = useState(false);
   const [activeSection, setActiveSection] = useState('contact');
-  const { canAny, can } = usePermissions();
+  const { canAny, can, canBeyondSelf } = usePermissions();
   const { employee: me } = useAuth();
+  const navigate = useNavigate();
 
   /**
    * Salary, bank account and statutory IDs are the most sensitive fields in the record, and they
@@ -287,13 +304,23 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   ].filter(Boolean).length;
   const completenessPct = Math.round((completeness / 12) * 100);
 
-  // Compensation — only what the record actually holds (no estimated components).
-  const salary = emp.salary || null;
-  const ctc = salary?.ctc != null ? Number(salary.ctc) : null;
-  const baseMonthly = salary?.base != null ? Number(salary.base) : null;
-  const baseAnnual = baseMonthly != null ? baseMonthly * 12 : null;
+  /**
+   * Compensation — the salary row payroll will actually pay against.
+   *
+   * This used to read `emp.salary`, a jsonb column on the employee that nothing in the application
+   * has ever written, so the section said "not recorded" for everybody no matter how carefully
+   * payroll had been set up. The real record is salary_structures: monthly basic and gross,
+   * effective-dated, newest first, and readable under exactly the bar this page already applies.
+   */
+  const payQuery = useSalaryStructures(emp.id, { enabled: canSeeSensitive && Boolean(emp.id) });
+  const salary = payQuery.data?.[0] ?? null;
+  const grossMonthly = salary?.gross != null ? Number(salary.gross) : null;
+  const baseMonthly = salary?.basic != null ? Number(salary.basic) : null;
+  const grossAnnual = grossMonthly != null ? grossMonthly * 12 : null;
   const basePct =
-    ctc > 0 && baseAnnual > 0 ? Math.min(100, Math.round((baseAnnual / ctc) * 100)) : null;
+    grossMonthly > 0 && baseMonthly > 0
+      ? Math.min(100, Math.round((baseMonthly / grossMonthly) * 100))
+      : null;
 
   const sections = [
     {
@@ -304,7 +331,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
         <div className="emp-contact-list">
           <div className="emp-contact">
             <Mail size={14} />
-            <span>{emp.email || 'No email on record'}</span>
+            <span>{emp.email || 'No office email on record'}</span>
             {emp.email && (
               <div className="emp-contact-actions">
                 <button type="button" onClick={copyEmail} title="Copy email" aria-label="Copy email address">
@@ -327,6 +354,8 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
               </div>
             )}
           </div>
+          {/* The address above is the office one — the company's channel, and the one the login
+              defaults to. This is the one that still reaches them after they hand that back. */}
           <div className="emp-field-grid emp-contact-extra">
             <Field label="Personal email" value={emp.personal_email} />
           </div>
@@ -413,45 +442,48 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
       sensitive: true,
       label: 'Compensation',
       icon: Award,
-      body:
-        ctc != null || baseMonthly != null ? (
-          <div className="emp-pay">
-            {ctc != null && (
-              <div className="emp-pay-headline">
-                <span>Annual CTC</span>
-                <strong>{inr(ctc)}</strong>
-              </div>
-            )}
-
-            {basePct != null && (
-              <div className="emp-pay-split">
-                <div className="emp-pay-bar">
-                  <i style={{ width: `${basePct}%` }} className="is-base" title={`Base: ${basePct}%`} />
-                  <i style={{ width: `${100 - basePct}%` }} className="is-other" title={`Other components: ${100 - basePct}%`} />
-                </div>
-                <div className="emp-pay-legend">
-                  <span><i className="is-base" /> Base ({basePct}%)</span>
-                  <span><i className="is-other" /> Other ({100 - basePct}%)</span>
-                </div>
-              </div>
-            )}
-
-            <div className="emp-field-grid">
-              {baseMonthly != null && <Field label="Monthly base salary" value={inr(baseMonthly)} mono />}
-              {baseAnnual != null && <Field label="Annualized base" value={inr(baseAnnual)} mono />}
+      body: payQuery.isLoading ? (
+        <p className="emp-doc-note"><Loader2 size={13} className="animate-spin" /> Loading compensation…</p>
+      ) : salary ? (
+        <div className="emp-pay">
+          {grossAnnual != null && (
+            <div className="emp-pay-headline">
+              <span>Annual gross</span>
+              <strong>{inr(grossAnnual)}</strong>
             </div>
+          )}
 
-            <p className="emp-note">
-              Figures come directly from the employee record. Component breakdowns beyond base pay
-              are managed in Payroll.
-            </p>
+          {basePct != null && (
+            <div className="emp-pay-split">
+              <div className="emp-pay-bar">
+                <i style={{ width: `${basePct}%` }} className="is-base" title={`Basic: ${basePct}%`} />
+                <i style={{ width: `${100 - basePct}%` }} className="is-other" title={`Allowances: ${100 - basePct}%`} />
+              </div>
+              <div className="emp-pay-legend">
+                <span><i className="is-base" /> Basic ({basePct}%)</span>
+                <span><i className="is-other" /> Allowances ({100 - basePct}%)</span>
+              </div>
+            </div>
+          )}
+
+          <div className="emp-field-grid">
+            {grossMonthly != null && <Field label="Monthly gross" value={inr(grossMonthly)} mono />}
+            {baseMonthly != null && <Field label="Monthly basic" value={inr(baseMonthly)} mono />}
+            <Field label="Effective from" value={fmtDate(salary.effective_from)} />
           </div>
-        ) : (
-          <div className="emp-empty">
-            <ShieldAlert size={20} />
-            <p>Compensation details are restricted or not recorded for this profile.</p>
-          </div>
-        ),
+
+          <p className="emp-note">
+            The salary structure payroll runs against. Revisions are effective-dated — this is the
+            one in force. Component breakdowns beyond basic and gross are managed in Payroll.
+          </p>
+        </div>
+      ) : (
+        <div className="emp-empty">
+          <ShieldAlert size={20} />
+          <p>No salary structure is on file for this person. Set one from Payroll, or from the
+            Compensation block on their employee form.</p>
+        </div>
+      ),
     },
     {
       id: 'banking',
@@ -475,11 +507,21 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   // Both of these carry their own permission. Someone who may see a person but not their file
   // cabinet gets no section at all, rather than an empty one reading as "nothing was uploaded".
   if (canAny('asset.read')) {
+    // The register screen itself is gated on asset.read BEYOND yourself (App.jsx), so somebody
+    // whose only grant is their own kit still sees the list here but must not be handed a link
+    // into a screen that would turn them away.
+    const canOpenRegister = canBeyondSelf('asset.read');
     sections.push({
       id: 'assets',
+      className: 'cursor-pointer',
       label: 'Assets held',
       icon: Boxes,
-      body: <EmployeeAssetsSection employeeId={emp.id} />,
+      body: (
+        <EmployeeAssetsSection
+          employeeId={emp.id}
+          onOpenAsset={canOpenRegister ? (assetId) => navigate(`/assets/${assetId}`) : null}
+        />
+      ),
     });
   }
 
@@ -493,30 +535,66 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   }
   const sectionIds = sections.map((s) => s.id).join('|');
 
-  // Which section the reader is actually looking at. Drives the rail index — without it a nine
-  // section scroll gives no sense of place. Tuned so the section crossing the upper third wins.
+  // A click owns the highlight until its smooth scroll finishes. Without this the spy below fights
+  // the animation — it reports every section the page flies past, so the rail flickers through
+  // four entries and lands whichever one the scroll happened to stop nearest.
+  const jumpLock = useRef(0);
+
+  // Which section the reader is actually looking at. The rule itself, and why it replaced an
+  // IntersectionObserver, is in lib/sectionSpy.js — this only measures and reports.
   useEffect(() => {
     const nodes = sectionIds
       .split('|')
       .map((id) => document.getElementById(`emp-sec-${id}`))
       .filter(Boolean);
     if (!nodes.length) return undefined;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const seen = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (seen[0]?.target?.dataset?.section) setActiveSection(seen[0].target.dataset.section);
-      },
-      { rootMargin: '-15% 0px -70% 0px', threshold: 0 },
-    );
-    nodes.forEach((n) => io.observe(n));
-    return () => io.disconnect();
+
+    const scroller = nodes[0].closest('.app-main') ?? document.scrollingElement ?? document.body;
+    let frame = 0;
+
+    const measure = () => {
+      frame = 0;
+      if (Date.now() < jumpLock.current) return;
+      const box = scroller.getBoundingClientRect?.() ?? { top: 0 };
+      const next = currentSectionId(
+        nodes.map((node) => ({ id: node.dataset.section, top: node.getBoundingClientRect().top })),
+        {
+          // A quarter of the way down the scroller: low enough that a section reads as "arrived"
+          // once its heading is comfortably on screen, high enough that two never share the line.
+          line: box.top + scroller.clientHeight * 0.25,
+          atBottom: scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 4,
+        },
+      );
+      if (next) setActiveSection(next);
+    };
+
+    // Coalesce to one measurement per frame: scroll fires far faster than the rail can change.
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(measure);
+    };
+
+    measure();
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      scroller.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
   }, [sectionIds]);
 
   const jumpTo = (id) => {
     const el = document.getElementById(`emp-sec-${id}`);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!el) return;
+    // Answer the click immediately rather than waiting to be told by the scroll — including for
+    // the last section, which the page may not be able to scroll far enough to reach.
+    setActiveSection(id);
+    jumpLock.current = Date.now() + 700;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // And move the keyboard focus with the view. Scrolling a sighted reader to a section while
+    // leaving the caret back in the rail means the next Tab carries on from the wrong place, and a
+    // screen reader is never told the page moved at all.
+    el.focus({ preventScroll: true });
   };
 
   return (
@@ -581,9 +659,12 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
                 key={sec.id}
                 id={`emp-sec-${sec.id}`}
                 data-section={sec.id}
+                // -1 so jumpTo can put the caret here without adding a Tab stop of its own.
+                tabIndex={-1}
+                aria-labelledby={`emp-sec-${sec.id}-head`}
                 className="emp-section"
               >
-                <h2 className="emp-section-head">
+                <h2 className="emp-section-head" id={`emp-sec-${sec.id}-head`}>
                   <Icon size={12} /> {sec.label}
                 </h2>
                 {sec.body}

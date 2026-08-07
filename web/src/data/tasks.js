@@ -35,7 +35,10 @@ export function useCreateTask() {
       const { error } = await supabase.from('tasks').insert({ ...payload, status: 'To Do' });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }
 
@@ -49,7 +52,10 @@ export function useUpdateTask() {
       const { error } = await supabase.from('tasks').update(patch).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }
 
@@ -60,6 +66,9 @@ export function useDeleteTask() {
       const { error } = await supabase.from('tasks').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
+    },
   });
 }

@@ -25,6 +25,7 @@ import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import { useSyncHealth, DIAGNOSIS, forHumans, useQueuedExport, useQueuedRecompute } from '../data/syncStatus';
+import EmployeeLink from './ui/EmployeeLink';
 import { useUrlTab } from '../lib/useUrlTab';
 
 /**
@@ -37,9 +38,19 @@ import { useUrlTab } from '../lib/useUrlTab';
  * a board containing exactly one row — their own. That is the "employee can see admin level
  * filters" report, in its original form.
  */
+/**
+ * `self` is the mirror image: the tab shows ONE person's records — yours — and nobody else's.
+ *
+ * Monthly calendar is exactly that. It is `<CalendarView employeeId={employee.id}>`, your own
+ * month, and it had no gate at all, so an HR manager working as HR was handed a tab about
+ * themselves in the middle of a screen they had opened to look at the workforce. The oversight
+ * answer to "how has this person's month gone" is By person, which is a different tab on a
+ * different screen and takes an employee. Somebody who holds both roles reaches their own month by
+ * switching to Employee on the header chip, which is what that switch is for.
+ */
 const TABS = [
   { id: 'today', label: 'Today', icon: Users, perm: 'attendance.read', scoped: true },
-  { id: 'calendar', label: 'Monthly calendar', icon: CalendarDays },
+  { id: 'calendar', label: 'My monthly calendar', icon: CalendarDays, self: true },
   { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle, perm: 'attendance.manage' },
   { id: 'regularizations', label: 'Regularizations', icon: CheckCircle2 },
 ];
@@ -384,7 +395,7 @@ function TodayView({ workDate, setWorkDate }) {
                   <tr key={row.id}>
                     <td data-label="Employee">
                       <div className="font-semibold text-neutral-800 dark:text-neutral-100">
-                        {row.employee?.full_name ?? '—'}
+                        <EmployeeLink employee={row.employee} />
                       </div>
                       <div className="text-2xs text-neutral-400 font-mono">
                         {row.employee?.employee_code ?? ''}
@@ -749,7 +760,7 @@ function ExceptionsView() {
                     <tr key={row.id}>
                       <td data-label="Date" className="font-mono">{row.work_date}</td>
                       <td data-label="Employee">
-                        <div className="font-semibold text-neutral-800 dark:text-neutral-100">{row.employee?.full_name ?? '—'}</div>
+                        <div className="font-semibold text-neutral-800 dark:text-neutral-100"><EmployeeLink employee={row.employee} /></div>
                         <div className="text-2xs text-neutral-400 font-mono">{row.employee?.employee_code ?? ''}</div>
                       </td>
                       <td data-label="Branch" className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
@@ -927,7 +938,7 @@ function RegularizationsView({ employee, canApprove }) {
                     <tr key={r.id}>
                       <td data-label="Date" className="font-mono">{r.work_date}</td>
                       <td data-label="Employee">
-                        <div className="font-semibold text-neutral-800 dark:text-neutral-100">{r.employee?.full_name ?? '—'}</div>
+                        <div className="font-semibold text-neutral-800 dark:text-neutral-100"><EmployeeLink employee={r.employee} /></div>
                         <div className="text-2xs text-neutral-400">{r.employee?.branch?.name ?? ''}</div>
                       </td>
                       <td data-label="Proposed" className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
@@ -966,11 +977,16 @@ function RegularizationsView({ employee, canApprove }) {
 
 export default function Attendance() {
   const { employee } = useAuth();
-  const { canAny, canBeyondSelf } = usePermissions();
+  const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
   const [workDate, setWorkDate] = useState(todayIso());
 
   // A `scoped` tab looks at other people, so it needs the permission held beyond your own record.
-  const visibleTabs = TABS.filter((t) => !t.perm || (t.scoped ? canBeyondSelf(t.perm) : canAny(t.perm)));
+  // A `self` tab looks only at you, so it belongs to the employee view — see the note on TABS.
+  // Someone whose only role IS employee is always viewing as one, so they keep it.
+  const visibleTabs = TABS.filter((t) => {
+    if (t.self && !viewingAsEmployee) return false;
+    return !t.perm || (t.scoped ? canBeyondSelf(t.perm) : canAny(t.perm));
+  });
 
   // Land on — and validate the URL against — only the tabs this person actually has. Without
   // Today, a self-service employee opens on their own month instead of an empty roster board, and

@@ -13,68 +13,11 @@ import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import { useVisibleOrg } from '../data/org';
 import { useGrantAppAccess, useManagedUsers } from '../data/admin';
+// Presets and the grant ceiling live in lib/ so they can be tested without pulling Supabase in
+// through useAuth. Re-exported here because call sites have always imported them from this file.
+import { ROLE_PRESETS, grantableRoles } from '../lib/roleGrants';
 
-// What each system role means in plain language, and which field of the employee's own record
-// decides the area it applies to. Order = seniority, matching the dashboards and sidebar.
-// `rank` mirrors public.roles.rank (migration 0044). You may only grant a role ranked strictly
-// below your own, so a Branch Manager (40) sees Dept Head and Employee here and nothing above.
-// The database enforces the same rule in app.can_grant — this only keeps the UI honest so nobody
-// fills in a form that was always going to be refused.
-export const ROLE_PRESETS = [
-  {
-    key: 'employee',
-    rank: 10,
-    label: 'Employee (self-service)',
-    blurb: 'Sees only their own attendance, leave, payslips and tasks.',
-    scopeType: 'self',
-    from: null,
-  },
-  {
-    key: 'dept_head',
-    rank: 30,
-    label: 'Department Head',
-    blurb: 'Manages their department: attendance, leave approvals, tasks, performance.',
-    scopeType: 'department',
-    from: 'department_id',
-  },
-  {
-    key: 'branch_manager',
-    rank: 40,
-    label: 'Branch Manager (Shop-in-charge)',
-    blurb: 'Manages their branch: attendance, approvals, expenses, assets, tickets.',
-    scopeType: 'branch',
-    from: 'branch_id',
-  },
-  {
-    key: 'zonal_manager',
-    rank: 50,
-    label: 'Zonal Manager',
-    blurb: 'Oversees every branch in their zone: reports and approvals.',
-    scopeType: 'zone',
-    from: 'zone_id',
-  },
-  {
-    key: 'hr_manager',
-    rank: 60,
-    label: 'HR Manager',
-    blurb: 'People operations across their company: hiring, onboarding, exits, attendance setup.',
-    scopeType: 'entity',
-    from: 'entity_id',
-  },
-  {
-    key: 'entity_admin',
-    rank: 80,
-    label: 'Entity Admin',
-    blurb: 'Full administrator of their company, including users and roles.',
-    scopeType: 'entity',
-    from: 'entity_id',
-  },
-];
-
-/** The presets the signed-in user is actually allowed to hand out. */
-export function grantableRoles(myRank) {
-  return ROLE_PRESETS.filter((r) => r.rank < myRank);
-}
+export { ROLE_PRESETS, grantableRoles };
 
 const inputCls =
   'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/60';
@@ -93,10 +36,11 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   const { data: org } = useVisibleOrg();
   const { data: managedUsers = [] } = useManagedUsers();
   const grantAccess = useGrantAppAccess();
-  const { rank: myRank } = useAuth();
+  const { rank: myRank, assignments } = useAuth();
 
-  // Only offer what this admin may actually grant (see grantableRoles / migration 0044).
-  const roleOptions = useMemo(() => grantableRoles(myRank), [myRank]);
+  // Only offer what this admin may actually grant (see grantableRoles / migrations 0044 and 0091).
+  const myRoles = useMemo(() => (assignments ?? []).map((a) => a.role), [assignments]);
+  const roleOptions = useMemo(() => grantableRoles(myRank, myRoles), [myRank, myRoles]);
 
   const [employeeId, setEmployeeId] = useState(fixedEmployee?.id ?? '');
   const [roleKey, setRoleKey] = useState('employee');

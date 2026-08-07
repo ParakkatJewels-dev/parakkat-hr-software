@@ -99,8 +99,18 @@ export function forHumans(minutes) {
 /**
  * What to show, and what to do about it.
  *
- * Each hint names the hop in the words somebody would use, and says who fixes it — a status that
- * cannot be acted on is decoration.
+ * Three fields, because a status and its repair procedure are different things read at different
+ * moments and they were being printed as one paragraph. Four or five lines of prose is what you
+ * want at 9am on the day the terminal stalls and nothing at all on the other three hundred and
+ * sixty-four; permanently on screen it is a wall that people learn to scroll past, which is how a
+ * status stops being read.
+ *
+ * `hint`  one line. What is wrong and whether anything is lost. Always shown.
+ * `fix`   the steps, and who does them. Behind "What to do" — see AttendanceAdmin.
+ * `chain` which of the three hops broke, in symbols.
+ *
+ * The short line has to survive on its own on a phone, so it never opens with "the service is
+ * running and…": the reader wants the fault first.
  */
 export const DIAGNOSIS = {
   ok: {
@@ -108,47 +118,51 @@ export const DIAGNOSIS = {
     tone: 'text-emerald-600 dark:text-emerald-400',
     chain: 'machine → Easy Time Pro → service → here',
     hint: 'Punches are arriving normally.',
+    fix: null,
   },
   quiet: {
     label: 'No punches lately',
     tone: 'text-neutral-500 dark:text-neutral-400',
     chain: 'all three links healthy',
-    hint: 'Everything is connected — there simply has not been a punch for a while. Normal in a lull.',
+    hint: 'All three links are healthy — there just has not been a punch for a while.',
+    fix: null,
   },
   'off-hours': {
     label: 'Outside working hours',
     tone: 'text-neutral-450',
     chain: 'all three links healthy',
     hint: 'Nobody is expected to be punching, so quiet means nothing here.',
+    fix: null,
   },
   'terminal-down': {
     label: 'Machine not sending',
     tone: 'text-red-600 dark:text-red-400',
     chain: 'machine ✕ Easy Time Pro → service → here',
-    hint:
-      'The service is running and Easy Time Pro is answering it — but the punching machine has not '
-      + 'handed over a punch for longer than any normal gap. It can show "connected" and still be '
-      + 'stuck: that light is a heartbeat, not an upload. Try Get Transactions in Easy Time Pro, '
-      + 'then reboot the terminal. Nothing is lost — it stores punches and re-sends them.',
+    hint: 'The terminal has not handed over a punch for longer than any normal gap. Nothing is lost — it stores them.',
+    fix:
+      'Easy Time Pro and the sync service are both fine, so the fault is at the machine. Run Get '
+      + 'Transactions in Easy Time Pro, then reboot the terminal. A "connected" light is a '
+      + 'heartbeat, not an upload — it can show connected and still be stuck. Whatever it is '
+      + 'holding will arrive once it starts sending again.',
   },
   'biotime-unreachable': {
     label: 'Easy Time Pro not answering',
     tone: 'text-red-600 dark:text-red-400',
     chain: 'machine → Easy Time Pro ✕ service → here',
-    hint:
-      'The sync service is running and reporting in, but Easy Time Pro is not responding to it. '
-      + 'Usually Easy Time Pro has been closed or its service stopped, or its address changed. '
-      + 'Check it opens in a browser on the HR laptop. Punches are still being collected by the '
-      + 'machine and will come through once it answers again.',
+    hint: 'Easy Time Pro is not responding to the sync service. Punches keep collecting at the machine.',
+    fix:
+      'Usually Easy Time Pro has been closed, its Windows service stopped, or its address has '
+      + 'changed. Check it opens in a browser on the HR laptop. Nothing is lost: the machine holds '
+      + 'its punches and they come through once it answers again.',
   },
   'service-down': {
     label: 'Sync service not running',
     tone: 'text-red-600 dark:text-red-400',
     chain: 'machine → Easy Time Pro → service ✕ here',
-    hint:
-      'Nothing has been heard from the HR laptop. It is off or asleep, the service has stopped, or '
-      + 'it has lost internet. While this is the case nothing can be said about the machine or '
-      + 'Easy Time Pro either — this is the outermost link, and it hides the two behind it. '
-      + 'Check the laptop is on, then services.msc → Parakkat Attendance Sync.',
+    hint: 'Nothing has been heard from the HR laptop. The two links behind it cannot be checked from here.',
+    fix:
+      'The laptop is off or asleep, the service has stopped, or it has lost internet. Check the '
+      + 'laptop is on, then services.msc → Parakkat Attendance Sync. This is the outermost link, '
+      + 'so until it reports in nothing can be said about the machine or Easy Time Pro either.',
   },
 };

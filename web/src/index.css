@@ -119,6 +119,12 @@
   --accent: #0ea971;
   --accent-strong: #0a8c5d;
   --accent-soft: rgba(14, 169, 113, 0.10);
+  /* One gap for every row of tab pills in the application.
+     There were three, and they were close enough that nobody could name what was wrong while
+     still being obviously uneven side by side: .mobile-segmented sat at .45rem, .tab-scroll at
+     .375rem and .section-tab-scroll at .38rem, and on wider screens each page supplied its own
+     Tailwind gap-1.5 / gap-2 / space-x-5 on top. A token instead, so a new tab row cannot drift. */
+  --tab-gap: .45rem;
   --tone-blue: #2563eb;
   --tone-violet: #7c3aed;
   --tone-amber: #d97706;
@@ -2730,6 +2736,52 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     overflow-wrap: anywhere;
   }
 
+  /* A row that goes somewhere. Same weight and size as the plain title above so the list still
+     reads as one list, with the chevron and the accent on hover carrying the difference. */
+  .emp-doc-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .28rem;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--surface-text);
+    font-size: .8rem;
+    font-weight: 850;
+    line-height: 1.25;
+    text-align: left;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+    transition: color .15s ease;
+  }
+
+  .emp-doc-link > svg {
+    flex: none;
+    opacity: .45;
+    transition: transform .15s ease, opacity .15s ease;
+  }
+
+  .emp-doc.is-linked:hover .emp-doc-link,
+  .emp-doc-link:hover,
+  .emp-doc-link:focus-visible {
+    color: var(--accent-strong);
+  }
+
+  .emp-doc.is-linked:hover .emp-doc-link > svg,
+  .emp-doc-link:hover > svg {
+    opacity: 1;
+    transform: translateX(2px);
+  }
+
+  .emp-doc.is-linked {
+    transition: border-color .15s ease, background .15s ease;
+  }
+
+  .emp-doc.is-linked:hover {
+    border-color: color-mix(in srgb, var(--accent) 34%, var(--surface-border));
+    background: color-mix(in srgb, var(--accent) 6%, var(--surface-elevated));
+  }
+
   .emp-doc-actions {
     display: flex;
     flex-shrink: 0;
@@ -4276,6 +4328,21 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   letter-spacing: 0;
 }
 
+/* ---- Tab pill rows: one spacing, everywhere -------------------------------
+   The gap belongs to the control, not to each page that happens to use it. Pages were setting
+   their own — gap-1.5 here, gap-2 there, space-x-5 on the two underline rows — so the same
+   component was spaced three different ways depending on which screen you were on. Held here at
+   every width, with the utility margins from space-x-* neutralised, so a page cannot override it
+   by accident. The underline rows (.tab-scroll on a desktop) keep their own rhythm: they are a
+   different control, and pill spacing would run their labels together. */
+.mobile-segmented:not(.tab-scroll) {
+  gap: var(--tab-gap) !important;
+}
+
+.mobile-segmented:not(.tab-scroll) > * + * {
+  margin-left: 0 !important;
+}
+
 .summary-card-link {
   cursor: pointer;
   transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
@@ -5059,10 +5126,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     background: color-mix(in srgb, var(--surface-elevated) 86%, transparent) !important;
   }
 
+  /* On a phone the underline rows are restyled into pills below, so they join the shared gap —
+     and their space-x-* margins have to go, or they would stack on top of it. */
   .tab-scroll {
-    gap: .375rem;
+    gap: var(--tab-gap);
     padding-block: .5rem;
     border-bottom: 0 !important;
+  }
+
+  .tab-scroll > * + * {
+    margin-left: 0 !important;
   }
 
   .tab-scroll > button {
@@ -5086,7 +5159,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .section-tab-scroll {
-    gap: .38rem !important;
+    gap: var(--tab-gap) !important;
     margin-bottom: 0 !important;
     overflow-x: auto;
     scrollbar-width: none;
@@ -5116,7 +5189,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .mobile-segmented {
     width: 100%;
-    gap: .45rem !important;
+    gap: var(--tab-gap) !important;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
@@ -5897,7 +5970,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: flex;
     flex-wrap: nowrap !important;
     width: 100%;
-    gap: .45rem !important;
+    gap: var(--tab-gap) !important;
     overflow-x: auto;
     padding-bottom: .1rem;
     scroll-snap-type: x proximity;
@@ -6837,15 +6910,17 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       0 26px 56px rgba(16, 32, 26, .1);
   }
 
-  /* Frosted only where the platform can actually frost. The fallback above stays near-opaque on
-     purpose: a 40%-alpha bar over content that is not blurred is unreadable, not glassy. */
+  /* Pure glass where the platform can frost: no surface tint at all, just a clear pane over the
+     page. The colour under the bar is the page's own, lifted by saturation rather than replaced by
+     a wash of --surface-elevated. Only the thinnest white film stays, because glass with no
+     specular film at all reads as a hole rather than a surface.
+     The tinted fallback above is kept on purpose: without backdrop-filter there is nothing to be
+     transparent ONTO, and a see-through bar over unblurred text is unreadable, not glassy. */
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .mobile-bottom-nav {
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, .2)),
-        color-mix(in srgb, var(--surface-elevated) 38%, transparent);
-      -webkit-backdrop-filter: blur(32px) saturate(190%) contrast(104%);
-      backdrop-filter: blur(32px) saturate(190%) contrast(104%);
+      background: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .1));
+      -webkit-backdrop-filter: blur(34px) saturate(210%) brightness(1.06);
+      backdrop-filter: blur(34px) saturate(210%) brightness(1.06);
     }
   }
 
@@ -7228,6 +7303,37 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     scroll-margin-top: .75rem;
   }
 
+  /* ---- Long messages on a small screen -------------------------------------
+     The same paragraph that reads as a helpful note on a desktop is most of a phone screen, and a
+     warning that fills the screen is one people swipe past. Alert prose is clamped to its first
+     few lines here — these messages are written to lead with the fault, so the clamp keeps what
+     matters and drops the elaboration.
+     Anything whose tail genuinely has to stay reachable carries a .detail-disclosure instead, and
+     that is exempted below: it is already collapsed, and clamping it would hide the thing you just
+     opened it to read. */
+  main [role="alert"] > p,
+  main [role="alert"] > div > p,
+  main [role="status"] > p {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+    overflow: hidden;
+  }
+
+  main .detail-disclosure > p,
+  main [role="alert"] .detail-disclosure > p {
+    display: block;
+    -webkit-line-clamp: none;
+    line-clamp: none;
+    overflow: visible;
+  }
+
+  main .detail-disclosure.is-error > p {
+    max-height: 11rem;
+    overflow-y: auto;
+  }
+
   /* Final mobile anti-zoom guard. Keep this near the end of the mobile block so page-specific
      compact rules such as filter selects and pagination sizes cannot shrink controls below the
      16px threshold that triggers browser auto-zoom on focus. */
@@ -7261,11 +7367,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       0 28px 60px rgba(0, 0, 0, .34);
   }
 
+  /* Dark glass, same idea: the pane darkens what is behind it rather than covering it with a
+     surface colour. Brightness goes down instead of up so light content reads through as dimmed
+     glass rather than glare. */
   @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
     .dark .mobile-bottom-nav {
-      background:
-        linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .02)),
-        color-mix(in srgb, var(--surface-elevated) 54%, transparent);
+      background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .015));
+      -webkit-backdrop-filter: blur(34px) saturate(180%) brightness(.62);
+      backdrop-filter: blur(34px) saturate(180%) brightness(.62);
     }
   }
 
@@ -7356,6 +7465,467 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: inline-flex;
     align-items: center;
     justify-content: center;
+  }
+}
+
+/* ---- Asset photograph ------------------------------------------------------
+   One picture per asset: picked on the register form, shown on every row and on the record. The
+   category icon is the fallback, not the default — see ui/AssetPhotoField.jsx. */
+.asset-photo-field {
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  margin-bottom: .9rem;
+  padding: .8rem;
+  border: 1px dashed var(--surface-border-strong);
+  border-radius: var(--radius-card);
+  background: var(--surface-subtle);
+}
+
+.asset-photo-frame {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 4.75rem;
+  height: 4.75rem;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-elevated);
+  color: var(--surface-text-soft);
+}
+
+.asset-photo-frame > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.asset-photo-copy {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .4rem .55rem;
+  min-width: 0;
+}
+
+/* The input is the label — a file input styled directly is a fight with every browser, and a
+   label wrapping a hidden one behaves like a button everywhere including with a keyboard. */
+.asset-photo-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  padding: .4rem .7rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: .6875rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.asset-photo-pick:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.asset-photo-pick:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.asset-photo-pick > input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+.asset-photo-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .4rem .6rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  color: var(--surface-text-soft);
+  font-size: .6875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.asset-photo-clear:hover { color: #e11d48; border-color: color-mix(in srgb, #e11d48 32%, transparent); }
+
+.asset-photo-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  color: var(--surface-text-soft);
+  font-size: .625rem;
+  line-height: 1.4;
+}
+
+.asset-photo-problem {
+  display: flex;
+  flex: 1 1 100%;
+  align-items: flex-start;
+  gap: .3rem;
+  margin: 0;
+  color: #be123c;
+  font-size: .625rem;
+  line-height: 1.4;
+}
+
+.dark .asset-photo-problem { color: #fda4af; }
+
+/* The thumbnail takes over the icon's box on a row, and the avatar's on the record page. */
+.asset-row-icon[data-photo="true"],
+.asset-avatar[data-photo="true"] {
+  overflow: hidden;
+  padding: 0;
+  background: var(--surface-muted);
+}
+
+.asset-row-icon > img,
+.asset-avatar > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---- Mobile navigation drawer, two levels ---------------------------------
+   On a phone this drawer is the whole tree, so it carries the screens inside each section rather
+   than making you find them on a tab strip after you arrive. See renderMobileNavTree in App.jsx. */
+.mobile-nav-tree {
+  display: grid;
+  gap: .55rem;
+}
+
+.mobile-nav-group {
+  display: grid;
+  gap: .2rem;
+}
+
+.mobile-nav-section {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  width: 100%;
+  padding: .5rem .6rem;
+  border-radius: var(--radius-sm);
+  color: var(--surface-text);
+  font-size: .8125rem;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.mobile-nav-section > svg {
+  flex: none;
+  color: var(--surface-text-soft);
+}
+
+.mobile-nav-section:hover {
+  background: var(--surface-muted);
+}
+
+.mobile-nav-section[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.mobile-nav-section[aria-current="page"] > svg { color: currentColor; }
+
+/* Indented under the section, with a rule connecting them: the relationship is the whole point of
+   showing the second level, and indentation alone reads as a list of unrelated items. */
+.mobile-nav-screens {
+  display: grid;
+  gap: .1rem;
+  margin-left: 1.4rem;
+  padding-left: .7rem;
+  border-left: 1px solid var(--surface-border);
+}
+
+.mobile-nav-screens > button {
+  padding: .4rem .5rem;
+  border-radius: var(--radius-sm);
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.mobile-nav-screens > button:hover {
+  background: var(--surface-muted);
+  color: var(--surface-text);
+}
+
+.mobile-nav-screens > button.is-active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
+/* ---- Detail disclosure ----------------------------------------------------
+   The long half of a message: repair steps, a raw service error, the reasoning behind a warning.
+   Always one tap away, never occupying the screen until it is asked for. Native <details>, so it
+   is keyboard operable and readable by a screen reader without any of it being our problem. */
+.detail-disclosure > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  width: fit-content;
+  padding: .18rem .5rem .18rem .4rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  color: var(--surface-text-soft);
+  font-size: .625rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  list-style: none;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+
+.detail-disclosure > summary::-webkit-details-marker { display: none; }
+
+/* The marker, drawn rather than inherited, so it turns with the disclosure. */
+.detail-disclosure > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: .3rem solid currentColor;
+  border-top: .22rem solid transparent;
+  border-bottom: .22rem solid transparent;
+  transition: transform .18s ease;
+}
+
+.detail-disclosure[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.detail-disclosure > summary:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.detail-disclosure > p {
+  margin: .5rem 0 0;
+  color: var(--surface-text-soft);
+  font-size: .6875rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.detail-disclosure.is-error > summary {
+  border-color: color-mix(in srgb, #e11d48 30%, transparent);
+  color: #be123c;
+}
+
+.dark .detail-disclosure.is-error > summary { color: #fda4af; }
+
+.detail-disclosure.is-error > p {
+  max-height: 14rem;
+  overflow-y: auto;
+  color: #be123c;
+}
+
+.dark .detail-disclosure.is-error > p { color: #fda4af; }
+
+@media (prefers-reduced-motion: reduce) {
+  .detail-disclosure > summary::before { transition: none; }
+}
+
+/* ---- A person's name, as a link ------------------------------------------
+   Deliberately quiet: these sit inside tables and lists where the name is already the strongest
+   thing in the row, so it inherits its weight and colour and only declares itself on hover. See
+   components/ui/EmployeeLink.jsx. */
+.employee-link {
+  display: inline;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: .18em;
+  transition: color .15s ease, text-decoration-color .15s ease;
+}
+
+.employee-link:hover,
+.employee-link:focus-visible {
+  color: var(--accent-strong);
+  text-decoration-color: currentColor;
+}
+
+.dark .employee-link:hover,
+.dark .employee-link:focus-visible {
+  color: var(--accent);
+}
+
+/* ---- Role chip and switcher ----------------------------------------------
+   The header chip that says which of your roles the app is dressed as, and — when you hold more
+   than one — the menu that changes it. See components/ui/RoleSwitcher.jsx for why it lives here
+   rather than in Settings. */
+.role-switch {
+  position: relative;
+  flex: none;
+}
+
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  max-width: 11rem;
+  padding: .3rem .55rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--surface-text-soft);
+  font-size: .625rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+
+button.role-chip {
+  cursor: pointer;
+}
+
+button.role-chip:hover,
+.role-switch button.role-chip[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.role-chip > svg { flex: none; }
+
+.role-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.role-chip-caret {
+  opacity: .5;
+  transition: transform .18s ease;
+}
+
+.role-switch button.role-chip[aria-expanded="true"] .role-chip-caret {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+.role-menu {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + .45rem);
+  /* Right-anchored: the chip sits in a row of header actions that runs to the right edge, and a
+     left-anchored menu would hang off the screen on a phone. */
+  right: 0;
+  width: max(15rem, 62vw);
+  max-width: 19rem;
+  display: grid;
+  gap: .15rem;
+  padding: .4rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-card);
+  background: var(--surface-elevated);
+  box-shadow: 0 18px 44px rgba(16, 32, 26, .18), 0 2px 8px rgba(16, 32, 26, .08);
+  animation: role-menu-in .14s ease both;
+}
+
+@keyframes role-menu-in {
+  from { opacity: 0; transform: translateY(-.25rem); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .role-menu { animation: none; }
+}
+
+.role-menu-title,
+.role-menu-foot {
+  margin: 0;
+  padding: .3rem .5rem;
+  color: var(--surface-text-soft);
+  font-size: .6rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.role-menu-foot {
+  border-top: 1px solid var(--surface-border);
+  margin-top: .2rem;
+  padding-top: .45rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  line-height: 1.35;
+}
+
+.role-menu > button {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  width: 100%;
+  padding: .5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--surface-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.role-menu > button:hover {
+  background: var(--surface-muted);
+}
+
+.role-menu > button.is-active {
+  border-color: color-mix(in srgb, var(--accent) 34%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.role-menu > button > svg { flex: none; }
+
+.role-menu-copy {
+  display: grid;
+  gap: .1rem;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.role-menu-copy > strong {
+  font-size: .75rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.role-menu-copy > em {
+  color: var(--surface-text-soft);
+  font-size: .625rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.dark .role-menu {
+  box-shadow: 0 20px 46px rgba(0, 0, 0, .5), 0 2px 8px rgba(0, 0, 0, .3);
+}
+
+/* On a phone the label is the first thing to go — the shield and the caret still say what it is
+   and that it opens, and the header has three other controls competing for the same row. */
+@media (max-width: 480px) {
+  .role-chip {
+    max-width: 6.5rem;
+    padding: .3rem .45rem;
+  }
+
+  .role-chip.is-static {
+    display: none;
   }
 }
 

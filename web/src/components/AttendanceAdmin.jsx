@@ -42,6 +42,28 @@ const btnPrimary = btnClass('primary');
 const btnGhost =
   'px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50';
 
+/** One raw error from the sync service: its first line always, the whole of it on request. */
+function ServiceError({ message }) {
+  if (!message) return null;
+  const text = String(message).trim();
+  const firstLine = text.split('\n')[0];
+  const summary = firstLine.length > 110 ? `${firstLine.slice(0, 110)}…` : firstLine;
+  const hasMore = summary !== text;
+
+  return (
+    <div className="premium-card border-red-300 dark:border-red-900/60">
+      <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-1">Last error</div>
+      <p className="text-xs font-mono text-red-700 dark:text-red-300 break-words">{summary}</p>
+      {hasMore && (
+        <details className="detail-disclosure is-error mt-1.5">
+          <summary>Full message</summary>
+          <p className="font-mono">{text}</p>
+        </details>
+      )}
+    </div>
+  );
+}
+
 function Note({ error, success }) {
   if (error) {
     return (
@@ -813,6 +835,15 @@ function SyncTab() {
           <div className={`mt-2 text-sm font-bold ${dx.tone}`}>{dx.label}</div>
           <div className="text-2xs font-mono text-neutral-450 mt-1">{dx.chain}</div>
           <div className="text-2xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed">{dx.hint}</div>
+          {/* The repair procedure, folded away. It is four or five lines you want on the morning
+              the terminal stalls and never again — permanently on screen it is a wall people
+              learn to scroll past, which is how a status stops being read. */}
+          {dx.fix && (
+            <details className="detail-disclosure mt-1.5">
+              <summary>What to do</summary>
+              <p>{dx.fix}</p>
+            </details>
+          )}
           <div className="text-2xs text-neutral-400 mt-1.5">
             last punch {health?.lastPunchTime ? relativeTime(health.lastPunchTime) : 'never'}
             {' · '}last successful pull {relativeTime(health?.lastSuccess)}
@@ -836,27 +867,24 @@ function SyncTab() {
       {statusError && health?.level === 'ok' ? (
         <div className="premium-card border-amber-300 dark:border-amber-900/60">
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            Syncing normally, but this browser cannot reach the sync service directly
-            {status?.biotime?.url ? '' : ''} — so the manual buttons below (sync now, backfill,
-            recompute) will not work from here. They need a browser on the office network. Nothing
-            is broken: punches are arriving on their own.
+            Punches are arriving, but the buttons below need a browser on the office network.
           </p>
+          <details className="detail-disclosure mt-1.5">
+            <summary>Why</summary>
+            <p>
+              Sync now, backfill and recompute post to the sync service directly, and this browser
+              cannot reach it from here. Nothing is broken — the service is collecting punches on
+              its own schedule regardless.
+            </p>
+          </details>
         </div>
       ) : null}
 
-      {health?.lastError ? (
-        <div className="premium-card border-red-300 dark:border-red-900/60">
-          <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-1">Last error</div>
-          <p className="text-xs font-mono text-red-700 dark:text-red-300 break-words">{health.lastError}</p>
-        </div>
-      ) : null}
-
-      {punchState?.last_error && punchState.last_error !== health?.lastError ? (
-        <div className="premium-card border-red-300 dark:border-red-900/60">
-          <div className="text-xs font-bold uppercase tracking-wider text-red-600 dark:text-red-400 mb-1">Last error</div>
-          <p className="text-xs font-mono text-red-700 dark:text-red-300 break-words">{punchState.last_error}</p>
-        </div>
-      ) : null}
+      {/* Raw service errors. They are a stack trace's worth of text aimed at whoever is fixing the
+          laptop, and printed in full they push everything actionable off a phone screen. The first
+          line is the part that identifies the fault; the rest is there when somebody wants it. */}
+      <ServiceError message={health?.lastError} />
+      {punchState?.last_error !== health?.lastError && <ServiceError message={punchState?.last_error} />}
 
       <div className="premium-card space-y-3">
         <div className="mobile-toolbar-actions flex flex-wrap gap-2">

@@ -1,12 +1,14 @@
-import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useDeferredValue } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, User, ArrowLeft, ArrowRight, X, AlertTriangle,
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
   Users, Building2, MapPin, Briefcase, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
   Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
-  HeartPulse, FileText, Eye,
+  HeartPulse, FileText, Eye, Award,
 } from 'lucide-react';
 import { useEmployees, useCreateEmployee, useUpdateEmployee } from '../data/employees';
+import { useSalaryStructures, useSaveSalaryStructure } from '../data/payroll';
 import {
   useAddDocument, useEmployeeDocuments, useDocumentLink, useEmployeeAvatars,
   ACCEPTED_FILES, MAX_FILE_BYTES, fileSize, PHOTO_CATEGORY,
@@ -45,6 +47,11 @@ const monthStartIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 };
+
+const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+
+const inrShort = (n) =>
+  n == null || n === '' ? '—' : '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
 const pct = (value, total) => (total > 0 ? Math.round((value / total) * 100) : 0);
 
@@ -136,6 +143,7 @@ export default function Directory() {
   const updateEmployee = useUpdateEmployee();
   const addDocument = useAddDocument();
   const grantAccess = useGrantAppAccess();
+  const saveSalary = useSaveSalaryStructure();
   const canCreate = canAny('employee.create');
   /**
    * Per row, mirroring employees_update / can_grant_to — both of which check the person's whole
@@ -196,8 +204,31 @@ export default function Directory() {
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'grid' : 'list'
   );
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedEmp, setSelectedEmp] = useState(null);
-  
+
+  /**
+   * Whose profile is open, held in the URL rather than in component state.
+   *
+   * A person is a destination, not a selection. Everything else in the app that mentions somebody
+   * — who is holding this laptop, who was late on Tuesday — wants to send you to them, and it
+   * could not: the only way in was to come to this screen and click a row, so "R. Menon has the
+   * Dell" meant going to People and searching for R. Menon by hand. `/directory/<id>` gives every
+   * other screen somewhere to point, and gets the Back button and a reload right for free.
+   *
+   * The row object is looked up from the roster rather than stored, so an edit saved elsewhere is
+   * reflected here without anything having to remember to refresh a copy.
+   */
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const selectedEmpId = pathname.replace(/^\/+|\/+$/g, '').split('/')[1] || null;
+  const selectedEmp = useMemo(
+    () => (selectedEmpId ? employees.find((e) => e.id === selectedEmpId) ?? null : null),
+    [employees, selectedEmpId]
+  );
+  const setSelectedEmp = useCallback(
+    (emp) => navigate(emp?.id ? `/directory/${emp.id}` : '/directory', { replace: !emp?.id }),
+    [navigate]
+  );
+
   const [pageSize, setPageSize] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 12 : 15
   );
@@ -370,6 +401,7 @@ export default function Directory() {
       updateEmployee.reset();
       grantAccess.reset();
       addDocument.reset();
+      saveSalary.reset();
       setFormSaveError(null);
     };
     return (
@@ -403,14 +435,17 @@ export default function Directory() {
         <EmployeeFormModal
           employee={editing.id ? editing : null}
           org={org}
-          busy={createEmployee.isPending || updateEmployee.isPending || grantAccess.isPending || addDocument.isPending}
+          busy={createEmployee.isPending || updateEmployee.isPending || grantAccess.isPending
+            || addDocument.isPending || saveSalary.isPending}
           error={formSaveError || createEmployee.error?.message || updateEmployee.error?.message
+            || (saveSalary.error && `Employee saved, but the compensation could not be recorded: ${saveSalary.error.message}`)
             || (addDocument.error && `Employee saved, but a document could not be uploaded: ${addDocument.error.message}`)
             || (grantAccess.error && `Employee saved, but the login could not be created: ${grantAccess.error.message}`)}
           onClose={() => { resetEmployeeFormState(); setEditing(null); }}
-          onSubmit={async (payload, wantAccess, documentsToUpload) => {
+          onSubmit={async (payload, wantAccess, documentsToUpload, salaryRow) => {
             setFormSaveError(null);
             addDocument.reset();
+            saveSalary.reset();
             let employeeId = editing.id || null;
             let employeeName = payload.full_name;
             try {
@@ -420,6 +455,12 @@ export default function Directory() {
                 const created = await createEmployee.mutateAsync(payload);
                 employeeId = created.id;
                 employeeName = created.full_name;
+              }
+
+              // Pay is its own table, so it can only be written once the employee row exists —
+              // on a create that means after the insert, not as part of it.
+              if (salaryRow) {
+                await saveSalary.mutateAsync({ ...salaryRow, employee_id: employeeId });
               }
 
               for (const doc of documentsToUpload) {
@@ -1049,6 +1090,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     full_name: employee?.full_name ?? '',
     employee_code: employee?.employee_code ?? '',
     email: employee?.email ?? '',
+    personal_email: employee?.personal_email ?? '',
     phone: employee?.phone ?? '',
     join_date: employee?.join_date ?? '',
     status: employee?.status ?? 'Active',
@@ -1062,9 +1104,12 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     gender: employee?.gender ?? '',
     father_name: employee?.father_name ?? '',
     mother_name: employee?.mother_name ?? '',
+    blood_group: employee?.blood_group ?? '',
+    address: employee?.address ?? '',
     pan: employee?.pan ?? '',
     aadhaar: employee?.aadhaar ?? '',
     uan: employee?.uan ?? '',
+    pf_number: employee?.pf_number ?? '',
     esi_number: employee?.esi_number ?? '',
     bank_name: employee?.bank_name ?? '',
     bank_account: employee?.bank_account ?? '',
@@ -1084,10 +1129,47 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const patch = (p) => setForm((f) => ({ ...f, ...p }));
 
   // App access, folded into this form so adding a person is one job rather than two screens.
-  const { rank: myRank, permissions } = useAuth();
-  const { can } = usePermissions();
-  const roleOptions = useMemo(() => grantableRoles(myRank), [myRank]);
+  const { rank: myRank, permissions, assignments } = useAuth();
+  const { can, canAny } = usePermissions();
+  const myRoles = useMemo(() => (assignments ?? []).map((a) => a.role), [assignments]);
+  const roleOptions = useMemo(() => grantableRoles(myRank, myRoles), [myRank, myRoles]);
   const savePermission = isEdit ? 'employee.update' : 'employee.create';
+
+  /**
+   * Compensation, for the people allowed to set it.
+   *
+   * Pay is not a column on the employee — it is an effective-dated row in salary_structures, gated
+   * by payroll.manage, and the profile reads the newest one. So this block only exists for a user
+   * who holds that permission, and the query is only issued when there is an employee to ask
+   * about: with no id useSalaryStructures fetches every salary in the company, which is not a
+   * thing an employee form should ever do.
+   */
+  const canManagePay = canAny('payroll.manage');
+  const payQuery = useSalaryStructures(employee?.id, {
+    enabled: canManagePay && Boolean(employee?.id),
+  });
+  const payLatest = payQuery.data?.[0] ?? null;
+  const [pay, setPay] = useState(() => ({
+    basic: '',
+    gross: '',
+    // The first of this month, matching the Payroll screen — pay revisions land on month
+    // boundaries, and a mid-month date is nearly always a slip.
+    effective_from: monthStartIso(),
+    seeded: false,
+  }));
+  const patchPay = (p) => setPay((s) => ({ ...s, ...p, seeded: true }));
+
+  // Editing somebody who already has pay on file: show what they are on, so a save that only
+  // meant to fix a phone number does not silently look like a pay cut to zero.
+  useEffect(() => {
+    if (!payLatest) return;
+    setPay((s) => (s.seeded ? s : {
+      basic: payLatest.basic == null ? '' : String(payLatest.basic),
+      gross: payLatest.gross == null ? '' : String(payLatest.gross),
+      effective_from: payLatest.effective_from ?? monthStartIso(),
+      seeded: true,
+    }));
+  }, [payLatest]);
 
   // The narrowest placement this user can file someone under, for the blocker wording below. A
   // department head has to name a department; an entity admin only has to name the company.
@@ -1192,6 +1274,45 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     setDocuments((d) => ({ ...d, [key]: file }));
   };
 
+  /**
+   * The salary row this save should write, if any.
+   *
+   * Returns `{ row }` for something to save, `{ error }` for something the database would refuse,
+   * and `{}` for "no pay was entered, or none of it changed" — the common case on an edit that was
+   * only ever about a phone number. Matching effective_from updates that row rather than inserting
+   * a second one, because (employee_id, effective_from) is unique.
+   */
+  const paySave = () => {
+    if (!canManagePay) return {};
+    const basic = pay.basic.trim();
+    const gross = pay.gross.trim();
+    if (!basic && !gross) return {};
+    if (!basic) return {};
+    if (!gross) return { error: 'Monthly gross is needed when monthly basic is entered.' };
+    if (!pay.effective_from) return { error: 'Compensation needs an effective-from date.' };
+    if (!Number.isFinite(Number(basic)) || !Number.isFinite(Number(gross))) {
+      return { error: 'Monthly basic and gross have to be amounts.' };
+    }
+    if (Number(basic) < 0 || Number(gross) < 0) return { error: 'Pay cannot be negative.' };
+    // The salary_basic_le_gross constraint, said in words rather than left to a 400.
+    if (Number(basic) > Number(gross)) return { error: 'Monthly basic cannot be more than monthly gross.' };
+
+    const unchanged = payLatest
+      && Number(payLatest.basic) === Number(basic)
+      && Number(payLatest.gross) === Number(gross)
+      && payLatest.effective_from === pay.effective_from;
+    if (unchanged) return {};
+
+    return {
+      row: {
+        id: payLatest?.effective_from === pay.effective_from ? payLatest.id : undefined,
+        effective_from: pay.effective_from,
+        basic: Number(basic),
+        gross: Number(gross),
+      },
+    };
+  };
+
   const submit = (e) => {
     e.preventDefault();
     if (!canSubmit) return;
@@ -1199,6 +1320,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     // The database's own format guards, applied before the round trip. Without this a mistyped PAN
     // comes back as a 400 naming a check constraint, which tells the person nothing about the PAN.
     const problems = validateEmployeeFields(form);
+    const payResult = paySave();
+    if (payResult.error) problems.compensation = payResult.error;
     setFormatErrors(problems);
     if (Object.keys(problems).length > 0) return;
 
@@ -1215,13 +1338,17 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         branch_id: form.branch_id || null,
         department_id: form.department_id || null,
         designation_id: form.designation_id || null,
+        personal_email: form.personal_email.trim() || null,
         date_of_birth: form.date_of_birth || null,
         gender: form.gender || null,
         father_name: form.father_name.trim() || null,
         mother_name: form.mother_name.trim() || null,
+        blood_group: form.blood_group || null,
+        address: form.address.trim() || null,
         pan: form.pan.trim() || null,
         aadhaar: form.aadhaar.trim() || null,
         uan: form.uan.trim() || null,
+        pf_number: form.pf_number.trim() || null,
         esi_number: form.esi_number.trim() || null,
         bank_name: form.bank_name.trim() || null,
         bank_account: form.bank_account.trim() || null,
@@ -1242,7 +1369,10 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           }
         : null
       ,
-      selectedDocuments
+      selectedDocuments,
+      // Fourth: the salary row, written against the employee id once it exists. Null whenever no
+      // pay was entered or none of it changed.
+      payResult.row ?? null
     );
   };
 
@@ -1301,9 +1431,16 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                 <label className={L} htmlFor="emp-code">Employee code</label>
                 <input id="emp-code" className={FORM_INPUT} value={form.employee_code} onChange={(e) => patch({ employee_code: e.target.value })} placeholder="e.g. PPI-0243" />
               </div>
+              {/* Two addresses, because they answer different questions and outlive each other.
+                  The office one is the company's channel and the default for the login below; the
+                  personal one is how you reach somebody after they hand the office one back. */}
               <div>
-                <label className={L} htmlFor="emp-email">Email</label>
+                <label className={L} htmlFor="emp-email">Office email</label>
                 <input id="emp-email" type="email" className={FORM_INPUT} value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="name@parakkatjewels.com" />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-personal-email">Personal email</label>
+                <input id="emp-personal-email" type="email" className={FORM_INPUT} value={form.personal_email} onChange={(e) => patch({ personal_email: e.target.value })} placeholder="name@gmail.com" />
               </div>
               <div>
                 <label className={L} htmlFor="emp-phone">Phone</label>
@@ -1349,6 +1486,22 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                   <input id="emp-mother-name" className={FORM_INPUT} value={form.mother_name}
                     onChange={(e) => patch({ mother_name: e.target.value })} />
                 </div>
+                <div>
+                  <label className={L} htmlFor="emp-blood-group">Blood group</label>
+                  {/* A list, not free text: this is the field somebody reads out in an emergency,
+                      and "O +ve" / "O positive" / "o+" sort and search as three different things. */}
+                  <select id="emp-blood-group" className={FORM_INPUT} value={form.blood_group}
+                    onChange={(e) => patch({ blood_group: e.target.value })}>
+                    <option value="">—</option>
+                    {BLOOD_GROUPS.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-address">Address</label>
+                <textarea id="emp-address" rows={2} className={FORM_INPUT} value={form.address}
+                  onChange={(e) => patch({ address: e.target.value })}
+                  placeholder="House / street, town, district, PIN" />
               </div>
             </div>
 
@@ -1402,9 +1555,18 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                 <input id="emp-bank-name" className={FORM_INPUT} value={form.bank_name}
                   onChange={(e) => patch({ bank_name: e.target.value })} placeholder="State Bank of India" />
               </div>
+              <div className="sm:col-span-3">
+                <label className={L} htmlFor="emp-account-holder">Account holder</label>
+                {/* Its own field because it is not always the employee: a joint account, a
+                    maiden name the bank still has, an initial the passbook spells differently.
+                    A transfer to a name the bank does not recognise bounces. */}
+                <input id="emp-account-holder" className={FORM_INPUT} value={form.account_holder}
+                  onChange={(e) => patch({ account_holder: e.target.value })}
+                  placeholder={form.full_name.trim() || 'Name exactly as the bank holds it'} />
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className={L} htmlFor="emp-pan">PAN</label>
                 <input id="emp-pan" className={FORM_INPUT + ' font-mono uppercase'} value={form.pan}
@@ -1416,16 +1578,64 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                   onChange={(e) => patch({ aadhaar: e.target.value })} placeholder="12 digits" maxLength={14} />
               </div>
               <div>
-                <label className={L} htmlFor="emp-uan">UAN <span className="font-normal text-neutral-400">(PF)</span></label>
-                <input id="emp-uan" className={FORM_INPUT + ' font-mono'} value={form.uan}
-                  onChange={(e) => patch({ uan: e.target.value })} placeholder="12 digits" maxLength={14} />
-              </div>
-              <div>
                 <label className={L} htmlFor="emp-esi">ESI number</label>
                 <input id="emp-esi" className={FORM_INPUT + ' font-mono'} value={form.esi_number}
                   onChange={(e) => patch({ esi_number: e.target.value })} />
               </div>
             </div>
+
+            {/* The two PF identifiers, side by side because they are the pair people mix up. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className={L} htmlFor="emp-uan">UAN <span className="font-normal text-neutral-400">(follows the person)</span></label>
+                <input id="emp-uan" className={FORM_INPUT + ' font-mono'} value={form.uan}
+                  onChange={(e) => patch({ uan: e.target.value })} placeholder="12 digits" maxLength={14} />
+              </div>
+              <div>
+                <label className={L} htmlFor="emp-pf-number">PF number <span className="font-normal text-neutral-400">(this establishment's)</span></label>
+                {/* Not the UAN. The UAN follows somebody between employers; the PF account number
+                    belongs to this establishment, and the two are separate on every filing. */}
+                <input id="emp-pf-number" className={FORM_INPUT + ' font-mono uppercase'} value={form.pf_number}
+                  onChange={(e) => patch({ pf_number: e.target.value })} placeholder="KL/KKD/0012345/000/0001234" />
+              </div>
+            </div>
+
+            {/* Pay is a payroll record, not a column on the person: it is effective-dated, and the
+                database gates it behind payroll.manage. So it is offered here only to somebody who
+                already holds that, and saving writes a salary_structures row rather than the
+                employee. Everyone else sees no block at all and sets pay from Payroll. */}
+            {canManagePay && (
+              <div className="border-t border-neutral-200 dark:border-neutral-850 pt-3 space-y-2.5">
+                <h3 className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-200">
+                  <Award size={13} className="text-[#0ea971]" /> Compensation
+                  <span className="font-normal text-neutral-400">— monthly, effective-dated</span>
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className={L} htmlFor="emp-pay-basic">Monthly basic</label>
+                    <input id="emp-pay-basic" type="number" min="0" step="0.01"
+                      className={FORM_INPUT + ' font-mono'} value={pay.basic}
+                      onChange={(e) => patchPay({ basic: e.target.value })} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className={L} htmlFor="emp-pay-gross">Monthly gross</label>
+                    <input id="emp-pay-gross" type="number" min="0" step="0.01"
+                      className={FORM_INPUT + ' font-mono'} value={pay.gross}
+                      onChange={(e) => patchPay({ gross: e.target.value })} placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className={L} htmlFor="emp-pay-from">Effective from</label>
+                    <input id="emp-pay-from" type="date" className={FORM_INPUT}
+                      value={pay.effective_from} onChange={(e) => patchPay({ effective_from: e.target.value })} />
+                  </div>
+                </div>
+                <p className="text-2xs text-neutral-400">
+                  {payLatest
+                    ? `Currently ${inrShort(payLatest.gross)} gross from ${payLatest.effective_from}. Saving a different date adds a revision; the same date replaces it.`
+                    : 'Leave Basic blank to save now and set pay later from Payroll. If Basic is entered, Gross is required and Basic cannot exceed Gross.'}
+                </p>
+              </div>
+            )}
           </div>
         </FormBlock>
 
@@ -1519,7 +1729,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                         placeholder="name@parakkatjewels.com"
                       />
                       {!access.touched && form.email.trim() && (
-                        <p className="text-2xs text-neutral-400 mt-1">Taken from the email above.</p>
+                        <p className="text-2xs text-neutral-400 mt-1">Taken from the office email above.</p>
                       )}
                     </div>
                     <div>

@@ -30,6 +30,7 @@ const UserProfile = lazy(() => import('./components/UserProfile'));
 const Notifications = lazy(() => import('./components/Notifications'));
 import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
+import RoleSwitcher from './components/ui/RoleSwitcher';
 import { useAuth } from './auth/AuthContext';
 import { usePermissions } from './auth/usePermissions';
 import { resolvePrimaryRole, ROLE_PRIORITY } from './lib/roles';
@@ -409,21 +410,31 @@ export default function App() {
       tabs: [
         { id: 'profile', label: 'Profile', perm: null },
         { id: 'notifications', label: 'Notifications', perm: null },
+        // Settings lives here, with the rest of what is yours.
+        //
+        // It used to sit in Administration, and because it needs no permission it kept that whole
+        // section alive for everybody: an HR manager, a branch manager and a department head all
+        // had "Administration" in their sidebar, opening on a Settings page and nothing else. The
+        // section announced an authority they do not have, which is the "why is admin in front of
+        // me" complaint in its original form. Nothing about theme, time format or which of your
+        // own roles you are working as is administration.
+        { id: 'settings', label: 'Settings', perm: null },
       ],
     },
     {
       id: 'admin',
       label: 'Administration',
       icon: Shield,
+      // Every tab here now carries a real administrative permission, so the section itself appears
+      // only for someone who holds one — visibleSections drops a section with no permitted tabs.
       tabs: [
         { id: 'administration', label: 'Users & Access', perm: 'rbac.manage' },
         { id: 'admin-roles', label: 'Roles', perm: 'rbac.manage' },
         // audit.read, not rbac.manage. The audit_log policy requires audit.read, which only
-          // entity_admin and super_admin hold — gating the tab on rbac.manage handed it to
-          // dept_head, branch_manager, zonal_manager and hr_manager, all of whom then saw a
-          // permanently empty screen.
-          { id: 'admin-audit', label: 'Audit Log', perm: 'audit.read' },
-        { id: 'settings', label: 'Settings', perm: null },
+        // entity_admin and super_admin hold — gating the tab on rbac.manage handed it to
+        // dept_head, branch_manager, zonal_manager and hr_manager, all of whom then saw a
+        // permanently empty screen.
+        { id: 'admin-audit', label: 'Audit Log', perm: 'audit.read' },
       ],
     },
   ];
@@ -538,8 +549,10 @@ export default function App() {
 
   // Sidebar: one row per section. No group headings any more — eight destinations do not need
   // sub-titles to be scannable, and removing them buys back vertical space.
-  const renderNavLinks = (isMobile = false) => {
-    const isCollapsedDesktop = !isMobile && isSidebarCollapsed;
+  // The desktop sidebar. The phone gets renderMobileNavTree below, which carries a second level
+  // the sidebar does not need — a desktop already shows the section's screens on a tab strip.
+  const renderNavLinks = () => {
+    const isCollapsedDesktop = isSidebarCollapsed;
 
     return (
       <div className="space-y-0.5">
@@ -551,7 +564,6 @@ export default function App() {
               key={sec.id}
               onClick={() => {
                 openSection(sec);
-                if (isMobile) setMobileMenuOpen(false);
               }}
               aria-current={isActive ? 'page' : undefined}
               title={isCollapsedDesktop ? sec.label : undefined}
@@ -585,6 +597,61 @@ export default function App() {
       </div>
     );
   };
+
+  /**
+   * The drawer behind "More", which on a phone is the whole navigation tree.
+   *
+   * It used to list sections and stop there, which meant every screen inside a section — Roles,
+   * Structure, Shifts & Devices, Hiring — was two taps and a horizontal tab bar away, and the
+   * drawer gave no sign the screen existed at all. On a desktop that second level is a tab strip
+   * you can see; on a phone it is off the bottom of a menu that looked complete. An administrator
+   * with ten sections and twenty-odd screens is exactly who felt that.
+   *
+   * So sections that hold more than one screen list them. Single-screen sections stay one line —
+   * repeating "Assets / Assets" would be noise, not navigation.
+   */
+  const renderMobileNavTree = () => (
+    <div className="mobile-nav-tree">
+      {visibleSections.map((sec) => {
+        const Icon = sec.icon;
+        const sectionActive = activeSection?.id === sec.id;
+        const screens = sec.tabs.length > 1 ? sec.tabs : [];
+        return (
+          <div key={sec.id} className="mobile-nav-group">
+            <button
+              type="button"
+              onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
+              aria-current={sectionActive && screens.length === 0 ? 'page' : undefined}
+              className="mobile-nav-section"
+            >
+              <Icon size={15} />
+              <span className="truncate">{sec.label}</span>
+            </button>
+
+            {screens.length > 0 && (
+              <div className="mobile-nav-screens">
+                {screens.map((t) => {
+                  const id = t.to ?? t.id;
+                  const on = activeTab === t.id || activeTab === id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
+                      aria-current={on ? 'page' : undefined}
+                      className={on ? 'is-active' : undefined}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="app-shell flex h-dvh w-full overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-charcoal-900 dark:text-warm-gray-100 relative transition-colors duration-250">
@@ -714,11 +781,17 @@ export default function App() {
               <Search size={16} />
             </button>
 
-            {/* Real role / scope indicator (replaces the old cosmetic ESS/Admin toggle) */}
-            <div className="hidden sm:flex items-center space-x-1.5 px-2.5 py-1 bg-neutral-100 dark:bg-neutral-905 border border-neutral-200/80 dark:border-neutral-800 rounded-xl text-2xs font-mono text-neutral-600 dark:text-[#10b981]">
-              <Shield size={11} />
-              <span>{roleLabel}</span>
-            </div>
+            {/* Which role you are working as — and, when you hold more than one, the way to change
+                it. It was a card near the bottom of Settings, which is a long walk for something
+                done several times a day and left the chip in this corner stating a fact you could
+                not act on. Same chip, now the control. */}
+            <RoleSwitcher
+              viewRole={primaryRole}
+              trueRole={trueRole}
+              heldRoles={heldRoles}
+              roleLabel={roleLabel}
+              onChange={setViewRole}
+            />
 
             {/* Appearance toggle */}
             {pwaUpdateRegistration && (
@@ -908,14 +981,9 @@ export default function App() {
               case 'admin-audit':
                 return <Administration view="logs" />;
               case 'settings':
-                return (
-                  <SettingsPage
-                    viewRole={primaryRole}
-                    trueRole={trueRole}
-                    heldRoles={heldRoles}
-                    onViewRoleChange={setViewRole}
-                  />
-                );
+                // The role switch used to live here. It is on the header chip now — the thing it
+                // changes — so Settings is preferences and nothing else. See ui/RoleSwitcher.
+                return <SettingsPage />;
               case 'notifications':
                 return <Notifications onNavigate={setActiveTab} />;
               case 'profile':
@@ -1023,7 +1091,7 @@ export default function App() {
                 </div>
               </div>
               <nav className="space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
-                {renderNavLinks(true)}
+                {renderMobileNavTree()}
               </nav>
             </div>
 

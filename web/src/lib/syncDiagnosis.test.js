@@ -26,8 +26,9 @@ test('the machine stopping is named, while the other two are reported healthy', 
   const d = at({ newestRunAt: ago(1), lastSuccessAt: ago(1), lastPunchAt: ago(301) });
   assert.equal(d.level, 'terminal-down');
   assert.equal(d.brokenHop, 1);
-  assert.match(DIAGNOSIS[d.level].hint, /punching machine/);
-  assert.match(DIAGNOSIS[d.level].hint, /service is running and Easy Time Pro is answering/);
+  // The one-liner names the fault; the repair procedure it used to be bundled with is in `fix`.
+  assert.match(DIAGNOSIS[d.level].hint, /terminal has not handed over a punch/);
+  assert.match(DIAGNOSIS[d.level].fix, /Easy Time Pro and the sync service are both fine/);
 });
 
 test('runs still arriving but never succeeding points at Easy Time Pro, not the machine', () => {
@@ -43,7 +44,8 @@ test('no runs at all is the service, and it must not claim to know about the res
   const d = at({ newestRunAt: ago(90), lastSuccessAt: ago(90), lastPunchAt: ago(2) });
   assert.equal(d.level, 'service-down');
   assert.equal(d.brokenHop, 3);
-  assert.match(DIAGNOSIS[d.level].hint, /nothing can be said about the machine/);
+  assert.match(DIAGNOSIS[d.level].hint, /two links behind it cannot be checked/);
+  assert.match(DIAGNOSIS[d.level].fix, /nothing can be said about the machine/);
 });
 
 test('everything down at once reports the outermost link, not the innermost', () => {
@@ -97,12 +99,21 @@ test('every level has a label, a tone and a chain diagram', () => {
 test('every broken state says what to do; the healthy ones do not need to', () => {
   // A red status nobody can act on is decoration. "Working" needs no instructions.
   for (const key of ['terminal-down', 'biotime-unreachable', 'service-down']) {
-    const hint = DIAGNOSIS[key].hint;
-    assert.match(hint, /Check|Try|reboot|services\.msc/, `${key} names no action`);
-    assert.ok(hint.length > 120, `${key} is too terse to act on`);
+    assert.match(DIAGNOSIS[key].fix, /Check|Run|reboot|services\.msc/, `${key} names no action`);
+    assert.ok(DIAGNOSIS[key].fix.length > 120, `${key} is too terse to act on`);
   }
   for (const key of ['ok', 'quiet', 'off-hours']) {
+    assert.equal(DIAGNOSIS[key].fix, null, `${key} should not offer a repair`);
     assert.doesNotMatch(DIAGNOSIS[key].hint, /reboot|services\.msc/, `${key} should not alarm`);
+  }
+});
+
+// The reason the split exists. This line is the whole of the status on a phone, and four lines of
+// prose there is a wall people learn to scroll past — which is how a status stops being read.
+test('the always-on line stays one line, and leads with the fault', () => {
+  for (const [key, d] of Object.entries(DIAGNOSIS)) {
+    assert.ok(d.hint.length <= 120, `${key} hint is ${d.hint.length} chars — too long to sit above the fold`);
+    assert.doesNotMatch(d.hint, /services\.msc|reboot/, `${key} hint carries repair steps that belong in fix`);
   }
 });
 
