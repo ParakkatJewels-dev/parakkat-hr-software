@@ -56,6 +56,29 @@ export function hideInstallPrompt(storage, now = Date.now(), days = INSTALL_SNOO
   }
 }
 
+const PRELOAD_RELOAD_KEY = 'pwa-preload-error-reloaded-at';
+export const PRELOAD_RELOAD_WINDOW_MS = 15_000;
+
+export function shouldReloadAfterPreloadError(storage = window.sessionStorage, now = Date.now()) {
+  try {
+    const storedAt = storage?.getItem(PRELOAD_RELOAD_KEY);
+    const last = storedAt == null ? NaN : Number(storedAt);
+    if (Number.isFinite(last) && now - last < PRELOAD_RELOAD_WINDOW_MS) return false;
+    storage?.setItem(PRELOAD_RELOAD_KEY, String(now));
+    return true;
+  } catch {
+    return true;
+  }
+}
+
+export function installPreloadErrorHandler({ storage = window.sessionStorage, reload = () => window.location.reload() } = {}) {
+  window.addEventListener('vite:preloadError', (event) => {
+    if (!shouldReloadAfterPreloadError(storage)) return;
+    event.preventDefault();
+    reload();
+  });
+}
+
 export function registerServiceWorker() {
   if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
 

@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { Component, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 // HashRouter (not BrowserRouter): the native webview serves from a local origin where
 // history/path routing is fragile — hash routes work identically on web and in Capacitor.
@@ -13,7 +13,7 @@ import App from './App.jsx';
 import Login from './pages/Login.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import { initNative } from './mobile/native';
-import { registerServiceWorker } from './lib/pwa';
+import { installPreloadErrorHandler, registerServiceWorker } from './lib/pwa';
 
 function normalizeHashRoute() {
   const { pathname, search, hash } = window.location;
@@ -30,6 +30,7 @@ function normalizeHashRoute() {
 
 normalizeHashRoute();
 initNative();
+installPreloadErrorHandler();
 registerServiceWorker();
 
 // Apply the saved theme before first paint (App owns the toggle, but login/loader render outside it).
@@ -142,6 +143,47 @@ function FullScreenLoader() {
   );
 }
 
+function FullScreenError({ error }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-center px-6">
+      <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center mb-5">
+        <ShieldAlert size={26} />
+      </div>
+      <h1 className="text-lg font-bold text-neutral-900 dark:text-warm-gray-100">Something went wrong</h1>
+      <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-2 max-w-sm leading-relaxed">
+        The app hit a loading problem. Refresh to recover the latest version.
+      </p>
+      {error?.message ? (
+        <p className="mt-3 max-w-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-3 py-2 font-mono text-[11px] text-neutral-500 dark:text-neutral-400 break-words">
+          {error.message}
+        </p>
+      ) : null}
+      <button
+        onClick={() => window.location.reload()}
+        className="inline-flex items-center gap-2 px-4 py-2 mt-6 bg-black dark:bg-[#0ea971] dark:text-white text-white text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90"
+      >
+        <RefreshCw size={14} /> Refresh app
+      </button>
+    </div>
+  );
+}
+
+class AppErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) return <FullScreenError error={this.state.error} />;
+    return this.props.children;
+  }
+}
+
 // Shown to a signed-in user who has no role yet (and isn't a super admin): a session alone grants
 // nothing — access requires at least one role assignment, provisioned in Administration.
 function NoAccess() {
@@ -213,7 +255,9 @@ createRoot(document.getElementById('root')).render(
     >
       <HashRouter>
         <AuthProvider>
-          <RootRoutes />
+          <AppErrorBoundary>
+            <RootRoutes />
+          </AppErrorBoundary>
         </AuthProvider>
       </HashRouter>
     </PersistQueryClientProvider>

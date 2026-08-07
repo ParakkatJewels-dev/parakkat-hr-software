@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isIosDevice, installOffer, installPromptHidden, hideInstallPrompt, INSTALL_SNOOZE_DAYS,
+  isIosDevice,
+  installOffer,
+  installPromptHidden,
+  hideInstallPrompt,
+  INSTALL_SNOOZE_DAYS,
+  shouldReloadAfterPreloadError,
+  PRELOAD_RELOAD_WINDOW_MS,
 } from './pwa.js';
 
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15';
@@ -65,4 +71,20 @@ test('a storage that throws does not take the app with it', () => {
   };
   assert.equal(installPromptHidden(broken, 1), false);
   assert.doesNotThrow(() => hideInstallPrompt(broken, 1));
+});
+
+test('a preload load failure reloads once inside the safety window', () => {
+  const store = fakeStore();
+  const now = 1_000_000;
+  assert.equal(shouldReloadAfterPreloadError(store, now), true);
+  assert.equal(shouldReloadAfterPreloadError(store, now + PRELOAD_RELOAD_WINDOW_MS - 1), false);
+  assert.equal(shouldReloadAfterPreloadError(store, now + PRELOAD_RELOAD_WINDOW_MS + 1), true);
+});
+
+test('a preload reload still happens when session storage is blocked', () => {
+  const broken = {
+    getItem() { throw new Error('denied'); },
+    setItem() { throw new Error('denied'); },
+  };
+  assert.equal(shouldReloadAfterPreloadError(broken, 1), true);
 });
