@@ -164,13 +164,16 @@ function TeamKpis({ onNavigate }) {
 function ZonalKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
   const { data: org } = useVisibleOrg();
-  const { data: attendanceRows = [], summary } = useAttendanceSummary(todayIso());
+  const { summary } = useAttendanceSummary(todayIso());
   const { data: leaves = [] } = useLeaves();
   const { data: expenses = [] } = useExpenses();
+  const { data: regs = [] } = useRegularizations('Pending');
 
   const pct = summary.total ? Math.round((summary.checkedIn / summary.total) * 100) : 0;
   const pendingApprovals =
-    leaves.filter((l) => l.status === 'Pending').length + expenses.filter((e) => e.status === 'Pending').length;
+    leaves.filter((l) => l.status === 'Pending').length +
+    expenses.filter((e) => e.status === 'Pending').length +
+    regs.length;
 
   return (
     <KpiRow
@@ -179,7 +182,7 @@ function ZonalKpis({ onNavigate }) {
         { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-blue-500/10 text-blue-500', subtext: 'In your zone', tab: 'organization', trend: countsBy(employees, (e) => e.branch?.code || e.branch?.name) },
         { label: 'Headcount', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-[#0ea971]/10 text-[#0ea971]', subtext: 'Active employees', tab: 'directory', trend: employeeStatusSeries(employees) },
         { label: 'Attendance Today', value: `${pct}%`, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: `${summary.checkedIn}/${summary.total} checked in`, tab: 'attendance', trend: attendanceSummarySeries(summary) },
-        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Across all branches', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length, attendanceRows.filter((r) => r.is_missing_punch).length) },
+        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Across all branches', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length, regs.length) },
       ]}
     />
   );
@@ -277,7 +280,7 @@ function TodayPriorities({ role, onNavigate }) {
   const myTickets = tickets.filter((t) => t.status !== 'Resolved' && t.employee?.id === employee?.id).length;
   const pendingLeaves = canAny('leave.approve') ? leaves.filter((l) => l.status === 'Pending' && l.employee?.id !== employee?.id).length : 0;
   const pendingExpenses = canAny('expense.approve') ? expenses.filter((e) => e.status === 'Pending' && e.employee?.id !== employee?.id).length : 0;
-  const pendingPunches = canBeyondSelf('attendance.manage') ? regs.filter((r) => r.employee?.id !== employee?.id).length : 0;
+  const pendingPunches = canAny('regularization.approve') ? regs.filter((r) => r.employee?.id !== employee?.id).length : 0;
   const openTickets = tickets.filter((t) => t.status !== 'Resolved').length;
   const exitsOpen = exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length;
   const openRoles = jobs.filter((j) => j.status === 'Open').length;

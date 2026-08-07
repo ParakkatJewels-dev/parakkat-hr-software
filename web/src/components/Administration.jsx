@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import GrantAccessPanel from './GrantAccessPanel';
+import { maxGrantableRank } from '../lib/roleGrants';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
@@ -42,6 +43,17 @@ const ROLE_SCOPES = {
   employee: ['self'],
 };
 
+const ADMIN_PERMISSION_KEYS = new Set(['rbac.manage', 'org.manage']);
+const carriesAdminAuthority = (role) =>
+  (role?.permissionKeys ?? []).some((key) => ADMIN_PERMISSION_KEYS.has(key));
+
+function canOfferRole(role, { includeSuperAdmin = false, isSuperAdmin = false, myRank = 0, myRoles = [] } = {}) {
+  if (!role) return false;
+  if (isSuperAdmin) return includeSuperAdmin || role.key !== 'super_admin';
+  if (role.key === 'super_admin') return false;
+  if ((role.rank ?? 0) > maxGrantableRank(myRank, myRoles)) return false;
+  return role.is_system || !carriesAdminAuthority(role) || myRank >= 80;
+}
 
 const prettyRole = (key) => key.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 
@@ -103,7 +115,8 @@ function UsersAccess() {
   const createUser = useCreateUser();
   const setSuper = useSetSuperAdmin();
   const deleteLogin = useDeleteLogin();
-  const { user: me, rank: myRank } = useAuth();
+  const { user: me, rank: myRank, assignments } = useAuth();
+  const myRoles = assignments ?? [];
 
   /**
    * Which of a user's roles this admin may take away.
@@ -118,8 +131,14 @@ function UsersAccess() {
    * could have granted.
    */
   const rankOf = useMemo(() => new Map(roles.map((r) => [r.key, r.rank ?? 0])), [roles]);
+  const roleByKey = useMemo(() => new Map(roles.map((r) => [r.key, r])), [roles]);
   const mayRevoke = (roleKey) =>
-    isSuperAdmin || (roleKey !== 'super_admin' && (rankOf.get(roleKey) ?? 0) < myRank);
+    canOfferRole(roleByKey.get(roleKey) ?? { key: roleKey, rank: rankOf.get(roleKey) ?? 0 }, {
+      includeSuperAdmin: true,
+      isSuperAdmin,
+      myRank,
+      myRoles,
+    });
 
   const [assignFor, setAssignFor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
@@ -662,11 +681,15 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
   // choices failed with the raw "not authorized to grant this role at this scope" — a dept_head was
   // shown Entity Admin. GrantAccessPanel already filtered correctly; this list did not, so the two
   // grant paths disagreed about the same rule.
-  const { rank: myRank } = useAuth();
+  const { rank: myRank, assignments } = useAuth();
   const { can } = usePermissions();
   const assignableRoles = useMemo(
-    () => roles.filter((r) => r.key !== 'super_admin' && (r.rank ?? 0) < myRank),
-    [roles, myRank]
+    () => roles.filter((r) => canOfferRole(r, {
+      isSuperAdmin,
+      myRank,
+      myRoles: assignments ?? [],
+    })),
+    [roles, isSuperAdmin, myRank, assignments]
   );
 
   const [roleId, setRoleId] = useState('');

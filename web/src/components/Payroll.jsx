@@ -394,6 +394,7 @@ function SalaryTab() {
   const { data: employees = [] } = useEmployees();
   const { data: structures = [] } = useSalaryStructures();
   const save = useSaveSalaryStructure();
+  const [formError, setFormError] = useState(null);
   const [form, setForm] = useState({
     employee_id: '',
     effective_from: `${todayIso().slice(0, 7)}-01`,
@@ -401,21 +402,56 @@ function SalaryTab() {
     gross: '',
   });
 
-  // The newest row per employee is the one payroll will use.
+  // The newest row already in force per employee is the one payroll will use today. Future-dated
+  // raises stay in history without replacing the current row on profile/dashboard surfaces.
   const latest = useMemo(() => {
     const m = new Map();
-    for (const s of structures) if (!m.has(s.employee_id)) m.set(s.employee_id, s);
+    const today = todayIso();
+    for (const s of structures) {
+      if ((!s.effective_from || s.effective_from <= today) && !m.has(s.employee_id)) {
+        m.set(s.employee_id, s);
+      }
+    }
     return m;
   }, [structures]);
 
   const submit = async (e) => {
     e.preventDefault();
+    setFormError(null);
+    save.reset();
+    const basic = Number(form.basic);
+    const gross = Number(form.gross);
+    if (!form.employee_id) {
+      setFormError(new Error('Choose an employee.'));
+      return;
+    }
+    if (!form.effective_from) {
+      setFormError(new Error('Choose an effective-from date.'));
+      return;
+    }
+    if (!Number.isFinite(basic) || !Number.isFinite(gross)) {
+      setFormError(new Error('Monthly basic and gross have to be amounts.'));
+      return;
+    }
+    if (basic < 0 || gross < 0) {
+      setFormError(new Error('Pay cannot be negative.'));
+      return;
+    }
+    if (basic > gross) {
+      setFormError(new Error('Monthly basic cannot be more than monthly gross.'));
+      return;
+    }
+
+    const existing = structures.find(
+      (s) => s.employee_id === form.employee_id && s.effective_from === form.effective_from
+    );
     try {
       await save.mutateAsync({
+        id: existing?.id,
         employee_id: form.employee_id,
         effective_from: form.effective_from,
-        basic: Number(form.basic),
-        gross: Number(form.gross),
+        basic,
+        gross,
       });
       setForm({ ...form, employee_id: '', basic: '', gross: '' });
     } catch {
@@ -478,7 +514,7 @@ function SalaryTab() {
             Effective-dated: a raise is a new row, so history is preserved. Basic must not exceed gross.
           </span>
         </div>
-        <Err e={save.error} />
+        <Err e={formError || save.error} />
       </form>
 
       <section className="premium-card">

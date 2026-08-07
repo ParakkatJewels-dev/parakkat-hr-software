@@ -71,30 +71,30 @@ export function useActionableNotifications() {
 
   const refStatuses = useMemo(() => {
     const statuses = {};
-    if (leaveIds.length === 0 || leaveStatuses.isSuccess) statuses.leave = leaveStatuses.data ?? {};
-    if (expenseIds.length === 0 || expenseStatuses.isSuccess) statuses.expense = expenseStatuses.data ?? {};
-    if (regularizationIds.length === 0 || regularizationStatuses.isSuccess) {
+    if (leaveIds.length === 0 || leaveStatuses.isFetched) statuses.leave = leaveStatuses.data ?? {};
+    if (expenseIds.length === 0 || expenseStatuses.isFetched) statuses.expense = expenseStatuses.data ?? {};
+    if (regularizationIds.length === 0 || regularizationStatuses.isFetched) {
       statuses.regularization = regularizationStatuses.data ?? {};
     }
-    if (taskIds.length === 0 || taskStatuses.isSuccess) statuses.task = taskStatuses.data ?? {};
-    if (ticketIds.length === 0 || ticketStatuses.isSuccess) statuses.ticket = ticketStatuses.data ?? {};
+    if (taskIds.length === 0 || taskStatuses.isFetched) statuses.task = taskStatuses.data ?? {};
+    if (ticketIds.length === 0 || ticketStatuses.isFetched) statuses.ticket = ticketStatuses.data ?? {};
     return statuses;
   }, [
     expenseIds.length,
     expenseStatuses.data,
-    expenseStatuses.isSuccess,
+    expenseStatuses.isFetched,
     leaveIds.length,
     leaveStatuses.data,
-    leaveStatuses.isSuccess,
+    leaveStatuses.isFetched,
     regularizationIds.length,
     regularizationStatuses.data,
-    regularizationStatuses.isSuccess,
+    regularizationStatuses.isFetched,
     taskIds.length,
     taskStatuses.data,
-    taskStatuses.isSuccess,
+    taskStatuses.isFetched,
     ticketIds.length,
     ticketStatuses.data,
-    ticketStatuses.isSuccess,
+    ticketStatuses.isFetched,
   ]);
 
   return {

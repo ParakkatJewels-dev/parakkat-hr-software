@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { HelpCircle, MailOpen, Plus, X, Loader2, AlertTriangle } from 'lucide-react';
+import { HelpCircle, MailOpen, Plus, X, Loader2, AlertTriangle, DoorOpen } from 'lucide-react';
 import { useTickets, useAddTicket, useSetTicketStatus } from '../data/tickets';
-import { useExits } from '../data/exits';
+import { useExits, useAddExit } from '../data/exits';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
@@ -30,6 +30,7 @@ export default function HelpdeskExit() {
     [allTickets, ticketsMineOnly, employee?.id]
   );
   const add = useAddTicket();
+  const addExit = useAddExit();
   const setStatus = useSetTicketStatus();
 
   const canRaise = Boolean(employee?.id);
@@ -45,11 +46,17 @@ export default function HelpdeskExit() {
   // The exit clearances panel lists other people's separations — name, department, last day — and
   // had no permission expression at all. RLS spared a plain employee (exits_select admits your own
   // row unconditionally); everyone else saw the queue whether or not they handle exits.
-  const canSeeExits = canBeyondSelf('exit.manage') || canBeyondSelf('exit.create');
+  const canRequestExit = Boolean(employee?.id) && can('exit.create', { employeeId: employee.id });
+  const canSeeExits = canBeyondSelf('exit.manage') || canRequestExit;
 
   const { data: exits = [] } = useExits();
   const [showForm, setShowForm] = useState(false);
+  const [showExitForm, setShowExitForm] = useState(false);
   const [form, setForm] = useState({ category: 'IT Support', subject: '', priority: 'Medium' });
+  const [exitForm, setExitForm] = useState({ last_day: '', reason: '' });
+  const myOpenExit = exits.find(
+    (x) => x.employee?.id === employee?.id && !['Completed', 'Cleared'].includes(x.status)
+  );
 
   const submit = async (e) => {
     e.preventDefault();
@@ -58,6 +65,20 @@ export default function HelpdeskExit() {
       await add.mutateAsync({ employee_id: employee.id, category: form.category, subject: form.subject, priority: form.priority });
       setForm({ category: 'IT Support', subject: '', priority: 'Medium' });
       setShowForm(false);
+    } catch { /* shown below */ }
+  };
+
+  const submitExit = async (e) => {
+    e.preventDefault();
+    if (!exitForm.last_day || !exitForm.reason.trim() || !employee?.id) return;
+    try {
+      await addExit.mutateAsync({
+        employee_id: employee.id,
+        last_day: exitForm.last_day,
+        reason: exitForm.reason.trim(),
+      });
+      setExitForm({ last_day: '', reason: '' });
+      setShowExitForm(false);
     } catch { /* shown below */ }
   };
 
@@ -71,11 +92,18 @@ export default function HelpdeskExit() {
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Helpdesk &amp; Separation</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Raise support tickets and track exit clearances.</p>
         </div>
-        {canRaise && !showForm && (
-          <button onClick={() => setShowForm(true)} className={btnClass('primary')}>
-            <Plus size={12} /> Raise Ticket
-          </button>
-        )}
+        <div className="flex flex-wrap justify-end gap-2">
+          {canRequestExit && !showExitForm && !myOpenExit && (
+            <button onClick={() => setShowExitForm(true)} className={btnClass('ghost')}>
+              <DoorOpen size={12} /> Request Exit
+            </button>
+          )}
+          {canRaise && !showForm && (
+            <button onClick={() => setShowForm(true)} className={btnClass('primary')}>
+              <Plus size={12} /> Raise Ticket
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -151,6 +179,55 @@ export default function HelpdeskExit() {
             <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-850 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2 flex items-center">
               <MailOpen size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Exit Clearances
             </h3>
+            {showExitForm && canRequestExit && !myOpenExit && (
+              <form onSubmit={submitExit} className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950/30 p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-neutral-850 dark:text-neutral-100">Request separation</p>
+                    <p className="text-2xs text-neutral-500 mt-0.5">Submitted against your employee record for HR clearance.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { addExit.reset(); setShowExitForm(false); }}
+                    className="p-1 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
+                    aria-label="Close exit request"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                <Field label="Last working day">
+                  <input
+                    type="date"
+                    required
+                    value={exitForm.last_day}
+                    onChange={(e) => setExitForm({ ...exitForm, last_day: e.target.value })}
+                    className={INPUT}
+                  />
+                </Field>
+                <Field label="Reason">
+                  <textarea
+                    required
+                    rows={3}
+                    value={exitForm.reason}
+                    onChange={(e) => setExitForm({ ...exitForm, reason: e.target.value })}
+                    className={`${INPUT} resize-none`}
+                    placeholder="Share the reason for separation..."
+                  />
+                </Field>
+                {addExit.error && <p className="text-xs text-red-500">{addExit.error.message}</p>}
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => { addExit.reset(); setShowExitForm(false); }} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Cancel</button>
+                  <button type="submit" disabled={addExit.isPending} className={btnClass('primary')}>
+                    {addExit.isPending && <Loader2 size={13} className="animate-spin" />} Submit Request
+                  </button>
+                </div>
+              </form>
+            )}
+            {myOpenExit && canRequestExit && (
+              <p className="rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/30 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                Your exit request is already in progress. Last working day: {myOpenExit.last_day || 'not set yet'}.
+              </p>
+            )}
             {exits.length === 0 ? (
               <p className="text-neutral-500 py-6 text-center">No exit records visible to you.</p>
             ) : (

@@ -16,3 +16,10 @@ export function resolvePrimaryRole(assignments, isSuperAdmin) {
   const held = new Set((assignments || []).map((a) => a.role));
   return ROLE_PRIORITY.find((r) => held.has(r)) || 'employee';
 }
+
+export function resolveHeldRoles(assignments, isSuperAdmin, permissions = []) {
+  const held = new Set((assignments || []).map((a) => a.role).filter(Boolean));
+  if (isSuperAdmin) held.add('super_admin');
+  if ((permissions || []).some((p) => p.scope_type === 'self')) held.add('employee');
+  return ROLE_PRIORITY.filter((r) => held.has(r));
+}

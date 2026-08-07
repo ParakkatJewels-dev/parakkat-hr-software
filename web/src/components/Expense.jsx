@@ -7,8 +7,10 @@ import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { usePermissions } from '../auth/usePermissions';
 import { useMineOnly } from '../lib/useMineOnly';
+import { todayIso } from '../data/attendance';
 
 const CATEGORIES = ['Local Conveyance', 'Travel Expenses', 'Telephone/Mobile Bills', 'Medical Claims', 'Office Supplies', 'Other'];
+const blankExpenseForm = () => ({ category: 'Local Conveyance', amount: '', expense_date: todayIso(), description: '' });
 
 const statusClass = (s) =>
   s === 'Approved' || s === 'Paid'
@@ -49,7 +51,7 @@ export default function Expense() {
     && !(exp.created_by && exp.created_by === user?.id);
   const canClaim = Boolean(employee?.id);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ category: 'Local Conveyance', amount: '', expense_date: '', description: '' });
+  const [form, setForm] = useState(blankExpenseForm);
   const [statusFilter, setStatusFilter] = useState('All');
   // A manager's list is their whole branch; this is how they find their own claims in it.
   const [mineOnly, setMineOnly, canPickWhose] = useMineOnly(canBeyondSelf('expense.read'));
@@ -73,16 +75,16 @@ export default function Expense() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.amount || !form.description || !employee?.id) return;
+    if (!form.amount || !form.expense_date || !form.description || !employee?.id) return;
     try {
       await add.mutateAsync({
         employee_id: employee.id,
         category: form.category,
         amount: parseFloat(form.amount),
-        expense_date: form.expense_date || null,
+        expense_date: form.expense_date,
         description: form.description,
       });
-      setForm({ category: 'Local Conveyance', amount: '', expense_date: '', description: '' });
+      setForm(blankExpenseForm());
       setShowForm(false);
     } catch { /* shown below */ }
   };
@@ -98,11 +100,11 @@ export default function Expense() {
           title="Claim reimbursement"
           subtitle="Filed against your own record; your manager approves it."
           icon={Plus}
-          onClose={() => { add.reset(); setShowForm(false); }}
           onSubmit={submit}
           submitLabel="Submit claim"
           busy={add.isPending}
           error={add.error?.message}
+          onClose={() => { add.reset(); setForm(blankExpenseForm()); setShowForm(false); }}
         >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Field label="Category" htmlFor="exp-category" required>
@@ -132,6 +134,7 @@ export default function Expense() {
               <input
                 id="exp-date"
                 type="date"
+                required
                 value={form.expense_date}
                 onChange={(e) => setForm({ ...form, expense_date: e.target.value })}
                 className={FIELD}

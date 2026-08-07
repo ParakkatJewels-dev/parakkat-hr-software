@@ -4,10 +4,11 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import { useAuth } from './AuthContext';
 import { hasPerm, applyViewLens } from '../lib/permissionMatch';
-import { getChosenRole, subscribeToViewRole } from '../lib/viewRole';
+import { getChosenRole, resolveChosenRole, subscribeToViewRole } from '../lib/viewRole';
+import { resolveHeldRoles } from '../lib/roles';
 
 export function usePermissions() {
-  const { permissions, isSuperAdmin, employee } = useAuth();
+  const { permissions, isSuperAdmin, employee, assignments } = useAuth();
   // The role the person chose to work as (Settings -> Switch view). Read here rather than passed
   // down because EVERY screen already calls this hook and none of them take a viewRole prop — which
   // is exactly why the first version of the switcher changed the sidebar and nothing else.
@@ -16,11 +17,16 @@ export function usePermissions() {
   return useMemo(() => {
     const raw = permissions || [];
     const myEmployeeId = employee?.id ?? null;
+    const validChosen = resolveChosenRole(
+      chosen,
+      resolveHeldRoles(assignments, isSuperAdmin, raw),
+      null
+    );
 
     // The lens lives in permissionMatch.js so it can be tested by importing it — see the note
     // there. This hook is untestable by construction: it imports Supabase through useAuth.
     const { list, viewingAsEmployee, effectiveSuperAdmin } =
-      applyViewLens(raw, { isSuperAdmin, chosenRole: chosen });
+      applyViewLens(raw, { isSuperAdmin, chosenRole: validChosen });
 
     // Does the user hold `perm` at ANY scope? Used for nav / whole-module visibility.
     const canAny = (perm) => effectiveSuperAdmin || list.some((p) => p.permission === perm);
@@ -68,5 +74,5 @@ export function usePermissions() {
       // stop RLS returning the whole branch's rows.
       viewingAsEmployee,
     };
-  }, [permissions, isSuperAdmin, employee, chosen]);
+  }, [permissions, isSuperAdmin, employee, assignments, chosen]);
 }

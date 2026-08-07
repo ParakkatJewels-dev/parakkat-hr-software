@@ -49,8 +49,9 @@ export function useUpdateTask() {
       // keep completed_at in sync with the Done status
       if (patch.status === 'Done') patch.completed_at = new Date().toISOString();
       else if ('status' in patch) patch.completed_at = null;
-      const { error } = await supabase.from('tasks').update(patch).eq('id', id);
+      const { data, error } = await supabase.from('tasks').update(patch).eq('id', id).select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('This task could not be updated. Your access may have changed, or the task was deleted.');
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
@@ -63,8 +64,9 @@ export function useDeleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id) => {
-      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      const { data, error } = await supabase.from('tasks').delete().eq('id', id).select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('This task could not be deleted. Your access may have changed, or the task was already deleted.');
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });

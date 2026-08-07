@@ -12,5 +12,19 @@
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }],
     "no-undef": "error"
-  }
+  },
+  "overrides": [
+    {
+      "files": ["backend/scripts/**/*.js"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["backend/supabase/functions/**/*.ts"],
+      "globals": {
+        "Deno": "readonly"
+      }
+    }
+  ]
 }

@@ -27,8 +27,9 @@ const TABLE_KEYS = {
   service_commands: [['service-commands'], ['sync-runs'], ['sync-health']],
   tickets: [['tickets'], ['notification-ref-statuses']],
   assets: [['assets']],
+  asset_assignments: [['assets'], ['asset-history']],
   employees: [['employees']],
-  documents: [['documents']],
+  documents: [['documents'], ['employee-avatars']],
   exits: [['exits']],
   onboarding: [['onboarding']],
   role_assignments: [['managed-users']],
@@ -44,7 +45,7 @@ const TABLE_KEYS = {
 
 export function useRealtimeSync() {
   const qc = useQueryClient();
-  const { session } = useAuth();
+  const { reloadAccess, session, user } = useAuth();
 
   useEffect(() => {
     if (!session) return undefined;
@@ -56,6 +57,7 @@ export function useRealtimeSync() {
     // as hundreds of events within a second. Invalidating per event would fire hundreds of
     // refetch checks; collecting them and flushing once collapses that into one pass.
     let pending = new Set();
+    let accessRefreshPending = false;
     let flushTimer = null;
     const flush = () => {
       flushTimer = null;
@@ -64,16 +66,27 @@ export function useRealtimeSync() {
       for (const serialized of keys) {
         qc.invalidateQueries({ queryKey: JSON.parse(serialized), type: 'active' });
       }
+      if (accessRefreshPending) {
+        accessRefreshPending = false;
+        reloadAccess();
+      }
     };
-    const queueInvalidation = (keys) => {
+    const queueInvalidation = (keys, refreshAccess = false) => {
       for (const key of keys) pending.add(JSON.stringify(key));
+      accessRefreshPending = accessRefreshPending || refreshAccess;
       if (!flushTimer) flushTimer = setTimeout(flush, 1_000);
+    };
+    const touchesCurrentAccess = (table, payload) => {
+      if (table === 'roles' || table === 'role_permissions') return true;
+      if (!user?.id) return false;
+      if (table !== 'role_assignments' && table !== 'profiles') return false;
+      return payload.new?.user_id === user.id || payload.old?.user_id === user.id;
     };
 
     const channel = supabase.channel('app-live-sync');
     for (const [table, keys] of Object.entries(TABLE_KEYS)) {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table }, () => {
-        queueInvalidation(keys);
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
+        queueInvalidation(keys, touchesCurrentAccess(table, payload));
       });
     }
 
@@ -103,5 +116,5 @@ export function useRealtimeSync() {
       supabase.removeChannel(channel);
       document.removeEventListener('visibilitychange', refreshVisible);
     };
-  }, [session, qc]);
+  }, [session, qc, reloadAccess, user?.id]);
 }

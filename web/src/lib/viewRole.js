@@ -56,6 +56,11 @@ export function subscribeToViewRole(listener) {
   return () => listeners.delete(listener);
 }
 
+export function resolveChosenRole(stored, held, fallback = null) {
+  const roles = held ?? [];
+  return stored && roles.includes(stored) ? stored : fallback;
+}
+
 /**
  * The role to present the app as, and a setter.
  *
@@ -66,6 +71,6 @@ export function subscribeToViewRole(listener) {
  */
 export function useViewRole(primaryRole, held) {
   const stored = useSyncExternalStore(subscribeToViewRole, getChosenRole, () => null);
-  const valid = stored && held.includes(stored) ? stored : primaryRole;
+  const valid = resolveChosenRole(stored, held, primaryRole);
   return [valid, setChosenRole];
 }

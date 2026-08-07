@@ -7,7 +7,7 @@ import {
   Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
   HeartPulse, FileText, Eye, Award,
 } from 'lucide-react';
-import { useEmployees, useCreateEmployee, useUpdateEmployee } from '../data/employees';
+import { useEmployees, useEmployee, useCreateEmployee, useUpdateEmployee } from '../data/employees';
 import { useSalaryStructures, useSaveSalaryStructure } from '../data/payroll';
 import {
   useAddDocument, useEmployeeDocuments, useDocumentLink, useEmployeeAvatars,
@@ -178,6 +178,10 @@ export default function Directory() {
     const t = setTimeout(() => setJustSaved(null), 6000);
     return () => clearTimeout(t);
   }, [justSaved]);
+  const editingEmployeeId = editing?.id || null;
+  const editEmployeeQuery = useEmployee(editingEmployeeId, {
+    enabled: Boolean(editingEmployeeId) && canEditRow(editing),
+  });
 
   const [search, setSearch] = useState('');
   const [selectedEntity, setSelectedEntity] = useState('All Entities');
@@ -432,8 +436,19 @@ export default function Directory() {
           </div>
         </div>
 
+        {isEdit && editEmployeeQuery.isLoading ? (
+          <div className="premium-card p-5 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <Loader2 size={14} className="animate-spin text-[#0ea971]" />
+            Loading the private fields for this employee…
+          </div>
+        ) : editEmployeeQuery.error ? (
+          <div className="premium-card p-5 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+            <span>{editEmployeeQuery.error.message}</span>
+          </div>
+        ) : (
         <EmployeeFormModal
-          employee={editing.id ? editing : null}
+          employee={editing.id ? (editEmployeeQuery.data ?? editing) : null}
           org={org}
           busy={createEmployee.isPending || updateEmployee.isPending || grantAccess.isPending
             || addDocument.isPending || saveSalary.isPending}
@@ -489,6 +504,7 @@ export default function Directory() {
             }
           }}
         />
+        )}
       </div>
     );
   }
@@ -1131,8 +1147,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   // App access, folded into this form so adding a person is one job rather than two screens.
   const { rank: myRank, permissions, assignments } = useAuth();
   const { can, canAny } = usePermissions();
-  const myRoles = useMemo(() => (assignments ?? []).map((a) => a.role), [assignments]);
-  const roleOptions = useMemo(() => grantableRoles(myRank, myRoles), [myRank, myRoles]);
+  const roleOptions = useMemo(() => grantableRoles(myRank, assignments), [myRank, assignments]);
   const savePermission = isEdit ? 'employee.update' : 'employee.create';
 
   /**
@@ -1287,7 +1302,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     const basic = pay.basic.trim();
     const gross = pay.gross.trim();
     if (!basic && !gross) return {};
-    if (!basic) return {};
+    if (!basic) return { error: 'Enter Monthly basic too, or leave both pay fields blank to set pay later from Payroll.' };
     if (!gross) return { error: 'Monthly gross is needed when monthly basic is entered.' };
     if (!pay.effective_from) return { error: 'Compensation needs an effective-from date.' };
     if (!Number.isFinite(Number(basic)) || !Number.isFinite(Number(gross))) {

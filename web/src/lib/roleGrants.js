@@ -63,6 +63,15 @@ export const ROLE_PRESETS = [
 
 const RANK_BY_ROLE = Object.fromEntries(ROLE_PRESETS.map((r) => [r.key, r.rank]));
 
+const roleKeyOf = (role) => (typeof role === 'string' ? role : role?.role ?? role?.key);
+const roleRankOf = (role) => {
+  const key = roleKeyOf(role);
+  if (typeof role === 'object' && role && Number.isFinite(Number(role.rank))) {
+    return Number(role.rank);
+  }
+  return RANK_BY_ROLE[key];
+};
+
 /**
  * Ceilings lower than seniority alone would give.
  *
@@ -79,19 +88,31 @@ export const GRANT_CEILING = { hr_manager: 30 };
 /**
  * The highest rank this person may grant.
  *
- * Every role you hold carries its own ceiling and the most generous one wins — someone who is both
- * an HR manager and an entity admin is an entity admin, and the other hat they wear must not
- * demote them. A role this module does not know (super_admin, or one added later) falls back to
- * `myRank`, which comes from the database's own app.max_role_rank.
+ * HR is capped when HR is the highest role the person holds, matching migration 0091's
+ * app.max_grantable_rank(). Somebody who is both an HR manager and an entity admin is an entity
+ * admin, and the other hat they wear must not demote them. Outside that special case, every role
+ * carries its own ceiling and the most generous one wins. A role this module does not know
+ * (super_admin, or one added later) falls back to `myRank`, which comes from the database's own
+ * app.max_role_rank.
  */
 export function maxGrantableRank(myRank, myRoles = []) {
   const roles = myRoles ?? [];
-  const known = roles.filter((key) => key in RANK_BY_ROLE);
-  const ceilings = known.map((key) => GRANT_CEILING[key] ?? RANK_BY_ROLE[key] - 1);
+  if (roles.some((role) => roleKeyOf(role) === 'hr_manager') && myRank <= RANK_BY_ROLE.hr_manager) {
+    return GRANT_CEILING.hr_manager;
+  }
+  const ceilings = roles
+    .map((role) => {
+      const key = roleKeyOf(role);
+      const rank = roleRankOf(role);
+      if (!Number.isFinite(rank)) return null;
+      return GRANT_CEILING[key] ?? rank - 1;
+    })
+    .filter((rank) => rank != null);
 
-  // Anything unrecognised — or no roles at all — is answered by seniority, the 0044 rule: strictly
-  // below your own level. Ranks are spaced in tens, so minus one lands between them.
-  if (known.length !== roles.length || known.length === 0) ceilings.push(myRank - 1);
+  // Anything unrecognised without a rank — or no roles at all — is answered by seniority, the 0044
+  // rule: strictly below your own level. Runtime assignments include rank from get_my_access(); the
+  // fallback keeps older tests and super_admin's pseudo-role working.
+  if (ceilings.length !== roles.length || roles.length === 0) ceilings.push(myRank - 1);
 
   return Math.max(...ceilings);
 }

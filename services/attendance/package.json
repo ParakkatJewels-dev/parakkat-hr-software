@@ -17,7 +17,7 @@
     "recompute": "tsx src/scripts/recompute.ts",
     "seed": "tsx src/scripts/seed.ts",
     "doctor": "tsx src/scripts/doctor.ts",
-    "test": "tsx --test --experimental-test-module-mocks src",
+    "test": "tsx --test --experimental-test-module-mocks \"src/**/*.test.ts\"",
     "probe:rules": "tsx src/scripts/probeRules.ts",
     "shift:from-device": "tsx src/scripts/shiftFromDevice.ts",
     "fetch:all": "tsx src/scripts/fetchAll.ts",

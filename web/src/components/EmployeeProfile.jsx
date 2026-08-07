@@ -13,9 +13,11 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useEmployee } from '../data/employees';
 import { useEmployeeDocuments, useDocumentLink, useEmployeeAvatars, fileSize } from '../data/documents';
 import { useEmployeeAssets } from '../data/assets';
 import { useSalaryStructures } from '../data/payroll';
+import { todayIso } from '../data/attendance';
 import { currentSectionId } from '../lib/sectionSpy';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
@@ -239,7 +241,7 @@ function OrgNode({ icon: Icon, label, value, last }) {
   );
 }
 
-export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
+export default function ProfileDrawer({ emp: initialEmp, onClose, onEdit, onGrantAccess }) {
   const [copied, setCopied] = useState(false);
   const [activeSection, setActiveSection] = useState('contact');
   const { canAny, can, canBeyondSelf } = usePermissions();
@@ -257,14 +259,17 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
    * this specific record, or it is your own record.
    */
   const empScope = {
-    entityId: emp.entity_id ?? null,
-    zoneId: emp.zone_id ?? null,
-    branchId: emp.branch_id ?? null,
-    deptId: emp.department_id ?? null,
-    employeeId: emp.id ?? null,
+    entityId: initialEmp.entity_id ?? null,
+    zoneId: initialEmp.zone_id ?? null,
+    branchId: initialEmp.branch_id ?? null,
+    deptId: initialEmp.department_id ?? null,
+    employeeId: initialEmp.id ?? null,
   };
-  const isOwnRecord = Boolean(me?.id) && me.id === emp.id;
-  const canSeeSensitive = isOwnRecord || can('payroll.manage', empScope);
+  const isOwnRecord = Boolean(me?.id) && me.id === initialEmp.id;
+  const canSeePay = isOwnRecord || can('payroll.manage', empScope);
+  const canSeePrivate = canSeePay || can('employee.update', empScope);
+  const detailQuery = useEmployee(initialEmp.id, { enabled: canSeePrivate && Boolean(initialEmp.id) });
+  const emp = detailQuery.data ? { ...initialEmp, ...detailQuery.data } : initialEmp;
   // Their photograph, if one has been filed. Falls back to initials, which is what everyone
   // without a photo has always had.
   const { data: avatars = {} } = useEmployeeAvatars([emp.id]);
@@ -312,8 +317,8 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
    * payroll had been set up. The real record is salary_structures: monthly basic and gross,
    * effective-dated, newest first, and readable under exactly the bar this page already applies.
    */
-  const payQuery = useSalaryStructures(emp.id, { enabled: canSeeSensitive && Boolean(emp.id) });
-  const salary = payQuery.data?.[0] ?? null;
+  const payQuery = useSalaryStructures(emp.id, { enabled: canSeePay && Boolean(emp.id) });
+  const salary = payQuery.data?.find((row) => !row.effective_from || row.effective_from <= todayIso()) ?? null;
   const grossMonthly = salary?.gross != null ? Number(salary.gross) : null;
   const baseMonthly = salary?.basic != null ? Number(salary.basic) : null;
   const grossAnnual = grossMonthly != null ? grossMonthly * 12 : null;
@@ -356,9 +361,11 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
           </div>
           {/* The address above is the office one — the company's channel, and the one the login
               defaults to. This is the one that still reaches them after they hand that back. */}
-          <div className="emp-field-grid emp-contact-extra">
-            <Field label="Personal email" value={emp.personal_email} />
-          </div>
+          {canSeePrivate && (
+            <div className="emp-field-grid emp-contact-extra">
+              <Field label="Personal email" value={emp.personal_email} />
+            </div>
+          )}
         </div>
       ),
     },
@@ -397,6 +404,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'personal',
+      sensitive: 'private',
       label: 'Personal',
       icon: UserRound,
       body: (
@@ -412,7 +420,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'statutory',
-      sensitive: true,
+      sensitive: 'private',
       label: 'Statutory IDs',
       icon: IdCard,
       body: (
@@ -427,6 +435,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'emergency',
+      sensitive: 'private',
       label: 'Emergency',
       icon: HeartPulse,
       body: (
@@ -439,7 +448,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'compensation',
-      sensitive: true,
+      sensitive: 'pay',
       label: 'Compensation',
       icon: Award,
       body: payQuery.isLoading ? (
@@ -487,7 +496,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
     },
     {
       id: 'banking',
-      sensitive: true,
+      sensitive: 'private',
       label: 'Banking',
       icon: Landmark,
       body: (
@@ -502,7 +511,7 @@ export default function ProfileDrawer({ emp, onClose, onEdit, onGrantAccess }) {
   // Salary, bank details and statutory IDs only for payroll authority over this person, or
   // for the person themselves. Filtered here rather than gated at each render site, so the
   // rail's section index, the scroll-spy and the jump links all agree about what is on the page.
-  ].filter((s) => !s.sensitive || canSeeSensitive);
+  ].filter((s) => !s.sensitive || (s.sensitive === 'pay' ? canSeePay : canSeePrivate));
 
   // Both of these carry their own permission. Someone who may see a person but not their file
   // cabinet gets no section at all, rather than an empty one reading as "nothing was uploaded".

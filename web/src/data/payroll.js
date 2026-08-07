@@ -145,15 +145,28 @@ export function useSalaryStructures(employeeId, { enabled = true } = {}) {
   });
 }
 
+const SALARY_CONSTRAINT_MESSAGES = {
+  salary_basic_le_gross: 'Monthly basic cannot be more than monthly gross.',
+};
+
+function describeSalaryError(error) {
+  if (!error) return error;
+  const haystack = `${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`;
+  const hit = Object.keys(SALARY_CONSTRAINT_MESSAGES).find((name) => haystack.includes(name));
+  if (hit) return new Error(SALARY_CONSTRAINT_MESSAGES[hit]);
+  if (error.code === '23502') return new Error('Choose an employee, an effective date, monthly basic and monthly gross.');
+  return error;
+}
+
 export function useSaveSalaryStructure() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, ...row }) => {
       const q = id
         ? supabase.from('salary_structures').update(row).eq('id', id)
-        : supabase.from('salary_structures').insert(row);
+        : supabase.from('salary_structures').upsert(row, { onConflict: 'employee_id,effective_from' });
       const { error } = await q;
-      if (error) throw error;
+      if (error) throw describeSalaryError(error);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['salary-structures'] }),
   });

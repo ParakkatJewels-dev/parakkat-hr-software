@@ -33,7 +33,7 @@ import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
 import { useAuth } from './auth/AuthContext';
 import { usePermissions } from './auth/usePermissions';
-import { resolvePrimaryRole, ROLE_PRIORITY } from './lib/roles';
+import { resolveHeldRoles, resolvePrimaryRole } from './lib/roles';
 import { useViewRole } from './lib/viewRole';
 import { appNameFor, documentTitleFor } from './lib/appName';
 import { useRealtimeSync } from './lib/realtime';
@@ -98,26 +98,12 @@ export default function App() {
   const roleNames = [...new Set((assignments || []).map((a) => a.role))];
   // Joined here rather than in the dependency array: a fresh array every render would rebuild the
   // list every time, and the linter cannot check an expression written inline in the deps.
-  const roleKey = roleNames.join(',');
-  // Can this person act as an employee at all? Their own records only exist if something grants
-  // them self scope, and Settings should not offer a view that resolves to an empty app.
-  const hasSelfScopedGrants = (permissions || []).some((p) => p.scope_type === 'self');
-
   // Every role held, most senior first, with 'employee' always available: a manager is one too, and
   // 0080 granted them attendance.punch / leave.create / expense.create / payslip.read to prove it.
-  const heldRoles = useMemo(() => {
-    const held = new Set(roleKey ? roleKey.split(',') : []);
-    if (isSuperAdmin) held.add('super_admin');
-    // 'employee' is offered only to someone who can actually BE one — i.e. who holds self-scoped
-    // grants, which app.tg_autogrant_ess adds to any login linked to an employee record.
-    //
-    // Without this check the production super admin (employee_id null, zero role_assignments) could
-    // pick Employee and land on a four-item sidebar: the lens filters their permissions to the
-    // self-scoped ones, they have none, and every screen the feature exists to reach — My
-    // Attendance, My Leave, My Payslips, My Tasks — refuses them. A dead end with no explanation.
-    if (hasSelfScopedGrants) held.add('employee');
-    return ROLE_PRIORITY.filter((r) => held.has(r));
-  }, [roleKey, isSuperAdmin, hasSelfScopedGrants]);
+  const heldRoles = useMemo(
+    () => resolveHeldRoles(assignments, isSuperAdmin, permissions),
+    [assignments, isSuperAdmin, permissions]
+  );
 
   // The role the app is PRESENTED as. Purely a lens — see lib/viewRole.js. canViewTab below still
   // asks the real permissions, so switching to Employee hides the oversight tree without pretending

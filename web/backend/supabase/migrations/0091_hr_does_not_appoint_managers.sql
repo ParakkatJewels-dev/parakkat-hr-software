@@ -48,12 +48,13 @@ returns boolean language plpgsql stable security definer set search_path = app, 
 declare
   _key  text;
   _rank int;
+  _sys  boolean;
   _e uuid; _z uuid; _b uuid; _d uuid;
   _admin_role boolean;
 begin
   if app.is_super_admin() then return true; end if;
 
-  select key, rank into _key, _rank from public.roles where id = _role_id;
+  select key, rank, is_system into _key, _rank, _sys from public.roles where id = _role_id;
   if _key is null then return false; end if;
 
   -- Does this role carry administrative authority?
@@ -87,8 +88,9 @@ begin
     return false;
   end if;
 
-  -- Guard 2: only an entity admin or above may pass on rbac.manage / org.manage.
-  if _admin_role and app.max_role_rank() < 80 then
+  -- Guard 2: only an entity admin or above may pass on CUSTOM rbac.manage / org.manage roles.
+  -- Built-in roles are already controlled by rank and by app.max_grantable_rank().
+  if _admin_role and not _sys and app.max_role_rank() < 80 then
     return false;
   end if;
 

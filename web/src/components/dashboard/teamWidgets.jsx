@@ -94,7 +94,7 @@ export function TeamAttendanceToday({ onNavigate }) {
  */
 export function ApprovalsQueue({ onNavigate }) {
   const { employee } = useAuth();
-  const { canAny, canBeyondSelf } = usePermissions();
+  const { canAny } = usePermissions();
   const { data: leaves = [] } = useLeaves();
   const { data: expenses = [] } = useExpenses();
   const { data: regs = [] } = useRegularizations('Pending');
@@ -112,7 +112,7 @@ export function ApprovalsQueue({ onNavigate }) {
       label: 'Leaves',
       rows: leaves.filter((l) => l.status === 'Pending' && notMine(l)),
     },
-    canBeyondSelf('attendance.manage') && {
+    canAny('regularization.approve') && {
       id: 'regs',
       label: 'Punches',
       rows: regs.filter((r) => notMine(r)),
@@ -133,7 +133,9 @@ export function ApprovalsQueue({ onNavigate }) {
 
   const decide = (row, approve) => {
     if (tab.id === 'leaves') setLeaveStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected' });
-    else if (tab.id === 'expenses') setExpenseStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected' });
+    else if (tab.id === 'expenses') {
+      setExpenseStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected', approverEmployeeId: employee?.id });
+    }
     else decideReg.mutate({ id: row.id, decision: approve ? 'Approved' : 'Rejected' });
   };
 

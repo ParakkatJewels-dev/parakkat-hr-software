@@ -20,9 +20,15 @@ export function useRoles() {
     queryKey: ['roles'],
     queryFn: async () => {
       // rank comes too: the assign-role form filters by seniority, mirroring app.can_grant.
-      const { data, error } = await supabase.from('roles').select('id,key,name,description,rank').order('key');
+      const { data, error } = await supabase
+        .from('roles')
+        .select('id,key,name,description,rank,is_system,role_permissions(permission:permissions(key))')
+        .order('key');
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map((r) => ({
+        ...r,
+        permissionKeys: (r.role_permissions ?? []).map((rp) => rp.permission?.key).filter(Boolean).sort(),
+      }));
     },
   });
 }

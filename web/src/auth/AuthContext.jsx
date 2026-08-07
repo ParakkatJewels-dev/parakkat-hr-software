@@ -56,6 +56,32 @@ export function AuthProvider({ children }) {
     }
   }, [session, loadAccess]);
 
+  // Role changes and employee-link changes affect every permission gate. Refresh the access
+  // payload live so revoked/granted access does not wait for the next sign-in to take effect.
+  useEffect(() => {
+    const userId = session?.user?.id;
+    if (!userId) return undefined;
+
+    supabase.realtime.setAuth(session.access_token);
+
+    let timer = null;
+    const refreshSoon = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(loadAccess, 250);
+    };
+
+    const channel = supabase
+      .channel(`auth-access-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'role_assignments', filter: `user_id=eq.${userId}` }, refreshSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` }, refreshSoon)
+      .subscribe();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, session?.access_token, loadAccess]);
+
   const signIn = useCallback(
     (email, password) => supabase.auth.signInWithPassword({ email, password }),
     []

@@ -33,6 +33,23 @@ test('also holding the employee role neither raises nor bypasses the HR cap', ()
   assert.deepEqual(keys(60, ['hr_manager', 'employee']), ['employee', 'dept_head']);
 });
 
+test('also holding zonal authority does not bypass the HR cap while HR is the highest role', () => {
+  assert.equal(maxGrantableRank(60, ['hr_manager', 'zonal_manager']), 30);
+  assert.deepEqual(keys(60, ['hr_manager', 'zonal_manager']), ['employee', 'dept_head']);
+  assert.deepEqual(keys(60, [
+    { role: 'hr_manager', rank: 60 },
+    { role: 'zonal_manager', rank: 50 },
+    { role: 'employee', rank: 10 },
+  ]), ['employee', 'dept_head']);
+});
+
+test('rank-bearing custom roles do not turn the HR cap into a seniority fallback', () => {
+  assert.deepEqual(keys(60, [
+    { role: 'hr_manager', rank: 60 },
+    { role: 'custom_helper', rank: 20 },
+  ]), ['employee', 'dept_head']);
+});
+
 test('a role this module does not know falls back to the rank the database gave us', () => {
   // super_admin is not a preset — it is never offered, and it is not in RANK_BY_ROLE.
   assert.equal(maxGrantableRank(1000, ['super_admin']), 999);

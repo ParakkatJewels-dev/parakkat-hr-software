@@ -5,6 +5,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 
+const EMPLOYEE_LIST_SELECT = `
+  id, full_name, employee_code, status, email, phone, join_date, user_id,
+  entity_id, zone_id, branch_id, department_id, designation_id,
+  entity:entities(code,name),
+  branch:branches(code,name),
+  department:departments(name),
+  designation:designations(title,grade)
+`;
+
+const EMPLOYEE_DETAIL_SELECT = `
+  id, full_name, employee_code, status, email, phone, join_date, user_id,
+  entity_id, zone_id, branch_id, department_id, designation_id,
+  date_of_birth, gender, father_name, mother_name, personal_email, address, blood_group,
+  pan, aadhaar, uan, pf_number, esi_number,
+  bank_name, bank_account, bank_ifsc, account_holder,
+  emergency_name, emergency_phone, emergency_relation,
+  entity:entities(code,name),
+  branch:branches(code,name),
+  department:departments(name),
+  designation:designations(title,grade)
+`;
+
 export function useEmployees({ enabled = true } = {}) {
   return useQuery({
     enabled,
@@ -12,23 +34,28 @@ export function useEmployees({ enabled = true } = {}) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('employees')
-        .select(
-          `id, full_name, employee_code, status, email, phone, join_date, salary, user_id,
-           entity_id, zone_id, branch_id, department_id, designation_id,
-           date_of_birth, gender, father_name, mother_name, personal_email, address, blood_group,
-           pan, aadhaar, uan, pf_number, esi_number,
-           bank_name, bank_account, bank_ifsc, account_holder,
-           emergency_name, emergency_phone, emergency_relation,
-           entity:entities(code,name),
-           branch:branches(code,name),
-           department:departments(name),
-           designation:designations(title,grade)`
-        )
+        .select(EMPLOYEE_LIST_SELECT)
         .order('full_name', { ascending: true })
         // Explicit, so the ceiling is visible here rather than PostgREST's silent 1000-row default.
         .limit(5000);
       if (error) throw error;
       return data ?? [];
+    },
+  });
+}
+
+export function useEmployee(employeeId, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(employeeId),
+    queryKey: ['employee', employeeId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('employees')
+        .select(EMPLOYEE_DETAIL_SELECT)
+        .eq('id', employeeId)
+        .maybeSingle();
+      if (error) throw error;
+      return data ?? null;
     },
   });
 }
@@ -102,7 +129,10 @@ export function useCreateEmployee() {
       if (error) throw describeEmployeeError(error);
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employees'] });
+      qc.invalidateQueries({ queryKey: ['employee'] });
+    },
   });
 }
 
@@ -119,6 +149,9 @@ export function useUpdateEmployee() {
       if (error) throw describeEmployeeError(error);
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['employees'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['employees'] });
+      qc.invalidateQueries({ queryKey: ['employee'] });
+    },
   });
 }

@@ -25,7 +25,8 @@ const statusClass = (s) =>
 function daysBetween(a, b) {
   const d1 = new Date(a), d2 = new Date(b);
   if (isNaN(d1) || isNaN(d2)) return 0;
-  return Math.ceil(Math.abs(d2 - d1) / 86400000) + 1;
+  if (d2 < d1) return 0;
+  return Math.ceil((d2 - d1) / 86400000) + 1;
 }
 
 export default function Leave() {
@@ -52,6 +53,7 @@ export default function Leave() {
 
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ type: 'Casual Leave', start: '', end: '', reason: '' });
+  const [formError, setFormError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('All');
   // Self-only unless this viewer's grants reach other people. Covers a genuine employee AND a
   // manager who switched to the employee view — usePermissions narrows the grants, this follows.
@@ -77,7 +79,13 @@ export default function Leave() {
 
   const submit = async (e) => {
     e.preventDefault();
+    setFormError(null);
+    apply.reset();
     if (!form.start || !form.end || !form.reason || !employee?.id) return;
+    if (form.end < form.start) {
+      setFormError('End date cannot be before start date.');
+      return;
+    }
     try {
       await apply.mutateAsync({
         employee_id: employee.id,
@@ -88,6 +96,7 @@ export default function Leave() {
         reason: form.reason,
       });
       setForm({ type: 'Casual Leave', start: '', end: '', reason: '' });
+      setFormError(null);
       setShowForm(false);
     } catch { /* error shown below */ }
   };
@@ -232,7 +241,7 @@ export default function Leave() {
             <div className="premium-card space-y-4 animate-fade-in">
               <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-900 pb-2.5">
                 <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-150">Apply for Leave</h3>
-                <button onClick={() => setShowForm(false)} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-neutral-450 cursor-pointer"><X size={15} /></button>
+                <button onClick={() => { apply.reset(); setFormError(null); setShowForm(false); }} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-neutral-450 cursor-pointer"><X size={15} /></button>
               </div>
               <form onSubmit={submit} className="space-y-3.5 text-xs">
                 <div className="space-y-1">
@@ -250,7 +259,7 @@ export default function Leave() {
                   </div>
                   <div className="space-y-1">
                     <label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">End</label>
-                    <input type="date" required value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })}
+                    <input type="date" required min={form.start || undefined} value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })}
                       className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-855 rounded-xl px-3 py-1.5 focus:outline-none focus:border-black dark:focus:border-[#0ea971]" />
                   </div>
                 </div>
@@ -259,9 +268,10 @@ export default function Leave() {
                   <textarea required rows={3} placeholder="Reason for time-off…" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })}
                     className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3.5 py-2 focus:outline-none focus:border-black dark:focus:border-[#0ea971] resize-none" />
                 </div>
+                {formError && <p className="text-xs text-red-500">{formError}</p>}
                 {apply.error && <p className="text-xs text-red-500">{apply.error.message}</p>}
                 <div className="flex space-x-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-900">
-                  <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-450 font-medium rounded-xl cursor-pointer border border-neutral-200 dark:border-neutral-800">Cancel</button>
+                  <button type="button" onClick={() => { apply.reset(); setFormError(null); setShowForm(false); }} className="flex-1 py-2 bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-700 dark:text-neutral-450 font-medium rounded-xl cursor-pointer border border-neutral-200 dark:border-neutral-800">Cancel</button>
                   <button type="submit" disabled={apply.isPending} className={btnClass('primary')}>
                     {apply.isPending && <Loader2 size={13} className="animate-spin" />} Submit
                   </button>

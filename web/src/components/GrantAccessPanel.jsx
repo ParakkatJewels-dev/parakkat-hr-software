@@ -11,6 +11,7 @@ import React, { useMemo, useState } from 'react';
 import { UserPlus, Loader2, Check, Copy, AlertTriangle, ShieldCheck, X } from 'lucide-react';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
+import { usePermissions } from '../auth/usePermissions';
 import { useVisibleOrg } from '../data/org';
 import { useGrantAppAccess, useManagedUsers } from '../data/admin';
 // Presets and the grant ceiling live in lib/ so they can be tested without pulling Supabase in
@@ -37,10 +38,10 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   const { data: managedUsers = [] } = useManagedUsers();
   const grantAccess = useGrantAppAccess();
   const { rank: myRank, assignments } = useAuth();
+  const { can } = usePermissions();
 
   // Only offer what this admin may actually grant (see grantableRoles / migrations 0044 and 0091).
-  const myRoles = useMemo(() => (assignments ?? []).map((a) => a.role), [assignments]);
-  const roleOptions = useMemo(() => grantableRoles(myRank, myRoles), [myRank, myRoles]);
+  const roleOptions = useMemo(() => grantableRoles(myRank, assignments), [myRank, assignments]);
 
   const [employeeId, setEmployeeId] = useState(fixedEmployee?.id ?? '');
   const [roleKey, setRoleKey] = useState('employee');
@@ -64,6 +65,44 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
     setOverrideScopeId('');
   };
 
+  const canGrantAt = useMemo(() => {
+    const branchById = new Map((org?.branches ?? []).map((b) => [b.id, b]));
+    return (scopeType, id) => {
+      if (!id) return false;
+      if (scopeType === 'entity') return can('rbac.manage', { entityId: id });
+      if (scopeType === 'zone') {
+        const zone = (org?.zones ?? []).find((z) => z.id === id);
+        return can('rbac.manage', { entityId: zone?.entity_id ?? null, zoneId: id });
+      }
+      if (scopeType === 'branch') {
+        const branch = branchById.get(id);
+        return can('rbac.manage', {
+          entityId: branch?.entity_id ?? null,
+          zoneId: branch?.zone_id ?? null,
+          branchId: id,
+        });
+      }
+      if (scopeType === 'department') {
+        const dept = (org?.departments ?? []).find((d) => d.id === id);
+        return can('rbac.manage', {
+          entityId: dept?.entity_id ?? null,
+          zoneId: branchById.get(dept?.branch_id)?.zone_id ?? null,
+          branchId: dept?.branch_id ?? null,
+          deptId: id,
+        });
+      }
+      return false;
+    };
+  }, [org, can]);
+
+  const employeeGrantAllowed = !employee || can('rbac.manage', {
+    entityId: employee.entity_id,
+    zoneId: employee.zone_id,
+    branchId: employee.branch_id,
+    deptId: employee.department_id,
+    employeeId: employee.id,
+  });
+
   // The area this role will apply to, read straight off the employee record.
   const derived = useMemo(() => {
     if (!employee || !preset.from) {
@@ -81,19 +120,30 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
     return { id, label: row ? `${noun}: ${fmt(row)}` : null, noun };
   }, [employee, preset, org]);
 
-  const scopeId = preset.scopeType === 'self' ? null : overrideScopeId || derived.id;
+  const derivedAllowed =
+    preset.scopeType === 'self' || !derived.id || canGrantAt(preset.scopeType, derived.id);
+  const scopeId =
+    preset.scopeType === 'self' ? null : overrideScopeId || (derivedAllowed ? derived.id : null);
   const missingArea = preset.scopeType !== 'self' && !scopeId;
 
   // Options for the manual override, matching the role's level.
   const overrideOptions = useMemo(() => {
     const map = {
-      department: (org?.departments ?? []).map((d) => ({ id: d.id, label: d.name })),
-      branch: (org?.branches ?? []).map((b) => ({ id: b.id, label: `${b.code} — ${b.name}` })),
-      zone: (org?.zones ?? []).map((z) => ({ id: z.id, label: z.name })),
-      entity: (org?.entities ?? []).map((e) => ({ id: e.id, label: e.name })),
+      department: (org?.departments ?? [])
+        .filter((d) => canGrantAt('department', d.id))
+        .map((d) => ({ id: d.id, label: d.name })),
+      branch: (org?.branches ?? [])
+        .filter((b) => canGrantAt('branch', b.id))
+        .map((b) => ({ id: b.id, label: `${b.code} — ${b.name}` })),
+      zone: (org?.zones ?? [])
+        .filter((z) => canGrantAt('zone', z.id))
+        .map((z) => ({ id: z.id, label: z.name })),
+      entity: (org?.entities ?? [])
+        .filter((e) => canGrantAt('entity', e.id))
+        .map((e) => ({ id: e.id, label: e.name })),
     };
     return map[preset.scopeType] ?? [];
-  }, [org, preset.scopeType]);
+  }, [org, preset.scopeType, canGrantAt]);
 
   // Does this person already have a login? Then we are ADDING a role, not creating an account —
   // the wording, the password field and the result screen all change accordingly.
@@ -103,9 +153,22 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   }, [employee, managedUsers]);
   const hasLogin = Boolean(existingUser || employee?.user_id);
 
+  // Follow the existing login's email when the employee already has one — you cannot give the
+  // same person a second account, and typing a different address would be silently ignored.
+  // Lock the field whenever the employee already has a login, even when list_managed_users did
+  // not return it (it only lists logins inside the caller's rbac.manage scope). Leaving it
+  // editable let an edited address create a SECOND login and re-point the employee at it,
+  // orphaning the original.
+  const emailLocked = hasLogin;
+  const effectiveEmail = existingUser?.email ?? (hasLogin ? employee?.email ?? email : email);
   const busy = grantAccess.isPending;
   const canSubmit =
-    employeeId && email.trim() && (hasLogin || password.length >= 6) && !missingArea && !busy;
+    employeeId
+    && employeeGrantAllowed
+    && String(effectiveEmail || '').trim()
+    && (hasLogin || password.length >= 6)
+    && !missingArea
+    && !busy;
 
   const submit = async () => {
     setError(null);
@@ -126,15 +189,6 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
       setError(err.message);
     }
   };
-
-  // Follow the existing login's email when the employee already has one — you cannot give the
-  // same person a second account, and typing a different address would be silently ignored.
-  // Lock the field whenever the employee already has a login, even when list_managed_users did
-  // not return it (it only lists logins inside the caller's rbac.manage scope). Leaving it
-  // editable let an edited address create a SECOND login and re-point the employee at it,
-  // orphaning the original.
-  const emailLocked = hasLogin;
-  const effectiveEmail = existingUser?.email ?? (hasLogin ? employee?.email ?? email : email);
 
   const copy = () => {
     navigator.clipboard?.writeText(`Email: ${result.email}\nPassword: ${result.password}`);
@@ -228,6 +282,11 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                     ))}
                   </select>
                 )}
+                {employee && !employeeGrantAllowed && (
+                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1.5">
+                    You do not have user-access authority for this employee's placement.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -273,6 +332,10 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                         <span>Access: <b>their own records only</b></span>
                       ) : overrideScopeId ? (
                         <span className="break-words">Manages: <b>{overrideOptions.find((o) => o.id === overrideScopeId)?.label}</b></span>
+                      ) : derived.id && !derivedAllowed ? (
+                        <span className="text-amber-600 dark:text-amber-400">
+                          You cannot grant access for this employee's {derived.noun || preset.scopeType}; choose another area below.
+                        </span>
                       ) : derived.label ? (
                         <span className="break-words">Manages: <b>{derived.label}</b></span>
                       ) : (
@@ -296,7 +359,9 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                       onChange={(e) => setOverrideScopeId(e.target.value)}
                       className={inputCls + ' cursor-pointer mt-2'}
                     >
-                      <option value="">{derived.id ? "Use the employee's own" : 'Choose…'}</option>
+                      <option value="">
+                        {derived.id && derivedAllowed ? "Use the employee's own" : 'Choose…'}
+                      </option>
                       {overrideOptions.map((o) => (
                         <option key={o.id} value={o.id}>{o.label}</option>
                       ))}
