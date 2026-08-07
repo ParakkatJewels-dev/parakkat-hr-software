@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { hasPerm, applyViewLens } from './permissionMatch.js';
-import { useViewRole } from './viewRole.js';
+import { resolveChosenRole, useViewRole } from './viewRole.js';
 
 // What an hr_manager@entity actually carries — including the employee@self grant that
 // app.tg_autogrant_ess adds automatically, which is why the lens has something to fall back to.
@@ -46,6 +46,17 @@ test('the view-role hook can render with its external-store subscription', () =>
   }
 
   assert.equal(renderToStaticMarkup(createElement(Probe)), '<span>hr_manager</span>');
+});
+
+test('a stored role choice is ignored after that role is revoked', () => {
+  assert.equal(resolveChosenRole('employee', ['hr_manager', 'employee'], 'hr_manager'), 'employee');
+  assert.equal(resolveChosenRole('employee', ['hr_manager'], null), null);
+
+  const lensed = applyViewLens(HR_MANAGER, {
+    chosenRole: resolveChosenRole('employee', ['hr_manager'], null),
+  });
+  assert.equal(lensed.viewingAsEmployee, false);
+  assert.deepEqual(lensed.list, HR_MANAGER);
 });
 
 test('as themselves, an HR manager keeps every manager gate', () => {

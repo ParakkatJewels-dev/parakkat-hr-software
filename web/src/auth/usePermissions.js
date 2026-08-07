@@ -19,7 +19,7 @@ export function usePermissions() {
     const myEmployeeId = employee?.id ?? null;
     const validChosen = resolveChosenRole(
       chosen,
-      resolveHeldRoles(assignments, isSuperAdmin, raw),
+      resolveHeldRoles(assignments, isSuperAdmin, raw, employee),
       null
     );
 

@@ -33,7 +33,7 @@ initNative();
 registerServiceWorker();
 
 // Apply the saved theme before first paint (App owns the toggle, but login/loader render outside it).
-if (localStorage.getItem('theme') !== 'light') {
+if (localStorage.getItem('theme') === 'dark') {
   document.documentElement.classList.add('dark');
 }
 

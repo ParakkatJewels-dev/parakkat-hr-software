@@ -101,8 +101,8 @@ export default function App() {
   // Every role held, most senior first, with 'employee' always available: a manager is one too, and
   // 0080 granted them attendance.punch / leave.create / expense.create / payslip.read to prove it.
   const heldRoles = useMemo(
-    () => resolveHeldRoles(assignments, isSuperAdmin, permissions),
-    [assignments, isSuperAdmin, permissions]
+    () => resolveHeldRoles(assignments, isSuperAdmin, permissions, employee),
+    [assignments, isSuperAdmin, permissions, employee]
   );
 
   // The role the app is PRESENTED as. Purely a lens — see lib/viewRole.js. canViewTab below still
@@ -166,7 +166,7 @@ export default function App() {
   );
 
   // Theme state: dark or light
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   // Command Palette trigger
   const [showCommandPalette, setShowCommandPalette] = useState(false);

@@ -1,4 +1,4 @@
--- 0094_grant_rules_do_not_drift.sql
+-- 0095_grant_rules_do_not_drift.sql
 --
 -- 0091 correctly introduced the HR grant ceiling, but it recreated app.can_grant from the older
 -- 0044 body and lost 0045's narrowed custom-role guard. The result was a function that could refuse
