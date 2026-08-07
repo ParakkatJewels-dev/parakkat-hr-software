@@ -6884,7 +6884,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .app-header-actions {
     min-width: 0;
-    gap: .125rem;
+    gap: .25rem;
     flex: 0 1 auto;
     margin-left: auto;
   }
@@ -6892,6 +6892,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .app-header-actions > button,
   .app-header-actions > div[role="status"] {
     padding-inline: .5rem;
+  }
+
+  .role-switch,
+  .header-notifications {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
   }
 
   .command-palette-input {
@@ -6927,6 +6935,22 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     padding: 0 !important;
     flex: none;
     justify-content: center;
+    border-radius: 999px !important;
+  }
+
+  .header-notifications > button {
+    display: inline-flex;
+    align-items: center;
+    background: transparent !important;
+  }
+
+  @media (hover: none) {
+    .mobile-menu-trigger:hover,
+    .mobile-search-trigger:hover,
+    .header-theme-toggle:hover,
+    .header-notifications > button:hover {
+      background: transparent !important;
+    }
   }
 
   .mobile-drawer {

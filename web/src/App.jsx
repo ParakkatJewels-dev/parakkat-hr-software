@@ -729,7 +729,7 @@ export default function App() {
         {/* Header toolbar */}
         <header className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
           {/* Mobile menu toggle & Title */}
-          <div className="app-header-title flex items-center space-x-3.5">
+          <div className="app-header-title flex items-center gap-3.5">
             <button
               onClick={() => setMobileMenuOpen(true)}
               aria-label="Open navigation menu"
@@ -750,7 +750,7 @@ export default function App() {
           </div>
 
           {/* Quick options */}
-          <div className="app-header-actions flex items-center space-x-1.5 sm:space-x-4">
+          <div className="app-header-actions flex items-center gap-1.5 sm:gap-4">
 
             {/* Ctrl + K search bar */}
             <button
