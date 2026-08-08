@@ -90,7 +90,7 @@ self.addEventListener('activate', (event) => {
       const keys = await caches.keys();
       await Promise.all(
         keys
-          .filter((key) => key.startsWith('parakkat-hr-pwa-') && key !== SHELL_CACHE && key !== RUNTIME_CACHE)
+          .filter((key) => key.startsWith('parakkat-hr-') && key !== SHELL_CACHE && key !== RUNTIME_CACHE)
           .map((key) => caches.delete(key))
       );
 

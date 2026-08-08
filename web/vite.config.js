@@ -56,6 +56,12 @@ export default defineConfig({
   define: {
     'import.meta.env.VITE_BUILD_ID': JSON.stringify(BUILD_ID),
   },
+  build: {
+    // Keep Vite's hashed JS/CSS away from the app's human /assets route. If an old chunk URL under
+    // /assets ever missed the filesystem, Vercel's SPA fallback for Asset Management could answer
+    // with index.html, which browsers reject as a module MIME mismatch.
+    assetsDir: 'app-assets',
+  },
   plugins: [
     react(),
     tailwindcss(),

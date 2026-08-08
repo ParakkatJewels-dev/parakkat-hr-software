@@ -62,7 +62,7 @@
       ]
     },
     {
-      "source": "/assets/(.*)",
+      "source": "/app-assets/(.*)",
       "headers": [
         {
           "key": "Cache-Control",
@@ -103,7 +103,6 @@
     { "source": "/performance", "destination": "/index.html" },
     { "source": "/performance/:path*", "destination": "/index.html" },
     { "source": "/assets", "destination": "/index.html" },
-    { "source": "/assets/:path*", "destination": "/index.html" },
     { "source": "/helpdesk", "destination": "/index.html" },
     { "source": "/helpdesk/:path*", "destination": "/index.html" },
     { "source": "/reports", "destination": "/index.html" },
