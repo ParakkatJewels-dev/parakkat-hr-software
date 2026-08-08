@@ -382,6 +382,22 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                 />
               </div>
 
+              {/* The dead-end, named. A login can exist while its address is visible nowhere this
+                  panel looks — list_managed_users only returns logins inside the caller's
+                  rbac.manage scope, and the employee record's email field can simply be empty.
+                  The field is locked (editing it here could mint a second account), so without
+                  this note the submit button just never enabled and nothing said why. */}
+              {hasLogin && !String(effectiveEmail || '').trim() && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5" role="alert">
+                  <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    This person already has a login, but its email address is not visible from here
+                    and their employee record has none, so the role cannot be added from this panel.
+                    Record their office email on the employee first (Directory → Edit), then return.
+                  </p>
+                </div>
+              )}
+
               {hasLogin ? (
                 <div className="flex items-start gap-2 rounded-xl border border-blue-500/25 bg-blue-500/5 p-2.5">
                   <ShieldCheck size={12} className="text-blue-500 shrink-0 mt-0.5" />

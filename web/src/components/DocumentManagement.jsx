@@ -134,7 +134,16 @@ export default function DocumentManagement() {
 
     const payload = { title: form.title, category: form.category };
     if (form.url.trim()) payload.url = form.url.trim();
-    if (form.attachSelf && employee?.id) payload.employee_id = employee.id;
+    if (form.attachSelf && employee?.id) {
+      payload.employee_id = employee.id;
+    } else if (employee?.entity_id) {
+      // "Company-wide" means THIS company. The payload used to carry no ancestry at all, and an
+      // all-null row is one only a global grant may write (0088) — so the screen's primary action
+      // ended in a raw RLS error for exactly the HR people it exists for. A super admin with no
+      // employee record still writes the all-null, genuinely org-wide row, which is their call
+      // to make.
+      payload.entity_id = employee.entity_id;
+    }
 
     try {
       await add.mutateAsync({ ...payload, file });

@@ -23,7 +23,12 @@ export function usePayslips(employeeId) {
            employee:employees(id, full_name, employee_code, branch:branches(code))`
         )
         .order('period', { ascending: false })
-        .limit(60);
+        // Two very different questions share this hook. One person's history: 60 months is five
+        // years, plenty. The oversight list: 60 rows is a QUARTER of one month's run for this
+        // company, and the pager then stated "of 60 payslips" as fact with no hint of truncation
+        // — a reviewer reconciling a run against the bank file was reconciling a sample. The
+        // ceiling stays explicit and generous rather than silent and wrong.
+        .limit(employeeId ? 60 : 5000);
       if (employeeId) q = q.eq('employee_id', employeeId);
       const { data, error } = await q;
       if (error) throw error;

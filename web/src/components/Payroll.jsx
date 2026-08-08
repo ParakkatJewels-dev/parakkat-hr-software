@@ -688,7 +688,8 @@ const BLANK = {
 function ComponentsTab() {
   // pay_components_write checks the full ancestry, unlike payroll_runs_write which stops at the
   // entity — so this helper is deliberately a different shape from RunTab's.
-  const { can } = usePermissions();
+  const { can, isSuperAdmin } = usePermissions();
+  const { employee } = useAuth();
   const canManageComponent = (c) => can('payroll.manage', {
     entityId: c.entity_id,
     zoneId: c.zone_id,
@@ -698,8 +699,18 @@ function ComponentsTab() {
   const { data: components = [] } = usePayComponents();
   const { data: org } = useVisibleOrg();
   const save = useSavePayComponent();
+
+  /**
+   * "All companies" produces entity_id = null, which pay_components_write only accepts from a
+   * GLOBAL grant (0088) — every hr_manager and entity_admin who left the default alone got a raw
+   * RLS error from the tab's primary action. A truly shared component is still a real thing, but
+   * it is a super admin's thing: only they see the option, and everyone else starts on their own
+   * company instead of on a refusal.
+   */
+  const defaultEntityId = employee?.entity_id
+    ?? ((org?.entities ?? []).length === 1 ? org.entities[0].id : '');
   const del = useDeletePayComponent();
-  const [form, setForm] = useState(BLANK);
+  const [form, setForm] = useState(() => ({ ...BLANK, entity_id: defaultEntityId }));
   const [editingId, setEditingId] = useState(null);
 
   const num = (v) => (v === '' || v == null ? null : Number(v));
@@ -725,7 +736,7 @@ function ComponentsTab() {
         branch_id: form.branch_id || null,
         display_order: Number(form.display_order) || 100,
       });
-      setForm(BLANK);
+      setForm({ ...BLANK, entity_id: defaultEntityId });
       setEditingId(null);
     } catch {
       /* surfaced below */
@@ -758,7 +769,7 @@ function ComponentsTab() {
           {editingId && (
             <button
               type="button"
-              onClick={() => { setEditingId(null); setForm(BLANK); }}
+              onClick={() => { setEditingId(null); setForm({ ...BLANK, entity_id: defaultEntityId }); }}
               className="text-neutral-400 hover:text-neutral-800 dark:hover:text-white cursor-pointer"
             >
               <X size={15} />
@@ -792,8 +803,15 @@ function ComponentsTab() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <select value={form.entity_id} onChange={(e) => setForm({ ...form, entity_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
-            <option value="">All companies</option>
+          <select
+            required={!isSuperAdmin}
+            value={form.entity_id}
+            onChange={(e) => setForm({ ...form, entity_id: e.target.value })}
+            className={INPUT + ' cursor-pointer'}
+          >
+            {isSuperAdmin
+              ? <option value="">All companies</option>
+              : <option value="" disabled>Company…</option>}
             {(org?.entities ?? []).map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}
           </select>
           <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} className={INPUT + ' cursor-pointer'}>

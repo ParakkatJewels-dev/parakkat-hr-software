@@ -29,6 +29,37 @@ export function useLeaves({ enabled = true } = {}) {
   });
 }
 
+/**
+ * Every leave touching a date range — the Reports screen's shape of the question.
+ *
+ * Deliberately NOT useLeaves with a longer window. That hook feeds activity lists, so it is
+ * bounded to recent rows on purpose; a report is bounded by the period the reader picked, and
+ * feeding it the activity window meant any month older than ~6 months summed to zero and was
+ * presented as fact. Keyed on the range so changing the month refetches.
+ */
+export function useLeavesForPeriod(from, to, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(from) && Boolean(to),
+    queryKey: ['leaves-period', from, to],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('leaves')
+        .select(
+          `id, employee_id, entity_id, zone_id, branch_id, department_id,
+           type, start_date, end_date, days, reason, status, created_at,
+           employee:employees!leaves_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
+        )
+        // Touching the range, not contained by it: a leave that straddles the month boundary
+        // belongs to both months' reports.
+        .lte('start_date', to)
+        .gte('end_date', from)
+        .limit(5000);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useApplyLeave() {
   const qc = useQueryClient();
   return useMutation({

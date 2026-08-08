@@ -20,8 +20,13 @@ const SELECT = `
   leave_type, remarks, punch_count, scheduled_in, scheduled_out, source,
   punches, break_minutes, breaks_incomplete, is_short_day, is_long_break,
   shift:shifts(id, code, name, start_time, end_time, is_flexible, full_day_minutes,
-               short_day_tolerance_minutes)
+               short_day_tolerance_minutes, break_minutes)
 `;
+// shifts.break_minutes is the day panel's break ALLOWANCE — explainDay charges only the break
+// beyond it. Left out of the embed, the allowance read as 0, every measured minute was "charged",
+// and the ledger's explanatory note stated a figure that was wrong by exactly the allowance on
+// every day with a break. The row's own break_minutes above is a different number: minutes
+// actually taken.
 // is_short_day and short_day_tolerance_minutes are not decoration. summarise() reads the stored
 // flag so the screen agrees with the engine about what "short" means, and falls back to a bare
 // `worked < full_day` comparison only for rows saved before the flag existed. Leave them out of

@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Calendar, FileText, X, Loader2, AlertTriangle } from 'lucide-react';
 import { useHolidays } from '../data/holidays';
+import { useLeaveTypes } from '../data/leaveTypes';
 import { useLeaves, useApplyLeave, useSetLeaveStatus } from '../data/leaves';
 import { useAuth } from '../auth/AuthContext';
 import { useMineOnly } from '../lib/useMineOnly';
@@ -8,7 +9,20 @@ import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 
-const LEAVE_TYPES = ['Casual Leave', 'Sick Leave', 'Earned Leave', 'Maternity Leave', 'Paternity Leave', 'Comp Off', 'Loss of Pay (LOP)'];
+/**
+ * The catalog decides what a leave is called — this file no longer does.
+ *
+ * There was a hardcoded label list here ('Casual Leave', 'Comp Off', …) and the form wrote those
+ * labels into leaves.type. But the engine joins leave_types.code = leaves.type ('CL', 'CO', …) —
+ * migration 0014 says so in its header — so no request filed from this screen ever matched a leave
+ * type: balances were never deducted, and an explicitly unpaid Loss of Pay leave was paid in full
+ * because the no-match fallback treats an unknown type as plain paid leave. The form now offers
+ * the same leave_types table the engine reads, and writes the CODE.
+ */
+const FALLBACK_TYPE_NAMES = {
+  CL: 'Casual Leave', SL: 'Sick Leave', EL: 'Earned Leave',
+  CO: 'Comp Off', MAT: 'Maternity Leave', LOP: 'Loss of Pay (LOP)',
+};
 const LEAVE_REVIEW_STATUSES = ['Pending', 'On Hold', 'Approved', 'Rejected'];
 
 const statusClass = (s) =>
@@ -51,8 +65,15 @@ export default function Leave() {
   });
   const canApply = Boolean(employee?.id); // only employee-linked logins can request leave
 
+  const { data: leaveTypes = [] } = useLeaveTypes();
+  // Codes for the form, names for the eye. The name lookup also covers rows written before this
+  // fix, which hold display labels: an unknown key falls through to the raw stored value.
+  const activeTypes = leaveTypes.filter((t) => t.is_active !== false);
+  const typeName = (code) => leaveTypes.find((t) => t.code === code)?.name
+    ?? FALLBACK_TYPE_NAMES[code] ?? code;
+
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ type: 'Casual Leave', start: '', end: '', reason: '' });
+  const [form, setForm] = useState({ type: 'CL', start: '', end: '', reason: '' });
   const [formError, setFormError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('All');
   // Self-only unless this viewer's grants reach other people. Covers a genuine employee AND a
@@ -95,7 +116,7 @@ export default function Leave() {
         days: daysBetween(form.start, form.end),
         reason: form.reason,
       });
-      setForm({ type: 'Casual Leave', start: '', end: '', reason: '' });
+      setForm({ type: 'CL', start: '', end: '', reason: '' });
       setFormError(null);
       setShowForm(false);
     } catch { /* error shown below */ }
@@ -180,7 +201,7 @@ export default function Leave() {
                   <div key={req.id} className="mobile-list-row p-4 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 text-xs hover:border-neutral-300 dark:hover:border-neutral-800">
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center space-x-2">
-                        <span className="font-bold text-neutral-855 dark:text-slate-200">{req.type}</span>
+                        <span className="font-bold text-neutral-855 dark:text-slate-200">{typeName(req.type)}</span>
                         <span className="text-2xs font-mono px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-900 text-neutral-500 rounded border border-neutral-305 dark:border-neutral-800">{req.days} days</span>
                       </div>
                       <span className="text-2xs text-neutral-500 block truncate">
@@ -211,7 +232,7 @@ export default function Leave() {
                             }
                           }}
                           disabled={setStatus.isPending}
-                          aria-label={`Change status for ${req.employee?.full_name || req.type}`}
+                          aria-label={`Change status for ${req.employee?.full_name || typeName(req.type)}`}
                           title="Change leave status"
                           className="min-w-24 rounded-lg border border-neutral-200 bg-white px-2 py-1 text-2xs font-bold text-neutral-700 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-200 disabled:opacity-50"
                         >
@@ -248,7 +269,11 @@ export default function Leave() {
                   <label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">Leave Type</label>
                   <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
                     className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3.5 py-2 focus:outline-none focus:border-black dark:focus:border-[#0ea971] cursor-pointer font-medium">
-                    {LEAVE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    {activeTypes.map((t) => (
+                      <option key={t.code} value={t.code}>
+                        {t.name}{t.is_paid === false ? ' — unpaid' : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

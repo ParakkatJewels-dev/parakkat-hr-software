@@ -11,9 +11,9 @@ import {
 } from 'lucide-react';
 import { useVisibleOrg } from '../data/org';
 import { useEmployees } from '../data/employees';
-import { useLeaves } from '../data/leaves';
+import { useLeavesForPeriod } from '../data/leaves';
 import { useLeaveTypes, useLeaveBalances } from '../data/leaveTypes';
-import { useExpenses } from '../data/expenses';
+import { useExpensesForPeriod } from '../data/expenses';
 import { useExits } from '../data/exits';
 import { useAttendanceReport } from '../data/reports';
 import { todayIso, fmtMinutes, monthRange } from '../data/attendance';
@@ -143,7 +143,9 @@ export default function ReportsAnalytics() {
   const exportError = exportRegister.error || exportPayroll.error;
 
   // ---- leave ----
-  const { data: leaves = [] } = useLeaves({ enabled: tab === 'leave' });
+  // Bounded by the PICKED period, not by recent activity — the activity hook stops 180 days
+  // back, so older months summed to zero and the report presented that as fact.
+  const { data: leaves = [] } = useLeavesForPeriod(from, to, { enabled: tab === 'leave' });
   const { data: leaveTypes = [] } = useLeaveTypes();
   const { data: allBalances = [] } = useLeaveBalances(null, year, { all: tab === 'leave' });
   const periodLeaves = leaves.filter(
@@ -173,7 +175,7 @@ export default function ReportsAnalytics() {
   }, [allBalances, branchId, employees]);
 
   // ---- expenses ----
-  const { data: expenses = [] } = useExpenses({ enabled: tab === 'expenses' });
+  const { data: expenses = [] } = useExpensesForPeriod(from, to, { enabled: tab === 'expenses' });
   const periodExpenses = expenses.filter(
     (e) => (e.expense_date || '') >= from && (e.expense_date || '') <= to && inBranch(e.employee?.branch_id)
   );

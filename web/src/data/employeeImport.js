@@ -165,8 +165,14 @@ export function planImport(people, { existingByName, existingByCode, branches, d
       for (const f of UPDATABLE) {
         const incoming = p[f];
         if (incoming === '' || incoming == null) continue;
+        // Unknown is not blank. The roster this plan compares against is the LIST select, which
+        // no longer carries the statutory and banking columns — for those, `match[f]` is not a
+        // null value but a missing key. Treating that as "blank, fill it in" silently overwrote
+        // PAN, Aadhaar and bank details the database already held, while the preview promised it
+        // was only filling gaps. A column we did not fetch is a column we may not judge.
+        if (!(f in match)) continue;
         const current = match[f];
-        if (current === null || current === undefined || current === '') updates[f] = incoming;
+        if (current === null || current === '') updates[f] = incoming;
       }
       const n = Object.keys(updates).length;
       status = n ? 'update' : 'skip';
@@ -203,7 +209,14 @@ export function planImport(people, { existingByName, existingByCode, branches, d
  * Write the plan. Creates missing branches and designations first, then the people.
  * `onProgress(done, total)` is called as it goes — 242 inserts is not instant.
  */
-export async function runImport({ entityId, entityCode, rows, onProgress }) {
+/**
+ * @param createOrg  May this caller create branches and designations the sheet names but the
+ *   company lacks? Both inserts need org.manage, which hr_manager does not hold — and the run
+ *   used to attempt them regardless, dying on a raw RLS error midway with the update phase
+ *   already written. Without the permission the run now skips creation: those people are still
+ *   imported, placed nowhere, and the preview says so before anything is written.
+ */
+export async function runImport({ entityId, entityCode, rows, onProgress, createOrg = true }) {
   const todo = rows.filter((r) => r.status === 'new');
   const edits = rows.filter((r) => r.status === 'update' && r.matchId);
   if (!todo.length && !edits.length) return { created: 0, updated: 0, branches: 0, designations: 0 };
@@ -232,7 +245,7 @@ export async function runImport({ entityId, entityCode, rows, onProgress }) {
   const branchByCode = new Map((haveBranches ?? []).map((b) => [b.code.toUpperCase(), b.id]));
 
   const missingBranches = [...new Set(todo.map((r) => r.branch).filter((b) => b && !branchByCode.has(b)))];
-  if (missingBranches.length) {
+  if (createOrg && missingBranches.length) {
     const { data, error } = await supabase.from('branches')
       .insert(missingBranches.map((code) => ({ entity_id: entityId, code }))).select('id, code');
     if (error) throw new Error(`Could not create branches: ${error.message}`);
@@ -245,7 +258,7 @@ export async function runImport({ entityId, entityCode, rows, onProgress }) {
   const titleByName = new Map((haveTitles ?? []).map((d) => [d.title.toUpperCase(), d.id]));
 
   const missingTitles = [...new Set(todo.map((r) => r.designation).filter((t) => t && !titleByName.has(t.toUpperCase())))];
-  if (missingTitles.length) {
+  if (createOrg && missingTitles.length) {
     const { data, error } = await supabase.from('designations')
       .insert(missingTitles.map((title) => ({ entity_id: entityId, title }))).select('id, title');
     if (error) throw new Error(`Could not create designations: ${error.message}`);

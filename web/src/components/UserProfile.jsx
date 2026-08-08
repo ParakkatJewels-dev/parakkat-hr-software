@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useEmployeeAvatars } from '../data/documents';
-import { useEmployees } from '../data/employees';
+import { useEmployee } from '../data/employees';
 import { useEmployeeAssets } from '../data/assets';
 import { useUpdateMyProfile } from '../data/settings';
 
@@ -158,9 +158,13 @@ function ProfileLoading() {
 export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) {
   const { employee, user } = useAuth();
   const linkedEmployee = Boolean(employee?.id);
-  const employeeQuery = useEmployees({ enabled: linkedEmployee });
-  const record =
-    employeeQuery.data?.find((person) => person.id === employee?.id) || employee || null;
+  // The DETAIL row, not the roster. This used to find its record in useEmployees(), whose list
+  // select stopped carrying the personal, emergency and statutory columns — so every field this
+  // page exists to show ("Personal email", "Blood group", the emergency contact…) rendered
+  // "Not on file" even when HR had filled it in, and told the reader to go ask HR for data HR
+  // had already recorded. One person, one row: fetch exactly that.
+  const employeeQuery = useEmployee(employee?.id, { enabled: linkedEmployee });
+  const record = employeeQuery.data || employee || null;
   const { data: avatars = {} } = useEmployeeAvatars(record?.id ? [record.id] : []);
   const updateProfile = useUpdateMyProfile();
 

@@ -235,10 +235,19 @@ export default function Directory() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const selectedEmpId = pathname.replace(/^\/+|\/+$/g, '').split('/')[1] || null;
-  const selectedEmp = useMemo(
-    () => (selectedEmpId ? employees.find((e) => e.id === selectedEmpId) ?? null : null),
-    [employees, selectedEmpId]
-  );
+  // The roster query is the LIST select — names, codes, placement — and deliberately not the
+  // personal, statutory or banking columns. The profile shows all of those, so it needs the
+  // detail row; rendered from the list row alone every one of them reads "Not recorded", which
+  // is indistinguishable from HR never having filed them. The list row still goes first so the
+  // header paints instantly, and the detail fills in underneath it when the fetch lands.
+  const selectedEmpDetail = useEmployee(selectedEmpId);
+  const selectedEmp = useMemo(() => {
+    if (!selectedEmpId) return null;
+    const listRow = employees.find((e) => e.id === selectedEmpId) ?? null;
+    const detail = selectedEmpDetail.data;
+    if (detail && detail.id === selectedEmpId) return { ...listRow, ...detail };
+    return listRow;
+  }, [employees, selectedEmpId, selectedEmpDetail.data]);
   const setSelectedEmp = useCallback(
     (emp) => navigate(emp?.id ? `/directory/${emp.id}` : '/directory', { replace: !emp?.id }),
     [navigate]
@@ -523,12 +532,15 @@ export default function Directory() {
   if (selectedEmp) {
     return (
       <div className="page-shell space-y-5 animate-fade-in">
+        {/* No onDone on purpose: the panel fires it the moment the grant SUCCEEDS, before its own
+            result screen renders — and that screen is the only place the one-time password is
+            ever shown. Unmounting on done created working logins whose password nobody had seen.
+            The person closes the panel themselves, from the result screen, via onClose. */}
         {grantFor && (
           <GrantAccessPanel
             key={grantFor.id}
             employee={grantFor}
             onClose={() => setGrantFor(null)}
-            onDone={() => setGrantFor(null)}
           />
         )}
         <ProfileDrawer
@@ -606,7 +618,6 @@ export default function Directory() {
           key={grantFor.id}
           employee={grantFor}
           onClose={() => setGrantFor(null)}
-          onDone={() => setSelectedEmp(null)}
         />
       )}
 

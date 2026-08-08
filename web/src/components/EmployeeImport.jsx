@@ -28,6 +28,8 @@ export default function EmployeeImport({ onDone }) {
   const { data: org } = useVisibleOrg();
   const { data: employees = [] } = useEmployees();
   const { canAny, isSuperAdmin } = usePermissions();
+  // Creating branches/designations mid-import needs org.manage; see runImport.
+  const canCreateOrg = canAny('org.manage');
   const qc = useQueryClient();
 
   const [file, setFile] = useState(null);
@@ -88,6 +90,7 @@ export default function EmployeeImport({ onDone }) {
         entityCode: entity.code,
         rows: plan.rows,
         onProgress: (done, total) => setProgress({ done, total }),
+        createOrg: canCreateOrg,
       });
       setResult({ ok: true, ...res });
       qc.invalidateQueries({ queryKey: ['employees'] });
@@ -211,6 +214,22 @@ export default function EmployeeImport({ onDone }) {
 
               {plan && (
                 <>
+                  {/* Said before the run, not discovered during it: the run used to attempt these
+                      inserts regardless and die midway on the RLS refusal, updates already
+                      written. Now it skips them — and the skip is announced here. */}
+                  {!canCreateOrg && (plan.counts.newBranches > 0 || plan.counts.newDesignations > 0) && (
+                    <div className="premium-card border-amber-300 dark:border-amber-900/60" role="alert">
+                      <p className="text-xs text-amber-700 dark:text-amber-300">
+                        This sheet names {[
+                          plan.counts.newBranches ? `${plan.counts.newBranches} branch${plan.counts.newBranches === 1 ? '' : 'es'}` : null,
+                          plan.counts.newDesignations ? `${plan.counts.newDesignations} designation${plan.counts.newDesignations === 1 ? '' : 's'}` : null,
+                        ].filter(Boolean).join(' and ')} this company does not have yet, and creating
+                        those needs organisation permission you do not hold. Everyone will still be
+                        imported — the people concerned just arrive without that placement, ready to
+                        be placed once an admin adds it in Organization.
+                      </p>
+                    </div>
+                  )}
                   <div className="premium-card import-plan-card">
                     {[
                       ['Will be created', plan.counts.create, 'text-[#0c9765] dark:text-[#10b981]'],

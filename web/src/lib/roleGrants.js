@@ -109,10 +109,16 @@ export function maxGrantableRank(myRank, myRoles = []) {
     })
     .filter((rank) => rank != null);
 
-  // Anything unrecognised without a rank — or no roles at all — is answered by seniority, the 0044
-  // rule: strictly below your own level. Runtime assignments include rank from get_my_access(); the
-  // fallback keeps older tests and super_admin's pseudo-role working.
-  if (ceilings.length !== roles.length || roles.length === 0) ceilings.push(myRank - 1);
+  // Seniority always speaks too — the 0044 rule: strictly below your own level. Not only a
+  // fallback for unrecognised roles: for a super admin it is the whole answer, because their rank
+  // (1000) comes from the is_super_admin flag and not from any assignment, while their one
+  // visible assignment is often employee@self (auto-granted to every login linked to an employee
+  // record). Deriving the ceiling from held roles alone read that person as an employee — ceiling
+  // 9, zero offerable roles, and a grant form silently falling back to employee. The SQL mirror
+  // (0091 app.max_grantable_rank) never had this hole; its else-branch is max_role_rank() - 1,
+  // and this line is what keeps the two rules the same rule. The HR cap is unaffected — it
+  // returned above, before seniority is consulted.
+  ceilings.push(myRank - 1);
 
   return Math.max(...ceilings);
 }

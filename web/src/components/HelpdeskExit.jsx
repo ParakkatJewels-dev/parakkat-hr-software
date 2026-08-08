@@ -50,6 +50,14 @@ export default function HelpdeskExit() {
   const canSeeExits = canBeyondSelf('exit.manage') || canRequestExit;
 
   const { data: exits = [] } = useExits();
+  // The same lens the tickets list already honours, applied to separations too. RLS answers to
+  // the ACCOUNT, so an entity admin who switched to "Employee" still received every separation in
+  // the entity — names, last working days, clearance status — on a screen presenting itself as
+  // self-service. Hiding the controls is not hiding the rows; this narrows the rows.
+  const exitsMineOnly = viewingAsEmployee || !canBeyondSelf('exit.manage');
+  const visibleExits = exitsMineOnly
+    ? exits.filter((x) => x.employee?.id === employee?.id)
+    : exits;
   const [showForm, setShowForm] = useState(false);
   const [showExitForm, setShowExitForm] = useState(false);
   const [form, setForm] = useState({ category: 'IT Support', subject: '', priority: 'Medium' });
@@ -228,11 +236,11 @@ export default function HelpdeskExit() {
                 Your exit request is already in progress. Last working day: {myOpenExit.last_day || 'not set yet'}.
               </p>
             )}
-            {exits.length === 0 ? (
+            {visibleExits.length === 0 ? (
               <p className="text-neutral-500 py-6 text-center">No exit records visible to you.</p>
             ) : (
             <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
-              {exits.map((ext) => (
+              {visibleExits.map((ext) => (
                 <div key={ext.id} className="p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl space-y-3">
                   <div className="mobile-list-row flex justify-between items-start">
                     <div>

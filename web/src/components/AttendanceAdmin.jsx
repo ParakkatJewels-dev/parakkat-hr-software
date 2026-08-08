@@ -23,6 +23,7 @@ import {
 import { useVisibleOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
 import { usePermissions } from '../auth/usePermissions';
+import { useAuth } from '../auth/AuthContext';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useUrlTab } from '../lib/useUrlTab';
@@ -386,9 +387,25 @@ const BLANK_SHIFT = {
 
 function ShiftsTab() {
   const { data: shifts = [], isLoading } = useShifts();
+  const { data: org } = useVisibleOrg();
+  const { employee } = useAuth();
+  const { isSuperAdmin } = usePermissions();
   const save = useSaveShift();
   const remove = useDeleteShift();
   const [form, setForm] = useState(null);
+
+  /**
+   * Which company a new shift belongs to.
+   *
+   * The form used to carry no entity at all, so every create posted entity_id = null — and since
+   * 0088 a null-entity shift needs a GLOBAL grant, a scope hr_manager and entity_admin are
+   * structurally barred from. Their primary action on this tab was a guaranteed raw RLS error.
+   * A shared (all-companies) shift is still real and still allowed — but it is a super admin's
+   * decision, so only they see that option; everyone else creates for a company they hold, with
+   * their own preselected.
+   */
+  const entities = org?.entities ?? [];
+  const defaultEntityId = employee?.entity_id ?? (entities.length === 1 ? entities[0].id : '');
 
   // Mirrors the shifts_full_day_reachable_check constraint, so the user sees the problem while
   // typing instead of getting a database error on save.
@@ -417,7 +434,7 @@ function ShiftsTab() {
           A shift defines the scheduled window, the grace either side, the unpaid break, and the
           weekly offs. Employees without an explicit assignment fall back to the default shift.
         </p>
-        <button onClick={() => setForm({ ...BLANK_SHIFT })} className={btnPrimary}>
+        <button onClick={() => setForm({ ...BLANK_SHIFT, entity_id: defaultEntityId })} className={btnPrimary}>
           <Plus size={13} /> New shift
         </button>
       </div>
@@ -425,6 +442,19 @@ function ShiftsTab() {
       {form && (
         <form onSubmit={submit} className="premium-card space-y-3 animate-fade-in">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <label className={label}>Company
+              <select
+                required={!isSuperAdmin}
+                value={form.entity_id ?? ''}
+                onChange={(e) => setForm({ ...form, entity_id: e.target.value })}
+                className={input + ' cursor-pointer'}
+              >
+                {isSuperAdmin
+                  ? <option value="">All companies (shared)</option>
+                  : <option value="" disabled>Select…</option>}
+                {entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}
+              </select>
+            </label>
             <label className={label}>Code
               <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} className={input} />
             </label>
@@ -702,6 +732,19 @@ function LeaveTypesTab() {
       {form && (
         <form onSubmit={submit} className="premium-card space-y-3 animate-fade-in">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <label className={label}>Company
+              <select
+                required={!isSuperAdmin}
+                value={form.entity_id ?? ''}
+                onChange={(e) => setForm({ ...form, entity_id: e.target.value })}
+                className={input + ' cursor-pointer'}
+              >
+                {isSuperAdmin
+                  ? <option value="">All companies (shared)</option>
+                  : <option value="" disabled>Select…</option>}
+                {entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}
+              </select>
+            </label>
             <label className={label}>Code
               <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} className={input} />
             </label>

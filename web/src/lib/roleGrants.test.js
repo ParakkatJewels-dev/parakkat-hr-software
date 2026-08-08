@@ -59,3 +59,14 @@ test('a role this module does not know falls back to the rank the database gave 
 test('nobody is ever offered super_admin, whatever they hold', () => {
   assert.ok(!keys(1000, ['super_admin']).includes('super_admin'));
 });
+
+// The hole seniority-always-speaks closes: a super admin's rank comes from the flag, not from an
+// assignment, and their one visible assignment is often the auto-granted employee@self. Reading
+// the ceiling off held roles alone demoted them to an employee's ceiling — zero offerable roles.
+test('a super admin holding only the auto-granted employee@self role keeps their full ceiling', () => {
+  assert.equal(maxGrantableRank(1000, ['employee']), 999);
+  assert.deepEqual(
+    keys(1000, ['employee']),
+    ['employee', 'dept_head', 'branch_manager', 'zonal_manager', 'hr_manager', 'entity_admin']
+  );
+});

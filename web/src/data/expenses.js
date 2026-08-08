@@ -28,6 +28,28 @@ export function useExpenses({ enabled = true } = {}) {
   });
 }
 
+/** Every claim dated inside the range — the Reports screen's question. See useLeavesForPeriod. */
+export function useExpensesForPeriod(from, to, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(from) && Boolean(to),
+    queryKey: ['expenses-period', from, to],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select(
+          `id, category, amount, expense_date, description, status, created_at,
+           entity_id, zone_id, branch_id, department_id, employee_id,
+           employee:employees!expenses_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
+        )
+        .gte('expense_date', from)
+        .lte('expense_date', to)
+        .limit(5000);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
 export function useAddExpense() {
   const qc = useQueryClient();
   return useMutation({
