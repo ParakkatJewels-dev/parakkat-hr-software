@@ -634,69 +634,61 @@ function CalendarView({ employeeId, employeeName }) {
       </div>
 
       {selected ? (
-        <>
-          <button
-            type="button"
-            className="attendance-day-scrim"
-            onClick={() => setSelected(null)}
-            aria-label="Close day punches"
-          />
-          <div className="premium-card attendance-day-detail space-y-3 animate-fade-in">
-            <div className="attendance-day-detail-head">
-              <div>
-                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
-                  {selected}
-                </h4>
-                <p className="mt-0.5 text-xs text-neutral-500">Punch timeline</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-500"
-                aria-label="Close day punches"
-              >
-                <XCircle size={15} />
-              </button>
+        <div className="premium-card attendance-day-detail space-y-3 animate-fade-in">
+          <div className="attendance-day-detail-head">
+            <div>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
+                {selected}
+              </h4>
+              <p className="mt-0.5 text-xs text-neutral-500">Punch timeline</p>
             </div>
-
-            {selectedRow ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                <div>
-                  <div className="text-2xs text-neutral-400 uppercase">Status</div>
-                  <StatusBadge status={selectedRow.status} isLop={selectedRow.is_lop} />
-                </div>
-                <div>
-                  <div className="text-2xs text-neutral-400 uppercase">In / Out</div>
-                  <span className="font-mono">{fmtTime(selectedRow.check_in)} – {fmtTime(selectedRow.check_out)}</span>
-                </div>
-                <div>
-                  <div className="text-2xs text-neutral-400 uppercase">Worked</div>
-                  <span className="font-mono">{fmtMinutes(selectedRow.worked_minutes)}</span>
-                </div>
-                <div>
-                  <div className="text-2xs text-neutral-400 uppercase">Overtime</div>
-                  <span className="font-mono">{fmtMinutes(selectedRow.ot_minutes)}</span>
-                </div>
-                {selectedRow.remarks ? (
-                  <div className="col-span-full text-xs text-neutral-500">{selectedRow.remarks}</div>
-                ) : null}
-              </div>
-            ) : (
-              <p className="text-xs text-neutral-500">This date has not been processed by the engine.</p>
-            )}
-
-            <div className="soft-divider" />
-            {punchTimes.length > 0 ? (
-              <PunchTimeline
-                punches={punchTimes}
-                breakMinutes={selectedRow?.break_minutes}
-                incomplete={selectedRow?.breaks_incomplete}
-              />
-            ) : (
-              <p className="text-xs text-neutral-500">No punches recorded around this date.</p>
-            )}
+            <button
+              type="button"
+              onClick={() => setSelected(null)}
+              className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-500"
+              aria-label="Close day punches"
+            >
+              <XCircle size={15} />
+            </button>
           </div>
-        </>
+
+          {selectedRow ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <div className="text-2xs text-neutral-400 uppercase">Status</div>
+                <StatusBadge status={selectedRow.status} isLop={selectedRow.is_lop} />
+              </div>
+              <div>
+                <div className="text-2xs text-neutral-400 uppercase">In / Out</div>
+                <span className="font-mono">{fmtTime(selectedRow.check_in)} – {fmtTime(selectedRow.check_out)}</span>
+              </div>
+              <div>
+                <div className="text-2xs text-neutral-400 uppercase">Worked</div>
+                <span className="font-mono">{fmtMinutes(selectedRow.worked_minutes)}</span>
+              </div>
+              <div>
+                <div className="text-2xs text-neutral-400 uppercase">Overtime</div>
+                <span className="font-mono">{fmtMinutes(selectedRow.ot_minutes)}</span>
+              </div>
+              {selectedRow.remarks ? (
+                <div className="col-span-full text-xs text-neutral-500">{selectedRow.remarks}</div>
+              ) : null}
+            </div>
+          ) : (
+            <p className="text-xs text-neutral-500">This date has not been processed by the engine.</p>
+          )}
+
+          <div className="soft-divider" />
+          {punchTimes.length > 0 ? (
+            <PunchTimeline
+              punches={punchTimes}
+              breakMinutes={selectedRow?.break_minutes}
+              incomplete={selectedRow?.breaks_incomplete}
+            />
+          ) : (
+            <p className="text-xs text-neutral-500">No punches recorded around this date.</p>
+          )}
+        </div>
       ) : null}
 
       <div className="premium-card overflow-hidden">

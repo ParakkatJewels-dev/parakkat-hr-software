@@ -830,10 +830,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: none;
   }
 
-  .attendance-day-scrim {
-    display: none;
-  }
-
   .attendance-day-detail-head {
     display: flex;
     align-items: flex-start;
@@ -6728,50 +6724,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     font-size: .72rem;
   }
 
-  main .attendance-day-scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 66;
-    display: block;
-    border: 0;
-    border-radius: 0;
-    background: rgba(8, 13, 11, .38);
-    padding: 0;
-  }
-
   main .attendance-day-detail {
-    position: fixed;
-    right: max(.65rem, env(safe-area-inset-right));
-    bottom: calc(var(--mobile-nav-clearance, calc(var(--mobile-nav-height) + env(safe-area-inset-bottom) + .75rem)) + .25rem);
-    left: max(.65rem, env(safe-area-inset-left));
-    z-index: 67;
-    max-height: min(68dvh, 30rem);
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    border-radius: var(--radius-card);
-    box-shadow: 0 -18px 52px rgba(16, 32, 26, .32);
-    animation: attendance-day-sheet-in .2s ease both;
+    overflow: hidden;
   }
 
-  main .attendance-day-detail::before {
-    content: '';
-    display: block;
-    width: 2.3rem;
-    height: .24rem;
-    margin: 0 auto .7rem;
-    border-radius: 999px;
-    background: var(--surface-border-strong);
-  }
-
-  @keyframes attendance-day-sheet-in {
-    from { transform: translateY(1.25rem); opacity: 0; }
-    to { transform: none; opacity: 1; }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    main .attendance-day-detail {
-      animation: none;
-    }
+  main .attendance-day-detail .soft-divider + div,
+  main .attendance-day-detail [role="img"] {
+    min-width: 0;
   }
 
   main .dashboard-widget {
