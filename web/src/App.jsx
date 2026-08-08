@@ -51,6 +51,7 @@ const MOBILE_NAV_LABELS = {
   dashboard: 'Home',
   attendance: 'Time',
   leave: 'Leave',
+  payroll: 'Pay',
   tasks: 'Tasks',
   performance: 'Goals',
   home: 'Home',
@@ -285,14 +286,14 @@ export default function App() {
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: null },
         { id: 'attendance', label: 'My Attendance', icon: Clock, perm: 'attendance.read' },
         { id: 'leave', label: 'My Leave', icon: Calendar, perm: 'leave.read' },
+        { id: 'payroll', label: 'My Payslips', icon: DollarSign, perm: 'payslip.read' },
         { id: 'tasks', label: 'My Tasks', icon: ListChecks, perm: 'task.read' },
         // The employee role holds goal.read AND goal.update — goals are something they are meant to
         // keep up to date, not just something managers set. Without this the screen existed only at
         // /performance, reachable by typing the URL, so in practice nobody used it.
         { id: 'performance', label: 'My Goals', icon: Target, perm: 'goal.read' },
-        { id: 'payroll', label: 'My Payslips', icon: DollarSign, perm: 'payslip.read' },
-        { id: 'my-assets', label: 'My Assets', icon: Boxes, perm: 'asset.read' },
         { id: 'expense', label: 'My Expenses', icon: Receipt, perm: 'expense.read' },
+        { id: 'my-assets', label: 'My Assets', icon: Boxes, perm: 'asset.read' },
         { id: 'documents', label: 'My Documents', icon: FolderOpen, perm: 'document.read' }
       ]
     },
@@ -599,9 +600,49 @@ export default function App() {
    * So sections that hold more than one screen list them. Single-screen sections stay one line —
    * repeating "Assets / Assets" would be noise, not navigation.
    */
-  const renderMobileNavTree = () => (
-    <div className="mobile-nav-tree">
-      {visibleSections.map((sec) => {
+  const renderEmployeeMobileNavTree = () => {
+    const primaryIds = new Set(mobilePrimarySections.map((sec) => sec.id));
+    const groups = [
+      { title: 'Today', sections: mobilePrimarySections },
+      { title: 'More', sections: visibleSections.filter((sec) => !primaryIds.has(sec.id)) },
+    ].filter((group) => group.sections.length > 0);
+
+    return (
+      <div className="mobile-nav-tree employee-more-nav">
+        {groups.map((group) => (
+          <div key={group.title} className="employee-more-group">
+            <p>{group.title}</p>
+            <div className="employee-more-grid">
+              {group.sections.map((sec) => {
+                const Icon = sec.icon;
+                const sectionActive = activeSection?.id === sec.id;
+                const label = MOBILE_NAV_LABELS[sec.id] ?? sec.label;
+                return (
+                  <button
+                    key={sec.id}
+                    type="button"
+                    onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
+                    aria-current={sectionActive ? 'page' : undefined}
+                    className="employee-more-tile"
+                  >
+                    <Icon size={17} />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  const renderMobileNavTree = () => {
+    if (primaryRole === 'employee') return renderEmployeeMobileNavTree();
+
+    return (
+      <div className="mobile-nav-tree">
+        {visibleSections.map((sec) => {
         const Icon = sec.icon;
         const sectionActive = activeSection?.id === sec.id;
         const screens = sec.tabs.length > 1 ? sec.tabs : [];
@@ -639,8 +680,9 @@ export default function App() {
           </div>
         );
       })}
-    </div>
-  );
+      </div>
+    );
+  };
 
   return (
     <div className="app-shell flex h-dvh w-full overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-charcoal-900 dark:text-warm-gray-100 relative transition-colors duration-250">

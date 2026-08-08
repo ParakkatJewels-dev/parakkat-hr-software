@@ -9,7 +9,7 @@ import {
   Users, Building2, CalendarDays, ReceiptText, LifeBuoy, Network, ListChecks,
   Clock, Target, UserCheck, Briefcase, Shield, BarChart3, DoorOpen, UserPlus,
   Fingerprint, DollarSign, CalendarCheck2, ArrowRight,
-  AlertTriangle, CheckCircle2,
+  AlertTriangle, CheckCircle2, Boxes, FolderOpen,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
@@ -27,7 +27,7 @@ import { useAttendanceSummary, useMonthlyAttendance, todayIso } from '../data/at
 import { useLeaveBalances } from '../data/leaveTypes';
 import { KpiRow, NotificationsStrip, HolidaysCard, QuickActions, inr } from './dashboard/shared';
 import {
-  PunchCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, EssSection,
+  EmployeeTodayHero, PunchCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, EssSection,
 } from './dashboard/selfWidgets';
 import {
   TeamAttendanceToday, ApprovalsQueue, OnLeaveThisWeek, TeamTickets, TeamAssets, TeamTasksBoard,
@@ -435,22 +435,19 @@ function TodayPriorities({ role, onNavigate }) {
 function EmployeeDashboard({ onNavigate, actions }) {
   return (
     <>
-      <EssKpis onNavigate={onNavigate} />
-      <TodayPriorities role="employee" onNavigate={onNavigate} />
+      <EmployeeTodayHero onNavigate={onNavigate} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <PunchCard onNavigate={onNavigate} />
-        <MyMonthCard onNavigate={onNavigate} />
         <MyLeaveBalances onNavigate={onNavigate} />
+        <MyPayslip onNavigate={onNavigate} />
       </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <MyRequests onNavigate={onNavigate} />
+        <MyMonthCard onNavigate={onNavigate} />
         <MyTasks onNavigate={onNavigate} />
-        <div className="space-y-4">
-          <MyPayslip onNavigate={onNavigate} />
-          <HolidaysCard showAnniversaries={false} onNavigate={onNavigate} />
-        </div>
+        <MyRequests onNavigate={onNavigate} />
       </div>
       <QuickActions actions={actions} onNavigate={onNavigate} />
+      <HolidaysCard showAnniversaries={false} onNavigate={onNavigate} />
     </>
   );
 }
@@ -633,10 +630,12 @@ function useQuickActions(role) {
     org: canAny('org.manage') && { label: 'Org Hierarchy', tab: 'organization', icon: Network },
     applyLeave: canAny('leave.create') && { label: 'Apply for Leave', tab: 'leave', icon: CalendarDays },
     submitExpense: canAny('expense.create') && { label: 'Submit Expense', tab: 'expense', icon: ReceiptText },
-    raiseTicket: canAny('ticket.create') && { label: 'Raise a Ticket', tab: 'helpdesk', icon: LifeBuoy },
-    tasks: canAny('task.read') && { label: 'Tasks', tab: 'tasks', icon: ListChecks },
-    attendance: canAny('attendance.read') && { label: 'Attendance Logs', tab: 'attendance', icon: Clock },
-    payroll: canAny('payslip.read') && { label: 'Payroll', tab: 'payroll', icon: DollarSign },
+    raiseTicket: canAny('ticket.create') && { label: 'Help Request', tab: 'helpdesk', icon: LifeBuoy },
+    tasks: canAny('task.read') && { label: 'My Tasks', tab: 'tasks', icon: ListChecks },
+    attendance: canAny('attendance.read') && { label: 'My Attendance', tab: 'attendance', icon: Clock },
+    payroll: canAny('payslip.read') && { label: 'My Payslips', tab: 'payroll', icon: DollarSign },
+    myAssets: canAny('asset.read') && { label: 'My Assets', tab: 'my-assets', icon: Boxes },
+    documents: canAny('document.read') && { label: 'My Documents', tab: 'documents', icon: FolderOpen },
     reports: canAny('report.read') && { label: 'Reports & Analytics', tab: 'reports', icon: BarChart3 },
     performance: canAny('performance.manage') && { label: 'PMS Performance', tab: 'performance', icon: Target },
     recruitment: canAny('recruitment.manage') && { label: 'Recruit Hub', tab: 'recruitment', icon: Briefcase },
@@ -646,7 +645,7 @@ function useQuickActions(role) {
   };
 
   const order = {
-    employee: ['applyLeave', 'submitExpense', 'raiseTicket', 'tasks', 'attendance', 'payroll'],
+    employee: ['attendance', 'applyLeave', 'payroll', 'tasks', 'submitExpense', 'myAssets', 'documents', 'raiseTicket'],
     dept_head: ['reviewLeaves', 'tasks', 'performance', 'attendance', 'directory', 'raiseTicket'],
     branch_manager: ['reviewLeaves', 'reviewExpenses', 'attendance', 'tasks', 'directory', 'raiseTicket'],
     zonal_manager: ['reviewLeaves', 'reviewExpenses', 'reports', 'attendance', 'directory', 'tasks'],

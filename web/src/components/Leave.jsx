@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, FileText, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Calendar, FileText, X, Loader2, AlertTriangle, CheckCircle2, Clock, Plus } from 'lucide-react';
 import { useHolidays } from '../data/holidays';
-import { useLeaveTypes } from '../data/leaveTypes';
+import { useLeaveBalances, useLeaveTypes } from '../data/leaveTypes';
 import { useLeaves, useApplyLeave, useSetLeaveStatus } from '../data/leaves';
 import { useAuth } from '../auth/AuthContext';
 import { useMineOnly } from '../lib/useMineOnly';
@@ -43,13 +43,65 @@ function daysBetween(a, b) {
   return Math.ceil((d2 - d1) / 86400000) + 1;
 }
 
+function MyLeaveHero({ balances, stats, canApply, onApply, onFilter }) {
+  const available = balances.reduce((n, b) => n + Number(b.available || 0), 0);
+  const nextBalance = balances
+    .slice()
+    .sort((a, b) => Number(b.available || 0) - Number(a.available || 0))[0];
+
+  return (
+    <section className="premium-card self-service-hero">
+      <div className="self-service-hero-copy">
+        <span className="self-service-eyebrow">My leave</span>
+        <h2>{available > 0 ? `${available} day${available === 1 ? '' : 's'} available` : 'Leave balance'}</h2>
+        <p>
+          {nextBalance
+            ? `${nextBalance.leave_type?.name || nextBalance.leave_type?.code} has ${Number(nextBalance.available || 0)} day${Number(nextBalance.available || 0) === 1 ? '' : 's'} left.`
+            : 'Apply for time off and track every request from here.'}
+        </p>
+      </div>
+      <div className="self-service-hero-stats">
+        <button type="button" onClick={() => onFilter('All')}>
+          <span>Requests</span>
+          <strong>{stats.total}</strong>
+        </button>
+        <button type="button" onClick={() => onFilter('Pending')}>
+          <span>Pending</span>
+          <strong>{stats.pending}</strong>
+        </button>
+        <button type="button" onClick={() => onFilter('Approved')}>
+          <span>Approved</span>
+          <strong>{stats.approved}</strong>
+        </button>
+        <button type="button" onClick={() => onFilter('Rejected')}>
+          <span>Rejected</span>
+          <strong>{stats.rejected}</strong>
+        </button>
+      </div>
+      <div className="self-service-hero-actions">
+        {canApply ? (
+          <button type="button" data-primary="true" onClick={onApply}>
+            <Plus size={14} /> Apply leave
+          </button>
+        ) : null}
+        <button type="button" onClick={() => onFilter('Pending')}>
+          <Clock size={14} /> Pending
+        </button>
+        <button type="button" onClick={() => onFilter('Approved')}>
+          <CheckCircle2 size={14} /> Approved
+        </button>
+      </div>
+    </section>
+  );
+}
+
 export default function Leave() {
   // Real company holidays (Attendance Setup -> Holidays), not a hardcoded list.
   const currentYear = new Date().getFullYear();
   const { data: holidays = [] } = useHolidays(null, currentYear);
   const { data: leaves = [], isLoading, error } = useLeaves();
   const { employee } = useAuth();
-  const { can, canAny, canBeyondSelf } = usePermissions();
+  const { can, canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
   const apply = useApplyLeave();
   const setStatus = useSetLeaveStatus();
 
@@ -66,6 +118,7 @@ export default function Leave() {
   const canApply = Boolean(employee?.id); // only employee-linked logins can request leave
 
   const { data: leaveTypes = [] } = useLeaveTypes();
+  const { data: balances = [] } = useLeaveBalances(employee?.id, currentYear);
   // Codes for the form, names for the eye. The name lookup also covers rows written before this
   // fix, which hold display labels: an unknown key falls through to the raw stored value.
   const activeTypes = leaveTypes.filter((t) => t.is_active !== false);
@@ -97,6 +150,7 @@ export default function Leave() {
       rejected: by('Rejected'),
     };
   }, [visibleLeaves]);
+  const selfServiceMode = canApply && (mineOnly || viewingAsEmployee);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -130,9 +184,13 @@ export default function Leave() {
     <div className="page-shell space-y-6 animate-slide-up">
       <div className="mobile-list-row flex justify-between items-center">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Leave Management</h1>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
+            {selfServiceMode ? 'My Leave' : 'Leave Management'}
+          </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {canApprove ? 'Review and approve requests within your scope.' : 'Submit time-off requests and track their status.'}
+            {selfServiceMode
+              ? 'Apply for time off and follow every request.'
+              : canApprove ? 'Review and approve requests within your scope.' : 'Submit time-off requests and track their status.'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -168,8 +226,18 @@ export default function Leave() {
         </div>
       </div>
 
+      {selfServiceMode ? (
+        <MyLeaveHero
+          balances={balances}
+          stats={stats}
+          canApply={canApply}
+          onApply={() => setShowForm(true)}
+          onFilter={setStatusFilter}
+        />
+      ) : null}
+
       {/* stats from real data */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 ${selfServiceMode ? 'employee-secondary-stats' : ''}`}>
         <Stat label="Total Requests" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="Pending" value={stats.pending} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
         <Stat label="On Hold" value={stats.onHold} active={statusFilter === 'On Hold'} onClick={() => setStatusFilter('On Hold')} />
@@ -182,7 +250,8 @@ export default function Leave() {
         <div className={`${showForm ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-4`}>
           <div className="premium-card space-y-4">
             <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
-              <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Leave Requests
+              <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" />
+              {selfServiceMode ? 'My Requests' : 'Leave Requests'}
             </h3>
 
             {isLoading ? (
@@ -193,7 +262,7 @@ export default function Leave() {
               </div>
             ) : visibleLeaves.length === 0 ? (
               <p className="text-xs text-neutral-500 py-8 text-center">
-                No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}leave requests visible to you yet.
+                No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}leave requests yet.
               </p>
             ) : (
               <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">

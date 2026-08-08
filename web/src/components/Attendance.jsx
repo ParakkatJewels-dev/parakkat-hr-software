@@ -8,7 +8,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
   CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
-  SlidersHorizontal,
+  SlidersHorizontal, Fingerprint,
 } from 'lucide-react';
 import {
   useAttendanceSummary, useMonthlyAttendance, useAttendanceExceptions,
@@ -118,6 +118,70 @@ function ErrorNote({ error }) {
         <span>{error.message || String(error)}</span>
       </div>
     </div>
+  );
+}
+
+function MyAttendanceHero({ employee, onOpenCalendar, onFixAttendance }) {
+  const today = todayIso();
+  const [year, month] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+  const { data: rows = [], isLoading } = useAttendanceSummary(today);
+  const { data: monthRows = [] } = useMonthlyAttendance(employee?.id, year, month);
+  const row = rows.find((r) => r.employee?.id === employee?.id);
+
+  const monthSummary = monthRows.reduce(
+    (acc, r) => {
+      if (r.status === 'Present' || r.status === 'Half Day') acc.present += 1;
+      if (r.status === 'Absent') acc.absent += 1;
+      if (r.is_late) acc.late += 1;
+      if (r.is_missing_punch) acc.missing += 1;
+      return acc;
+    },
+    { present: 0, absent: 0, late: 0, missing: 0 }
+  );
+
+  const state = (() => {
+    if (isLoading) return { title: 'Checking today', detail: 'Loading your attendance record.', tone: 'neutral' };
+    if (!row) return { title: 'No punch recorded yet', detail: 'Your day will appear here after the terminal syncs.', tone: 'amber' };
+    if (row.is_missing_punch) return { title: 'Fix attendance', detail: 'A punch is missing from today. Raise a correction if the terminal missed it.', tone: 'amber' };
+    if (row.check_in && !row.check_out) return { title: 'You are checked in', detail: `Started at ${fmtTime(row.check_in)}.`, tone: 'green' };
+    if (row.check_out) return { title: 'Attendance recorded', detail: `Worked ${fmtMinutes(row.worked_minutes)} today.`, tone: 'green' };
+    return { title: row.status || 'My attendance', detail: 'Your attendance status for today.', tone: 'neutral' };
+  })();
+
+  return (
+    <section className="premium-card self-service-hero" data-tone={state.tone}>
+      <div className="self-service-hero-copy">
+        <span className="self-service-eyebrow">My attendance</span>
+        <h2>{state.title}</h2>
+        <p>{state.detail}</p>
+      </div>
+      <div className="self-service-hero-stats">
+        <button type="button" onClick={onOpenCalendar}>
+          <span>Today in</span>
+          <strong>{row?.check_in ? fmtTime(row.check_in) : '—'}</strong>
+        </button>
+        <button type="button" onClick={onOpenCalendar}>
+          <span>Worked</span>
+          <strong>{row?.worked_minutes ? fmtMinutes(row.worked_minutes) : '—'}</strong>
+        </button>
+        <button type="button" onClick={onOpenCalendar}>
+          <span>Present</span>
+          <strong>{monthSummary.present}</strong>
+        </button>
+        <button type="button" onClick={onFixAttendance}>
+          <span>Issues</span>
+          <strong>{monthSummary.late + monthSummary.missing + monthSummary.absent}</strong>
+        </button>
+      </div>
+      <div className="self-service-hero-actions">
+        <button type="button" data-primary="true" onClick={onFixAttendance}>
+          <Fingerprint size={14} /> Fix attendance
+        </button>
+        <button type="button" onClick={onOpenCalendar}>
+          <CalendarDays size={14} /> Monthly view
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -999,7 +1063,9 @@ export default function Attendance() {
   return (
     <div className="page-shell space-y-5 animate-slide-up py-3">
       <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Attendance</h1>
+        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
+          {viewingAsEmployee ? 'My Attendance' : 'Attendance'}
+        </h1>
         {showSourceNote && (
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes
@@ -1008,9 +1074,18 @@ export default function Attendance() {
         )}
       </div>
 
+      {viewingAsEmployee ? (
+        <MyAttendanceHero
+          employee={employee}
+          onOpenCalendar={() => setTab('calendar')}
+          onFixAttendance={() => setTab('regularizations')}
+        />
+      ) : null}
+
       <div className="mobile-segmented flex flex-wrap gap-1.5">
         {visibleTabs.map((t) => {
           const Icon = t.icon;
+          const label = viewingAsEmployee && t.id === 'regularizations' ? 'Fix attendance' : t.label;
           return (
             <button
               key={t.id}
@@ -1019,7 +1094,7 @@ export default function Attendance() {
               className={`drawer-tab flex items-center gap-1.5 ${tab === t.id ? 'drawer-tab-active' : ''}`}
             >
               <Icon size={13} />
-              {t.label}
+              {label}
             </button>
           );
         })}

@@ -7,7 +7,7 @@
 import React, { useState } from 'react';
 import {
   Clock, CalendarDays, ReceiptText, LifeBuoy, ListChecks, Wallet, CheckCircle2,
-  ChevronDown, ChevronRight, UserRound, CalendarCheck2,
+  ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Fingerprint,
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useDayAttendance, useMonthlyAttendance, todayIso, fmtTime, fmtMinutes, STATUS_STYLES } from '../../data/attendance';
@@ -28,6 +28,87 @@ const isMine = (row, me) => {
   if (emp.employee_code && me.employee_code) return emp.employee_code === me.employee_code;
   return emp.full_name === me.full_name;
 };
+
+/** The employee landing panel: one glance, the next useful action, and no admin noise. */
+export function EmployeeTodayHero({ onNavigate }) {
+  const { employee } = useAuth();
+  const today = todayIso();
+  const { data: rows = [], isLoading } = useDayAttendance(today);
+  const { data: balances = [] } = useLeaveBalances(employee?.id, Number(today.slice(0, 4)));
+  const { data: tasks = [] } = useTasks();
+  const { data: payslips = [] } = usePayslips();
+
+  const row = rows.find((r) => r.employee?.id === employee?.id);
+  const openTasks = tasks.filter((t) => t.employee_id === employee?.id && t.status !== 'Done' && t.status !== 'Cancelled').length;
+  const availableLeave = balances.reduce((n, b) => n + Number(b.available || 0), 0);
+  const latestPayslip = payslips.filter((p) => isMine(p, employee))[0];
+  const dateLabel = new Date().toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+
+  const punchState = (() => {
+    if (isLoading) return { title: 'Loading today', detail: 'Checking your attendance status.', tone: 'neutral', action: 'Open attendance' };
+    if (!row) return { title: 'Ready to start', detail: 'No attendance record for today yet.', tone: 'amber', action: 'Open attendance' };
+    if (row.is_missing_punch) return { title: 'Punch needs attention', detail: 'One punch looks incomplete today.', tone: 'amber', action: 'Regularize' };
+    if (row.check_in && !row.check_out) return { title: 'You are checked in', detail: `Started at ${fmtTime(row.check_in)}.`, tone: 'green', action: 'View day' };
+    if (row.check_out) return { title: 'Day recorded', detail: `Worked ${fmtMinutes(row.worked_minutes)} today.`, tone: 'green', action: 'View day' };
+    return { title: row.status || 'Today', detail: 'Attendance is being computed.', tone: 'neutral', action: 'Open attendance' };
+  })();
+
+  const metrics = [
+    { label: 'Check-in', value: row?.check_in ? fmtTime(row.check_in) : '—', tab: 'attendance' },
+    { label: 'Worked', value: row?.worked_minutes ? fmtMinutes(row.worked_minutes) : '—', tab: 'attendance' },
+    { label: 'Leave left', value: availableLeave, tab: 'leave' },
+    { label: 'Tasks', value: openTasks, tab: 'tasks' },
+  ];
+
+  const actions = [
+    { label: punchState.action, tab: 'attendance', icon: Fingerprint, primary: true },
+    { label: 'Apply leave', tab: 'leave', icon: CalendarDays },
+    { label: latestPayslip ? 'Payslip' : 'Pay', tab: 'payroll', icon: Wallet },
+    { label: 'Help', tab: 'helpdesk', icon: LifeBuoy },
+  ];
+
+  return (
+    <section className="premium-card employee-today-hero" data-tone={punchState.tone}>
+      <div className="employee-today-copy">
+        <div className="employee-today-meta">
+          <span>My workspace</span>
+          <span>{dateLabel}</span>
+        </div>
+        <h1>{punchState.title}</h1>
+        <p>{punchState.detail}</p>
+      </div>
+
+      <div className="employee-today-metrics">
+        {metrics.map((m) => (
+          <button key={m.label} type="button" onClick={() => onNavigate?.(m.tab)}>
+            <span>{m.label}</span>
+            <strong>{m.value}</strong>
+          </button>
+        ))}
+      </div>
+
+      <div className="employee-today-actions">
+        {actions.map(({ label, tab, icon: Icon, primary }) => (
+          <button
+            key={label}
+            type="button"
+            data-primary={primary ? 'true' : 'false'}
+            onClick={() => onNavigate?.(tab)}
+          >
+            <Icon size={15} />
+            <span>{label}</span>
+            {primary && <ArrowRight size={13} />}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 /** Today's punch status: check-in/out, shift, worked time, late flag. */
 export function PunchCard({ onNavigate }) {
