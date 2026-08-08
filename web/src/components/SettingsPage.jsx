@@ -3,8 +3,23 @@
 // themselves (phone) save through the update_my_profile RPC; identity fields stay read-only and
 // are managed by HR. Workspace settings are editable by super admins only — everyone else sees
 // them read-only (RLS enforces this server-side too).
-import React, { useEffect, useState } from 'react';
-import { UserRound, Building2, Check, Loader2, Clock } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  UserRound,
+  Building2,
+  Check,
+  Loader2,
+  Clock,
+  Moon,
+  Sun,
+  Smartphone,
+  Download,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  ShieldCheck,
+  Palette,
+} from 'lucide-react';
 import ChangePassword from './ChangePassword';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
@@ -41,6 +56,88 @@ function SaveButton({ onClick, pending, saved, disabled }) {
   );
 }
 
+function CardTitle({ icon: Icon, title, subtitle }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0ea971]/10 text-[#0ea971] dark:bg-[#0ea971]/15">
+        <Icon size={15} />
+      </span>
+      <div className="min-w-0">
+        <h3 className="font-semibold text-base text-neutral-800 dark:text-white">{title}</h3>
+        {subtitle ? (
+          <p className="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SettingRow({ icon: Icon, title, detail, children }) {
+  return (
+    <div className="settings-row">
+      <div className="flex min-w-0 items-start gap-2.5">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
+          <Icon size={14} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{title}</p>
+          {detail ? (
+            <p className="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
+              {detail}
+            </p>
+          ) : null}
+        </div>
+      </div>
+      <div className="settings-row-action">{children}</div>
+    </div>
+  );
+}
+
+function ToggleSwitch({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      onClick={onChange}
+      className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors cursor-pointer ${
+        checked
+          ? 'border-[#0ea971] bg-[#0ea971]'
+          : 'border-neutral-300 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800'
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white text-neutral-600 shadow-sm transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0.5'
+        }`}
+      >
+        {checked ? <Moon size={11} /> : <Sun size={11} />}
+      </span>
+    </button>
+  );
+}
+
+function ActionButton({ children, onClick, disabled, variant = 'secondary' }) {
+  const variantClass =
+    variant === 'primary'
+      ? 'border-[#0ea971] bg-[#0ea971] text-white hover:bg-[#0c9765]'
+      : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300 dark:hover:bg-neutral-900';
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors cursor-pointer disabled:cursor-default disabled:opacity-50 ${variantClass}`}
+    >
+      {children}
+    </button>
+  );
+}
+
 /** The signed-in person's own employee record; phone is self-service, the rest is HR-managed. */
 function MyProfileCard() {
   const { employee, user } = useAuth();
@@ -60,10 +157,11 @@ function MyProfileCard() {
 
   return (
     <div className="premium-card space-y-4">
-      <div className="flex items-center gap-2">
-        <UserRound size={15} className="text-[#0ea971]" />
-        <h3 className="font-semibold text-base text-neutral-800 dark:text-white">My Profile</h3>
-      </div>
+      <CardTitle
+        icon={UserRound}
+        title="My Profile"
+        subtitle="Your linked employee record and self-service contact details."
+      />
       {!employee ? (
         <p className="text-xs text-neutral-500">
           No employee record is linked to this login, so there is no profile to edit here. Profiles
@@ -122,47 +220,110 @@ function MyProfileCard() {
  * person's choice on one device, stored beside the theme rather than in the database — nobody should
  * need permission to read a clock the way they prefer.
  */
-function DisplayPreferences() {
+function PreferencesCard({
+  theme = 'light',
+  onToggleTheme,
+  installAvailable = false,
+  installed = false,
+  updateAvailable = false,
+  online = true,
+  onInstall,
+  onUpdate,
+}) {
   const { hour12, setHour12 } = useClockFormat();
+  const dark = theme === 'dark';
+  const deviceStatus = useMemo(() => {
+    if (!online) return { label: 'Offline', tone: 'text-amber-600 dark:text-amber-300', Icon: WifiOff };
+    return { label: 'Online', tone: 'text-emerald-600 dark:text-emerald-400', Icon: Wifi };
+  }, [online]);
+  const DeviceIcon = deviceStatus.Icon;
 
   return (
     <div className="premium-card space-y-4">
-      <div className="flex items-center gap-2">
-        <Clock size={15} className="text-[#0ea971]" />
-        <h3 className="font-semibold text-base text-neutral-800 dark:text-white">Display</h3>
-      </div>
+      <CardTitle
+        icon={Palette}
+        title="Appearance & Device"
+        subtitle="Preferences saved on this device, so your phone and desktop can each feel right."
+      />
 
-      <fieldset className="max-w-md">
-        <legend className="text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-2">
-          Time format
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {CLOCK_FORMATS.map((f) => {
-            const on = f.value === hour12;
-            return (
-              <button
-                key={f.key}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setHour12(f.value)}
-                className={`px-3 py-2 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
-                  on
-                    ? 'border-[#0ea971] bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981]'
-                    : 'border-neutral-200 dark:border-neutral-850 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900'
-                }`}
-              >
-                {f.label}
-                <span className="ml-2 font-mono font-normal text-neutral-450">{f.example}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="text-2xs text-neutral-450 mt-2">
-          Applies everywhere times are shown, including the exported spreadsheets. Saved on this
-          device only. Easy Time Pro prints 24-hour, so that setting matches its reports without
-          translating.
-        </p>
-      </fieldset>
+      <div className="settings-stack">
+        <SettingRow
+          icon={dark ? Moon : Sun}
+          title="Theme mode"
+          detail={dark ? 'Dark mode is active on this device.' : 'Light mode is active on this device.'}
+        >
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400">
+              {dark ? 'Dark' : 'Light'}
+            </span>
+            <ToggleSwitch
+              checked={dark}
+              onChange={onToggleTheme}
+              label={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+            />
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          icon={Clock}
+          title="Time format"
+          detail="Used across attendance screens, timelines, and spreadsheet exports."
+        >
+          <div className="settings-segmented" role="group" aria-label="Time format">
+            {CLOCK_FORMATS.map((f) => {
+              const on = f.value === hour12;
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setHour12(f.value)}
+                  className={on ? 'is-active' : ''}
+                >
+                  <span>{f.label}</span>
+                  <span className="font-mono font-normal text-neutral-450">{f.example}</span>
+                </button>
+              );
+            })}
+          </div>
+        </SettingRow>
+
+        <SettingRow
+          icon={Smartphone}
+          title="Installed app"
+          detail={installed ? 'This browser is already running as an installed app.' : 'Install for full-screen access from the home screen.'}
+        >
+          {installAvailable && !installed ? (
+            <ActionButton onClick={onInstall} variant="primary">
+              <Download size={13} /> Install
+            </ActionButton>
+          ) : (
+            <span className="settings-status-pill">
+              <Check size={12} /> {installed ? 'Installed' : 'Browser'}
+            </span>
+          )}
+        </SettingRow>
+
+        <SettingRow
+          icon={RefreshCw}
+          title="App version"
+          detail={updateAvailable ? 'A newer app version is ready.' : 'The app checks for updates automatically.'}
+        >
+          <ActionButton onClick={onUpdate || (() => window.location.reload())} variant={updateAvailable ? 'primary' : 'secondary'}>
+            <RefreshCw size={13} /> {updateAvailable ? 'Update' : 'Reload'}
+          </ActionButton>
+        </SettingRow>
+
+        <SettingRow
+          icon={DeviceIcon}
+          title="Connection"
+          detail={online ? 'Live sync and background refresh are available.' : 'Cached pages may still open until the network returns.'}
+        >
+          <span className={`settings-status-pill ${deviceStatus.tone}`}>
+            <DeviceIcon size={12} /> {deviceStatus.label}
+          </span>
+        </SettingRow>
+      </div>
     </div>
   );
 }
@@ -202,10 +363,11 @@ function WorkspaceCard() {
   return (
     <div className="premium-card space-y-4">
       <div className="mobile-list-row flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Building2 size={15} className="text-[#0ea971]" />
-          <h3 className="font-semibold text-base text-neutral-800 dark:text-white">Workspace</h3>
-        </div>
+        <CardTitle
+          icon={Building2}
+          title="Workspace"
+          subtitle="Company defaults shared across the HR workspace."
+        />
         {!isSuperAdmin && (
           <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
             managed by your administrator
@@ -236,19 +398,61 @@ function WorkspaceCard() {
 }
 
 
-export default function SettingsPage() {
+export default function SettingsPage({
+  theme,
+  onToggleTheme,
+  installAvailable,
+  installed,
+  updateAvailable,
+  online,
+  onInstall,
+  onUpdate,
+}) {
   return (
-    <div className="page-shell space-y-6 animate-fade-in text-xs text-neutral-500">
-      <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">System Settings</h1>
+    <div className="page-shell settings-page space-y-5 animate-fade-in text-xs text-neutral-500">
+      <div className="settings-hero">
+        <div className="min-w-0">
+          <p className="text-2xs font-bold uppercase tracking-wider text-[#0c9765] dark:text-[#10b981]">
+            Preferences
+          </p>
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">
+            Settings
+          </h1>
+        </div>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          Profile, password, display preferences, and workspace defaults.
+          Theme, app behavior, password, profile, and workspace defaults.
         </p>
       </div>
-      <ChangePassword />
-      <MyProfileCard />
-      <DisplayPreferences />
-      <WorkspaceCard />
+      <div className="settings-layout">
+        <div className="settings-main-column">
+          <PreferencesCard
+            theme={theme}
+            onToggleTheme={onToggleTheme}
+            installAvailable={installAvailable}
+            installed={installed}
+            updateAvailable={updateAvailable}
+            online={online}
+            onInstall={onInstall}
+            onUpdate={onUpdate}
+          />
+          <ChangePassword />
+        </div>
+        <div className="settings-main-column">
+          <MyProfileCard />
+          <WorkspaceCard />
+          <div className="premium-card space-y-3">
+            <CardTitle
+              icon={ShieldCheck}
+              title="Security Notes"
+              subtitle="Access, roles, and employee data are controlled by Administration and database policies."
+            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <span className="settings-status-pill justify-center">Role based access</span>
+              <span className="settings-status-pill justify-center">Scoped employee data</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

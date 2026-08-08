@@ -974,7 +974,18 @@ export default function App() {
               case 'settings':
                 // The role switch used to live here. It is on the header chip now — the thing it
                 // changes — so Settings is preferences and nothing else. See ui/RoleSwitcher.
-                return <SettingsPage />;
+                return (
+                  <SettingsPage
+                    theme={theme}
+                    onToggleTheme={toggleTheme}
+                    installAvailable={Boolean(installPrompt)}
+                    installed={isPwaInstalled}
+                    updateAvailable={Boolean(pwaUpdateRegistration)}
+                    online={isOnline}
+                    onInstall={installPwa}
+                    onUpdate={applyPwaUpdate}
+                  />
+                );
               case 'notifications':
                 return <Notifications onNavigate={setActiveTab} />;
               case 'profile':
