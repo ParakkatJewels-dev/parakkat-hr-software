@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell,
@@ -178,6 +178,15 @@ export default function App() {
   const [isPwaInstalled, setIsPwaInstalled] = useState(() => isStandalonePwa());
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [pwaUpdateRegistration, setPwaUpdateRegistration] = useState(null);
+  const pullStartY = useRef(null);
+  const pullActive = useRef(false);
+  const pullDistanceRef = useRef(0);
+  const [pullRefresh, setPullRefresh] = useState({
+    pulling: false,
+    ready: false,
+    refreshing: false,
+    distance: 0,
+  });
 
   useLayoutEffect(() => {
     document.documentElement.classList.add('app-root-lock');
@@ -270,6 +279,67 @@ export default function App() {
     }
     window.location.reload();
   };
+
+  const finishPullRefresh = useCallback(() => {
+    setPullRefresh({ pulling: false, ready: false, refreshing: true, distance: 54 });
+    window.setTimeout(() => {
+      const waitingWorker = pwaUpdateRegistration?.waiting;
+      if (waitingWorker) waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+      else window.location.reload();
+    }, 220);
+  }, [pwaUpdateRegistration]);
+
+  const resetPullRefresh = useCallback(() => {
+    pullStartY.current = null;
+    pullActive.current = false;
+    pullDistanceRef.current = 0;
+    setPullRefresh((state) => (
+      state.refreshing ? state : { pulling: false, ready: false, refreshing: false, distance: 0 }
+    ));
+  }, []);
+
+  const handlePullStart = useCallback((event) => {
+    if (pullRefresh.refreshing || event.touches.length !== 1) return;
+    const main = event.currentTarget;
+    if (main.scrollTop > 0) return;
+    if (event.target.closest('input, select, textarea, button, a, [role="button"], [contenteditable="true"]')) return;
+    pullStartY.current = event.touches[0].clientY;
+    pullActive.current = false;
+    pullDistanceRef.current = 0;
+  }, [pullRefresh.refreshing]);
+
+  const handlePullMove = useCallback((event) => {
+    if (pullStartY.current == null || pullRefresh.refreshing) return;
+    const main = event.currentTarget;
+    const dy = event.touches[0].clientY - pullStartY.current;
+    if (dy <= 0) {
+      resetPullRefresh();
+      return;
+    }
+    if (main.scrollTop > 0 && !pullActive.current) return;
+
+    const distance = Math.min(96, Math.round(dy * 0.45));
+    if (distance < 8) return;
+    pullActive.current = true;
+    event.preventDefault();
+    pullDistanceRef.current = distance;
+    setPullRefresh({
+      pulling: true,
+      ready: distance >= 68,
+      refreshing: false,
+      distance,
+    });
+  }, [pullRefresh.refreshing, resetPullRefresh]);
+
+  const handlePullEnd = useCallback(() => {
+    if (!pullActive.current) {
+      resetPullRefresh();
+      return;
+    }
+    const shouldRefresh = pullDistanceRef.current >= 68;
+    if (shouldRefresh) finishPullRefresh();
+    else resetPullRefresh();
+  }, [finishPullRefresh, resetPullRefresh]);
 
   // Grouped Sidebar Sections (Miller's Law / Law of Proximity)
   // Each item names the permission required to SEE it (held at any scope). null = always visible.
@@ -962,7 +1032,31 @@ export default function App() {
           </nav>
         )}
 
-        <main id="main-content" tabIndex={-1} className="app-main flex-1 min-h-0 overflow-y-auto py-4">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className={`app-main flex-1 min-h-0 overflow-y-auto py-4 ${pullRefresh.pulling || pullRefresh.refreshing ? 'is-pulling-refresh' : ''}`}
+          onTouchStart={handlePullStart}
+          onTouchMove={handlePullMove}
+          onTouchEnd={handlePullEnd}
+          onTouchCancel={resetPullRefresh}
+        >
+          <div
+            className="pull-refresh-indicator"
+            data-visible={pullRefresh.pulling || pullRefresh.refreshing ? 'true' : 'false'}
+            data-ready={pullRefresh.ready ? 'true' : 'false'}
+            data-refreshing={pullRefresh.refreshing ? 'true' : 'false'}
+            style={{ '--pull-distance': `${pullRefresh.distance}px` }}
+            aria-live="polite"
+            role="status"
+          >
+            <span>
+              <RefreshCw size={15} />
+            </span>
+            <strong>
+              {pullRefresh.refreshing ? 'Refreshing' : pullRefresh.ready ? 'Release to refresh' : 'Pull to refresh'}
+            </strong>
+          </div>
           <Suspense fallback={<div className="page-shell py-24 flex justify-center text-neutral-400 text-xs">Loading…</div>}>
           {(() => {
             if (!canViewTab(activeTab)) {

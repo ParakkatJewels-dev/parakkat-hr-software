@@ -20,7 +20,7 @@ import {
 } from '../data/regularizations';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
-import { BreakSummary } from './ui/PunchTimeline';
+import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
@@ -545,6 +545,12 @@ function CalendarView({ employeeId, employeeName }) {
     setSelected(null);
   };
 
+  const selectedRow = selected ? byDate.get(selected) : null;
+  const punchTimes = useMemo(
+    () => punches.map((p) => p.punch_time).filter(Boolean).sort(),
+    [punches]
+  );
+
   if (!employeeId) {
     return (
       <div className="premium-card p-10 text-center text-xs text-neutral-500">
@@ -552,8 +558,6 @@ function CalendarView({ employeeId, employeeName }) {
       </div>
     );
   }
-
-  const selectedRow = selected ? byDate.get(selected) : null;
 
   return (
     <div className="space-y-4">
@@ -629,6 +633,72 @@ function CalendarView({ employeeId, employeeName }) {
         )}
       </div>
 
+      {selected ? (
+        <>
+          <button
+            type="button"
+            className="attendance-day-scrim"
+            onClick={() => setSelected(null)}
+            aria-label="Close day punches"
+          />
+          <div className="premium-card attendance-day-detail space-y-3 animate-fade-in">
+            <div className="attendance-day-detail-head">
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
+                  {selected}
+                </h4>
+                <p className="mt-0.5 text-xs text-neutral-500">Punch timeline</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelected(null)}
+                className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-500"
+                aria-label="Close day punches"
+              >
+                <XCircle size={15} />
+              </button>
+            </div>
+
+            {selectedRow ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                <div>
+                  <div className="text-2xs text-neutral-400 uppercase">Status</div>
+                  <StatusBadge status={selectedRow.status} isLop={selectedRow.is_lop} />
+                </div>
+                <div>
+                  <div className="text-2xs text-neutral-400 uppercase">In / Out</div>
+                  <span className="font-mono">{fmtTime(selectedRow.check_in)} – {fmtTime(selectedRow.check_out)}</span>
+                </div>
+                <div>
+                  <div className="text-2xs text-neutral-400 uppercase">Worked</div>
+                  <span className="font-mono">{fmtMinutes(selectedRow.worked_minutes)}</span>
+                </div>
+                <div>
+                  <div className="text-2xs text-neutral-400 uppercase">Overtime</div>
+                  <span className="font-mono">{fmtMinutes(selectedRow.ot_minutes)}</span>
+                </div>
+                {selectedRow.remarks ? (
+                  <div className="col-span-full text-xs text-neutral-500">{selectedRow.remarks}</div>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-500">This date has not been processed by the engine.</p>
+            )}
+
+            <div className="soft-divider" />
+            {punchTimes.length > 0 ? (
+              <PunchTimeline
+                punches={punchTimes}
+                breakMinutes={selectedRow?.break_minutes}
+                incomplete={selectedRow?.breaks_incomplete}
+              />
+            ) : (
+              <p className="text-xs text-neutral-500">No punches recorded around this date.</p>
+            )}
+          </div>
+        </>
+      ) : null}
+
       <div className="premium-card overflow-hidden">
         <div className="p-4 pb-2">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
@@ -673,61 +743,6 @@ function CalendarView({ employeeId, employeeName }) {
           </div>
         )}
       </div>
-
-      {selected ? (
-        <div className="premium-card space-y-3 animate-fade-in">
-          <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-600 dark:text-neutral-300">
-            {selected}
-          </h4>
-
-          {selectedRow ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-              <div>
-                <div className="text-2xs text-neutral-400 uppercase">Status</div>
-                <StatusBadge status={selectedRow.status} isLop={selectedRow.is_lop} />
-              </div>
-              <div>
-                <div className="text-2xs text-neutral-400 uppercase">In / Out</div>
-                <span className="font-mono">{fmtTime(selectedRow.check_in)} – {fmtTime(selectedRow.check_out)}</span>
-              </div>
-              <div>
-                <div className="text-2xs text-neutral-400 uppercase">Worked</div>
-                <span className="font-mono">{fmtMinutes(selectedRow.worked_minutes)}</span>
-              </div>
-              <div>
-                <div className="text-2xs text-neutral-400 uppercase">Overtime</div>
-                <span className="font-mono">{fmtMinutes(selectedRow.ot_minutes)}</span>
-              </div>
-              {selectedRow.remarks ? (
-                <div className="col-span-full text-xs text-neutral-500">{selectedRow.remarks}</div>
-              ) : null}
-            </div>
-          ) : (
-            <p className="text-xs text-neutral-500">This date has not been processed by the engine.</p>
-          )}
-
-          <div className="soft-divider" />
-          <div>
-            <div className="text-2xs text-neutral-400 uppercase mb-1.5">Raw device punches</div>
-            {punches.length === 0 ? (
-              <p className="text-xs text-neutral-500">No punches recorded around this date.</p>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {punches.map((p) => (
-                  <span
-                    key={p.id}
-                    className="chip text-2xs font-mono"
-                    title={`${p.terminal_alias ?? p.terminal_sn ?? ''} · ${p.source}`} aria-label={`${p.terminal_alias ?? p.terminal_sn ?? ''} · ${p.source}`}
-                  >
-                    {fmtTime(p.punch_time)}
-                    {p.punch_state_label ? ` ${p.punch_state_label}` : ''}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
