@@ -579,7 +579,17 @@ function CalendarView({ employeeId, employeeName }) {
       <ErrorNote error={error} />
 
       <div className="premium-card">
-        <div className="text-xs text-neutral-500 mb-3">{employeeName}</div>
+        <div className="mobile-list-row mb-3 flex items-center justify-between gap-2">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
+              Monthly attendance
+            </h3>
+            <p className="mt-0.5 text-xs text-neutral-500">{employeeName}</p>
+          </div>
+          <span className="text-2xs font-bold uppercase tracking-wider text-neutral-400">
+            tap a day for punches
+          </span>
+        </div>
 
         {isLoading ? (
           <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
@@ -616,6 +626,51 @@ function CalendarView({ employeeId, employeeName }) {
               })}
             </div>
           </>
+        )}
+      </div>
+
+      <div className="premium-card overflow-hidden">
+        <div className="p-4 pb-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
+            Month record
+          </h3>
+        </div>
+
+        {isLoading ? (
+          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+        ) : data.length === 0 ? (
+          <div className="p-8 text-center text-xs text-neutral-500">No attendance rows computed for this month yet.</div>
+        ) : (
+          <div className="table-scroll">
+            <table className="premium-table w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left">Date</th>
+                  <th className="text-left">Status</th>
+                  <th className="text-left">In</th>
+                  <th className="text-left">Out</th>
+                  <th className="text-left">Worked</th>
+                  <th className="text-left">OT</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((row) => (
+                  <tr key={row.id}>
+                    <td data-label="Date" className="font-mono">{row.work_date}</td>
+                    <td data-label="Status">
+                      <AttendanceStatusControl row={row} />
+                    </td>
+                    <td data-label="In" className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                      {fmtTime(row.check_in)}
+                    </td>
+                    <td data-label="Out" className="font-mono">{fmtTime(row.check_out)}</td>
+                    <td data-label="Worked" className="font-mono">{fmtMinutes(row.worked_minutes)}</td>
+                    <td data-label="OT" className="font-mono text-emerald-600 dark:text-emerald-400">{fmtMinutes(row.ot_minutes)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -1043,12 +1098,13 @@ export default function Attendance() {
   const { employee } = useAuth();
   const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
   const [workDate, setWorkDate] = useState(todayIso());
+  const selfAttendanceMode = viewingAsEmployee || !canBeyondSelf('attendance.read');
 
   // A `scoped` tab looks at other people, so it needs the permission held beyond your own record.
   // A `self` tab looks only at you, so it belongs to the employee view — see the note on TABS.
   // Someone whose only role IS employee is always viewing as one, so they keep it.
   const visibleTabs = TABS.filter((t) => {
-    if (t.self && !viewingAsEmployee) return false;
+    if (t.self && !selfAttendanceMode) return false;
     return !t.perm || (t.scoped ? canBeyondSelf(t.perm) : canAny(t.perm));
   });
 
@@ -1064,7 +1120,7 @@ export default function Attendance() {
     <div className="page-shell space-y-5 animate-slide-up py-3">
       <div>
         <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-          {viewingAsEmployee ? 'My Attendance' : 'Attendance'}
+          {selfAttendanceMode ? 'My Attendance' : 'Attendance'}
         </h1>
         {showSourceNote && (
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -1074,7 +1130,7 @@ export default function Attendance() {
         )}
       </div>
 
-      {viewingAsEmployee ? (
+      {selfAttendanceMode ? (
         <MyAttendanceHero
           employee={employee}
           onOpenCalendar={() => setTab('calendar')}
@@ -1085,7 +1141,7 @@ export default function Attendance() {
       <div className="mobile-segmented flex flex-wrap gap-1.5">
         {visibleTabs.map((t) => {
           const Icon = t.icon;
-          const label = viewingAsEmployee && t.id === 'regularizations' ? 'Fix attendance' : t.label;
+          const label = selfAttendanceMode && t.id === 'regularizations' ? 'Fix attendance' : t.label;
           return (
             <button
               key={t.id}
