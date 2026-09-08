@@ -26,6 +26,7 @@ const DocumentManagement = lazy(() => import('./components/DocumentManagement'))
 const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
 const Administration = lazy(() => import('./components/Administration'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
+const Team = lazy(() => import('./components/Team'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
 const Notifications = lazy(() => import('./components/Notifications'));
@@ -54,6 +55,7 @@ const MOBILE_NAV_LABELS = {
   leave: 'Leave',
   payroll: 'Pay',
   tasks: 'Tasks',
+  team: 'My Team',
   performance: 'Goals',
   home: 'Home',
   people: 'People',
@@ -401,6 +403,10 @@ export default function App() {
       tabs: [
         // `scoped` = oversight module: needs the permission beyond self scope, so a pure ESS
         // employee (self-scoped employee.read) never sees the company directory.
+        // Ahead of the Directory on purpose: a department head's question is "who works for me",
+        // and the Directory answers "who works here". employee.assign is the narrow grant that
+        // lets them change it — see migration 0099.
+        { id: 'team', label: 'My Team', perm: 'employee.assign' },
         { id: 'directory', label: 'Directory', perm: 'employee.read', scoped: true },
         { id: 'employee-import', label: 'Import', perm: 'employee.create' },
         { id: 'organization', label: 'Structure', perm: 'org.manage' },
@@ -1084,6 +1090,8 @@ export default function App() {
                 return <Leave />;
               case 'tasks':
                 return <TaskManagement />;
+              case 'team':
+                return <Team />;
               case 'payroll':
                 return <Payroll />;
               case 'expense':
