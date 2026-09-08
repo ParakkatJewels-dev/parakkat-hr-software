@@ -389,6 +389,20 @@ export default function App() {
   // answers "which part of it?", reusing the section->tabs pattern the Payroll and Administration
   // screens already use. Screen ids are unchanged, so every existing link and dashboard shortcut
   // still resolves.
+  /**
+   * A screen that serves two audiences needs to say which one it is serving.
+   *
+   * Payroll and Documents are both reachable by anyone who holds the permission at ANY scope,
+   * including the self scope every manager has through employee@self (0096) — that is deliberate,
+   * because a branch manager still needs their own payslip and their own contract. What was wrong
+   * was the label: they arrived at a screen headed "Payroll", under "Pay & Expenses", containing
+   * one payslip, and reasonably concluded the payroll module was broken or open to everyone.
+   *
+   * Since 0100 the data matches the label in both directions: only HR and entity admins hold these
+   * beyond self, so only they see the company-wide view, and only they get the company-wide word.
+   */
+  const selfOrAll = (perm, mine, all) => (canBeyondSelf(perm) ? all : mine);
+
   const oversightSections = [
     {
       id: 'home',
@@ -412,7 +426,7 @@ export default function App() {
         { id: 'organization', label: 'Structure', perm: 'org.manage' },
         { id: 'recruitment', label: 'Hiring', perm: 'recruitment.manage' },
         { id: 'onboarding', label: 'Onboarding', perm: 'onboarding.manage' },
-        { id: 'documents', label: 'Documents', perm: 'document.read' },
+        { id: 'documents', label: selfOrAll('document.read', 'My Documents', 'Documents'), perm: 'document.read' },
       ],
     },
     {
@@ -431,7 +445,7 @@ export default function App() {
       label: 'Pay & Expenses',
       icon: DollarSign,
       tabs: [
-        { id: 'payroll', label: 'Payroll', perm: 'payslip.read' },
+        { id: 'payroll', label: selfOrAll('payslip.read', 'My Payslips', 'Payroll'), perm: 'payslip.read' },
         { id: 'expense', label: 'Expenses', perm: 'expense.read' },
       ],
     },
