@@ -61,11 +61,22 @@
   --color-gold-500: #0ea971;
   --color-gold-600: #047857;
 
-  /* Forest-charcoal surfaces (dark) */
+  /* Forest-charcoal surfaces (dark).
+
+     The steps below 800 and between warm-gray 100 and 400 were being USED before they existed:
+     `dark:group-hover:bg-charcoal-700` and 26 `dark:text-warm-gray-200/300/350` compiled to
+     nothing, so a hover that should lift the tile did nothing and a whole tier of dark-mode text
+     silently fell back to whatever it inherited. The neutral ramp below has these in-between steps
+     on purpose, and this palette was written as though it did too. Interpolated between the ends
+     that were already here, so nothing that WAS working changes. */
   --color-charcoal-950: #050907;
   --color-charcoal-900: #0a0f0d;
   --color-charcoal-800: #121b16;
+  --color-charcoal-700: #1a2620;   /* one step lighter than 800 — the hover lift */
   --color-warm-gray-100: #e6f0eb;
+  --color-warm-gray-200: #c8d7cf;
+  --color-warm-gray-300: #aabdb3;
+  --color-warm-gray-350: #9bb0a5;
   --color-warm-gray-400: #8ca497;
 
   /* Neutral ramp (referenced directly by components — do not rename) */
@@ -328,8 +339,15 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .dark .text-neutral-500, .dark .text-neutral-505, .dark .text-neutral-550,
 .dark .text-slate-400, .dark .text-slate-450, .dark .text-slate-500 { color: #9aa6a0 !important; }
 
-/* Standardized dark-mode input theming (wins over utilities via !important). */
-.dark input, .dark select, .dark textarea { border-color: var(--surface-border) !important; background-color: var(--surface-subtle) !important; color: #f4f6f5 !important; }
+/* Standardized dark-mode input theming (wins over utilities via !important).
+
+   `.status-pill` opts out. It is the one control in the app whose colour IS its meaning — the task
+   status dropdown, which a manager reads at a glance to find the blocked and the overdue. This rule
+   is unlayered and !important, so it beat every utility on it and painted all five statuses the
+   same grey in dark mode. Worse, it only did so for people who can CHANGE a status: a viewer
+   without task.update gets a coloured <span> instead, so the colour coding vanished for exactly the
+   people acting on it. Anything opting out must set its own dark colours on the element. */
+.dark input, .dark select:not(.status-pill), .dark textarea { border-color: var(--surface-border) !important; background-color: var(--surface-subtle) !important; color: #f4f6f5 !important; }
 .dark input::placeholder, .dark textarea::placeholder { color: var(--surface-text-soft); }
 .dark select option { background: var(--surface-elevated); color: #f4f6f5; }
 
@@ -4836,15 +4854,20 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   color: var(--surface-text-soft);
 }
 
+/* `.status-pill` opts out, here as in the dark-mode block above. This rule is UNLAYERED, so it
+   beats every Tailwind utility whatever its specificity — and `dark:` utilities are wrapped in
+   :where(), which contributes none. The task status dropdown therefore rendered on the standard
+   input background in BOTH themes, never on its own emerald/sky/rose/amber ground, while the
+   read-only badge shown to anyone who cannot change a status kept the full colour coding. */
 .page-shell:not(.dashboard-shell):not(.people-page) input:not([type="checkbox"]):not([type="radio"]),
-.page-shell:not(.dashboard-shell):not(.people-page) select,
+.page-shell:not(.dashboard-shell):not(.people-page) select:not(.status-pill),
 .page-shell:not(.dashboard-shell):not(.people-page) textarea {
   border-color: var(--surface-border);
   background-color: color-mix(in srgb, var(--surface-subtle) 58%, var(--surface-elevated));
 }
 
 .page-shell:not(.dashboard-shell):not(.people-page) input:not([type="checkbox"]):not([type="radio"]):focus,
-.page-shell:not(.dashboard-shell):not(.people-page) select:focus,
+.page-shell:not(.dashboard-shell):not(.people-page) select:not(.status-pill):focus,
 .page-shell:not(.dashboard-shell):not(.people-page) textarea:focus {
   background-color: var(--surface-elevated);
 }

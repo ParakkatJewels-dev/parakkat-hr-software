@@ -96,7 +96,7 @@ export default function Onboarding() {
                     <h3 className="font-extrabold text-base text-neutral-850 dark:text-slate-100">{selected.name}</h3>
                     <span className="text-xs text-neutral-500">{selected.job_title || '—'} · Joining: {selected.join_date || '—'}</span>
                   </div>
-                  <span className={`text-2xs font-bold font-mono px-2 py-0.5 rounded-full border ${selected.progress === 100 ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-900/30' : 'bg-amber-105 text-amber-805 border-amber-205 dark:bg-amber-950/45 dark:text-amber-450 dark:border-amber-900/30'}`}>
+                  <span className={`text-2xs font-bold font-mono px-2 py-0.5 rounded-full border ${selected.progress === 100 ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30' : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/45 dark:text-amber-300 dark:border-amber-900/30'}`}>
                     {selected.progress === 100 ? 'Ready to Activate' : 'Incomplete'}
                   </span>
                 </div>
@@ -112,7 +112,7 @@ export default function Onboarding() {
                           <span className={`text-xs font-semibold block ${done ? 'line-through text-neutral-450' : 'text-neutral-800 dark:text-neutral-200'}`}>{task.title}</span>
                           <span className="text-2xs text-neutral-400 block font-mono">Assignee: {task.assignee}</span>
                         </div>
-                        <span className={`text-2xs font-bold font-mono md:text-right shrink-0 ${done ? 'text-emerald-600 dark:text-emerald-450' : 'text-neutral-450'}`}>{task.status}</span>
+                        <span className={`text-2xs font-bold font-mono md:text-right shrink-0 ${done ? 'text-emerald-600 dark:text-emerald-300' : 'text-neutral-450'}`}>{task.status}</span>
                       </button>
                     );
                   })}

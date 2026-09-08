@@ -94,7 +94,7 @@ export default function Recruitment() {
                               <span className="text-2xs text-neutral-500 truncate block mt-0.5">{can.job?.title || '—'}</span>
                             </div>
                             {can.match_score != null && (
-                              <div className="flex items-center text-2xs font-mono px-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-450 rounded-md font-bold"><Award size={10} className="mr-0.5" />{can.match_score}%</div>
+                              <div className="flex items-center text-2xs font-mono px-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-md font-bold"><Award size={10} className="mr-0.5" />{can.match_score}%</div>
                             )}
                           </div>
                           {canManage && (
@@ -156,7 +156,7 @@ export default function Recruitment() {
                     <div key={j.id} className="people-opening-card">
                       <div className="mobile-list-row flex justify-between items-start">
                         <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200 leading-snug">{j.title}</h4>
-                        <span className={`text-2xs px-1.5 rounded-md font-bold uppercase font-mono border ${j.status === 'Open' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-900/30' : 'bg-neutral-200 text-neutral-500 border-neutral-300 dark:bg-neutral-900 dark:text-neutral-450 dark:border-neutral-800'}`}>{j.status}</span>
+                        <span className={`text-2xs px-1.5 rounded-md font-bold uppercase font-mono border ${j.status === 'Open' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30' : 'bg-neutral-200 text-neutral-500 border-neutral-300 dark:bg-neutral-900 dark:text-neutral-450 dark:border-neutral-800'}`}>{j.status}</span>
                       </div>
                       <div className="mobile-list-row flex justify-between text-2xs text-neutral-500"><span>{j.entity?.code}{j.branch?.code ? ` · ${j.branch.code}` : ''}</span><span>{j.location || '—'}</span></div>
                       <div className="text-2xs text-neutral-450 font-mono border-t border-neutral-100 dark:border-neutral-900/40 pt-2">{j.type} · {j.openings} opening(s)</div>

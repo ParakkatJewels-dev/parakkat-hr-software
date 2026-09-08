@@ -732,19 +732,14 @@ function LeaveTypesTab() {
       {form && (
         <form onSubmit={submit} className="premium-card space-y-3 animate-fade-in">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <label className={label}>Company
-              <select
-                required={!isSuperAdmin}
-                value={form.entity_id ?? ''}
-                onChange={(e) => setForm({ ...form, entity_id: e.target.value })}
-                className={input + ' cursor-pointer'}
-              >
-                {isSuperAdmin
-                  ? <option value="">All companies (shared)</option>
-                  : <option value="" disabled>Select…</option>}
-                {entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}
-              </select>
-            </label>
+          {/* No Company field, on purpose.
+              A copy of the Shifts form's entity picker was pasted here and it referenced two names
+              this component never had — `isSuperAdmin` and `entities` — so opening the form threw a
+              ReferenceError and took the whole app to the error boundary. That was the visible
+              half. The other half: the field should never have existed. `leave_types` has NO entity
+              column (0014, restated in 0035, 0036 and 0077 — "leave_types are company-wide"),
+              useSaveLeaveType never sent one, and RLS scopes the table org-wide. A leave type is
+              not a per-company thing. */}
             <label className={label}>Code
               <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} className={input} />
             </label>

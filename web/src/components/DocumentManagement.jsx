@@ -382,7 +382,7 @@ export default function DocumentManagement() {
                   </div>
                 </div>
                 <div className="mobile-list-actions flex items-center gap-1 shrink-0">
-                  {d.signed && <span className="text-2xs px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-450 rounded-md font-mono">SIGNED</span>}
+                  {d.signed && <span className="text-2xs px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 rounded-md font-mono">SIGNED</span>}
                   <button
                     onClick={() => open(d)}
                     disabled={link.isPending}

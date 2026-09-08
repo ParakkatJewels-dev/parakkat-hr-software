@@ -4,6 +4,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 
+/**
+ * How many task rows one read will return.
+ *
+ * Generous rather than tuned: this company runs 264 staff, and the board is filtered and searched
+ * in the browser, so everything it can show has to be in memory. Raise it, or move to a date
+ * window, before it is ever actually reached — the console warning below says when that is.
+ */
+export const TASK_ROW_CAP = 5000;
+
 export function useTasks() {
   return useQuery({
     queryKey: ['tasks'],
@@ -20,8 +29,17 @@ export function useTasks() {
            assignee:employees!tasks_employee_id_fkey(id, full_name, employee_code, branch:branches(code), department:departments(name)),
            assigner:employees!tasks_assigned_by_fkey(id, full_name, employee_code)`
         )
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        // Explicit, so the ceiling is visible here rather than PostgREST's silent 1000-row default
+        // — the same reason useEmployees and useLeaveBalances state theirs. It matters more here
+        // than on a flat list: the board nests tasks under their parents and counts them in the
+        // chips, so a truncated read does not merely hide old rows, it orphans sub-tasks whose
+        // parent fell off the end and quietly under-reports every total on the screen.
+        .limit(TASK_ROW_CAP);
       if (error) throw error;
+      if ((data?.length ?? 0) === TASK_ROW_CAP) {
+        console.warn(`[tasks] hit the ${TASK_ROW_CAP}-row cap — the board is truncated; add a date window or server-side search`);
+      }
       return data ?? [];
     },
   });

@@ -27,14 +27,14 @@ const LEAVE_REVIEW_STATUSES = ['Pending', 'On Hold', 'Approved', 'Rejected'];
 
 const statusClass = (s) =>
   s === 'Approved'
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-450 dark:border-emerald-900/30'
+    ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30'
     : s === 'Rejected'
-    ? 'bg-rose-100 text-rose-805 border-rose-200 dark:bg-rose-950/40 dark:text-rose-450 dark:border-rose-900/30'
+    ? 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/30'
     : s === 'On Hold'
     ? 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/30'
     : s === 'Cancelled'
     ? 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-500 dark:border-neutral-800'
-    : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-450 dark:border-amber-900/30';
+    : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/30';
 
 function daysBetween(a, b) {
   const d1 = new Date(a), d2 = new Date(b);
@@ -384,7 +384,7 @@ export default function Leave() {
                   return (
                     <div key={h.id} className="p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-850 rounded-xl flex justify-between items-center text-xs">
                       <div>
-                        <span className="font-semibold text-neutral-700 dark:text-slate-350 block">
+                        <span className="font-semibold text-neutral-700 dark:text-slate-300 block">
                           {h.name}{h.is_optional ? ' (optional)' : ''}
                         </span>
                         <span className="text-2xs text-neutral-450">
