@@ -10,7 +10,7 @@
 // either copy is touched.
 import React from 'react';
 import {
-  Bell, Calendar, Receipt, ListChecks, Fingerprint, HelpCircle, Inbox, Boxes, FileText,
+  Bell, Calendar, Receipt, ListChecks, Fingerprint, HelpCircle, Inbox, Boxes, FileText, HandHelping,
 } from 'lucide-react';
 
 export const TYPE_ICONS = {
@@ -19,6 +19,7 @@ export const TYPE_ICONS = {
   task: ListChecks,
   regularization: Fingerprint,
   ticket: HelpCircle,
+  help: HandHelping,
   asset: Boxes,
   document: FileText,
 };

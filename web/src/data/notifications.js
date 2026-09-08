@@ -13,6 +13,7 @@ const REF_TABLES = {
   regularization: 'attendance_regularizations',
   task: 'tasks',
   ticket: 'tickets',
+  help: 'help_requests',
 };
 
 export function useNotifications() {
@@ -63,12 +64,14 @@ export function useActionableNotifications() {
   const regularizationIds = idsForType(notifications, 'regularization');
   const taskIds = idsForType(notifications, 'task');
   const ticketIds = idsForType(notifications, 'ticket');
+  const helpIds = idsForType(notifications, 'help');
 
   const leaveStatuses = useNotificationRefStatuses('leave', leaveIds);
   const expenseStatuses = useNotificationRefStatuses('expense', expenseIds);
   const regularizationStatuses = useNotificationRefStatuses('regularization', regularizationIds);
   const taskStatuses = useNotificationRefStatuses('task', taskIds);
   const ticketStatuses = useNotificationRefStatuses('ticket', ticketIds);
+  const helpStatuses = useNotificationRefStatuses('help', helpIds);
 
   const refStatuses = useMemo(() => {
     const statuses = {};
@@ -79,6 +82,7 @@ export function useActionableNotifications() {
     }
     if (taskIds.length === 0 || taskStatuses.isFetched) statuses.task = taskStatuses.data ?? {};
     if (ticketIds.length === 0 || ticketStatuses.isFetched) statuses.ticket = ticketStatuses.data ?? {};
+    if (helpIds.length === 0 || helpStatuses.isFetched) statuses.help = helpStatuses.data ?? {};
     return statuses;
   }, [
     expenseIds.length,
@@ -96,6 +100,9 @@ export function useActionableNotifications() {
     ticketIds.length,
     ticketStatuses.data,
     ticketStatuses.isFetched,
+    helpIds.length,
+    helpStatuses.data,
+    helpStatuses.isFetched,
   ]);
 
   return {

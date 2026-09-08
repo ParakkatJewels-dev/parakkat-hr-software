@@ -4,6 +4,9 @@ export const ACTIONABLE_NOTIFICATION_STATUSES = {
   regularization: new Set(['Pending']),
   task: new Set(['To Do', 'In Progress', 'Blocked']),
   ticket: new Set(['Open', 'In Progress', 'On Hold']),
+  // A help request needs an answer only while it is Pending; once accepted, declined or
+  // withdrawn it is news rather than a thing to do.
+  help: new Set(['Pending']),
 };
 
 export function filterActionableNotifications(notifications, refStatuses = {}) {
