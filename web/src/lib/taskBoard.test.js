@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isOverdue, filterTasks, taskStats, buildTaskTree, groupByPerson, composerKey,
   searchTasks, searchTerms, sortTasks,
+  openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS, TASK_STATUSES,
 } from './taskBoard.js';
 
 // A task, with only the fields the board actually reads.
@@ -441,4 +442,53 @@ test('editing a task is a different panel from creating one', () => {
 
 test('editing two different tasks gives two different panels', () => {
   assert.notEqual(composerKey({ task: { id: 't1' } }), composerKey({ task: { id: 't2' } }));
+});
+
+// ------------------------------------------------------- what the board loads ----
+
+test('the window keeps every open task and bounds only what is finished', () => {
+  const f = openOrRecentlyClosedFilter(365);
+  // Two arms, OR'd by PostgREST: "not closed" carries no date, so open work never ages off.
+  const [openArm, dateArm] = f.split(',created_at');
+  assert.equal(openArm, 'status.not.in.(Done,Cancelled)');
+  assert.match(dateArm, /^\.gte\.\d{4}-\d{2}-\d{2}$/);
+});
+
+test('the age limit is a real date, N days back', () => {
+  const day = (f) => f.match(/gte\.(\d{4}-\d{2}-\d{2})/)[1];
+  const near = new Date(day(openOrRecentlyClosedFilter(1)));
+  const far = new Date(day(openOrRecentlyClosedFilter(365)));
+  assert.ok(far < near, 'a longer window must reach further back');
+  assert.equal(Math.round((near - far) / 86400000), 364);
+});
+
+test('no value in the filter contains a space', () => {
+  // The trap this formulation exists to avoid. Written the obvious way — as a positive list of the
+  // open statuses — the filter carries "To Do" and "In Progress", and the query string serialises
+  // those spaces as `+`. If the server reads `+` literally the filter matches NOTHING, the board
+  // silently shows only recent work, and there is no error anywhere to say so.
+  assert.ok(!openOrRecentlyClosedFilter().includes(' '));
+  assert.ok(!openOrRecentlyClosedFilter().includes('+'));
+});
+
+test('the filter names the closed statuses, so a NEW status is shown rather than hidden', () => {
+  // Fails safe: `not.in.(Done,Cancelled)` treats anything added later as open. A positive list
+  // would drop a new status off the board with nobody noticing.
+  const f = openOrRecentlyClosedFilter();
+  for (const closed of ['Done', 'Cancelled']) assert.ok(f.includes(closed));
+  for (const open of TASK_STATUSES.filter((s) => !['Done', 'Cancelled'].includes(s))) {
+    assert.ok(!f.includes(open), `${open} must not be enumerated in the filter`);
+  }
+});
+
+test('the window is stated in a form the UI can put on screen', () => {
+  assert.equal(typeof CLOSED_TASK_WINDOW_DAYS, 'number');
+  assert.ok(CLOSED_TASK_WINDOW_DAYS >= 180, 'shorter than the other lists would be a surprise');
+});
+
+test('a parent that aged out does not take its open child with it', () => {
+  // The window can return a child whose parent is closed and old. The tree already promotes an
+  // orphan to a root rather than dropping it — this is that rule, stated against the window.
+  const { roots } = buildTaskTree([task({ id: 'child', parent_task_id: 'parent-closed-last-year' })]);
+  assert.deepEqual(roots.map((t) => t.id), ['child']);
 });

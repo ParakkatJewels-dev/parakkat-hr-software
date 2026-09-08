@@ -3,7 +3,7 @@ import {
   ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, CornerDownRight, Flag,
   CalendarClock, User, GitBranch, Users, ChevronRight, Search, PenLine, ShieldAlert,
 } from 'lucide-react';
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '../data/tasks';
+import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, CLOSED_TASK_WINDOW_DAYS } from '../data/tasks';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import FormSection from './ui/FormSection';
@@ -47,6 +47,12 @@ const statusClass = (s) =>
  * branch belonged to nobody. Two such people also both read "Unassigned", one under the other.
  */
 const ASSIGNEE_HIDDEN = 'Assignee not visible';
+
+// The board holds every open task and a year of finished ones (see useTasks). Said in months
+// because that is how people talk about it, and said AT ALL because a search that quietly cannot
+// reach a task is worse than one that says where it stops looking.
+const WINDOW_MONTHS = Math.round(CLOSED_TASK_WINDOW_DAYS / 30);
+const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelled ones are kept for ${WINDOW_MONTHS} months.`;
 
 const priorityMeta = (p) =>
   p === 'Urgent'
@@ -311,7 +317,8 @@ export default function TaskManagement() {
               <p className="text-2xs">
                 {statusFilter !== 'All' && <>Try <button type="button" onClick={() => setStatusFilter('All')} className="underline cursor-pointer">All</button> — the search only looks at the current status. </>}
                 {effectiveMineOnly && canViewTeamTasks && <>“My tasks” is on, so only your own are being searched. </>}
-                {!canViewTeamTasks && <>You can only search tasks assigned to you.</>}
+                {!canViewTeamTasks && <>You can only search tasks assigned to you. </>}
+                {WINDOW_NOTE}
               </p>
             </>
           ) : (
@@ -383,6 +390,10 @@ export default function TaskManagement() {
             } catch { /* shown in the panel */ }
           }}
         />
+      )}
+
+      {!isLoading && !(error && tasks.length === 0) && filtered.length > 0 && (
+        <p className="px-1 text-2xs text-neutral-400">{WINDOW_NOTE}</p>
       )}
 
       {toDelete && (

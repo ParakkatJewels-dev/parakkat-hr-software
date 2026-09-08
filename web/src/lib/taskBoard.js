@@ -4,7 +4,7 @@
 // usePermissions.js: the component imports Supabase (through the data hooks and AuthContext), so
 // the test runner cannot load it, and every rule below was therefore untested. Three of them were
 // wrong. See taskBoard.test.js.
-import { istToday } from './dates.js';   // .js so the node test runner can resolve it, as the .test.js files do
+import { istToday, windowStartIso } from './dates.js';   // .js so the node test runner can resolve it, as the .test.js files do
 
 export const TASK_STATUSES = ['To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled'];
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
@@ -238,4 +238,37 @@ export function composerKey(composer) {
   if (!composer) return null;
   if (composer.task) return `edit:${composer.task.id}`;
   return `new:${composer.parentId ?? 'root'}:${composer.defaultAssignee ?? ''}`;
+}
+
+/**
+ * How much finished work the board carries: a year of it.
+ *
+ * More generous than the 180 days Leave, Expenses and Tickets use, because a closed task is
+ * reference material in a way a spent leave day is not — "what did we do at the last audit" is a
+ * real question. Open work is not bounded at all; see below.
+ */
+export const CLOSED_TASK_WINDOW_DAYS = 365;
+
+/**
+ * The PostgREST `or=` filter that bounds the task list: everything still open, plus whatever was
+ * closed inside the window.
+ *
+ * Leave, Expenses and Tickets simply cut at `created_at >= windowStartIso(180)` — see the docstring
+ * on windowStartIso, which exists so these lists "cannot grow without limit as the company
+ * accumulates years of history". Tasks was the one operational list that never adopted it, and it
+ * cannot adopt it unchanged: a leave request from eight months ago is history, but a task from
+ * eight months ago that is STILL OPEN is work somebody owes, and is exactly what a manager needs
+ * to see. Cutting on age alone would hide the most important rows on the board.
+ *
+ * So the age limit applies only to work that is finished with. Open tasks are self-limiting anyway
+ * — people close them — while closed ones are what accumulate forever.
+ *
+ * Written as "not closed" rather than as a list of the open statuses for two reasons. It fails in
+ * the safe direction: a status added later is treated as open and shown, rather than silently
+ * dropping off the board. And none of the values contain a space, so the query string cannot end
+ * up depending on whether the server reads `+` as a space — `status.in.("To Do",…)` serialises to
+ * `"To+Do"` and would quietly match nothing.
+ */
+export function openOrRecentlyClosedFilter(days = CLOSED_TASK_WINDOW_DAYS) {
+  return `status.not.in.(Done,Cancelled),created_at.gte.${windowStartIso(days)}`;
 }

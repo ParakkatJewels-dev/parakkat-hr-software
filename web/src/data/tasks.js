@@ -3,13 +3,17 @@
 // hierarchy. Ancestry columns are stamped automatically from the assignee (employee_id) by the DB.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS } from '../lib/taskBoard';
+
+export { CLOSED_TASK_WINDOW_DAYS };
 
 /**
- * How many task rows one read will return.
+ * A backstop, not the bound.
  *
- * Generous rather than tuned: this company runs 264 staff, and the board is filtered and searched
- * in the browser, so everything it can show has to be in memory. Raise it, or move to a date
- * window, before it is ever actually reached — the console warning below says when that is.
+ * The bound is the window below — open work plus a year of finished work — which is what actually
+ * keeps this query from growing with the company's history. This cap only exists so that if the
+ * window is ever widened or removed, the failure is a loud warning rather than a silently
+ * truncated board.
  */
 export const TASK_ROW_CAP = 5000;
 
@@ -29,6 +33,11 @@ export function useTasks() {
            assignee:employees!tasks_employee_id_fkey(id, full_name, employee_code, branch:branches(code), department:departments(name)),
            assigner:employees!tasks_assigned_by_fkey(id, full_name, employee_code)`
         )
+        // Everything still open, plus a year of what is finished — see openOrRecentlyClosedFilter.
+        // Without it this was the only operational list with no bound at all, growing with the
+        // company's whole history; Leave, Expenses and Tickets have each carried a window for as
+        // long as they have existed.
+        .or(openOrRecentlyClosedFilter())
         .order('created_at', { ascending: false })
         // Explicit, so the ceiling is visible here rather than PostgREST's silent 1000-row default
         // — the same reason useEmployees and useLeaveBalances state theirs. It matters more here
@@ -38,7 +47,7 @@ export function useTasks() {
         .limit(TASK_ROW_CAP);
       if (error) throw error;
       if ((data?.length ?? 0) === TASK_ROW_CAP) {
-        console.warn(`[tasks] hit the ${TASK_ROW_CAP}-row cap — the board is truncated; add a date window or server-side search`);
+        console.warn(`[tasks] hit the ${TASK_ROW_CAP}-row cap despite the ${CLOSED_TASK_WINDOW_DAYS}-day window — the board is truncated; move search server-side`);
       }
       return data ?? [];
     },
