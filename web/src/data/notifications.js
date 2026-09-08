@@ -1,10 +1,11 @@
 // Data hooks for in-app notifications. Rows are created only by DB triggers (migration 0023);
 // RLS scopes every query to the signed-in user's own notifications, and realtime.js invalidates
 // ['notifications'] the moment a new row streams in, so the bell updates live.
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { filterActionableNotifications } from '../lib/actionableNotifications';
+import { filterActionableNotifications, idsToMarkRead } from '../lib/actionableNotifications';
+import { notificationTarget } from '../lib/focusRow';
 
 const REF_TABLES = {
   leave: 'leaves',
@@ -103,18 +104,63 @@ export function useActionableNotifications() {
   };
 }
 
-export function useMarkNotificationRead() {
+/**
+ * Mark one notification read, or a whole group of them.
+ *
+ * Takes an id or an array, because the dashboard strip collapses identical notifications into one
+ * row and that row stands for all of them — see groupUnreadNotifications.
+ *
+ * `.select('id')` is not decoration. A PostgREST update with no select returns SUCCESS and no error
+ * when RLS filters it to zero rows, so a mark-read that reached nothing looked exactly like one
+ * that worked and the badge simply never went down. Same failure that was found and fixed in
+ * useSetExpenseStatus; this is the notifications copy of it.
+ */
+export function useMarkNotificationsRead() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (id) => {
-      const { error } = await supabase
+    mutationFn: async (idOrIds) => {
+      const ids = (Array.isArray(idOrIds) ? idOrIds : [idOrIds]).filter(Boolean);
+      if (ids.length === 0) return;
+      const { data, error } = await supabase
         .from('notifications')
         .update({ read_at: new Date().toISOString() })
-        .eq('id', id);
+        .in('id', ids)
+        .select('id');
       if (error) throw error;
+      if (!data?.length) throw new Error('Those notifications could not be marked read — they may already be gone.');
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
   });
+}
+
+/** Back-compat name for the single-id call sites. */
+export const useMarkNotificationRead = useMarkNotificationsRead;
+
+/**
+ * Opening a notification: mark it read, then go where it points.
+ *
+ * ONE definition, deliberately. The bell and the notifications screen each grew their own identical
+ * `openItem`, and when the dashboard's "Needs attention" strip was added it got only half of the
+ * pair — it navigated and never marked anything read, so acting on an item cleared the strip (the
+ * underlying row stopped being actionable) while the bell badge kept counting it forever. That is
+ * the same drift the row markup was pulled into ui/NotificationRow.jsx to prevent; this is the
+ * behaviour half of it.
+ */
+export function useOpenNotification(onNavigate) {
+  const markRead = useMarkNotificationsRead();
+  const open = useCallback(
+    (n) => {
+      const ids = idsToMarkRead(n);
+      if (ids.length > 0) markRead.mutate(ids);
+      // The row, not just the screen. Every notification stores the id of the thing it is about;
+      // this is where that finally gets used. A grouped row stands for several and gets the screen
+      // alone — see notificationTarget.
+      const target = notificationTarget(n);
+      if (target && onNavigate) onNavigate(target);
+    },
+    [markRead, onNavigate]
+  );
+  return { open, error: markRead.error };
 }
 
 export function useMarkAllNotificationsRead() {

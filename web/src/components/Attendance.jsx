@@ -27,6 +27,7 @@ import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import { useSyncHealth, DIAGNOSIS, forHumans, useQueuedExport, useQueuedRecompute } from '../data/syncStatus';
 import EmployeeLink from './ui/EmployeeLink';
 import { useUrlTab } from '../lib/useUrlTab';
+import { useFocusRow } from '../lib/useFocusRow';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -922,6 +923,9 @@ function ExceptionsView() {
 
 function RegularizationsView({ employee, canApprove }) {
   const { can, viewingAsEmployee } = usePermissions();
+  // A regularization notification links straight here — see the 0098 migration, which points the
+  // trigger at `attendance/regularizations` instead of the screen's default tab.
+  const { rowProps } = useFocusRow();
   // A reviewer sees the pending queue; everybody else sees THEIR OWN requests. The second argument
   // is what stops "not an approver" from meaning "no filter at all".
   const reviewing = canApprove && !viewingAsEmployee;
@@ -1023,7 +1027,7 @@ function RegularizationsView({ employee, canApprove }) {
           ) : (
             <ul className="space-y-1.5">
               {mine.slice(0, 8).map((r) => (
-                <li key={r.id} className="mobile-list-row flex items-center justify-between text-xs">
+                <li key={r.id} {...rowProps(r.id)} className="mobile-list-row flex items-center justify-between text-xs">
                   <span className="font-mono">{r.work_date}</span>
                   <span className={`badge ${r.status === 'Approved' ? 'badge-green' : r.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 'badge-muted'}`}>
                     {r.status}
@@ -1061,7 +1065,7 @@ function RegularizationsView({ employee, canApprove }) {
                 </thead>
                 <tbody>
                   {queue.map((r) => (
-                    <tr key={r.id}>
+                    <tr key={r.id} {...rowProps(r.id)}>
                       <td data-label="Date" className="font-mono">{r.work_date}</td>
                       <td data-label="Employee">
                         <div className="font-semibold text-neutral-800 dark:text-neutral-100"><EmployeeLink employee={r.employee} /></div>

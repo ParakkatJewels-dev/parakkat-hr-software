@@ -12,11 +12,11 @@
 // The row markup lives in ui/NotificationRow.jsx, which both this and the bell import — see the
 // note there for why it is not declared in either of them.
 import React, { useMemo } from 'react';
-import { CheckCheck } from 'lucide-react';
+import { CheckCheck, AlertTriangle } from 'lucide-react';
 import { NotificationRow, EmptyState } from './ui/NotificationRow';
 import {
   useNotifications,
-  useMarkNotificationRead,
+  useOpenNotification,
   useMarkAllNotificationsRead,
 } from '../data/notifications';
 
@@ -38,7 +38,7 @@ const ORDER = ['Today', 'Yesterday', 'This week', 'This month', 'Earlier'];
 
 export default function Notifications({ onNavigate }) {
   const { data: notifications = [], isLoading } = useNotifications();
-  const markRead = useMarkNotificationRead();
+  const { open: openItem, error: markError } = useOpenNotification(onNavigate);
   const markAllRead = useMarkAllNotificationsRead();
 
   const unread = notifications.filter((n) => !n.read_at);
@@ -52,11 +52,6 @@ export default function Notifications({ onNavigate }) {
     }
     return ORDER.filter((b) => m.has(b)).map((b) => [b, m.get(b)]);
   }, [notifications]);
-
-  const openItem = (n) => {
-    if (!n.read_at) markRead.mutate(n.id);
-    if (n.tab && onNavigate) onNavigate(n.tab);
-  };
 
   return (
     <div className="page-shell space-y-4 animate-fade-in">
@@ -76,6 +71,15 @@ export default function Notifications({ onNavigate }) {
           </button>
         )}
       </div>
+
+      {/* A mark-read that reached no row now says so instead of leaving the badge stuck. This is
+          the only one of the three surfaces with room to show it. */}
+      {(markError || markAllRead.error) && (
+        <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{(markError || markAllRead.error).message}</span>
+        </div>
+      )}
 
       {isLoading ? null : notifications.length === 0 ? (
         <div className="premium-card"><EmptyState /></div>

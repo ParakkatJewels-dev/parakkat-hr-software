@@ -339,6 +339,26 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .dark .text-neutral-500, .dark .text-neutral-505, .dark .text-neutral-550,
 .dark .text-slate-400, .dark .text-slate-450, .dark .text-slate-500 { color: #9aa6a0 !important; }
 
+/* A row a notification deep-linked to.
+   Marked rather than merely scrolled to: on a list of forty near-identical rows, "we scrolled a
+   bit" is not an answer to "which one". The ring fades on its own — see HIGHLIGHT_MS in
+   useFocusRow.js — because a permanent mark stops meaning "this one" and starts meaning "broken".
+   Motion is opt-out: the ring still appears, it just does not pulse. */
+[data-focus-row] {
+  animation: focus-row-flash 2.6s ease-out 1;
+  border-radius: var(--radius-control, .75rem);
+  scroll-margin-block: 6rem;
+  position: relative;
+  z-index: 1;
+}
+@keyframes focus-row-flash {
+  0%, 55% { box-shadow: 0 0 0 2px var(--accent), 0 0 0 7px color-mix(in srgb, var(--accent) 22%, transparent); }
+  100%    { box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-focus-row] { animation: none; box-shadow: 0 0 0 2px var(--accent); }
+}
+
 /* Standardized dark-mode input theming (wins over utilities via !important).
 
    `.status-pill` opts out. It is the one control in the app whose colour IS its meaning — the task

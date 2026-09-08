@@ -41,6 +41,7 @@ import { useRealtimeSync } from './lib/realtime';
 import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
 import { isStandalonePwa } from './lib/pwa';
+import { stripFocus } from './lib/focusRow';
 import { syncNativeTheme } from './mobile/native';
 
 // Prettify a role key like 'branch_manager' -> 'Branch Manager'.
@@ -540,7 +541,9 @@ export default function App() {
 
   // Which section owns the screen on show? Drives sidebar highlighting and the tab bar, so a
   // shortcut from the dashboard lands in the right place without the caller knowing the tree.
-  const here = (location.pathname + location.search).replace(/^\/+/, '').replace(/\/+$/, '');
+  // `focus` is transient — a notification pointing at one row — and is stripped the moment the
+  // screen claims it (useFocusRow). It must not take part in deciding which nav item is current.
+  const here = (location.pathname + stripFocus(location.search)).replace(/^\/+/, '').replace(/\/+$/, '');
   const activeSection =
     visibleSections.find((sec) => sec.tabs.some((t) => t.to === here))
     ?? visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab))

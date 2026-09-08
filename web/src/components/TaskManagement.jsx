@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useDeferredValue } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
   ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, CornerDownRight, Flag,
   CalendarClock, User, GitBranch, Users, ChevronRight, Search, PenLine, ShieldAlert,
@@ -18,6 +18,8 @@ import {
   isOverdue, filterTasks, sortTasks, taskStats, buildTaskTree, groupByPerson, composerKey,
 } from '../lib/taskBoard';
 import IconInput from './ui/IconInput';
+import { useFocusRow } from '../lib/useFocusRow';
+import { focusIsMissing } from '../lib/focusRow';
 import { istToday } from '../lib/dates';
 
 const INPUT =
@@ -110,6 +112,10 @@ export default function TaskManagement() {
   const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | { task } | null
   const [toDelete, setToDelete] = useState(null); // the task awaiting confirmation
   const [query, setQuery] = useState('');
+  // Sent here by a notification. Unlike Leave and Expenses, this board does NOT default to "All" —
+  // it opens on Active — so a completed task somebody was linked to would render nothing at all and
+  // the link would look broken. Widen to All when the target is not in the current view.
+  const { focusId, rowProps } = useFocusRow();
   // The box keeps up with typing; re-filtering and re-rendering the tree is allowed to lag a frame.
   const deferredQuery = useDeferredValue(query);
   const effectiveMineOnly = !canViewTeamTasks || mineOnly;
@@ -132,6 +138,19 @@ export default function TaskManagement() {
     () => taskStats(tasks, { mineOnly: effectiveMineOnly, myEmployeeId, query: deferredQuery, today }),
     [tasks, effectiveMineOnly, myEmployeeId, deferredQuery, today]
   );
+  // A notification linked to a task the current filter hides — a completed one, most often, since
+  // this board opens on Active. Widen once rather than showing an empty board under a link that
+  // promised to take you somewhere.
+  useEffect(() => {
+    if (!focusId || statusFilter === 'All') return;
+    const known = tasks.some((t) => t.id === focusId);
+    if (known && !filtered.some((t) => t.id === focusId)) setStatusFilter('All');
+  }, [focusId, statusFilter, tasks, filtered]);
+
+  // Loaded, and still not here: RLS no longer returns it, or it was deleted. Say so — the one thing
+  // worse than not linking to a row is linking to it and then showing a list without it.
+  const focusMissing = focusIsMissing(focusId, tasks, { loaded: !isLoading });
+
   const { roots, childrenOf } = useMemo(() => buildTaskTree(filtered), [filtered]);
   const byPerson = useMemo(() => groupByPerson(filtered), [filtered]);
 
@@ -152,6 +171,7 @@ export default function TaskManagement() {
 
   const actions = {
     today,
+    rowProps,
     setStatus: (id, status) => update.mutate({ id, status }),
     addSubtask: (task) => setComposer({ parentId: task.id, defaultAssignee: task.employee_id }),
     // A task was write-once: a typo in the title, a date that moved, or the wrong person could only
@@ -285,6 +305,13 @@ export default function TaskManagement() {
           the task was deleted" — and neither was ever rendered: the dropdown simply snapped back to
           the old status on the next refetch, and the deleted row stayed put. Leave and Expenses
           both show their mutation errors here; Tasks now does too. */}
+      {focusMissing && (
+        <div role="status" className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>That task is no longer on your board — it may have been deleted, or reassigned outside what you can see.</span>
+        </div>
+      )}
+
       {(update.error || del.error) && (
         <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
@@ -460,7 +487,7 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
   const pm = priorityMeta(task.priority);
   const overdue = isOverdue(task, actions.today);
   return (
-    <div className={`premium-card ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}>
+    <div {...actions.rowProps(task.id)} className={`premium-card ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}>
       <div className="mobile-list-row flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">

@@ -10,18 +10,28 @@
 // range queries in Postgres — at which point `usePagination` is the seam to change.
 import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { pageContaining } from '../../lib/focusRow';
 
 /**
  * @param items      the full, already-filtered array
  * @param initialSize rows per page to start with
+ * @param focusId    a row to page to, when a notification deep-linked to it (see focusRow.js)
  * @returns { slice, page, setPage, totalPages, pageSize, setPageSize, count, from, to }
  */
-export function usePagination(items, initialSize = 25) {
+export function usePagination(items, initialSize = 25, focusId = null) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialSize);
 
   const count = items.length;
   const totalPages = Math.max(1, Math.ceil(count / pageSize));
+
+  // Sent here by a notification: land on the page that actually holds the row. Without this the
+  // app navigates you to a list, scrolls to a row that is not rendered, and does nothing visible —
+  // which reads as a broken link rather than as a row sitting on page 3.
+  useEffect(() => {
+    const target = pageContaining(items, focusId, pageSize);
+    if (target) setPage(target);
+  }, [focusId, items, pageSize]);
 
   // Filtering down to fewer pages while sitting on page 9 leaves you staring at an empty table.
   // Clamping rather than resetting to 1 keeps your place when the list only shifts slightly.

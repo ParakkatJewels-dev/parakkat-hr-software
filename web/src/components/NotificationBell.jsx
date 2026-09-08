@@ -8,7 +8,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Bell, CheckCheck } from 'lucide-react';
 import {
   useNotifications,
-  useMarkNotificationRead,
+  useOpenNotification,
   useMarkAllNotificationsRead,
 } from '../data/notifications';
 import { NotificationRow, EmptyState } from './ui/NotificationRow';
@@ -22,7 +22,8 @@ export default function NotificationBell({ onNavigate }) {
   const hasRoomForDropdown = useMediaQuery('(min-width: 1024px)');
 
   const { data: notifications = [] } = useNotifications();
-  const markRead = useMarkNotificationRead();
+  // `open` is taken by the dropdown's own state, so name the shared action for what it does.
+  const { open: openNotification } = useOpenNotification(onNavigate);
   const markAllRead = useMarkAllNotificationsRead();
 
   const unread = notifications.filter((n) => !n.read_at);
@@ -43,9 +44,8 @@ export default function NotificationBell({ onNavigate }) {
   }, [open]);
 
   const openItem = (n) => {
-    if (!n.read_at) markRead.mutate(n.id);
     setOpen(false);
-    if (n.tab && onNavigate) onNavigate(n.tab);
+    openNotification(n);
   };
 
   return (

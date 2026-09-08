@@ -3,7 +3,8 @@
 // plus the two cross-role widgets (notifications strip, holidays & anniversaries).
 import React from 'react';
 import { ArrowRight, BellRing, CalendarHeart, PartyPopper } from 'lucide-react';
-import { useActionableNotifications } from '../../data/notifications';
+import { useActionableNotifications, useOpenNotification } from '../../data/notifications';
+import { groupUnreadNotifications } from '../../lib/actionableNotifications';
 import { useHolidays } from '../../data/holidays';
 import { useEmployees } from '../../data/employees';
 import { todayIso } from '../../data/attendance';
@@ -274,26 +275,13 @@ export function StatusBadge({ status }) {
   );
 }
 
-function groupedUnreadNotifications(notifications) {
-  const groups = new Map();
-  notifications
-    .filter((n) => !n.read_at)
-    .forEach((n) => {
-      const key = [n.type || 'notification', n.tab || '', n.title || 'Notification'].join('|');
-      const group = groups.get(key);
-      if (group) {
-        group.count += 1;
-        return;
-      }
-      groups.set(key, { ...n, count: 1 });
-    });
-  return [...groups.values()];
-}
-
 /** Unread-notification strip shown on every dashboard, right under the greeting. */
 export function NotificationsStrip({ onNavigate }) {
   const { data: notifications = [] } = useActionableNotifications();
-  const unreadGroups = groupedUnreadNotifications(notifications).slice(0, 3);
+  // Same contract as the bell and the notifications screen: opening marks read, THEN navigates.
+  // This strip used to only navigate, so the badge never came down. See useOpenNotification.
+  const { open } = useOpenNotification(onNavigate);
+  const unreadGroups = groupUnreadNotifications(notifications).slice(0, 3);
   if (unreadGroups.length === 0) return null;
 
   return (
@@ -305,7 +293,7 @@ export function NotificationsStrip({ onNavigate }) {
         {unreadGroups.map((n) => (
           <button
             key={n.id}
-            onClick={() => n.tab && onNavigate?.(n.tab)}
+            onClick={() => open(n)}
             className="flex items-center gap-1.5 rounded-lg border border-neutral-200/70 dark:border-neutral-850 bg-neutral-50/60 dark:bg-charcoal-900/40 px-2.5 py-1 text-base font-semibold text-neutral-700 dark:text-warm-gray-300 hover:border-amber-500/40 transition-colors cursor-pointer max-w-full"
           >
             <span className="truncate">{n.title}</span>

@@ -6,6 +6,7 @@ import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
+import { useFocusRow } from '../lib/useFocusRow';
 
 const CATS = ['IT Support', 'Payroll Query', 'HR Policy', 'Facility/Admin'];
 const PRIOS = ['Low', 'Medium', 'High'];
@@ -91,7 +92,8 @@ export default function HelpdeskExit() {
   };
 
   // Paged: this list grows with the business and was rendering every row.
-  const pager = usePagination(tickets);
+  const { focusId, rowProps } = useFocusRow();
+  const pager = usePagination(tickets, 25, focusId);
 
   return (
     <div className="page-shell space-y-6 animate-slide-up text-xs">
@@ -150,7 +152,7 @@ export default function HelpdeskExit() {
               ) : (
                 <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
                   {pager.slice.map((t) => (
-                    <div key={t.id} className="mobile-list-row p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
+                    <div key={t.id} {...rowProps(t.id)} className="mobile-list-row p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-1.5">
                           <span className="font-bold text-neutral-850 dark:text-slate-200">{t.category}</span>

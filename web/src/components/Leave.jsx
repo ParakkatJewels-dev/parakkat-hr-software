@@ -8,6 +8,7 @@ import { useMineOnly } from '../lib/useMineOnly';
 import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
+import { useFocusRow } from '../lib/useFocusRow';
 
 /**
  * The catalog decides what a leave is called — this file no longer does.
@@ -178,7 +179,9 @@ export default function Leave() {
 
 
   // Paged: this list grows with the business and was rendering every row.
-  const pager = usePagination(visibleLeaves);
+  // A notification can point at one request; land on its page and mark it. See focusRow.js.
+  const { focusId, rowProps } = useFocusRow();
+  const pager = usePagination(visibleLeaves, 25, focusId);
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
@@ -267,7 +270,7 @@ export default function Leave() {
             ) : (
               <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
                 {pager.slice.map((req) => (
-                  <div key={req.id} className="mobile-list-row p-4 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 text-xs hover:border-neutral-300 dark:hover:border-neutral-800">
+                  <div key={req.id} {...rowProps(req.id)} className="mobile-list-row p-4 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 text-xs hover:border-neutral-300 dark:hover:border-neutral-800">
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center space-x-2">
                         <span className="font-bold text-neutral-855 dark:text-slate-200">{typeName(req.type)}</span>
