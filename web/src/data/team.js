@@ -11,8 +11,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 
 /** The departments this user may actually build a team for. Derived server-side from their grants. */
-export function useMyDepartments() {
+export function useMyDepartments({ enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['my-departments'],
     queryFn: async () => {
       const { data, error } = await supabase.rpc('my_departments');

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
   ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, CornerDownRight, Flag,
-  CalendarClock, User, GitBranch, Users, ChevronRight, Search, PenLine, ShieldAlert,
+  CalendarClock, User, GitBranch, Users, ChevronRight, Search, PenLine, ShieldAlert, HandHelping,
 } from 'lucide-react';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, CLOSED_TASK_WINDOW_DAYS } from '../data/tasks';
 import { useEmployees } from '../data/employees';
@@ -11,6 +11,12 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
 import { usePermissions } from '../auth/usePermissions';
 import { useUrlTab } from '../lib/useUrlTab';
+// A help request is a request for a TASK, so it lives here rather than beside the team roster:
+// this is the screen people already open when they are thinking about work.
+import TeamRequests from './TeamRequests';
+import { useMyDepartments } from '../data/team';
+import { useHelpRequests } from '../data/helpRequests';
+import { pendingCount } from '../lib/helpRequests';
 // The board's reasoning — filtering, counting, nesting, grouping — lives in lib so it can be
 // tested. This file imports Supabase through its data hooks, which the test runner cannot load.
 import {
@@ -81,6 +87,8 @@ export default function TaskManagement() {
   // the creator need NOT be linked to an employee themselves. Only the permission matters.
   const canCreate = canAny('task.create');
   const canViewTeamTasks = canBeyondSelf('task.read');
+  // Asking another department, and answering when asked. Held by department heads and up (0101).
+  const canUseRequests = canAny('task.request');
 
   /**
    * Per-row authority, mirroring tasks_update / tasks_delete / tasks_create — each of which checks
@@ -106,7 +114,7 @@ export default function TaskManagement() {
   };
 
   // In the URL, so a refresh comes back to the view you were reading.
-  const [view, setView] = useUrlTab('flow', ['flow', 'people']);
+  const [view, setView] = useUrlTab('flow', ['flow', 'people', 'requests']);
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | { task } | null
@@ -119,7 +127,16 @@ export default function TaskManagement() {
   // The box keeps up with typing; re-filtering and re-rendering the tree is allowed to lag a frame.
   const deferredQuery = useDeferredValue(query);
   const effectiveMineOnly = !canViewTeamTasks || mineOnly;
-  const effectiveView = canViewTeamTasks ? view : 'flow';
+  const effectiveView =
+    view === 'requests' ? (canUseRequests ? 'requests' : 'flow')
+    : canViewTeamTasks ? view
+    : 'flow';
+
+  // Only what is waiting on YOU. A request you raised is waiting on somebody else, and badging it
+  // would read as work you owe. See pendingCount.
+  const { data: myDepartments = [] } = useMyDepartments({ enabled: canUseRequests });
+  const { data: helpRequests = [] } = useHelpRequests({ enabled: canUseRequests });
+  const waitingOnMe = pendingCount(helpRequests, myDepartments.map((d) => d.id));
 
   // One reading of "today" per render, in IST, shared by the filter, the counts and every badge —
   // so a board rendered across midnight cannot disagree with itself about what is late.
@@ -212,7 +229,8 @@ export default function TaskManagement() {
         )}
       </div>
 
-      {/* stats */}
+      {/* stats — the board's, so not shown while looking at requests */}
+      {effectiveView !== 'requests' && (
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Stat label="Total" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="To Do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => setStatusFilter('To Do')} />
@@ -220,8 +238,10 @@ export default function TaskManagement() {
         <Stat label="Done" value={stats.done} active={statusFilter === 'Done'} onClick={() => setStatusFilter('Done')} />
         <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} />
       </div>
+      )}
 
-      {/* search */}
+      {/* search — searches the board, so it comes off with it */}
+      {effectiveView !== 'requests' && (
       <div className="flex flex-wrap items-center gap-3">
         <IconInput
           icon={Search}
@@ -259,11 +279,12 @@ export default function TaskManagement() {
           </span>
         )}
       </div>
+      )}
 
       {/* controls */}
       <div className="mobile-toolbar flex flex-wrap items-center justify-between gap-3">
         <div className="mobile-segmented flex flex-wrap items-center gap-1.5">
-          {['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All'].map((s) => (
+          {(effectiveView === 'requests' ? [] : ['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All']).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -279,7 +300,7 @@ export default function TaskManagement() {
           ))}
         </div>
         <div className="mobile-toolbar-actions flex items-center gap-2">
-          {canViewTeamTasks && employee?.id && (
+          {effectiveView !== 'requests' && canViewTeamTasks && employee?.id && (
             <button
               onClick={() => setMineOnly((v) => !v)}
               className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
@@ -291,10 +312,23 @@ export default function TaskManagement() {
               My tasks
             </button>
           )}
-          {canViewTeamTasks && (
+          {(canViewTeamTasks || canUseRequests) && (
             <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-850 overflow-hidden">
-              <ViewBtn active={view === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
-              <ViewBtn active={view === 'people'} onClick={() => setView('people')} icon={Users} label="By Person" />
+              {canViewTeamTasks && (
+                <>
+                  <ViewBtn active={effectiveView === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
+                  <ViewBtn active={effectiveView === 'people'} onClick={() => setView('people')} icon={Users} label="By Person" />
+                </>
+              )}
+              {canUseRequests && (
+                <ViewBtn
+                  active={effectiveView === 'requests'}
+                  onClick={() => setView('requests')}
+                  icon={HandHelping}
+                  label="Requests"
+                  badge={waitingOnMe}
+                />
+              )}
             </div>
           )}
         </div>
@@ -305,14 +339,14 @@ export default function TaskManagement() {
           the task was deleted" — and neither was ever rendered: the dropdown simply snapped back to
           the old status on the next refetch, and the deleted row stayed put. Leave and Expenses
           both show their mutation errors here; Tasks now does too. */}
-      {focusMissing && (
+      {effectiveView !== 'requests' && focusMissing && (
         <div role="status" className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>That task is no longer on your board — it may have been deleted, or reassigned outside what you can see.</span>
         </div>
       )}
 
-      {(update.error || del.error) && (
+      {effectiveView !== 'requests' && (update.error || del.error) && (
         <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>{(update.error || del.error).message}</span>
@@ -320,7 +354,9 @@ export default function TaskManagement() {
       )}
 
       {/* body */}
-      {isLoading ? (
+      {effectiveView === 'requests' ? (
+        <TeamRequests myDepartments={myDepartments} />
+      ) : isLoading ? (
         <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>
       ) : error && tasks.length === 0 ? (
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
@@ -392,7 +428,7 @@ export default function TaskManagement() {
         </div>
       )}
 
-      {composer && (
+      {effectiveView !== 'requests' && composer && (
         <TaskComposer
           // Remounts the panel whenever it is pointed at a different task — see composerKey().
           key={composerKey(composer)}
@@ -419,11 +455,11 @@ export default function TaskManagement() {
         />
       )}
 
-      {!isLoading && !(error && tasks.length === 0) && filtered.length > 0 && (
+      {effectiveView !== 'requests' && !isLoading && !(error && tasks.length === 0) && filtered.length > 0 && (
         <p className="px-1 text-2xs text-neutral-400">{WINDOW_NOTE}</p>
       )}
 
-      {toDelete && (
+      {effectiveView !== 'requests' && toDelete && (
         <ConfirmDialog
           title="Delete this task?"
           confirmLabel="Delete task"
@@ -716,10 +752,11 @@ function TaskComposer({
   );
 }
 
-function ViewBtn({ active, onClick, icon: Icon, label }) {
+function ViewBtn({ active, onClick, icon: Icon, label, badge = 0 }) {
   return (
     <button
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={`flex items-center gap-1.5 text-base font-semibold px-2.5 py-1 cursor-pointer transition-colors ${
         active
           ? 'bg-black text-white dark:bg-[#0ea971] dark:text-white'
@@ -727,6 +764,11 @@ function ViewBtn({ active, onClick, icon: Icon, label }) {
       }`}
     >
       <Icon size={12} /> {label}
+      {badge > 0 && (
+        <span className="text-2xs font-mono px-1.5 rounded-full bg-amber-500 text-white" aria-label={`${badge} waiting for you`}>
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

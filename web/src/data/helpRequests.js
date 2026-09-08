@@ -23,8 +23,9 @@ const SELECT = `
  * Every request this person is either side of. RLS returns both ends, so the split into "asked"
  * and "received" is done here from the department ids rather than by running two queries.
  */
-export function useHelpRequests() {
+export function useHelpRequests({ enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['help-requests'],
     queryFn: async () => {
       const { data, error } = await supabase

@@ -17,10 +17,6 @@ import {
   useMyDepartments, useDepartmentMembers, useAssignableEmployees,
   useDepartmentMoves, useMoveEmployeeDepartment,
 } from '../data/team';
-import TeamRequests from './TeamRequests';
-import { useHelpRequests } from '../data/helpRequests';
-import { pendingCount } from '../lib/helpRequests';
-import { useUrlTab } from '../lib/useUrlTab';
 import { btnClass } from './ui/Btn';
 import IconInput from './ui/IconInput';
 import ConfirmDialog from './ui/ConfirmDialog';
@@ -46,13 +42,8 @@ export default function Team() {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
-  // In the URL, so the notification a request raises can link straight here — the trigger writes
-  // the tab as `team/requests`. See useUrlTab and migration 0101.
-  const [view, setView] = useUrlTab('roster', ['roster', 'requests']);
-  const { data: helpRequests = [] } = useHelpRequests();
 
   // Whichever department they picked, else the first one they run.
-  const waiting = pendingCount(helpRequests, departments.map((d) => d.id));
   const department = departments.find((d) => d.id === selectedId) ?? departments[0] ?? null;
   const departmentId = department?.id ?? null;
 
@@ -115,35 +106,6 @@ export default function Team() {
         </div>
       </div>
 
-      <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-850 overflow-hidden w-fit">
-        {[
-          { id: 'roster', label: 'Roster' },
-          { id: 'requests', label: 'Help requests', badge: waiting },
-        ].map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setView(t.id)}
-            aria-current={view === t.id ? 'page' : undefined}
-            className={`flex items-center gap-1.5 text-base font-semibold px-3 py-1.5 cursor-pointer transition-colors ${
-              view === t.id
-                ? 'bg-black text-white dark:bg-[#0ea971] dark:text-white'
-                : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-            }`}
-          >
-            {t.label}
-            {/* Only what is waiting on YOU is badged — a request you raised is waiting on somebody
-                else, and badging it would read as work you owe. See pendingCount. */}
-            {t.badge > 0 && (
-              <span className="text-2xs font-mono px-1.5 rounded-full bg-amber-500 text-white">{t.badge}</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {view === 'requests' ? (
-        <TeamRequests myDepartments={departments} />
-      ) : (
-      <>
       {/* Only worth a picker when they run more than one. */}
       {departments.length > 1 && (
         <div className="mobile-segmented flex flex-wrap items-center gap-1.5">
@@ -213,9 +175,6 @@ export default function Team() {
           </div>
         )}
       </section>
-
-      </>
-      )}
 
       {adding && department && (
         <AddToTeam

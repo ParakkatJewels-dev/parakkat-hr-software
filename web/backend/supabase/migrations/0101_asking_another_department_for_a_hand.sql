@@ -17,6 +17,11 @@
 -- a task is also readable by whoever may act for the department that requested it. Nothing else
 -- about task visibility changes.
 --
+-- WHERE THE NOTIFICATION POINTS. `tasks/requests` — the requests view inside Task Management, not
+-- the team roster. A help request is a request for a TASK, and Task Management is the screen people
+-- already open when they are thinking about work; urlTab.js reads the second path segment as that
+-- screen's inner tab, so the link lands on the right view.
+--
 -- Idempotent: safe to re-run.
 
 begin;
@@ -228,7 +233,7 @@ begin
       || case when _preferred is not null
               then ' — they suggested ' || coalesce((select full_name from public.employees where id = _preferred), 'someone')
               else '' end || '.',
-    'team/requests', _id);
+    'tasks/requests', _id);
 
   return _id;
 end $$;
@@ -314,7 +319,7 @@ begin
               else 'declined by ' || coalesce((select name from public.departments where id = _r.to_department_id), 'the other department') || '.'
          end
       || case when nullif(btrim(coalesce(_note,'')),'') is not null then ' Note: ' || btrim(_note) else '' end,
-    'team/requests', _request);
+    'tasks/requests', _request);
 
   return _task;
 end $$;
