@@ -22,10 +22,18 @@
      tool: the floor is legibility, not comfort reading.
 
      The names deliberately override Tailwind's defaults so there is ONE scale in the app — a
-     stray `text-sm` picks up the fluid value rather than a fixed 14px. Use these, never px. */
-  --text-2xs: clamp(0.625rem, 0.603rem + 0.094vw, 0.6875rem);  /* 10 → 11  micro labels, badges */
-  --text-xs:  clamp(0.6875rem, 0.666rem + 0.094vw, 0.75rem);   /* 11 → 12  meta, captions */
-  --text-sm:  clamp(0.75rem, 0.728rem + 0.094vw, 0.8125rem);   /* 12 → 13  secondary body */
+     stray `text-sm` picks up the fluid value rather than a fixed 14px. Use these, never px.
+
+     The bottom three were raised ~1.5px, because the floor had dropped below legibility.
+     `text-2xs` carries every badge, timestamp and meta line in the app and was 10px — and unlike
+     text-xs it is NOT caught by the `main .text-xs` override further down, so 10px is what it
+     really rendered at. Contrast is only half of small-text legibility; size is the other half.
+
+     The ladder is load-bearing: 2xs < xs < sm < base at BOTH ends of the clamp. Raising sm any
+     further would overtake base at a 375px viewport and the scale would stop meaning anything. */
+  --text-2xs: clamp(0.71875rem, 0.6968rem + 0.094vw, 0.78125rem); /* 11.5 → 12.5  micro labels, badges */
+  --text-xs:  clamp(0.75rem, 0.728rem + 0.094vw, 0.8125rem);      /* 12 → 13     meta, captions */
+  --text-sm:  clamp(0.78125rem, 0.7593rem + 0.094vw, 0.84375rem); /* 12.5 → 13.5 secondary body */
   --text-base: clamp(0.8125rem, 0.79rem + 0.094vw, 0.875rem);  /* 13 → 14  body, buttons */
   --text-md:  clamp(0.875rem, 0.853rem + 0.094vw, 0.9375rem);  /* 14 → 15  emphasised rows */
   --text-lg:  clamp(0.9375rem, 0.894rem + 0.188vw, 1.0625rem); /* 15 → 17  card titles */
@@ -87,8 +95,8 @@
   --color-neutral-305: #aeb6b1;
   --color-neutral-350: #9ea6a1;
   --color-neutral-405: #8e968f;
-  --color-neutral-450: #6e766f;
-  --color-neutral-455: #666e67;
+  --color-neutral-450: #4a524b;   /* 7.4:1 on the page canvas (was #6e766f, 4.3:1) */
+  --color-neutral-455: #525a53;   /* 6.5:1 */
   --color-neutral-505: #565e57;
   --color-neutral-550: #464e47;
   --color-neutral-605: #363e37;
@@ -96,7 +104,7 @@
   --color-neutral-705: #1c241d;
   --color-neutral-750: #161d17;
   --color-neutral-805: #111811;
-  --color-neutral-850: #0b0f0b;
+  --color-neutral-850: #000000;
   --color-neutral-855: #090b09;
   --color-neutral-905: #050705;
 
@@ -146,12 +154,25 @@
   --shadow-card-hover: 0 2px 6px rgba(16, 32, 26, 0.07), 0 12px 28px rgba(16, 32, 26, 0.08);
   --shadow-pop: 0 12px 40px rgba(16, 32, 26, 0.16);
 
-  /* Muted text, corrected for contrast.
-     `text-neutral-400` is the app's default secondary text — timestamps, hints, meta lines — and
-     ran at Tailwind's #a1a1a1, which is 2.58:1 on a white card. WCAG AA needs 4.5:1. Rather than
-     touch ~180 call sites, the token itself becomes mode-aware: darker on light surfaces, lighter
-     on dark ones. Keep both sides above 4.5:1 if you retune these. */
-  --color-neutral-400: #6e766f;  /* 4.68:1 on #ffffff */
+  /* Text, corrected for contrast — and now corrected again, harder.
+     The first pass got the muted tokens to 4.68:1, which clears WCAG AA and still read badly. AA's
+     4.5:1 assumes ~16px body text; this app's meta lines are 11-12px, where the bare minimum is
+     not enough. It was also measured against #ffffff, and most text sits on the PAGE canvas
+     (#f2f5f4) where the same colour was only 4.27:1.
+
+     Retuning rule: measure against #f2f5f4, not #ffffff, and keep secondary text at 6:1 or better
+     while the scale starts at 11.5px. No call site changes — ~570 text instances move because the
+     TOKENS move. */
+  --color-neutral-400: #4a524b;  /* 7.4:1 on the page, 8.1:1 on a card */
+  --color-neutral-500: #525a53;  /* 6.5:1 on the page — was Tailwind's #737373 at 4.3:1 */
+
+  /* Primary text is pure black, as asked. It was #171717/#262626 at 15-18:1, already comfortable,
+     so this is a look decision more than a legibility one: it drops the deliberate green cast from
+     body copy. The muted tokens above keep theirs, so the palette still reads as this app's.
+     Revert these three lines to put the tint back. */
+  --color-neutral-900: #000000;
+  --color-neutral-800: #111111;
+  --surface-text: #000000;
 }
 
 .dark {
@@ -335,9 +356,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .dark .text-slate-100, .dark .text-slate-200, .dark .text-slate-250 { color: #f4f6f5 !important; }
 .dark .text-neutral-800, .dark .text-neutral-750, .dark .text-neutral-700,
 .dark .text-slate-300, .dark .text-slate-350 { color: #e3e7e5 !important; }
+/* One value, ~200 call sites. text-neutral-500 was landing at 3.74:1 here — below AA outright —
+   and the rest at 6.8:1, the same "clears the bar, still squints" problem as the light side.
+   #b4bcb5 is 9.1:1 on the dark card. */
 .dark .text-neutral-400, .dark .text-neutral-450, .dark .text-neutral-455,
 .dark .text-neutral-500, .dark .text-neutral-505, .dark .text-neutral-550,
-.dark .text-slate-400, .dark .text-slate-450, .dark .text-slate-500 { color: #9aa6a0 !important; }
+.dark .text-slate-400, .dark .text-slate-450, .dark .text-slate-500 { color: #b4bcb5 !important; }
 
 /* A row a notification deep-linked to.
    Marked rather than merely scrolled to: on a list of forty near-identical rows, "we scrolled a
