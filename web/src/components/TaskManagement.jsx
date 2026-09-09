@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
   ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, CornerDownRight, Flag,
   CalendarClock, User, GitBranch, Users, ChevronRight, Search, PenLine, ShieldAlert, HandHelping,
+  MessageSquare, Paperclip, CheckSquare,
 } from 'lucide-react';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, CLOSED_TASK_WINDOW_DAYS } from '../data/tasks';
 import { useEmployees } from '../data/employees';
@@ -15,17 +16,24 @@ import { useUrlTab } from '../lib/useUrlTab';
 // this is the screen people already open when they are thinking about work.
 import TeamRequests from './TeamRequests';
 import { useMyDepartments } from '../data/team';
-import { useHelpRequests } from '../data/helpRequests';
-import { pendingCount } from '../lib/helpRequests';
+import { useHelpRequests, useUpdateRequestedTask } from '../data/helpRequests';
+import { pendingCount, outgoingRequests } from '../lib/helpRequests';
 // The board's reasoning — filtering, counting, nesting, grouping — lives in lib so it can be
 // tested. This file imports Supabase through its data hooks, which the test runner cannot load.
 import {
   TASK_STATUSES, TASK_PRIORITIES,
   isOverdue, filterTasks, sortTasks, taskStats, buildTaskTree, groupByPerson, composerKey,
+  rootContaining,
 } from '../lib/taskBoard';
+import Pagination, { usePagination } from './ui/Pagination';
 import IconInput from './ui/IconInput';
 import { useFocusRow } from '../lib/useFocusRow';
 import { focusIsMissing } from '../lib/focusRow';
+import { humanDbError } from '../lib/dbErrors';
+import TaskDetail from './TaskDetail';
+import TaskRoutine from './TaskRoutine';
+import { useTaskCommentCounts } from '../data/taskComments';
+import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
 
 const INPUT =
@@ -108,13 +116,15 @@ export default function TaskManagement() {
   });
   const rowCan = {
     update: (t) => can('task.update', scopeOf(t)) || can('task.manage', scopeOf(t)),
+    // Editing WHAT the work is, which for a task you asked for is not the same as owning it.
+    edit: (t) => can('task.update', scopeOf(t)) || can('task.manage', scopeOf(t)) || requestedTaskIds.has(t.id),
     manage: (t) => can('task.manage', scopeOf(t)),
     // A sub-task is filed against the same assignee, so it is the parent's ancestry that decides.
     create: (t) => can('task.create', scopeOf(t)),
   };
 
   // In the URL, so a refresh comes back to the view you were reading.
-  const [view, setView] = useUrlTab('flow', ['flow', 'people', 'requests']);
+  const [view, setView] = useUrlTab('flow', ['flow', 'people', 'requests', 'routine']);
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | { task } | null
@@ -127,16 +137,36 @@ export default function TaskManagement() {
   // The box keeps up with typing; re-filtering and re-rendering the tree is allowed to lag a frame.
   const deferredQuery = useDeferredValue(query);
   const effectiveMineOnly = !canViewTeamTasks || mineOnly;
+  // Everyone with a task.read gets the routine — an employee's own list is the point of it — so it
+  // is not gated on seeing the team, unlike Flow and By Person.
   const effectiveView =
     view === 'requests' ? (canUseRequests ? 'requests' : 'flow')
+    : view === 'routine' ? 'routine'
     : canViewTeamTasks ? view
     : 'flow';
+  const isBoard = effectiveView === 'flow' || effectiveView === 'people';
 
   // Only what is waiting on YOU. A request you raised is waiting on somebody else, and badging it
   // would read as work you owe. See pendingCount.
   const { data: myDepartments = [] } = useMyDepartments({ enabled: canUseRequests });
   const { data: helpRequests = [] } = useHelpRequests({ enabled: canUseRequests });
   const waitingOnMe = pendingCount(helpRequests, myDepartments.map((d) => d.id));
+
+  /**
+   * Tasks that exist because THIS person asked another department for them.
+   *
+   * They can see these (0101 widened tasks_select) and they are who wanted the work, but
+   * tasks_update scopes by the assignee's ancestry — so the ordinary pencil belongs to the other
+   * department alone. These get one through a narrow function that writes what the work IS and
+   * never who is doing it (0104).
+   */
+  const requestedTaskIds = useMemo(() => new Set(
+    outgoingRequests(helpRequests, myDepartments.map((d) => d.id))
+      .filter((r) => r.task_id)
+      .map((r) => r.task_id)
+  ), [helpRequests, myDepartments]);
+  const editRequested = useUpdateRequestedTask();
+  const isRequestedByMe = (t) => requestedTaskIds.has(t.id) && !can('task.update', scopeOf(t));
 
   // One reading of "today" per render, in IST, shared by the filter, the counts and every badge —
   // so a board rendered across midnight cannot disagree with itself about what is late.
@@ -172,6 +202,21 @@ export default function TaskManagement() {
   const byPerson = useMemo(() => groupByPerson(filtered), [filtered]);
 
   /**
+   * The board was the only list in the app that rendered everything it had.
+   *
+   * Leave, Expenses and Helpdesk have paged at 25 since they were written; this drew every task as
+   * a full card AND walked a recursive tree, so a few hundred open tasks meant a slow first paint
+   * and a scroll with no end. It pages by ROOT, never mid-family: a parent and its sub-tasks stay
+   * on one page, which is why the focus anchor is the root above the task rather than the task.
+   */
+  const focusAnchor = useMemo(
+    () => rootContaining(focusId, roots, childrenOf),
+    [focusId, roots, childrenOf]
+  );
+  const rootPager = usePagination(roots, 25, focusAnchor);
+  const peoplePager = usePagination(byPerson, 10, null);
+
+  /**
    * Who this person may file a task against.
    *
    * Mirrors the tasks_insert policy, which checks task.create against the ASSIGNEE's ancestry. The
@@ -180,15 +225,48 @@ export default function TaskManagement() {
    * choosing the wrong colleague produced a raw row-level-security error on submit with nothing to
    * explain it. Now they are not offered.
    */
-  const canAssignTo = (e) =>
-    can('task.create', {
-      entityId: e.entity_id, zoneId: e.zone_id, branchId: e.branch_id,
-      deptId: e.department_id, employeeId: e.id,
-    });
+  const scopeOfEmployee = (e) => ({
+    entityId: e.entity_id, zoneId: e.zone_id, branchId: e.branch_id,
+    deptId: e.department_id, employeeId: e.id,
+  });
+
+  /**
+   * Who this person may file a NEW task against — tasks_insert checks task.create on the assignee.
+   */
+  const canAssignTo = (e) => can('task.create', scopeOfEmployee(e));
+
+  /**
+   * Who they may move an EXISTING task to.
+   *
+   * Not the same question, and asking the wrong one is what produced a raw
+   * "new row violates row-level security policy for table tasks" on screen. tasks_update has a
+   * WITH CHECK, so the row must still be yours AFTER the move — which is task.update/task.manage on
+   * the NEW assignee, not task.create. They coincide for the seeded roles and come apart the moment
+   * anyone defines a custom one; the picker should ask about the operation it is actually doing.
+   */
+  const canReassignTo = (e) =>
+    can('task.update', scopeOfEmployee(e)) || can('task.manage', scopeOfEmployee(e));
+
+  // Which task has its detail open. One at a time: two open threads on one board is a wall of text
+  // where a list should be.
+  const [openDetail, setOpenDetail] = useState(null);
+
+  // Counts for the page on screen only, in two queries rather than two per card.
+  const visibleIds = useMemo(
+    () => (effectiveView === 'people' ? byPerson : []).flatMap((g) => g.tasks.map((t) => t.id))
+      .concat(effectiveView === 'flow' ? filtered.map((t) => t.id) : []),
+    [effectiveView, byPerson, filtered]
+  );
+  const { data: commentCounts = {} } = useTaskCommentCounts(visibleIds);
+  const { data: attachmentCounts = {} } = useTaskAttachmentCounts(visibleIds);
 
   const actions = {
     today,
     rowProps,
+    openDetail,
+    toggleDetail: (id) => setOpenDetail((cur) => (cur === id ? null : id)),
+    commentCounts,
+    attachmentCounts,
     setStatus: (id, status) => update.mutate({ id, status }),
     addSubtask: (task) => setComposer({ parentId: task.id, defaultAssignee: task.employee_id }),
     // A task was write-once: a typo in the title, a date that moved, or the wrong person could only
@@ -202,6 +280,7 @@ export default function TaskManagement() {
     // Functions of the row, not booleans: tasks_update, _delete and _insert each check the whole
     // ancestry, so "may I" is a question about THIS task and not about the module.
     canUpdate: rowCan.update,
+    canEdit: rowCan.edit,
     canManage: rowCan.manage,
     canCreate: rowCan.create,
   };
@@ -230,7 +309,7 @@ export default function TaskManagement() {
       </div>
 
       {/* stats — the board's, so not shown while looking at requests */}
-      {effectiveView !== 'requests' && (
+      {isBoard && (
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Stat label="Total" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="To Do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => setStatusFilter('To Do')} />
@@ -241,7 +320,7 @@ export default function TaskManagement() {
       )}
 
       {/* search — searches the board, so it comes off with it */}
-      {effectiveView !== 'requests' && (
+      {isBoard && (
       <div className="flex flex-wrap items-center gap-3">
         <IconInput
           icon={Search}
@@ -284,7 +363,7 @@ export default function TaskManagement() {
       {/* controls */}
       <div className="mobile-toolbar flex flex-wrap items-center justify-between gap-3">
         <div className="mobile-segmented flex flex-wrap items-center gap-1.5">
-          {(effectiveView === 'requests' ? [] : ['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All']).map((s) => (
+          {(!isBoard ? [] : ['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All']).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
@@ -300,7 +379,7 @@ export default function TaskManagement() {
           ))}
         </div>
         <div className="mobile-toolbar-actions flex items-center gap-2">
-          {effectiveView !== 'requests' && canViewTeamTasks && employee?.id && (
+          {isBoard && canViewTeamTasks && employee?.id && (
             <button
               onClick={() => setMineOnly((v) => !v)}
               className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
@@ -312,7 +391,7 @@ export default function TaskManagement() {
               My tasks
             </button>
           )}
-          {(canViewTeamTasks || canUseRequests) && (
+          {(canViewTeamTasks || canUseRequests || true) && (
             <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-850 overflow-hidden">
               {canViewTeamTasks && (
                 <>
@@ -329,6 +408,12 @@ export default function TaskManagement() {
                   badge={waitingOnMe}
                 />
               )}
+              <ViewBtn
+                active={effectiveView === 'routine'}
+                onClick={() => setView('routine')}
+                icon={CheckSquare}
+                label="Routine"
+              />
             </div>
           )}
         </div>
@@ -339,23 +424,73 @@ export default function TaskManagement() {
           the task was deleted" — and neither was ever rendered: the dropdown simply snapped back to
           the old status on the next refetch, and the deleted row stayed put. Leave and Expenses
           both show their mutation errors here; Tasks now does too. */}
-      {effectiveView !== 'requests' && focusMissing && (
+      {isBoard && focusMissing && (
         <div role="status" className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>That task is no longer on your board — it may have been deleted, or reassigned outside what you can see.</span>
         </div>
       )}
 
-      {effectiveView !== 'requests' && (update.error || del.error) && (
+      {isBoard && (update.error || del.error) && (
         <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>{(update.error || del.error).message}</span>
+          <span>{humanDbError(update.error || del.error, 'tasks')}</span>
         </div>
+      )}
+
+      {/* The form sits ABOVE the list it adds to.
+          It used to render after it, which reads fine on a screen with six rows and badly on
+          one with two hundred: you press New Task at the top and the panel opens somewhere
+          below the fold. FormSection scrolls itself into view, which hid the problem without
+          fixing it — you still lose your place in the list you were reading. */}
+      {isBoard && composer && (
+        <TaskComposer
+          // Remounts the panel whenever it is pointed at a different task — see composerKey().
+          key={composerKey(composer)}
+          employees={employees}
+          canAssignTo={composer.task ? canReassignTo : canAssignTo}
+          currentEmployeeId={employee?.id}
+          task={composer.task ?? null}
+          // Reassigning is a manage action, not an update one: tasks_update lets an assignee move
+          // their own task's status, and they must not be able to hand it to somebody else.
+          canReassign={composer.task ? (rowCan.manage(composer.task) && !isRequestedByMe(composer.task)) : true}
+          parentId={composer.parentId}
+          defaultAssignee={composer.defaultAssignee}
+          parentTask={composer.parentId ? tasks.find((t) => t.id === composer.parentId) : null}
+          busy={composer.task ? (edit.isPending || editRequested.isPending) : create.isPending}
+          error={humanDbError(
+            composer.task ? (isRequestedByMe(composer.task) ? editRequested.error : edit.error) : create.error,
+            'tasks'
+          )}
+          onClose={() => { create.reset(); edit.reset(); editRequested.reset(); setComposer(null); }}
+          onSubmit={async (payload) => {
+            try {
+              if (composer.task && isRequestedByMe(composer.task)) {
+                // A task another department is doing for me: change what it is, never who holds it.
+                await editRequested.mutateAsync({
+                  taskId: composer.task.id,
+                  title: payload.title,
+                  description: payload.description,
+                  priority: payload.priority,
+                  dueDate: payload.due_date,
+                  clearDue: !payload.due_date,
+                });
+              } else if (composer.task) {
+                await edit.mutateAsync({ id: composer.task.id, ...payload });
+              } else {
+                await create.mutateAsync(payload);
+              }
+              setComposer(null);
+            } catch { /* shown in the panel */ }
+          }}
+        />
       )}
 
       {/* body */}
       {effectiveView === 'requests' ? (
         <TeamRequests myDepartments={myDepartments} />
+      ) : effectiveView === 'routine' ? (
+        <TaskRoutine employees={employees} />
       ) : isLoading ? (
         <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>
       ) : error && tasks.length === 0 ? (
@@ -394,14 +529,15 @@ export default function TaskManagement() {
       ) : effectiveView === 'flow' ? (
         <div className="space-y-3">
           <StaleWarning error={error} />
-          {roots.map((t) => (
+          {rootPager.slice.map((t) => (
             <TaskTree key={t.id} task={t} childrenOf={childrenOf} depth={0} actions={actions} />
           ))}
+          <Pagination {...rootPager} noun="top-level tasks" />
         </div>
       ) : (
         <div className="space-y-5">
           <StaleWarning error={error} />
-          {byPerson.map((g) => (
+          {peoplePager.slice.map((g) => (
             // Keyed on the group, not on `g.assignee?.id ?? 'x'`: the assignee OBJECT is null for
             // anyone whose employees row this viewer cannot read, and every such person was handed
             // the same key 'x' — React then rendered one group where there were several.
@@ -425,41 +561,16 @@ export default function TaskManagement() {
               ))}
             </div>
           ))}
+          <Pagination {...peoplePager} noun="people" />
         </div>
       )}
 
-      {effectiveView !== 'requests' && composer && (
-        <TaskComposer
-          // Remounts the panel whenever it is pointed at a different task — see composerKey().
-          key={composerKey(composer)}
-          employees={employees}
-          canAssignTo={canAssignTo}
-          currentEmployeeId={employee?.id}
-          task={composer.task ?? null}
-          // Reassigning is a manage action, not an update one: tasks_update lets an assignee move
-          // their own task's status, and they must not be able to hand it to somebody else.
-          canReassign={composer.task ? rowCan.manage(composer.task) : true}
-          parentId={composer.parentId}
-          defaultAssignee={composer.defaultAssignee}
-          parentTask={composer.parentId ? tasks.find((t) => t.id === composer.parentId) : null}
-          busy={composer.task ? edit.isPending : create.isPending}
-          error={(composer.task ? edit.error : create.error)?.message}
-          onClose={() => { create.reset(); edit.reset(); setComposer(null); }}
-          onSubmit={async (payload) => {
-            try {
-              if (composer.task) await edit.mutateAsync({ id: composer.task.id, ...payload });
-              else await create.mutateAsync(payload);
-              setComposer(null);
-            } catch { /* shown in the panel */ }
-          }}
-        />
-      )}
 
-      {effectiveView !== 'requests' && !isLoading && !(error && tasks.length === 0) && filtered.length > 0 && (
+      {isBoard && !isLoading && !(error && tasks.length === 0) && filtered.length > 0 && (
         <p className="px-1 text-2xs text-neutral-400">{WINDOW_NOTE}</p>
       )}
 
-      {effectiveView !== 'requests' && toDelete && (
+      {isBoard && toDelete && (
         <ConfirmDialog
           title="Delete this task?"
           confirmLabel="Delete task"
@@ -522,6 +633,9 @@ function TaskTree({ task, childrenOf, depth, actions }) {
 function TaskCard({ task, actions, subCount = 0, nested = false }) {
   const pm = priorityMeta(task.priority);
   const overdue = isOverdue(task, actions.today);
+  const detailOpen = actions.openDetail === task.id;
+  const comments = actions.commentCounts?.[task.id];
+  const files = actions.attachmentCounts?.[task.id];
   return (
     <div {...actions.rowProps(task.id)} className={`premium-card ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}>
       <div className="mobile-list-row flex items-start justify-between gap-3">
@@ -536,6 +650,22 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
                 <GitBranch size={9} /> {subCount}
               </span>
             )}
+            {/* Opening the detail is the same gesture whichever of the two you came for, so one
+                control with two counts rather than two controls that open the same thing. */}
+            <button
+              type="button"
+              onClick={() => actions.toggleDetail(task.id)}
+              aria-expanded={detailOpen}
+              aria-label={`${detailOpen ? 'Hide' : 'Show'} comments and attachments for ${task.title}`}
+              className={`text-2xs font-mono px-1.5 py-0.5 rounded border flex items-center gap-1.5 cursor-pointer transition-colors ${
+                detailOpen
+                  ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-[#0ea971] dark:border-[#0ea971]'
+                  : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800 hover:text-neutral-900 dark:hover:text-white'
+              }`}
+            >
+              <MessageSquare size={9} /> {comments || 0}
+              <Paperclip size={9} /> {files || 0}
+            </button>
           </div>
           {task.description && (
             <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{task.description}</p>
@@ -580,7 +710,7 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
             </span>
           )}
           <div className="flex items-center gap-1">
-            {actions.canUpdate(task) && (
+            {actions.canEdit(task) && (
               <button onClick={() => actions.edit(task)} title="Edit task" aria-label={`Edit ${task.title}`}
                 className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white cursor-pointer">
                 <PenLine size={13} />
@@ -601,6 +731,10 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
           </div>
         </div>
       </div>
+
+      {/* Opens in place on the card, so the list keeps its position. Nothing is fetched until it is
+          opened — fifty cards must not mean a hundred queries. */}
+      <TaskDetail task={task} open={detailOpen} />
     </div>
   );
 }

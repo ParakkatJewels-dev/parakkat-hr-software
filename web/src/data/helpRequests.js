@@ -102,15 +102,63 @@ export function useRequestHelp() {
 export function useRespondToHelpRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ requestId, accept, assigneeId, note }) => {
+    mutationFn: async ({ requestId, accept, assigneeId, note, priority }) => {
       const { data, error } = await supabase.rpc('respond_to_help_request', {
         _request: requestId,
         _accept: accept,
         _assignee: assigneeId || null,
         _note: note || null,
+        // Null means "keep what was asked for". The head taking the work decides how urgent it is
+        // on their own board — see migration 0103.
+        _priority: priority || null,
       });
       if (error) throw error;
       return data;
+    },
+    onSuccess: () => TOUCHED.forEach((key) => qc.invalidateQueries({ queryKey: key })),
+  });
+}
+
+/** Correct a request nobody has answered yet. Null means "leave it"; the clear flags mean "remove it". */
+export function useUpdateHelpRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ requestId, title, description, priority, dueDate, preferredId, clearPreferred, clearDue }) => {
+      const { error } = await supabase.rpc('update_help_request', {
+        _request: requestId,
+        _title: title ?? null,
+        _description: description ?? null,
+        _priority: priority ?? null,
+        _due_date: dueDate || null,
+        _preferred: preferredId || null,
+        _clear_preferred: Boolean(clearPreferred),
+        _clear_due: Boolean(clearDue),
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => TOUCHED.forEach((key) => qc.invalidateQueries({ queryKey: key })),
+  });
+}
+
+/**
+ * Change WHAT the work is, on a task you asked another department for.
+ *
+ * Not who is doing it or where it stands — the receiving head chose the person and the person owns
+ * the progress, so those columns are not in the update at all (0104).
+ */
+export function useUpdateRequestedTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ taskId, title, description, priority, dueDate, clearDue }) => {
+      const { error } = await supabase.rpc('update_requested_task', {
+        _task: taskId,
+        _title: title ?? null,
+        _description: description ?? null,
+        _priority: priority ?? null,
+        _due_date: dueDate || null,
+        _clear_due: Boolean(clearDue),
+      });
+      if (error) throw error;
     },
     onSuccess: () => TOUCHED.forEach((key) => qc.invalidateQueries({ queryKey: key })),
   });

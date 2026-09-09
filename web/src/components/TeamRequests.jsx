@@ -14,8 +14,9 @@ import {
 } from 'lucide-react';
 import {
   useHelpRequests, useDepartments, useDepartmentPeople,
-  useRequestHelp, useRespondToHelpRequest, useCancelHelpRequest,
+  useRequestHelp, useRespondToHelpRequest, useCancelHelpRequest, useUpdateHelpRequest,
 } from '../data/helpRequests';
+import { humanDbError } from '../lib/dbErrors';
 import {
   incomingRequests, outgoingRequests, preferenceOutcome, sortRequests,
 } from '../lib/helpRequests';
@@ -46,6 +47,9 @@ export default function TeamRequests({ myDepartments = [] }) {
   const myIds = myDepartments.map((d) => d.id);
   const { data: requests = [], isLoading, error } = useHelpRequests();
   const [asking, setAsking] = useState(false);
+  // The request being corrected. A request was write-once: getting the title wrong meant
+  // withdrawing and re-raising, which loses the thread the other head is already reading.
+  const [editingRequest, setEditingRequest] = useState(null);
 
   const respond = useRespondToHelpRequest();
   const cancel = useCancelHelpRequest();
@@ -86,8 +90,26 @@ export default function TeamRequests({ myDepartments = [] }) {
       {mutationError && (
         <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>{mutationError.message}</span>
+          <span>{humanDbError(mutationError, 'help_requests')}</span>
         </div>
+      )}
+
+      {asking && (
+        <AskPanel
+          myDepartments={myDepartments}
+          onClose={() => setAsking(false)}
+          onDone={() => setAsking(false)}
+        />
+      )}
+
+      {editingRequest && (
+        <AskPanel
+          key={editingRequest.id}
+          myDepartments={myDepartments}
+          request={editingRequest}
+          onClose={() => setEditingRequest(null)}
+          onDone={() => setEditingRequest(null)}
+        />
       )}
 
       <Group
@@ -114,17 +136,11 @@ export default function TeamRequests({ myDepartments = [] }) {
             request={r}
             busy={cancel.isPending}
             onCancel={() => { cancel.reset(); return cancel.mutateAsync(r.id).catch(() => {}); }}
+            onEdit={() => setEditingRequest(r)}
           />
         )}
       />
 
-      {asking && (
-        <AskPanel
-          myDepartments={myDepartments}
-          onClose={() => setAsking(false)}
-          onDone={() => setAsking(false)}
-        />
-      )}
     </div>
   );
 }
@@ -222,8 +238,8 @@ function IncomingCard({ request, busy, onRespond }) {
           note={note}
           onNote={setNote}
           onCancel={() => setChoosing(false)}
-          onAssign={(assigneeId) =>
-            onRespond({ accept: true, assigneeId, note: note.trim() || null })
+          onAssign={(assigneeId, priority) =>
+            onRespond({ accept: true, assigneeId, priority, note: note.trim() || null })
               .then(() => setChoosing(false))
               .catch(() => {})}
         />
@@ -234,6 +250,10 @@ function IncomingCard({ request, busy, onRespond }) {
 
 /** Choosing who actually does it — the suggestion is offered first, but it is only a suggestion. */
 function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
+  // Starts at what they asked for, because that is the useful default — but it is the receiving
+  // head's call. "Urgent" means something different on the board that has to absorb it, and they
+  // are the one who knows what else is on it this week. See 0103.
+  const [priority, setPriority] = useState(request.priority ?? 'Medium');
   const [q, setQ] = useState('');
   const deferredQ = useDeferredValue(q);
   const { data: people = [], isLoading } = useDepartmentPeople(request.to_department_id, deferredQ);
@@ -247,9 +267,23 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
         </button>
       </div>
 
+      <div className="space-y-1">
+        <label className="block text-2xs font-bold uppercase tracking-widest text-neutral-450">
+          Priority on your board
+          {priority !== request.priority && (
+            <span className="ml-1.5 font-normal normal-case tracking-normal text-neutral-400">
+              (they asked for {request.priority})
+            </span>
+          )}
+        </label>
+        <select value={priority} onChange={(e) => setPriority(e.target.value)} className={INPUT}>
+          {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
+
       {request.preferred && (
         <button
-          type="button" disabled={busy} onClick={() => onAssign(request.preferred.id)}
+          type="button" disabled={busy} onClick={() => onAssign(request.preferred.id, priority)}
           className="w-full text-left rounded-lg border border-[#0ea971]/40 bg-[#0ea971]/5 px-3 py-2 text-xs hover:border-[#0ea971] cursor-pointer disabled:opacity-50 flex items-center justify-between gap-2"
         >
           <span>
@@ -272,7 +306,7 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
         <div className="max-h-52 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-850 divide-y divide-neutral-150 dark:divide-neutral-850/60">
           {people.filter((p) => p.id !== request.preferred?.id).map((p) => (
             <button
-              key={p.id} type="button" disabled={busy} onClick={() => onAssign(p.id)}
+              key={p.id} type="button" disabled={busy} onClick={() => onAssign(p.id, priority)}
               className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer disabled:opacity-50 flex justify-between gap-2"
             >
               <span className="font-semibold text-neutral-800 dark:text-neutral-200">{p.full_name}</span>
@@ -292,7 +326,7 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
 }
 
 /** A request this person raised. */
-function OutgoingCard({ request, busy, onCancel }) {
+function OutgoingCard({ request, busy, onCancel, onEdit }) {
   const outcome = preferenceOutcome(request);
   return (
     <div className="premium-card space-y-2">
@@ -335,6 +369,9 @@ function OutgoingCard({ request, busy, onCancel }) {
           <span className="text-2xs text-neutral-400 font-mono flex items-center gap-1">
             <Clock size={10} /> waiting for an answer
           </span>
+          <button onClick={onEdit} className={btnClass('ghost', 'sm')}>
+            Edit
+          </button>
           <button onClick={onCancel} disabled={busy} className={btnClass('dangerGhost', 'sm')}>
             Withdraw
           </button>
@@ -345,17 +382,21 @@ function OutgoingCard({ request, busy, onCancel }) {
 }
 
 /** Raising one. */
-function AskPanel({ myDepartments, onClose, onDone }) {
+function AskPanel({ myDepartments, onClose, onDone, request = null }) {
+  const editing = Boolean(request);
   const { data: departments = [] } = useDepartments();
   const ask = useRequestHelp();
+  const save = useUpdateHelpRequest();
+  const busy = editing ? save.isPending : ask.isPending;
+  const error = humanDbError(editing ? save.error : ask.error, 'help_requests');
 
-  const [fromId, setFromId] = useState(myDepartments[0]?.id ?? '');
-  const [toId, setToId] = useState('');
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [priority, setPriority] = useState('Medium');
-  const [dueDate, setDueDate] = useState('');
-  const [preferredId, setPreferredId] = useState('');
+  const [fromId, setFromId] = useState(request?.from_department_id ?? myDepartments[0]?.id ?? '');
+  const [toId, setToId] = useState(request?.to_department_id ?? '');
+  const [title, setTitle] = useState(request?.title ?? '');
+  const [description, setDescription] = useState(request?.description ?? '');
+  const [priority, setPriority] = useState(request?.priority ?? 'Medium');
+  const [dueDate, setDueDate] = useState(request?.due_date ?? '');
+  const [preferredId, setPreferredId] = useState(request?.preferred?.id ?? '');
   const [q, setQ] = useState('');
   const deferredQ = useDeferredValue(q);
 
@@ -365,34 +406,49 @@ function AskPanel({ myDepartments, onClose, onDone }) {
   const targets = departments.filter((d) => !mine.has(d.id) && (!fromEntity || d.entity_id === fromEntity));
 
   const { data: people = [] } = useDepartmentPeople(toId, deferredQ);
-  const preferred = people.find((p) => p.id === preferredId);
+  // While editing, the person already chosen may not be in the current search results, so fall back
+  // to what the request itself says rather than showing the field as empty.
+  const preferred = people.find((p) => p.id === preferredId)
+    ?? (editing && request.preferred?.id === preferredId ? request.preferred : null);
 
   const submit = async (e) => {
     e.preventDefault();
     if (!fromId || !toId || !title.trim()) return;
     try {
-      await ask.mutateAsync({
-        fromDepartmentId: fromId, toDepartmentId: toId, title: title.trim(),
-        description, preferredId, priority, dueDate,
-      });
+      if (editing) {
+        // Which department is being asked is NOT editable: it is a different conversation with a
+        // different head. Withdraw and raise a new one for that.
+        await save.mutateAsync({
+          requestId: request.id, title: title.trim(), description, priority,
+          dueDate, preferredId,
+          clearPreferred: !preferredId, clearDue: !dueDate,
+        });
+      } else {
+        await ask.mutateAsync({
+          fromDepartmentId: fromId, toDepartmentId: toId, title: title.trim(),
+          description, preferredId, priority, dueDate,
+        });
+      }
       onDone();
     } catch { /* shown in the panel */ }
   };
 
   return (
     <FormSection
-      title="Ask another department"
-      subtitle="Describe the work. Their head decides who picks it up."
+      title={editing ? 'Change your request' : 'Ask another department'}
+      subtitle={editing
+        ? 'They have not answered yet, so this is still yours to correct.'
+        : 'Describe the work. Their head decides who picks it up.'}
       icon={Send}
       onClose={onClose}
       onSubmit={submit}
-      submitLabel="Send request"
-      busy={ask.isPending}
-      error={ask.error?.message}
+      submitLabel={editing ? 'Save changes' : 'Send request'}
+      busy={busy}
+      error={error}
       disabled={!fromId || !toId || !title.trim()}
     >
       <div className="space-y-3">
-        {myDepartments.length > 1 && (
+        {!editing && myDepartments.length > 1 && (
           <div className="space-y-1">
             <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Asking on behalf of</label>
             <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={INPUT}>
@@ -404,6 +460,7 @@ function AskPanel({ myDepartments, onClose, onDone }) {
         <div className="space-y-1">
           <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Ask which department</label>
           <select
+            disabled={editing}
             value={toId}
             onChange={(e) => { setToId(e.target.value); setPreferredId(''); setQ(''); }}
             className={INPUT}

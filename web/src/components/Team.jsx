@@ -135,6 +135,17 @@ export default function Team() {
 
       {showHistory && <MoveHistory departmentId={departmentId} />}
 
+      {adding && department && (
+        <AddToTeam
+          department={department}
+          busy={move.isPending}
+          onClose={() => { move.reset(); setAdding(false); }}
+          onPick={async (employeeId) => {
+            try { await move.mutateAsync({ employeeId, departmentId }); } catch { /* shown above */ }
+          }}
+        />
+      )}
+
       <section className="space-y-2.5">
         <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 px-1">
           {department?.name} · {members.length} {members.length === 1 ? 'person' : 'people'}
@@ -176,16 +187,6 @@ export default function Team() {
         )}
       </section>
 
-      {adding && department && (
-        <AddToTeam
-          department={department}
-          busy={move.isPending}
-          onClose={() => { move.reset(); setAdding(false); }}
-          onPick={async (employeeId) => {
-            try { await move.mutateAsync({ employeeId, departmentId }); } catch { /* shown above */ }
-          }}
-        />
-      )}
 
       {removing && (
         <ConfirmDialog

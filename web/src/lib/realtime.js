@@ -13,6 +13,16 @@ import { useAuth } from '../auth/AuthContext';
 const TABLE_KEYS = {
   notifications: [['notifications']],
   tasks: [['tasks'], ['notification-ref-statuses']],
+  // A help request is answered by somebody else, on another screen, and the person who raised it is
+  // sitting looking at it. Without this the answer only arrives on the 5-minute safety poll.
+  // ['tasks'] is here too: accepting a request CREATES a task, and the requester can see it (0101).
+  help_requests: [['help-requests'], ['tasks'], ['notification-ref-statuses']],
+  // A thread that needs a refresh is not a conversation, and a completion board a head is watching
+  // should fill in as the floor ticks things off.
+  task_comments:    [['task-comments'], ['task-comment-counts']],
+  task_attachments: [['task-attachments'], ['task-attachment-counts']],
+  routine_ticks:    [['routine-ticks']],
+  routine_items:    [['routine-items'], ['routine-ticks']],
   leaves: [['leaves'], ['notification-ref-statuses']],
   expenses: [['expenses'], ['notification-ref-statuses']],
   attendance_regularizations: [['regularizations'], ['notification-ref-statuses']],

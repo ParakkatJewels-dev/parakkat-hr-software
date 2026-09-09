@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isOverdue, filterTasks, taskStats, buildTaskTree, groupByPerson, composerKey,
   searchTasks, searchTerms, sortTasks,
-  openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS, TASK_STATUSES,
+  openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS, TASK_STATUSES, rootContaining,
 } from './taskBoard.js';
 
 // A task, with only the fields the board actually reads.
@@ -491,4 +491,54 @@ test('a parent that aged out does not take its open child with it', () => {
   // orphan to a root rather than dropping it — this is that rule, stated against the window.
   const { roots } = buildTaskTree([task({ id: 'child', parent_task_id: 'parent-closed-last-year' })]);
   assert.deepEqual(roots.map((t) => t.id), ['child']);
+});
+
+
+// --------------------------------------------------------- paging a tree ----
+
+test('a root is its own page anchor', () => {
+  const { roots, childrenOf } = buildTaskTree([task({ id: 'p' }), task({ id: 'k', parent_task_id: 'p' })]);
+  assert.equal(rootContaining('p', roots, childrenOf), 'p');
+});
+
+test('a sub-task anchors to the root above it, so paging cannot split a family', () => {
+  // A notification deep-linking to a sub-task has to land on the page carrying its PARENT. Anchor
+  // on the sub-task itself and it is on whichever page its own id sorts to — which is no page,
+  // because only roots are paged.
+  const { roots, childrenOf } = buildTaskTree([task({ id: 'p' }), task({ id: 'k', parent_task_id: 'p' })]);
+  assert.equal(rootContaining('k', roots, childrenOf), 'p');
+});
+
+test('it reaches all the way down a deep tree', () => {
+  const { roots, childrenOf } = buildTaskTree([
+    task({ id: 'p' }),
+    task({ id: 'a', parent_task_id: 'p' }),
+    task({ id: 'b', parent_task_id: 'a' }),
+    task({ id: 'c', parent_task_id: 'b' }),
+  ]);
+  assert.equal(rootContaining('c', roots, childrenOf), 'p');
+});
+
+test('a task that is not on this board anchors nowhere', () => {
+  const { roots, childrenOf } = buildTaskTree([task({ id: 'p' })]);
+  assert.equal(rootContaining('missing', roots, childrenOf), null);
+  assert.equal(rootContaining(null, roots, childrenOf), null);
+});
+
+test('the right root is chosen when there are several', () => {
+  const { roots, childrenOf } = buildTaskTree([
+    task({ id: 'p1' }), task({ id: 'k1', parent_task_id: 'p1' }),
+    task({ id: 'p2' }), task({ id: 'k2', parent_task_id: 'p2' }),
+  ]);
+  assert.equal(rootContaining('k2', roots, childrenOf), 'p2');
+});
+
+test('a looped tree does not hang the walk', () => {
+  // buildTaskTree already cuts loops, so both are roots — but the walk must terminate even if a
+  // future change lets one through, because this runs during render.
+  const { roots, childrenOf } = buildTaskTree([
+    task({ id: 'a', parent_task_id: 'b' }),
+    task({ id: 'b', parent_task_id: 'a' }),
+  ]);
+  assert.equal(rootContaining('a', roots, childrenOf), 'a');
 });

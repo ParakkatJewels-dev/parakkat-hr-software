@@ -272,3 +272,30 @@ export const CLOSED_TASK_WINDOW_DAYS = 365;
 export function openOrRecentlyClosedFilter(days = CLOSED_TASK_WINDOW_DAYS) {
   return `status.not.in.(Done,Cancelled),created_at.gte.${windowStartIso(days)}`;
 }
+
+/**
+ * Which ROOT's subtree a task sits in.
+ *
+ * The board pages by root, so that a parent and its sub-tasks are never split across a page
+ * boundary. That makes "jump to the page holding this task" a question about the root above it,
+ * not about the task: a notification deep-linking to a sub-task must land on the page carrying its
+ * parent, or the row it promised is on some other page.
+ *
+ * Returns the id itself when it is already a root, and null when it is nowhere in this tree.
+ */
+export function rootContaining(taskId, roots, childrenOf) {
+  if (!taskId) return null;
+  const rootIds = new Set((roots ?? []).map((t) => t.id));
+  if (rootIds.has(taskId)) return taskId;
+
+  const reaches = (fromId, depth = 0) => {
+    if (depth > 100) return false;   // a cycle cannot happen here (buildTaskTree cuts them), but a
+    if (fromId === taskId) return true;  // recursive walk should never be the thing that hangs a page
+    return (childrenOf?.get(fromId) ?? []).some((child) => reaches(child.id, depth + 1));
+  };
+
+  for (const root of roots ?? []) {
+    if (reaches(root.id)) return root.id;
+  }
+  return null;
+}
