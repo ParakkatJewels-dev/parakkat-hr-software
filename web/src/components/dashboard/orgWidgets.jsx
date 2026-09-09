@@ -4,7 +4,7 @@
 import React from 'react';
 import {
   Activity, UserPlus, DoorOpen, Briefcase, ReceiptText, FolderOpen,
-  Fingerprint, ShieldCheck, ScrollText, Building2, Network,
+  Fingerprint, ShieldCheck, ScrollText, Building2, Network, HandHelping, ArrowRight, Clock3,
 } from 'lucide-react';
 import { useEmployees } from '../../data/employees';
 import { usePermissions } from '../../auth/usePermissions';
@@ -12,6 +12,10 @@ import { useDayAttendance, todayIso } from '../../data/attendance';
 import { useLeaves } from '../../data/leaves';
 import { useRegularizations } from '../../data/regularizations';
 import { useOnboarding } from '../../data/onboarding';
+import { useHelpRequests } from '../../data/helpRequests';
+import {
+  requestTotals, requestFlow, stalledRequests, daysWaiting,
+} from '../../lib/helpRequests';
 import { useExits } from '../../data/exits';
 import { useJobs, useCandidates } from '../../data/recruitment';
 import { useExpenses } from '../../data/expenses';
@@ -505,6 +509,114 @@ export function EntityComparison({ onNavigate }) {
               onClick={() => onNavigate?.('organization')}
             />
           ))}
+        </div>
+      )}
+    </Widget>
+  );
+}
+
+
+/**
+ * Who is asking whom for help, across the whole organisation.
+ *
+ * A department head only ever sees the two ends they are standing on — that is what
+ * help_requests_select gives them, and it is right. An administrator holds task.request at entity
+ * scope, so the same policy hands them every row in the company, and this is the only place that
+ * shows it: which departments lean on which, and what has been sitting unanswered.
+ *
+ * The stalled list leads, because it is the only part that needs somebody to do something. The
+ * flow beneath it is the standing picture — a pair that trades work constantly is one line with a
+ * count, not thirty lines to add up by eye.
+ */
+export function CrossDeptRequests({ onNavigate }) {
+  const { canBeyondSelf } = usePermissions();
+  // Held beyond self scope means they see other people's departments; a head would see only their
+  // own two ends and this card would be a worse version of the Requests tab they already have.
+  const enabled = canBeyondSelf('task.request');
+  const { data: requests = [], isLoading } = useHelpRequests({ enabled });
+
+  if (!enabled) return null;
+
+  const totals = requestTotals(requests);
+  const stalled = stalledRequests(requests, { minDays: 3 }).slice(0, 4);
+  const flow = requestFlow(requests).slice(0, 5);
+
+  return (
+    <Widget
+      title="Cross-department requests"
+      icon={HandHelping}
+      badge={totals.pending || null}
+      action="Open"
+      onAction={() => onNavigate?.('tasks/requests')}
+    >
+      {isLoading ? (
+        <EmptyNote>Loading…</EmptyNote>
+      ) : totals.total === 0 ? (
+        <EmptyNote>No department has asked another for help yet.</EmptyNote>
+      ) : (
+        <div className="space-y-3">
+          {/* StatPill is w-full, so these need a track each rather than a wrapping flex row. */}
+          <div className="grid grid-cols-2 gap-1.5">
+            <StatPill label="Waiting" value={totals.pending} tone={totals.pending ? 'amber' : 'neutral'} />
+            <StatPill label="Accepted" value={totals.accepted} tone="green" />
+            <StatPill label="Declined" value={totals.declined} />
+            <StatPill label="Over a week" value={totals.stalled} tone={totals.stalled ? 'red' : 'neutral'} />
+          </div>
+
+          {stalled.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-2xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500">
+                Waiting longest
+              </p>
+              <ul className="space-y-1.5">
+                {stalled.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs rounded-lg border border-neutral-200 dark:border-neutral-850 px-2.5 py-2"
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="font-semibold text-neutral-800 dark:text-neutral-200 line-clamp-1">
+                        {r.title}
+                      </span>
+                      <span className="font-mono text-2xs text-neutral-500 flex items-center gap-1 flex-wrap">
+                        {r.from_department?.name ?? 'Unknown'}
+                        <ArrowRight size={9} className="shrink-0" />
+                        {r.to_department?.name ?? 'Unknown'}
+                      </span>
+                    </span>
+                    <span className="inline-flex items-center gap-1 font-mono text-2xs text-amber-700 dark:text-amber-300 shrink-0">
+                      <Clock3 size={10} /> {daysWaiting(r)}d
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {flow.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-2xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500">
+                Who asks whom
+              </p>
+              <ul className="space-y-1">
+                {flow.map((f) => (
+                  <li key={`${f.from}->${f.to}`} className="flex items-center gap-2 text-xs">
+                    <span className="min-w-0 flex-1 font-mono text-2xs text-neutral-600 dark:text-neutral-300 flex items-center gap-1 flex-wrap">
+                      <span className="truncate">{f.from}</span>
+                      <ArrowRight size={9} className="shrink-0 text-neutral-400" />
+                      <span className="truncate">{f.to}</span>
+                    </span>
+                    {f.pending > 0 && (
+                      <span className="font-mono text-2xs px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 shrink-0">
+                        {f.pending} waiting
+                      </span>
+                    )}
+                    <span className="font-mono text-2xs text-neutral-400 shrink-0">{f.total} total</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </Widget>

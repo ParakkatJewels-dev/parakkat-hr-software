@@ -35,7 +35,7 @@ import {
 import {
   AttendanceHealthCard, OnboardingPipeline, ExitPipeline, RecruitmentOverview,
   ExpenseSpend, DocumentsSnapshot, DeviceHealth, UserAccessPanel, AuditFeed, BranchComparison,
-  EntityComparison,
+  EntityComparison, CrossDeptRequests,
 } from './dashboard/orgWidgets';
 
 // recharts is the single heaviest dependency; only three presets show a chart, so it is fetched
@@ -536,6 +536,7 @@ function HrManagerDashboard({ onNavigate, actions }) {
             <OnboardingPipeline onNavigate={onNavigate} />
             <ExitPipeline onNavigate={onNavigate} />
           </div>
+          <CrossDeptRequests onNavigate={onNavigate} />
           <HeadcountChart groupBy="branch" onNavigate={onNavigate} />
           <QuickActions actions={actions} onNavigate={onNavigate} />
         </div>
@@ -568,6 +569,9 @@ function EntityAdminDashboard({ onNavigate, actions }) {
             <RecruitmentOverview onNavigate={onNavigate} />
             <ExpenseSpend onNavigate={onNavigate} />
           </div>
+          {/* Who is leaning on whom. Only an administrator sees this — a head's own two ends are
+              already on their Requests tab, and help_requests_select gives them nothing wider. */}
+          <CrossDeptRequests onNavigate={onNavigate} />
           <HeadcountChart groupBy="branch" onNavigate={onNavigate} />
           <QuickActions actions={actions} onNavigate={onNavigate} />
         </div>
@@ -594,6 +598,7 @@ function SuperAdminDashboard({ onNavigate, actions }) {
           <EntityComparison onNavigate={onNavigate} />
           <BranchComparison onNavigate={onNavigate} />
           <AttendanceHealthCard onNavigate={onNavigate} />
+          <CrossDeptRequests onNavigate={onNavigate} />
           <HeadcountChart groupBy="entity" onNavigate={onNavigate} />
           <QuickActions actions={actions} onNavigate={onNavigate} />
         </div>

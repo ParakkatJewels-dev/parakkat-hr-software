@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   incomingRequests, outgoingRequests, pendingCount, preferenceOutcome, sortRequests,
+  daysWaiting, stalledRequests, requestFlow, requestTotals,
 } from './helpRequests.js';
 
 const req = (o) => ({
@@ -86,4 +87,77 @@ test('sorting does not mutate the list it is given', () => {
   const input = [req({ id: 'a', status: 'Accepted' }), req({ id: 'b', status: 'Pending' })];
   sortRequests(input);
   assert.deepEqual(input.map((r) => r.id), ['a', 'b']);
+});
+
+/* --------------------------- the org-wide view, for an administrator --------------------------- */
+
+
+const NOW = new Date('2026-09-20T10:00:00Z');
+const ask = (over = {}) => ({
+  status: 'Pending',
+  created_at: '2026-09-19T10:00:00Z',
+  from_department: { name: 'Casting' },
+  to_department: { name: 'Polishing' },
+  ...over,
+});
+
+test('only a pending request ages', () => {
+  assert.equal(daysWaiting(ask({ created_at: '2026-09-10T10:00:00Z' }), NOW), 10);
+  assert.equal(
+    daysWaiting(ask({ status: 'Accepted', created_at: '2026-09-10T10:00:00Z' }), NOW), 0,
+    'an answered request stopped waiting'
+  );
+  assert.equal(daysWaiting(ask({ created_at: null }), NOW), 0);
+  assert.equal(daysWaiting(ask({ created_at: 'not a date' }), NOW), 0);
+});
+
+test('the stalled queue is oldest first, because that is the end being chased', () => {
+  const rows = stalledRequests([
+    ask({ created_at: '2026-09-18T10:00:00Z', title: 'new' }),
+    ask({ created_at: '2026-09-01T10:00:00Z', title: 'old' }),
+    ask({ created_at: '2026-09-10T10:00:00Z', title: 'mid' }),
+    ask({ status: 'Accepted', created_at: '2026-08-01T10:00:00Z', title: 'answered' }),
+  ], { now: NOW });
+  assert.deepEqual(rows.map((r) => r.title), ['old', 'mid', 'new']);
+});
+
+test('the stalled queue can be limited to what has waited long enough', () => {
+  const rows = stalledRequests([
+    ask({ created_at: '2026-09-19T10:00:00Z', title: 'yesterday' }),
+    ask({ created_at: '2026-09-01T10:00:00Z', title: 'ages' }),
+  ], { minDays: 7, now: NOW });
+  assert.deepEqual(rows.map((r) => r.title), ['ages']);
+});
+
+test('the flow folds one row per department pair, busiest first', () => {
+  const rows = requestFlow([
+    ask({ status: 'Accepted' }),
+    ask({ status: 'Pending' }),
+    ask({ from_department: { name: 'Polishing' }, to_department: { name: 'Casting' }, status: 'Declined' }),
+  ]);
+  assert.equal(rows.length, 2, 'direction matters: Casting->Polishing is not Polishing->Casting');
+  assert.deepEqual(rows[0], { from: 'Casting', to: 'Polishing', total: 2, pending: 1, accepted: 1, declined: 0 });
+  assert.deepEqual(rows[1], { from: 'Polishing', to: 'Casting', total: 1, pending: 0, accepted: 0, declined: 1 });
+});
+
+test('a missing department name does not drop the row', () => {
+  const rows = requestFlow([ask({ from_department: null })]);
+  assert.equal(rows[0].from, 'Unknown');
+  assert.equal(rows[0].total, 1);
+});
+
+test('totals separate what is merely pending from what has been ignored a week', () => {
+  const t = requestTotals([
+    ask({ created_at: '2026-09-19T10:00:00Z' }),
+    ask({ created_at: '2026-09-01T10:00:00Z' }),
+    ask({ status: 'Accepted' }),
+    ask({ status: 'Declined' }),
+  ], NOW);
+  assert.deepEqual(t, { total: 4, pending: 2, accepted: 1, declined: 1, stalled: 1 });
+});
+
+test('no requests at all gives zeroes rather than throwing', () => {
+  assert.deepEqual(requestTotals([], NOW), { total: 0, pending: 0, accepted: 0, declined: 0, stalled: 0 });
+  assert.deepEqual(requestFlow([]), []);
+  assert.deepEqual(stalledRequests([]), []);
 });
