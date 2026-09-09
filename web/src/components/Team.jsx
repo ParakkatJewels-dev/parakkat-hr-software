@@ -21,21 +21,13 @@ import { btnClass } from './ui/Btn';
 import IconInput from './ui/IconInput';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Pagination, { usePagination } from './ui/Pagination';
+import Avatar from './ui/Avatar';
+import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 import { relativeTime } from '../lib/dates';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
 
-const initials = (name) =>
-  (name || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-
-function Avatar({ name }) {
-  return (
-    <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
-      {initials(name)}
-    </div>
-  );
-}
 
 export default function Team() {
   const { data: departments = [], isLoading: loadingDepts, error: deptError } = useMyDepartments();
@@ -235,6 +227,9 @@ export default function Team() {
 /** The picker. Deliberately search-first: the pool is everyone in the company, which is not a list. */
 function AddToTeam({ department, busy, onClose, onPick }) {
   const [q, setQ] = useState('');
+  // Not a FormSection, so it needs the reveal wired by hand: on a phone this opens below the fold
+  // and the button looks like it did nothing.
+  const panelRef = useRevealOnOpen(true);
   const deferredQ = useDeferredValue(q);
   const { data: candidates = [], isLoading } = useAssignableEmployees(department.id, deferredQ);
   // The pool is everyone active in the company. Search narrows it, but an empty search must not
@@ -242,7 +237,7 @@ function AddToTeam({ department, busy, onClose, onPick }) {
   const pager = usePagination(candidates, 10);
 
   return (
-    <div className="premium-card form-section space-y-4 animate-fade-in">
+    <div ref={panelRef} className="premium-card form-section space-y-4 animate-fade-in scroll-mt-4">
       <div className="form-section-header flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <UserPlus size={15} className="text-[#0ea971] shrink-0" />

@@ -7,8 +7,7 @@
 import React, { useState } from 'react';
 import {
   Clock, CalendarDays, ReceiptText, LifeBuoy, ListChecks, Wallet, CheckCircle2,
-  ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Fingerprint,
-} from 'lucide-react';
+  ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Fingerprint, Check } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useDayAttendance, useMonthlyAttendance, todayIso, fmtTime, fmtMinutes, STATUS_STYLES } from '../../data/attendance';
 import { useLeaveBalances } from '../../data/leaveTypes';
@@ -324,25 +323,37 @@ export function MyTasks({ onNavigate }) {
           {mine.map((t) => {
             const overdue = t.due_date && t.due_date < today;
             return (
-              <div key={t.id} className="mobile-list-row flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5">
+              <div key={t.id} className="flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5">
+                {/* An EMPTY 16px button was caught by the phone rule that gives every button
+                    without an icon a 40px minimum height — so it drew as a 16x40 sliver, which is
+                    what made this widget look broken rather than merely tight. A single svg child
+                    exempts it from that rule, and it now carries a tick that appears on hover, at
+                    a 32px target rather than 16. */}
                 <button
                   onClick={() => updateTask.mutate({ id: t.id, status: 'Done' })}
-                  title="Mark done" aria-label="Mark done"
-                  className="w-4 h-4 rounded border border-neutral-300 dark:border-neutral-700 hover:border-[#0ea971] hover:bg-[#0ea971]/10 transition-colors cursor-pointer shrink-0"
-                />
+                  title="Mark done" aria-label={`Mark "${t.title}" done`}
+                  className="shrink-0 inline-flex items-center justify-center w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-neutral-300 dark:border-neutral-700 text-transparent hover:text-[#0a7d53] dark:hover:text-[#10b981] hover:border-[#0ea971] hover:bg-[#0ea971]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 transition-colors cursor-pointer"
+                >
+                  <Check size={14} />
+                </button>
+                {/* Priority moved down beside the due date. Competing with the title for one line
+                    cost the title ~70px, so it truncated mid-word on a phone while "Critical" sat
+                    beside it — and the title is the part being read. */}
                 <button
                   onClick={() => onNavigate?.('tasks')}
                   className="min-w-0 flex-1 text-left cursor-pointer"
-                  title="Open task board" aria-label="Open task board"
+                  title="Open task board" aria-label={`Open ${t.title} on the task board`}
                 >
-                  <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">{t.title}</span>
-                  {t.due_date && (
-                    <span className={`block text-2xs truncate ${overdue ? 'text-rose-500 font-bold' : 'text-neutral-450 dark:text-neutral-500'}`}>
-                      {overdue ? 'Overdue · ' : 'Due '}{fmtDay(t.due_date)}
-                    </span>
-                  )}
+                  <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 line-clamp-2">{t.title}</span>
+                  <span className="flex items-center gap-1.5 text-2xs mt-0.5">
+                    <span className="font-mono text-neutral-400">{t.priority}</span>
+                    {t.due_date && (
+                      <span className={overdue ? 'text-rose-500 font-bold' : 'text-neutral-450 dark:text-neutral-500'}>
+                        · {overdue ? 'Overdue · ' : 'Due '}{fmtDay(t.due_date)}
+                      </span>
+                    )}
+                  </span>
                 </button>
-                <span className="text-2xs font-mono text-neutral-400 shrink-0">{t.priority}</span>
               </div>
             );
           })}

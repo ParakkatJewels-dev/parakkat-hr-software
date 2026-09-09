@@ -7,6 +7,7 @@
 //
 // Modals are still right for destructive confirmations — see ConfirmDialog.
 import React, { useEffect, useRef } from 'react';
+import { useRevealOnOpen } from '../../lib/useRevealOnOpen';
 import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import { btnClass } from './Btn';
 
@@ -63,7 +64,10 @@ export default function FormSection({
   children,
   footer,
 }) {
-  const ref = useRef(null);
+  // Bring the panel into view and put the caret in its first field. Several of these render after
+  // the list they belong to, so editing row 3 of 264 in the Directory would otherwise open a form
+  // below the pagination with no visible sign anything happened.
+  const ref = useRevealOnOpen(true);
 
   // The latest onClose, without making the effects below depend on its identity. Every caller
   // passes an inline arrow, so a new function arrives on every render.
@@ -81,18 +85,11 @@ export default function FormSection({
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  // Focus the first field, ONCE, when the panel opens — and scroll it into view. Several of these
-  // panels render after the list they belong to; editing row 3 of 264 in the Directory would
-  // otherwise open a form below the pagination controls with no visible sign anything happened.
-  //
-  // The empty dependency array is load-bearing. This used to depend on [onClose], which every
-  // caller supplies as an inline arrow — so the effect re-ran on EVERY render, and typing a single
-  // character anywhere in the form threw focus back to the first input. Twenty-odd fields on the
-  // asset form made it unusable; it was wrong on every form that has more than one.
-  useEffect(() => {
-    ref.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    ref.current?.querySelector('input, select, textarea, button')?.focus({ preventScroll: true });
-  }, []);
+  // The scroll-and-focus that used to live here moved into useRevealOnOpen, which fixed two things
+  // it got wrong. It always scrolled smoothly, ignoring prefers-reduced-motion. And its focus
+  // selector included `button` — the close X is rendered above {children}, so it is first in
+  // document order, and opening any form with a close button put the caret on Close rather than
+  // the first field. The hook selects inputs only, and waits for the scroll to settle first.
 
   const Tag = onSubmit ? 'form' : 'div';
 

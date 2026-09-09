@@ -28,11 +28,20 @@ export function useHelpRequests({ enabled = true } = {}) {
     enabled,
     queryKey: ['help-requests'],
     queryFn: async () => {
+      // Bounded by TIME, not by an arbitrary count. `.limit(200)` newest-first quietly drops the
+      // oldest request once the company passes two hundred, and the ones it drops are exactly the
+      // ones an administrator is hunting for — the stale asks nobody answered. A year's window
+      // keeps every open request whatever the volume, and the closed ones stop accumulating.
+      //
+      // The same shape as the task board's own window (CLOSED_TASK_WINDOW_DAYS in taskBoard.js).
+      const since = new Date(Date.now() - 365 * 86_400_000).toISOString();
       const { data, error } = await supabase
         .from('help_requests')
         .select(SELECT)
+        // Anything still Pending stays visible however old it is; only settled requests age out.
+        .or(`status.eq.Pending,created_at.gte.${since}`)
         .order('created_at', { ascending: false })
-        .limit(200);
+        .limit(2000);
       if (error) throw error;
       return data ?? [];
     },

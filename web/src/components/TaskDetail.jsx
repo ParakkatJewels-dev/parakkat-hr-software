@@ -9,6 +9,7 @@
 import React, { useState } from 'react';
 import {
   MessageSquare, Paperclip, Send, Trash2, Link2, FileText, Download, Loader2, Plus, X,
+  CornerDownRight,
 } from 'lucide-react';
 import { useTaskComments, useAddTaskComment, useDeleteTaskComment } from '../data/taskComments';
 import {
@@ -19,6 +20,9 @@ import { useAuth } from '../auth/AuthContext';
 import { humanDbError } from '../lib/dbErrors';
 import { relativeTime } from '../lib/dates';
 import { btnClass } from './ui/Btn';
+import Avatar from './ui/Avatar';
+import { buildThread, mentionFor, replyToggleLabel } from '../lib/commentThread';
+import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
@@ -54,6 +58,8 @@ function Attachments({ taskId, rows, loading, myUserId }) {
   const remove = useRemoveTaskAttachment();
   const signed = useTaskFileUrl();
   const error = humanDbError(addLink.error || addFile.error || remove.error, 'task_attachments');
+  // Opening the link form on a phone put it below the fold, so the button looked inert.
+  const linkFormRef = useRevealOnOpen(adding === 'link');
 
   const openFile = async (row) => {
     try {
@@ -86,19 +92,27 @@ function Attachments({ taskId, rows, loading, myUserId }) {
         </div>
       </div>
 
+      {/* Two inputs and two buttons on one line needed 12rem for the address alone, so at 360px the
+          row broke into a ragged stack with Add stranded beside a text field. Stacked on a phone,
+          one row from `sm` up. */}
       {adding === 'link' && (
         <form
-          className="flex flex-wrap items-center gap-2"
+          ref={linkFormRef}
+          className="space-y-2"
           onSubmit={async (e) => {
             e.preventDefault();
             try { await addLink.mutateAsync({ taskId, url, label }); setUrl(''); setLabel(''); setAdding(null); }
             catch { /* shown below */ }
           }}
         >
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste a link…" aria-label="Link address" className={INPUT + ' flex-1 min-w-[12rem]'} autoFocus />
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Call it… (optional)" aria-label="Link name" className={INPUT + ' w-40'} />
-          <button type="submit" disabled={!url.trim() || addLink.isPending} className={btnClass('primary','sm')}>Add</button>
-          <button type="button" onClick={() => setAdding(null)} className={btnClass('ghost','sm')}><X size={12} /></button>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste a link…" aria-label="Link address" className={INPUT} />
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Call it… (optional)" aria-label="Link name" className={INPUT + ' sm:flex-1'} />
+            <div className="flex gap-2">
+              <button type="submit" disabled={!url.trim() || addLink.isPending} className={btnClass('primary','sm') + ' flex-1 sm:flex-none'}>Add</button>
+              <button type="button" onClick={() => setAdding(null)} className={btnClass('ghost','sm') + ' flex-1 sm:flex-none'}>Cancel</button>
+            </div>
+          </div>
         </form>
       )}
 
@@ -123,10 +137,12 @@ function Attachments({ taskId, rows, loading, myUserId }) {
                     {row.label || 'File'}
                   </button>
                 )}
-                <span className="font-mono text-2xs text-neutral-400 shrink-0">
+                <span className="font-mono text-2xs text-neutral-400 shrink-0 hidden sm:inline">
                   {row.kind === 'file' ? readableSize(row.size_bytes) : ''}
-                  {row.added_by?.full_name ? ` · ${row.added_by.full_name}` : ''}
                 </span>
+                {row.added_by?.full_name && (
+                  <Avatar name={row.added_by.full_name} size="xs" className="hidden sm:inline-flex" />
+                )}
               </span>
               <span className="flex items-center gap-1 shrink-0">
                 {row.kind === 'file' && (
@@ -153,17 +169,49 @@ function Attachments({ taskId, rows, loading, myUserId }) {
 
 /* ----------------------------------------------------------------- comments -- */
 
+/**
+ * The conversation.
+ *
+ * One level of nesting, matching what 0110 stores and what a phone can actually render: comments
+ * down the page, replies tucked under the comment they answer and hidden behind a count until
+ * somebody wants them. Answering a reply keeps the conversation on the same thread and seeds the
+ * box with that person's name, because the alternative — a deeper indent each time — walks the
+ * newest and most relevant remark off the right edge of a 360px screen.
+ */
 function Thread({ taskId, rows, loading, myUserId }) {
   const [body, setBody] = useState('');
+  // Which comment the box is currently answering, and which threads have their replies open.
+  const [replyTo, setReplyTo] = useState(null);
+  const [expanded, setExpanded] = useState(() => new Set());
   const add = useAddTaskComment();
   const remove = useDeleteTaskComment();
   const error = humanDbError(add.error || remove.error, 'task_comments');
+  const composerRef = useRevealOnOpen(Boolean(replyTo), { block: 'center' });
+
+  const thread = buildThread(rows);
+
+  const toggle = (id) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  const startReply = (comment, parentId) => {
+    setReplyTo({ id: parentId, to: comment });
+    setBody(mentionFor(comment));
+    // Open the thread being answered, or the reply lands somewhere the writer cannot see.
+    setExpanded((prev) => new Set(prev).add(parentId));
+  };
 
   const post = async (e) => {
     e.preventDefault();
     if (!body.trim()) return;
-    try { await add.mutateAsync({ taskId, body }); setBody(''); }
-    catch { /* shown below */ }
+    try {
+      await add.mutateAsync({ taskId, body, parentId: replyTo?.id ?? null });
+      setBody('');
+      setReplyTo(null);
+    } catch { /* shown below */ }
   };
 
   return (
@@ -174,23 +222,43 @@ function Thread({ taskId, rows, loading, myUserId }) {
 
       {loading ? (
         <Loader2 size={14} className="animate-spin text-[#0ea971]" />
-      ) : rows.length === 0 ? (
+      ) : thread.length === 0 ? (
         <p className="text-2xs text-neutral-400">Nothing said yet. If it is blocked, this is where to say why.</p>
       ) : (
-        <ul className="space-y-2">
-          {rows.map((c) => (
-            <li key={c.id} className="text-xs">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200">{c.author?.full_name ?? 'Someone'}</span>
-                <span className="font-mono text-2xs text-neutral-400">{relativeTime(c.created_at)}{c.edited_at ? ' · edited' : ''}</span>
-                {c.author_user === myUserId && (
-                  <button type="button" onClick={() => remove.mutate(c.id)} title="Delete comment" aria-label="Delete comment"
-                    className="ml-auto p-0.5 rounded text-neutral-300 hover:text-red-500 cursor-pointer">
-                    <Trash2 size={11} />
+        <ul className="space-y-3">
+          {thread.map((c) => (
+            <li key={c.id} className="space-y-1.5">
+              <CommentRow
+                comment={c}
+                mine={c.author_user === myUserId}
+                onReply={() => startReply(c, c.id)}
+                onDelete={() => remove.mutate(c.id)}
+              />
+
+              {c.replies.length > 0 && (
+                <div className="pl-8 sm:pl-10 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={() => toggle(c.id)}
+                    aria-expanded={expanded.has(c.id)}
+                    className="flex items-center gap-1.5 text-2xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer py-1"
+                  >
+                    <span className="w-5 h-px bg-neutral-300 dark:bg-neutral-700 shrink-0" aria-hidden="true" />
+                    {replyToggleLabel(c.replies.length, expanded.has(c.id))}
                   </button>
-                )}
-              </div>
-              <p className="text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap leading-snug mt-0.5">{c.body}</p>
+
+                  {expanded.has(c.id) && c.replies.map((r) => (
+                    <CommentRow
+                      key={r.id}
+                      comment={r}
+                      compact
+                      mine={r.author_user === myUserId}
+                      onReply={() => startReply(r, c.id)}
+                      onDelete={() => remove.mutate(r.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </li>
           ))}
         </ul>
@@ -198,17 +266,79 @@ function Thread({ taskId, rows, loading, myUserId }) {
 
       {error && <p role="alert" className="text-2xs text-red-600 dark:text-red-300">{error}</p>}
 
-      <form onSubmit={post} className="flex items-start gap-2">
-        <textarea
-          rows={1} value={body} onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) post(e); }}
-          placeholder="Add a comment…" aria-label="Add a comment"
-          className={INPUT + ' resize-none flex-1'}
-        />
-        <button type="submit" disabled={!body.trim() || add.isPending} className={btnClass('primary','sm')} title="Post (Cmd+Enter)">
-          {add.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-        </button>
-      </form>
+      <div ref={composerRef} className="space-y-1.5">
+        {replyTo && (
+          <div className="flex items-center gap-2 text-2xs text-neutral-500 dark:text-neutral-400 rounded-lg bg-neutral-50 dark:bg-neutral-950/40 border border-neutral-150 dark:border-neutral-850 px-2.5 py-1.5">
+            <CornerDownRight size={11} className="text-[#0ea971] shrink-0" />
+            <span className="min-w-0 truncate">
+              Replying to <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                {replyTo.to?.author?.full_name ?? 'someone'}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => { setReplyTo(null); setBody(''); }}
+              aria-label="Cancel reply"
+              className="ml-auto p-1 rounded text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer shrink-0"
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )}
+
+        <form onSubmit={post} className="flex items-start gap-2">
+          <textarea
+            rows={1} value={body} onChange={(e) => setBody(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) post(e); }}
+            placeholder={replyTo ? 'Write a reply…' : 'Add a comment…'}
+            aria-label={replyTo ? 'Write a reply' : 'Add a comment'}
+            className={INPUT + ' resize-none flex-1'}
+          />
+          <button type="submit" disabled={!body.trim() || add.isPending} className={btnClass('primary','sm')} title="Post (Cmd+Enter)" aria-label="Post comment">
+            {add.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+          </button>
+        </form>
+      </div>
     </section>
+  );
+}
+
+/** One remark: who said it, when, what, and the two things you can do about it. */
+function CommentRow({ comment, mine, compact = false, onReply, onDelete }) {
+  const name = comment.author?.full_name ?? 'Someone';
+  return (
+    <div className="flex items-start gap-2">
+      <Avatar name={name} size={compact ? 'xs' : 'sm'} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-semibold text-xs text-neutral-800 dark:text-neutral-200">{name}</span>
+          <span className="font-mono text-2xs text-neutral-400">
+            {relativeTime(comment.created_at)}{comment.edited_at ? ' · edited' : ''}
+          </span>
+        </div>
+        <p className="text-xs text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap break-words leading-snug mt-0.5">
+          {comment.body}
+        </p>
+        {/* Actions sit under the text rather than beside the name: on a phone a row of name, time
+            and two controls has nowhere left for the name. */}
+        <div className="flex items-center gap-3 mt-1">
+          <button
+            type="button" onClick={onReply}
+            className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer py-0.5"
+          >
+            Reply
+          </button>
+          {mine && (
+            <button
+              type="button" onClick={onDelete}
+              aria-label={`Delete ${name}'s comment`}
+              className="text-2xs font-bold text-neutral-400 hover:text-red-600 dark:hover:text-red-400 cursor-pointer py-0.5"
+            >
+              Delete
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }

@@ -36,7 +36,7 @@ export function useTaskComments(taskId, { enabled = true } = {}) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('task_comments')
-        .select('id, body, created_at, edited_at, author_user, author:employees!task_comments_author_id_fkey(id, full_name, employee_code)')
+        .select('id, body, created_at, edited_at, author_user, parent_id, author:employees!task_comments_author_id_fkey(id, full_name, employee_code)')
         .eq('task_id', taskId)
         .order('created_at', { ascending: true })
         .limit(500);
@@ -59,14 +59,21 @@ export function useAddTaskComment() {
   const { employee, user } = useAuth();
   const invalidate = useCommentCaches();
   return useMutation({
-    mutationFn: async ({ taskId, body }) => {
+    mutationFn: async ({ taskId, body, parentId = null }) => {
       const text = (body ?? '').trim();
       if (!text) return;
       // author_user is what the policy checks; author_id is who to show. Both, because an employee
       // link can be removed later and the thread should still say who spoke.
+      //
+      // parentId is the comment being answered. Answering a REPLY is allowed and lands on that
+      // reply's own parent — 0110's trigger does that, so the client never has to walk the chain
+      // and cannot disagree with the database about where a reply belongs.
       const { data, error } = await supabase
         .from('task_comments')
-        .insert({ task_id: taskId, body: text, author_id: employee?.id ?? null, author_user: user?.id })
+        .insert({
+          task_id: taskId, body: text, parent_id: parentId,
+          author_id: employee?.id ?? null, author_user: user?.id,
+        })
         .select('id');
       if (error) throw error;
       if (!data?.length) throw new Error('That comment could not be posted. Your access to the task may have changed.');

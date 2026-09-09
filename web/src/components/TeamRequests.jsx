@@ -26,6 +26,8 @@ import { btnClass } from './ui/Btn';
 import FormSection from './ui/FormSection';
 import IconInput from './ui/IconInput';
 import Pagination, { usePagination } from './ui/Pagination';
+import Avatar from './ui/Avatar';
+import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
@@ -278,6 +280,8 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
   // are the one who knows what else is on it this week. See 0103.
   const [priority, setPriority] = useState(request.priority ?? 'Medium');
   const [q, setQ] = useState('');
+  // Opens under a card that may already be at the bottom of the screen.
+  const panelRef = useRevealOnOpen(true);
   const deferredQ = useDeferredValue(q);
   const { data: people = [], isLoading } = useDepartmentPeople(request.to_department_id, deferredQ);
   // A department roster runs to dozens. Search narrows it; paging makes the rest reachable rather
@@ -288,7 +292,7 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
   );
 
   return (
-    <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 p-3 space-y-2.5">
+    <div ref={panelRef} className="rounded-xl border border-neutral-200 dark:border-neutral-850 p-3 space-y-2.5 scroll-mt-4">
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-bold uppercase tracking-widest text-neutral-450">Who will do it?</span>
         <button type="button" onClick={onCancel} className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white cursor-pointer">
@@ -346,7 +350,10 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
               key={p.id} type="button" disabled={busy} onClick={() => onAssign(p.id, priority)}
               className="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer disabled:opacity-50 flex items-center justify-between gap-3"
             >
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200 min-w-0 truncate">{p.full_name}</span>
+              <span className="flex items-center gap-2 min-w-0">
+                <Avatar name={p.full_name} size="xs" />
+                <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">{p.full_name}</span>
+              </span>
               <span className="font-mono text-xs text-neutral-500 shrink-0">{p.employee_code}</span>
             </button>
           ))}

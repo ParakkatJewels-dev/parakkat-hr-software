@@ -220,13 +220,10 @@ export function EmptyNote({ children }) {
   return <p className="py-4 text-center text-xs text-neutral-500">{children}</p>;
 }
 
-export function Avatar({ name }) {
-  return (
-    <div className="dashboard-avatar w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-800 dark:text-[#0ea971] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
-      {getInitials(name)}
-    </div>
-  );
-}
+// One definition, in ui/Avatar.jsx — this used to be a second one at a different size and
+// colour, so the same person looked like two people depending on the screen.
+export { default as Avatar } from '../ui/Avatar';
+
 
 /** Small labelled count used inside widgets ("Late 4", "Absent 2", …). */
 export function StatPill({ label, value, tone = 'neutral', onClick }) {

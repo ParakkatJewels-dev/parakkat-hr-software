@@ -27,6 +27,7 @@ import {
 } from '../lib/taskBoard';
 import Pagination, { usePagination } from './ui/Pagination';
 import IconInput from './ui/IconInput';
+import Avatar from './ui/Avatar';
 import { useFocusRow } from '../lib/useFocusRow';
 import { focusIsMissing } from '../lib/focusRow';
 import { humanDbError } from '../lib/dbErrors';
@@ -551,12 +552,11 @@ export default function TaskManagement() {
             // the same key 'x' — React then rendered one group where there were several.
             <div key={g.key} className="space-y-2.5">
               <div className="flex items-center gap-2 px-1">
-                {/* The app's avatar tile (Directory, Administration). This was btnClass('primary'),
-                    which dressed a non-interactive div as the page's primary BUTTON — black, 30px
-                    tall, cursor-pointer — sitting directly under the real one. */}
-                <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
-                  {(g.assignee?.full_name || '?').split(' ').filter(Boolean).slice(0, 2).map((s) => s[0]).join('').toUpperCase()}
-                </div>
+                {/* One Avatar definition for the whole app (ui/Avatar.jsx). The tile here used to be
+                    hand-rolled — and briefly, in an earlier pass, carried btnClass('primary'), which
+                    dressed a non-interactive div as the page's primary BUTTON directly under the
+                    real one. The group's person is `assignee`; `employee` is not a field on it. */}
+                <Avatar name={g.assignee?.full_name} size="md" />
                 <span className={`font-bold text-sm ${g.assignee ? 'text-neutral-800 dark:text-slate-100' : 'text-neutral-500 italic'}`}>
                   {g.assignee?.full_name || ASSIGNEE_HIDDEN}
                 </span>
@@ -685,8 +685,10 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
             <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{task.description}</p>
           )}
           <div className="flex items-center gap-3 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400 pt-0.5">
-            <span className="inline-flex items-center gap-1">
-              <User size={11} className="text-neutral-400" />
+            <span className="inline-flex items-center gap-1.5">
+              {task.assignee?.full_name
+                ? <Avatar name={task.assignee.full_name} size="xs" />
+                : <User size={11} className="text-neutral-400" />}
               <span className={`font-semibold ${task.assignee ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-500 italic'}`}>
                 {task.assignee?.full_name || ASSIGNEE_HIDDEN}
               </span>
