@@ -11,6 +11,7 @@ import { Loader2, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 import './index.css';
 import App from './App.jsx';
 import Login from './pages/Login.jsx';
+import SetYourPassword from './components/SetYourPassword.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import { initNative } from './mobile/native';
 import { installPreloadErrorHandler, registerServiceWorker } from './lib/pwa';
@@ -219,9 +220,16 @@ function NoAccess() {
 }
 
 // Gate the app behind resolved access: a signed-in user needs a role (or super admin) to enter.
+//
+// The password gate comes FIRST, ahead of the role check. Somebody provisioned in bulk arrives
+// with a password their colleagues can compute, and that has to be replaced whether or not a role
+// has been assigned yet — a login with no role can still be signed into by the wrong person, and
+// telling them "you're not authorized yet" while leaving the guessable password in place answers
+// the less important of the two problems.
 function AuthedApp() {
-  const { access, isSuperAdmin, assignments } = useAuth();
+  const { access, isSuperAdmin, assignments, mustChangePassword } = useAuth();
   if (access === null) return <FullScreenLoader />; // access still resolving
+  if (mustChangePassword) return <SetYourPassword />;
   const hasAccess = isSuperAdmin || (assignments?.length ?? 0) > 0;
   return hasAccess ? <App /> : <NoAccess />;
 }

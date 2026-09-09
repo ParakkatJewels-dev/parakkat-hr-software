@@ -100,6 +100,9 @@ export function AuthProvider({ children }) {
     isSuperAdmin: Boolean(access?.is_super_admin),
     // Screens an administrator has taken out of THIS person's sidebar (0109). Narrows only.
     hiddenScreens: access?.hidden_screens ?? [],
+    // Still on the password they were provisioned with (0111). Cleared by a database trigger when
+    // the password actually changes, so this cannot say "done" while the old one still works.
+    mustChangePassword: Boolean(access?.must_change_password),
     // Seniority ceiling (migration 0044). You may only grant roles ranked strictly below this.
     // Mirrors app.max_role_rank(); the database still enforces it — this only shapes the UI.
     rank: access?.rank ?? 0,
