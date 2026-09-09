@@ -7,6 +7,19 @@
 // Compact by default: this is a data-dense HR tool where a toolbar may carry six controls, so the
 // default height is 30px, not the 40px a marketing site would use. `size="lg"` exists for the one
 // or two places that genuinely need weight (an empty state's only call to action).
+//
+// COLOUR MEANS OUTCOME, NOT EMPHASIS
+// Every variant below is picked by what pressing it DOES, so the same answer is the same colour on
+// every screen: approving leave, accepting a help request and confirming an allocation are one
+// green, and rejecting, declining and deleting are one red. Choosing by "how important does this
+// look" is what produced a black Accept next to a red Decline on one screen and the reverse on the
+// next.
+//
+// Cancel is the deliberate exception. A Cancel that only closes a form destroys nothing, and
+// painting it red makes people hesitate over the harmless half of the choice — the colour that
+// should carry the warning is then spent on the safe option, and the actually destructive button
+// beside it has nothing left to distinguish it. Dismissal is `ghost`; red is reserved for the
+// press that removes, rejects or cannot be undone.
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 
@@ -17,19 +30,42 @@ const BASE =
   'disabled:opacity-45 disabled:cursor-not-allowed';
 
 const VARIANT = {
-  // One primary per screen area. Black in light mode reads as "the action", green in dark.
+  // NEUTRAL — "carry on". No outcome encoded, so it never competes with a green or a red.
+  // One primary per screen area: submit the form, open the composer, save the draft.
   primary: 'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-[#0ea971] dark:hover:bg-[#0c9765]',
   // The default for anything secondary — bordered, quiet, survives sitting in a row of six.
+  // This is also what Cancel and Close use: dismissal is not an outcome worth a colour.
   ghost:
     'border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 ' +
     'hover:border-[#0ea971]/45 hover:text-neutral-900 dark:hover:text-white',
   // No border at all; for actions inside a row or card that should not compete.
   subtle: 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800',
+
+  // POSITIVE — approve, accept, allocate, confirm-and-proceed. The affirmative half of a decision.
+  // Measurably darker than the brand green, not decoratively: white on #0ea971 is 3.03:1 and white
+  // on #0c8f60 is still only 4.11:1. #0a7d53 is 5.16:1, the first step that clears the 4.5:1 floor.
+  // Dark mode keeps the brand green, where the text on it is not white.
+  success: 'bg-[#0a7d53] text-white hover:bg-[#086b47] dark:bg-[#0ea971] dark:hover:bg-[#0c9765]',
+  // Approve, but sitting in a row rather than being the one thing on screen.
+  successGhost:
+    'border border-[#0ea971]/40 text-[#0c7d55] dark:text-[#10b981] ' +
+    'hover:bg-[#0ea971]/10 hover:border-[#0ea971]',
+
+  // NEGATIVE — reject, decline, delete, revoke, remove. The half that takes something away.
   danger: 'bg-red-600 text-white hover:bg-red-700',
   // Destructive but not the main event — reads quiet until you reach for it.
   dangerGhost:
     'border border-neutral-200 dark:border-neutral-800 text-neutral-600 dark:text-neutral-300 ' +
     'hover:border-red-400 hover:text-red-600 dark:hover:text-red-400',
+  // Rejecting IS the decision here, not an afterthought — used opposite `success` so the two
+  // halves of one choice carry equal weight and the reader is not steered toward either.
+  dangerSolid: 'border border-red-300 dark:border-red-900/50 text-red-700 dark:text-red-300 ' +
+    'bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-950/50',
+
+  // CAUTION — consequential but reversible: withdraw a request, put an asset in for repair.
+  warning:
+    'border border-amber-300 dark:border-amber-900/50 text-amber-800 dark:text-amber-300 ' +
+    'bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50',
 };
 
 const SIZE = {

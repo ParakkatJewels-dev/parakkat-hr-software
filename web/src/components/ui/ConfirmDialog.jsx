@@ -67,10 +67,13 @@ export default function ConfirmDialog({
     };
   }, []);
 
+  // Matches Btn's `danger` and `success` so a confirmation reads the same as the button that
+  // opened it. White on the brand #0ea971 measures 3.03:1 — under the 4.5:1 floor, on the button
+  // that commits the change. #0a7d53 is 5.16:1.
   const confirmClass =
     tone === 'danger'
       ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500/40'
-      : 'bg-[#0ea971] hover:bg-[#0c9765] focus:ring-[#0ea971]/40';
+      : 'bg-[#0a7d53] hover:bg-[#086b47] focus:ring-[#0ea971]/40';
 
   return (
     // z-50 is the app's top layer (see the scale used across the shell: 30 header, 50 overlay).

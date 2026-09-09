@@ -162,15 +162,17 @@ function Group({ title, empty, requests, render }) {
 function RequestHead({ request, otherLabel, otherName }) {
   return (
     <div className="min-w-0 space-y-1">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 truncate">{request.title}</span>
-        <span className="text-2xs font-bold uppercase font-mono text-neutral-400">{request.priority}</span>
+      {/* `truncate` cut a real request title on a phone and there was no way to read the rest.
+          The title takes its own row there; the priority wraps under it. */}
+      <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
+        <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 min-w-0 line-clamp-2 flex-[1_1_100%] sm:flex-[0_1_auto]">{request.title}</span>
+        <span className="text-2xs font-bold uppercase font-mono text-neutral-400 shrink-0">{request.priority}</span>
       </div>
       {request.description && (
         <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{request.description}</p>
       )}
-      <div className="flex items-center gap-3 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400">
-        <span className="font-mono">{otherLabel} {otherName}</span>
+      <div className="flex items-center gap-x-2.5 gap-y-0.5 flex-wrap text-xs text-neutral-500 dark:text-neutral-400">
+        <span className="font-mono break-words">{otherLabel} {otherName}</span>
         {request.due_date && <span className="font-mono">· due {request.due_date}</span>}
         <span className="font-mono">· {relativeTime(request.created_at)}</span>
       </div>
@@ -209,25 +211,31 @@ function IncomingCard({ request, busy, onRespond }) {
         <p className="text-xs text-neutral-500 italic">“{request.decision_note}”</p>
       )}
 
+      {/* The note used to sit between the two buttons with a 12rem minimum, so on a phone the row
+          broke into three ragged lines and Decline ended up under the text field, away from the
+          Accept it belongs beside. The note is its own row now; the two halves of the decision
+          stay together and share the width. */}
       {pending && !choosing && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setChoosing(true)} disabled={busy} className={btnClass('primary')}>
-            <Check size={13} /> <span>Accept &amp; assign</span>
-          </button>
-          <button
-            onClick={() => onRespond({ accept: false, note: note.trim() || null }).catch(() => {})}
-            disabled={busy}
-            className={btnClass('dangerGhost')}
-          >
-            <X size={13} /> <span>Decline</span>
-          </button>
+        <div className="space-y-2">
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Add a note (optional)…"
             aria-label="Note to the requesting head"
-            className={INPUT + ' flex-1 min-w-[12rem]'}
+            className={INPUT}
           />
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <button onClick={() => setChoosing(true)} disabled={busy} className={btnClass('success') + ' w-full sm:w-auto'}>
+              <Check size={13} /> <span>Accept &amp; assign</span>
+            </button>
+            <button
+              onClick={() => onRespond({ accept: false, note: note.trim() || null }).catch(() => {})}
+              disabled={busy}
+              className={btnClass('dangerSolid') + ' w-full sm:w-auto'}
+            >
+              <X size={13} /> <span>Decline</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -261,14 +269,14 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
   return (
     <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 p-3 space-y-2.5">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-2xs font-bold uppercase tracking-widest text-neutral-450">Who will do it?</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-neutral-450">Who will do it?</span>
         <button type="button" onClick={onCancel} className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white cursor-pointer">
           <X size={14} />
         </button>
       </div>
 
       <div className="space-y-1">
-        <label className="block text-2xs font-bold uppercase tracking-widest text-neutral-450">
+        <label className="block text-xs font-bold uppercase tracking-widest text-neutral-450">
           Priority on your board
           {priority !== request.priority && (
             <span className="ml-1.5 font-normal normal-case tracking-normal text-neutral-400">
@@ -284,13 +292,13 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
       {request.preferred && (
         <button
           type="button" disabled={busy} onClick={() => onAssign(request.preferred.id, priority)}
-          className="w-full text-left rounded-lg border border-[#0ea971]/40 bg-[#0ea971]/5 px-3 py-2 text-xs hover:border-[#0ea971] cursor-pointer disabled:opacity-50 flex items-center justify-between gap-2"
+          className="w-full text-left rounded-lg border border-[#0ea971]/40 bg-[#0ea971]/5 px-3 py-2 text-sm hover:border-[#0ea971] cursor-pointer disabled:opacity-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2"
         >
-          <span>
+          <span className="min-w-0">
             <span className="font-semibold text-neutral-800 dark:text-neutral-200">{request.preferred.full_name}</span>
-            <span className="font-mono text-2xs text-neutral-500"> · {request.preferred.employee_code}</span>
+            <span className="font-mono text-xs text-neutral-500"> · {request.preferred.employee_code}</span>
           </span>
-          <span className="text-2xs font-mono text-[#0c9765] dark:text-[#10b981] shrink-0">the one they asked for</span>
+          <span className="text-xs font-mono text-[#0c7d55] dark:text-[#10b981] sm:shrink-0">the one they asked for</span>
         </button>
       )}
 
@@ -307,10 +315,10 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
           {people.filter((p) => p.id !== request.preferred?.id).map((p) => (
             <button
               key={p.id} type="button" disabled={busy} onClick={() => onAssign(p.id, priority)}
-              className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer disabled:opacity-50 flex justify-between gap-2"
+              className="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer disabled:opacity-50 flex items-center justify-between gap-3"
             >
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200">{p.full_name}</span>
-              <span className="font-mono text-2xs text-neutral-500">{p.employee_code}</span>
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200 min-w-0 truncate">{p.full_name}</span>
+              <span className="font-mono text-xs text-neutral-500 shrink-0">{p.employee_code}</span>
             </button>
           ))}
         </div>

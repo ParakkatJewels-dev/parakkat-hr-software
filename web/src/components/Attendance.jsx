@@ -1078,14 +1078,17 @@ function RegularizationsView({ employee, canApprove }) {
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Approved' })}
                             disabled={decide.isPending}
-                            className="px-2 py-1 rounded-lg bg-[#0ea971] text-white text-2xs font-bold mr-1 disabled:opacity-50"
+                            className="px-2 py-1 rounded-lg bg-[#0a7d53] hover:bg-[#086b47] text-white text-2xs font-bold mr-1 disabled:opacity-50 cursor-pointer"
                           >
                             Approve
                           </button>
+                          {/* Was grey. Grey is the colour of "secondary", not of "no" — the two
+                              halves of one decision have to read as opposites, or the reader has
+                              to look at the words to tell which is which. */}
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Rejected' })}
                             disabled={decide.isPending}
-                            className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold disabled:opacity-50"
+                            className="px-2 py-1 rounded-lg border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 text-2xs font-bold disabled:opacity-50 cursor-pointer"
                           >
                             Reject
                           </button>
