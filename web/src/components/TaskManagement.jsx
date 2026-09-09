@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
   ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, CornerDownRight, Flag,
   CalendarClock, User, GitBranch, Users, ChevronRight, Search, PenLine, ShieldAlert, HandHelping,
-  MessageSquare, Paperclip, CheckSquare,
+  MessageSquare, Paperclip, CheckSquare, ListTodo,
 } from 'lucide-react';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, CLOSED_TASK_WINDOW_DAYS } from '../data/tasks';
 import { useEmployees } from '../data/employees';
@@ -33,6 +33,7 @@ import { focusIsMissing } from '../lib/focusRow';
 import { humanDbError } from '../lib/dbErrors';
 import TaskDetail from './TaskDetail';
 import TaskRoutine from './TaskRoutine';
+import TaskTodo from './TaskTodo';
 import { useTaskCommentCounts } from '../data/taskComments';
 import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
@@ -125,7 +126,7 @@ export default function TaskManagement() {
   };
 
   // In the URL, so a refresh comes back to the view you were reading.
-  const [view, setView] = useUrlTab('flow', ['flow', 'people', 'requests', 'routine']);
+  const [view, setView] = useUrlTab('flow', ['flow', 'people', 'todo', 'requests', 'routine']);
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | { task } | null
@@ -140,11 +141,15 @@ export default function TaskManagement() {
   const effectiveMineOnly = !canViewTeamTasks || mineOnly;
   // Everyone with a task.read gets the routine — an employee's own list is the point of it — so it
   // is not gated on seeing the team, unlike Flow and By Person.
+  // 'todo' is everyone's, like the routine: it is the one view that is about your OWN plate, and
+  // 0113 makes filing work on your own board need no permission at all. A plain employee lands
+  // here rather than on a Flow board that only ever shows their own rows anyway.
   const effectiveView =
     view === 'requests' ? (canUseRequests ? 'requests' : 'flow')
     : view === 'routine' ? 'routine'
+    : view === 'todo' ? 'todo'
     : canViewTeamTasks ? view
-    : 'flow';
+    : 'todo';
   const isBoard = effectiveView === 'flow' || effectiveView === 'people';
 
   // Only what is waiting on YOU. A request you raised is waiting on somebody else, and badging it
@@ -418,6 +423,12 @@ export default function TaskManagement() {
                 />
               )}
               <ViewBtn
+                active={effectiveView === 'todo'}
+                onClick={() => setView('todo')}
+                icon={ListTodo}
+                label="My List"
+              />
+              <ViewBtn
                 active={effectiveView === 'routine'}
                 onClick={() => setView('routine')}
                 icon={CheckSquare}
@@ -498,6 +509,8 @@ export default function TaskManagement() {
       {/* body */}
       {effectiveView === 'requests' ? (
         <TeamRequests myDepartments={myDepartments} />
+      ) : effectiveView === 'todo' ? (
+        <TaskTodo tasks={tasks} loading={isLoading} />
       ) : effectiveView === 'routine' ? (
         <TaskRoutine employees={employees} />
       ) : isLoading ? (
