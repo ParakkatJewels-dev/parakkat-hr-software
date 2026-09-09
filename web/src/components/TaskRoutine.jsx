@@ -20,6 +20,7 @@ import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
 import { btnClass } from './ui/Btn';
 import FormSection from './ui/FormSection';
+import Pagination, { usePagination } from './ui/Pagination';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
@@ -41,6 +42,8 @@ export default function TaskRoutine({ employees = [] }) {
   const mineProgress = routineProgress(mine);
   const team = teamRoutineSummary(items, ticks, today);
   const others = team.filter((g) => g.employeeId !== employee?.id);
+  // Ten people per page. Each card is a whole checklist, so this is already a long scroll.
+  const teamPager = usePagination(others, 10);
   const mutationError = humanDbError(setTick.error || retire.error, 'routine_ticks');
 
   if (isLoading) return <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>;
@@ -118,7 +121,10 @@ export default function TaskRoutine({ employees = [] }) {
           <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 px-1">
             The team today <span className="font-mono opacity-70">· {others.length}</span>
           </h2>
-          {others.map((g) => (
+          {/* Paged by PERSON, never by duty: a card is one person's whole day, and splitting one
+              across a page boundary would show half a checklist and a progress bar that disagrees
+              with it. Fifty people at ten duties each is five hundred rows in one screen. */}
+          {teamPager.slice.map((g) => (
             <div key={g.employeeId} className="premium-card space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-bold text-sm text-neutral-800 dark:text-slate-100">
@@ -137,6 +143,7 @@ export default function TaskRoutine({ employees = [] }) {
               </div>
             </div>
           ))}
+          <Pagination {...teamPager} noun="people" />
         </section>
       )}
 
@@ -214,10 +221,13 @@ function DutyForm({ employees, initial, onClose, onDone }) {
   const [q, setQ] = useState('');
 
   const chosen = employees.find((e) => e.id === employeeId);
+  // Was `.slice(0, 8)`: a search matching thirty people showed eight of them and said nothing
+  // about the other twenty-two, so the right person simply was not there. Page instead of truncate.
   const results = q.trim()
     ? employees.filter((e) => (e.full_name || '').toLowerCase().includes(q.trim().toLowerCase())
-        || (e.employee_code || '').toLowerCase().includes(q.trim().toLowerCase())).slice(0, 8)
+        || (e.employee_code || '').toLowerCase().includes(q.trim().toLowerCase()))
     : [];
+  const resultsPager = usePagination(results, 8);
 
   return (
     <FormSection
@@ -251,8 +261,8 @@ function DutyForm({ employees, initial, onClose, onDone }) {
             <>
               <input className={INPUT} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or code…" />
               {results.length > 0 && (
-                <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-                  {results.map((e) => (
+                <div className="mt-1 border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
+                  {resultsPager.slice.map((e) => (
                     <button key={e.id} type="button" onClick={() => setEmployeeId(e.id)}
                       className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between cursor-pointer">
                       <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
@@ -261,6 +271,7 @@ function DutyForm({ employees, initial, onClose, onDone }) {
                   ))}
                 </div>
               )}
+              {results.length > 0 && <Pagination {...resultsPager} noun="people" />}
             </>
           )}
         </div>

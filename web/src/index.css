@@ -6210,7 +6210,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   main .pagination-number[aria-current="page"]::before {
-    content: "Page ";
+    /* A non-breaking space, because a trailing one in `content` is collapsed and the label
+       rendered as "Page1". */
+    content: "Page\00a0";
     font-weight: 700;
   }
 

@@ -80,7 +80,10 @@ export function useDepartmentMoves(departmentId) {
                  to_department:departments!department_moves_to_department_id_fkey(name)`)
         .or(`to_department_id.eq.${departmentId},from_department_id.eq.${departmentId}`)
         .order('moved_at', { ascending: false })
-        .limit(50);
+        // This is the list to reconcile against once Easy Time Pro is corrected at source, so it
+        // has to be the whole record. At 50 the older half of a re-organisation silently vanished
+        // — and paging over a truncated fetch just pages through the truncation.
+        .limit(500);
       if (error) throw error;
       return data ?? [];
     },

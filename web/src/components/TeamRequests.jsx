@@ -25,6 +25,7 @@ import { relativeTime } from '../lib/dates';
 import { btnClass } from './ui/Btn';
 import FormSection from './ui/FormSection';
 import IconInput from './ui/IconInput';
+import Pagination, { usePagination } from './ui/Pagination';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
@@ -145,15 +146,29 @@ export default function TeamRequests({ myDepartments = [] }) {
   );
 }
 
+/**
+ * One list of requests, paged.
+ *
+ * Requests are not a handful. Every head raising one adds a row to somebody's incoming list and
+ * their own outgoing list, and nothing removes them — a declined request stays as the record that
+ * it was asked. Ten to a page: each card carries a title, a description, who suggested whom and a
+ * decision row, so a page of twenty-five is a page nobody reads to the end of.
+ */
 function Group({ title, empty, requests, render }) {
+  const pager = usePagination(requests, 10);
   return (
     <section className="space-y-2.5">
       <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 px-1">
         {title} {requests.length > 0 && <span className="font-mono opacity-70">· {requests.length}</span>}
       </h2>
-      {requests.length === 0
-        ? <p className="premium-card p-6 text-center text-xs text-neutral-500">{empty}</p>
-        : <div className="space-y-2.5">{requests.map(render)}</div>}
+      {requests.length === 0 ? (
+        <p className="premium-card p-6 text-center text-xs text-neutral-500">{empty}</p>
+      ) : (
+        <>
+          <div className="space-y-2.5">{pager.slice.map(render)}</div>
+          <Pagination {...pager} noun="requests" />
+        </>
+      )}
     </section>
   );
 }
@@ -265,6 +280,12 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
   const [q, setQ] = useState('');
   const deferredQ = useDeferredValue(q);
   const { data: people = [], isLoading } = useDepartmentPeople(request.to_department_id, deferredQ);
+  // A department roster runs to dozens. Search narrows it; paging makes the rest reachable rather
+  // than hidden below the fold of a fixed-height scroll box.
+  const peoplePager = usePagination(
+    people.filter((p) => p.id !== request.preferred?.id),
+    8
+  );
 
   return (
     <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 p-3 space-y-2.5">
@@ -311,8 +332,16 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
       {isLoading ? (
         <div className="flex justify-center py-4 text-[#0ea971]"><Loader2 size={16} className="animate-spin" /></div>
       ) : (
-        <div className="max-h-52 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-850 divide-y divide-neutral-150 dark:divide-neutral-850/60">
-          {people.filter((p) => p.id !== request.preferred?.id).map((p) => (
+        <>
+        {/* department_people caps at 50 in SQL (0101). Say so, or a head concludes the person they
+            want is not on that team. */}
+        {people.length >= 50 && (
+          <p className="text-2xs text-amber-700 dark:text-amber-300">
+            Showing the first 50 of their team. Search to find someone specific.
+          </p>
+        )}
+        <div className="rounded-lg border border-neutral-200 dark:border-neutral-850 divide-y divide-neutral-150 dark:divide-neutral-850/60">
+          {peoplePager.slice.map((p) => (
             <button
               key={p.id} type="button" disabled={busy} onClick={() => onAssign(p.id, priority)}
               className="w-full text-left px-3 py-2.5 text-sm hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer disabled:opacity-50 flex items-center justify-between gap-3"
@@ -322,6 +351,8 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
             </button>
           ))}
         </div>
+        <Pagination {...peoplePager} noun="people" />
+        </>
       )}
 
       <input
@@ -414,6 +445,7 @@ function AskPanel({ myDepartments, onClose, onDone, request = null }) {
   const targets = departments.filter((d) => !mine.has(d.id) && (!fromEntity || d.entity_id === fromEntity));
 
   const { data: people = [] } = useDepartmentPeople(toId, deferredQ);
+  const preferPager = usePagination(people, 8);
   // While editing, the person already chosen may not be in the current search results, so fall back
   // to what the request itself says rather than showing the field as empty.
   const preferred = people.find((p) => p.id === preferredId)
@@ -510,9 +542,14 @@ function AskPanel({ myDepartments, onClose, onDone, request = null }) {
                   aria-label="Search that department" placeholder="Search their team by name or code…"
                   inputClassName={INPUT}
                 />
+                {people.length >= 50 && (
+                  <p className="mt-1 text-2xs text-amber-700 dark:text-amber-300">
+                    Showing the first 50 of their team. Search to find someone specific.
+                  </p>
+                )}
                 {people.length > 0 && (
-                  <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-                    {people.map((p) => (
+                  <div className="mt-1 border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
+                    {preferPager.slice.map((p) => (
                       <button key={p.id} type="button" onClick={() => setPreferredId(p.id)}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between cursor-pointer">
                         <span className="font-semibold text-neutral-800 dark:text-neutral-200">{p.full_name}</span>
@@ -521,6 +558,7 @@ function AskPanel({ myDepartments, onClose, onDone, request = null }) {
                     ))}
                   </div>
                 )}
+                {people.length > 0 && <Pagination {...preferPager} noun="people" />}
               </>
             )}
           </div>

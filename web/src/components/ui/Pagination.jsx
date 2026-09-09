@@ -11,6 +11,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { pageContaining } from '../../lib/focusRow';
+import { shouldShowPager, pageSizeOptions, pageWindow } from '../../lib/pagination';
 
 /**
  * @param items      the full, already-filtered array
@@ -51,28 +52,26 @@ export function usePagination(items, initialSize = 25, focusId = null) {
   };
 }
 
-/** Page numbers to show: always first and last, a window around the current page, ellipses between. */
-function pageWindow(current, total) {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const out = [1];
-  const from = Math.max(2, current - 1);
-  const to = Math.min(total - 1, current + 1);
-  if (from > 2) out.push('…');
-  for (let n = from; n <= to; n++) out.push(n);
-  if (to < total - 1) out.push('…');
-  out.push(total);
-  return out;
-}
-
 /**
  * Renders nothing when everything fits on one page — a pager under a five-row list is noise.
  * `noun` is used in the summary, e.g. "1–25 of 242 people".
+ *
+ * The "fits on one page" test is against `pageSize`, NOT the smallest offered size. Those were the
+ * same number while every caller used the default 25, and stopped being the same the moment a
+ * caller asked for ten to a page: the pager hid itself for any count up to 25, so a fifteen-row
+ * list showed ten rows, no control, and no way to reach the other five. A list that silently ends
+ * early is worse than one with no paging at all.
  */
 export default function Pagination({
   page, setPage, totalPages, pageSize, setPageSize, count, from, to,
   noun = 'rows', sizes = [25, 50, 100, 200], className = '',
 }) {
-  if (count <= Math.min(...sizes)) return null;
+  if (!shouldShowPager(count, pageSize)) return null;
+
+  // The select shows the size actually in use. Without this a caller starting at 8 rendered a
+  // dropdown whose value matched no option, which browsers draw as the first one — a control
+  // saying 25 over a list of 8.
+  const options = pageSizeOptions(pageSize, sizes);
 
   return (
     <nav className={`premium-card pagination-shell ${className}`} aria-label={`${noun} pagination`}>
@@ -127,7 +126,7 @@ export default function Pagination({
           onChange={(e) => setPageSize(Number(e.target.value))}
           aria-label="Rows per page"
         >
-          {sizes.map((n) => (
+          {options.map((n) => (
             <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>
           ))}
         </select>

@@ -20,6 +20,7 @@ import {
 import { btnClass } from './ui/Btn';
 import IconInput from './ui/IconInput';
 import ConfirmDialog from './ui/ConfirmDialog';
+import Pagination, { usePagination } from './ui/Pagination';
 import { relativeTime } from '../lib/dates';
 
 const INPUT =
@@ -49,6 +50,9 @@ export default function Team() {
 
   const { data: members = [], isLoading: loadingMembers } = useDepartmentMembers(departmentId);
   const move = useMoveEmployeeDepartment();
+  // A department is not a handful of people — the largest here runs to dozens, and the roster is
+  // the one list on this screen somebody scrolls looking for a name.
+  const memberPager = usePagination(members);
 
   if (loadingDepts) {
     return <div className="page-shell flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>;
@@ -176,8 +180,9 @@ export default function Team() {
             <p>Use <span className="font-semibold">Add someone</span> to bring in the people who work for you.</p>
           </div>
         ) : (
+          <>
           <div className="premium-card p-0 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-900/60">
-            {members.map((m) => (
+            {memberPager.slice.map((m) => (
               <div key={m.id} className="mobile-list-row flex items-center justify-between gap-3 px-4 py-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                   <Avatar name={m.full_name} />
@@ -201,6 +206,8 @@ export default function Team() {
               </div>
             ))}
           </div>
+          <Pagination {...memberPager} noun="people" />
+          </>
         )}
       </section>
 
@@ -230,6 +237,9 @@ function AddToTeam({ department, busy, onClose, onPick }) {
   const [q, setQ] = useState('');
   const deferredQ = useDeferredValue(q);
   const { data: candidates = [], isLoading } = useAssignableEmployees(department.id, deferredQ);
+  // The pool is everyone active in the company. Search narrows it, but an empty search must not
+  // render 264 rows into a scroll box nobody can find the bottom of.
+  const pager = usePagination(candidates, 10);
 
   return (
     <div className="premium-card form-section space-y-4 animate-fade-in">
@@ -269,8 +279,16 @@ function AddToTeam({ department, busy, onClose, onPick }) {
           {q.trim() ? `Nobody active matches “${q.trim()}” in this company.` : 'Everyone in this company is already on your team.'}
         </p>
       ) : (
-        <div className="max-h-72 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-          {candidates.map((c) => (
+        <>
+        {/* assignable_employees caps at 50 rows in SQL (0099). Paging through a capped list without
+            saying so is how somebody concludes a colleague is not in the system. */}
+        {candidates.length >= 50 && (
+          <p className="text-2xs text-amber-700 dark:text-amber-300">
+            Showing the first 50 matches. Type a name or code to narrow it down.
+          </p>
+        )}
+        <div className="border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
+          {pager.slice.map((c) => (
             <button
               key={c.id}
               type="button"
@@ -295,6 +313,8 @@ function AddToTeam({ department, busy, onClose, onPick }) {
             </button>
           ))}
         </div>
+        <Pagination {...pager} noun="people" />
+        </>
       )}
     </div>
   );
@@ -303,6 +323,8 @@ function AddToTeam({ department, busy, onClose, onPick }) {
 /** What was changed by hand — the list to reconcile against once Easy Time Pro is corrected. */
 function MoveHistory({ departmentId }) {
   const { data: moves = [], isLoading } = useDepartmentMoves(departmentId);
+  // This list only ever grows — it is the record to reconcile against once Easy Time Pro is fixed.
+  const pager = usePagination(moves, 10);
   if (isLoading) return null;
   return (
     <section className="premium-card space-y-2">
@@ -312,8 +334,9 @@ function MoveHistory({ departmentId }) {
       {moves.length === 0 ? (
         <p className="text-xs text-neutral-500">Nothing has been moved in or out of this team yet.</p>
       ) : (
+        <>
         <ul className="space-y-1.5">
-          {moves.map((m) => (
+          {pager.slice.map((m) => (
             <li key={m.id} className="flex items-center justify-between gap-3 text-xs">
               <span className="min-w-0 truncate">
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">
@@ -327,6 +350,8 @@ function MoveHistory({ departmentId }) {
             </li>
           ))}
         </ul>
+        <Pagination {...pager} noun="changes" />
+        </>
       )}
     </section>
   );
