@@ -139,8 +139,22 @@ export const OVERSIGHT_NAV = [
   },
 ];
 
-/** Can this viewer see one tab? `scoped` tabs need the permission beyond self scope. */
-export function canSeeTab(tab, { canAny, canBeyondSelf }) {
+/**
+ * Can this viewer see one tab? `scoped` tabs need the permission beyond self scope.
+ *
+ * `hidden` is the per-user override list (migration 0109) — screens an administrator has taken out
+ * of this one person's sidebar on top of their role. It narrows and never widens, so it is applied
+ * last and can only turn a true into a false.
+ *
+ * Applied here rather than only where the menu is drawn, so the route guard turns away a hidden
+ * screen typed into the URL too. That still is not a security boundary: the permission is
+ * untouched and the database will serve the data to anything that asks. It is "not part of your
+ * job", not "you may not have this".
+ */
+export function canSeeTab(tab, { canAny, canBeyondSelf, hidden }) {
+  // Accepts a Set (what predicatesFor builds) or a plain array (what a caller may hand over).
+  const isHidden = hidden instanceof Set ? hidden.has(tab.id) : (hidden ?? []).includes(tab.id);
+  if (isHidden) return false;
   if (!tab.perm) return true;
   return tab.scoped ? canBeyondSelf(tab.perm) : canAny(tab.perm);
 }
@@ -192,11 +206,15 @@ export function allScreenIds() {
  * match usePermissions' canAny / canBeyondSelf exactly, so the inspector and the sidebar cannot
  * disagree about what a permission set means.
  */
-export function predicatesFor(permissions, { isSuperAdmin = false } = {}) {
+export function predicatesFor(permissions, { isSuperAdmin = false, hiddenScreens = [] } = {}) {
   const list = permissions ?? [];
+  // A super admin is never narrowed — matching 0109's trigger and its get_my_access branch. The
+  // account that can undo an override must not be the one locked out by it.
+  const hidden = new Set(isSuperAdmin ? [] : hiddenScreens ?? []);
   return {
     canAny: (perm) => isSuperAdmin || list.some((p) => p.permission === perm),
     canBeyondSelf: (perm) =>
       isSuperAdmin || list.some((p) => p.permission === perm && p.scope_type !== 'self'),
+    hidden,
   };
 }

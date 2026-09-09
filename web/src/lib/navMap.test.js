@@ -184,3 +184,63 @@ test('predicatesFor reads a permission list the same way the signed-in session d
   assert.equal(p.canBeyondSelf('payslip.read'), false, 'a self grant is not oversight');
   assert.equal(p.canAny('org.manage'), false);
 });
+
+// ---- per-user screen overrides (migration 0109) -----------------------------------------------
+
+test('a hidden screen leaves the sidebar without touching the rest', () => {
+  const before = screensFor('dept_head');
+  assert.ok(before.includes('employee-import'), 'precondition: heads reach Import today');
+
+  const after = visibleSections(
+    'dept_head',
+    predicatesFor(permsFor('dept_head'), { hiddenScreens: ['employee-import'] })
+  ).flatMap((s) => s.tabs.map((t) => t.id));
+
+  assert.ok(!after.includes('employee-import'), 'Import should be gone');
+  assert.deepEqual(
+    after,
+    before.filter((id) => id !== 'employee-import'),
+    'nothing else should move'
+  );
+});
+
+test('hiding every tab in a section drops the section entirely', () => {
+  const sections = visibleSections(
+    'entity_admin',
+    predicatesFor(permsFor('entity_admin'), {
+      hiddenScreens: ['administration', 'admin-roles', 'admin-audit'],
+    })
+  );
+  assert.ok(!sections.some((s) => s.id === 'admin'), 'an empty Administration must not render');
+});
+
+test('an override narrows and never widens', () => {
+  // A department head does not reach Structure. Naming it in the override list must not grant it.
+  const screens = visibleSections(
+    'dept_head',
+    predicatesFor(permsFor('dept_head'), { hiddenScreens: ['organization'] })
+  ).flatMap((s) => s.tabs.map((t) => t.id));
+  assert.ok(!screens.includes('organization'));
+});
+
+test('a super admin is never narrowed, so the account that can undo it stays able to', () => {
+  const p = predicatesFor([], { isSuperAdmin: true, hiddenScreens: ['administration'] });
+  assert.equal(p.hidden.size, 0);
+  const screens = visibleSections('entity_admin', p).flatMap((s) => s.tabs.map((t) => t.id));
+  assert.ok(screens.includes('administration'), 'a super admin keeps Users & Access');
+});
+
+test('the route guard refuses a hidden screen, not just the menu', () => {
+  const p = predicatesFor(permsFor('dept_head'), { hiddenScreens: ['employee-import'] });
+  const importTab = OVERSIGHT_NAV
+    .find((s) => s.id === 'people').tabs.find((t) => t.id === 'employee-import');
+  assert.equal(canSeeTab(importTab, p), false, 'typing the URL must not work either');
+});
+
+test('canSeeTab takes a Set or a plain array', () => {
+  const tab = { id: 'reports', perm: null };
+  assert.equal(canSeeTab(tab, { hidden: new Set(['reports']) }), false);
+  assert.equal(canSeeTab(tab, { hidden: ['reports'] }), false);
+  assert.equal(canSeeTab(tab, { hidden: new Set() }), true);
+  assert.equal(canSeeTab(tab, {}), true, 'no override list at all is not an override');
+});

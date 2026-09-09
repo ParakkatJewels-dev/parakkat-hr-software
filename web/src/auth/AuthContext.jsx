@@ -74,6 +74,8 @@ export function AuthProvider({ children }) {
       .channel(`auth-access-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'role_assignments', filter: `user_id=eq.${userId}` }, refreshSoon)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` }, refreshSoon)
+      // An override added or removed has to repaint the sidebar at once, the same as a role change.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_screen_overrides', filter: `user_id=eq.${userId}` }, refreshSoon)
       .subscribe();
 
     return () => {
@@ -96,6 +98,8 @@ export function AuthProvider({ children }) {
     permissions: access?.permissions ?? [],
     assignments: access?.assignments ?? [],
     isSuperAdmin: Boolean(access?.is_super_admin),
+    // Screens an administrator has taken out of THIS person's sidebar (0109). Narrows only.
+    hiddenScreens: access?.hidden_screens ?? [],
     // Seniority ceiling (migration 0044). You may only grant roles ranked strictly below this.
     // Mirrors app.max_role_rank(); the database still enforces it — this only shapes the UI.
     rank: access?.rank ?? 0,

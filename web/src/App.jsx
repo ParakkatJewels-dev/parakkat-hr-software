@@ -83,7 +83,7 @@ function AccessDenied() {
 }
 
 export default function App() {
-  const { employee, user, isSuperAdmin, signOut, assignments, permissions } = useAuth();
+  const { employee, user, isSuperAdmin, signOut, assignments, permissions, hiddenScreens } = useAuth();
   const { canAny, canBeyondSelf } = usePermissions();
   useRealtimeSync(); // live-sync data across devices via Supabase Realtime
   // Subscribed at the root so switching the clock format repaints every screen at once. Times are
@@ -363,7 +363,13 @@ export default function App() {
     settings: Settings,
   };
 
-  const navPredicates = { canAny, canBeyondSelf };
+  // Screens an administrator has taken out of this person's sidebar (0109). Narrows only, and a
+  // super admin is never narrowed — predicatesFor enforces that, so it holds here too.
+  const navPredicates = {
+    canAny,
+    canBeyondSelf,
+    hidden: new Set(isSuperAdmin ? [] : hiddenScreens ?? []),
+  };
 
   // Sections the user may see at all, with their permitted screens, each carrying its icon.
   const visibleSections = navSections(primaryRole, navPredicates).map((sec) => ({

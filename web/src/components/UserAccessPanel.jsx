@@ -21,10 +21,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   X, ShieldAlert, Eye, KeyRound, ChevronRight, Layers, UserRound, AlertTriangle,
+  EyeOff, Loader2, Info,
 } from 'lucide-react';
 import { visibleSections, predicatesFor } from '../lib/navMap';
 import { effectiveAccess, groupByPermission, accessFlags, accessSummary } from '../lib/accessInspect';
 import { ROLE_PRIORITY } from '../lib/roles';
+import { useScreenOverrides, useSetScreenOverride } from '../data/screenOverrides';
+import { humanDbError } from '../lib/dbErrors';
 
 const SEVERITY = {
   high: 'border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/25 text-red-800 dark:text-red-300',
@@ -40,6 +43,12 @@ const TABS = [
   { id: 'screens', label: 'What they see', icon: Eye },
   { id: 'perms', label: 'Every permission', icon: KeyRound },
 ];
+
+// Screens that must never be taken away: a person with no Dashboard, no Profile and no Settings
+// has nowhere to land after signing in, and hiding Administration from the only administrator is
+// a door that locks from the inside. 0109's trigger already protects a super admin; this covers
+// everyone else against an override that leaves them stranded.
+const UNHIDEABLE = new Set(['dashboard', 'profile', 'notifications', 'settings']);
 
 export default function UserAccessPanel({ user, roles = [], scopeLabel, onClose }) {
   const [tab, setTab] = useState('flags');
@@ -68,9 +77,26 @@ export default function UserAccessPanel({ user, roles = [], scopeLabel, onClose 
     ? 'super_admin'
     : ROLE_PRIORITY.find((r) => assignments.some((a) => (a.role_key ?? a.role) === r)) ?? 'employee';
 
-  const sections = useMemo(
+  const overridesQuery = useScreenOverrides(user?.user_id);
+  const setOverride = useSetScreenOverride();
+  const hiddenSet = useMemo(
+    () => new Set((overridesQuery.data ?? []).map((o) => o.screen_id)),
+    [overridesQuery.data]
+  );
+
+  // Two trees: what their ROLE reaches (every row the administrator may toggle) and what they
+  // actually get once the overrides are applied. The first is the list; the second is the answer
+  // to "what do they see", and the counts at the top follow it.
+  const roleSections = useMemo(
     () => visibleSections(primaryRole, predicatesFor(access, { isSuperAdmin })),
     [primaryRole, access, isSuperAdmin]
+  );
+  const sections = useMemo(
+    () => visibleSections(
+      primaryRole,
+      predicatesFor(access, { isSuperAdmin, hiddenScreens: [...hiddenSet] })
+    ),
+    [primaryRole, access, isSuperAdmin, hiddenSet]
   );
 
   const name = user?.employee_name || user?.email || 'this login';
@@ -180,35 +206,17 @@ export default function UserAccessPanel({ user, roles = [], scopeLabel, onClose 
           )}
 
           {tab === 'screens' && (
-            sections.length === 0 ? (
-              <Empty>This login sees no screens at all — it can sign in and go nowhere.</Empty>
-            ) : (
-              <>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  Their sidebar, built from the same definition the real one uses. Data inside each
-                  screen is still scoped to their area by the database.
-                </p>
-                {sections.map((sec) => (
-                  <div key={sec.id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                    <div className="px-3.5 py-2 bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-2">
-                      <Layers size={12} className="text-neutral-400 shrink-0" />
-                      <span className="text-xs font-bold text-neutral-700 dark:text-neutral-200">{sec.label}</span>
-                    </div>
-                    <ul className="divide-y divide-neutral-100 dark:divide-neutral-900/60">
-                      {sec.tabs.map((t) => (
-                        <li key={t.id} className="px-3.5 py-2 flex items-center gap-2 text-sm">
-                          <ChevronRight size={12} className="text-neutral-300 dark:text-neutral-700 shrink-0" />
-                          <span className="text-neutral-700 dark:text-neutral-200">{t.label}</span>
-                          {t.perm && (
-                            <span className="ml-auto text-2xs font-mono text-neutral-400 shrink-0">{t.perm}</span>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </>
-            )
+            <ScreensTab
+              user={user}
+              sections={roleSections}
+              hidden={hiddenSet}
+              isSuperAdmin={isSuperAdmin}
+              loading={overridesQuery.isLoading}
+              error={setOverride.error}
+              pendingId={setOverride.isPending ? setOverride.variables?.screenId : null}
+              onToggle={(screenId, next) =>
+                setOverride.mutate({ userId: user.user_id, screenId, hidden: next })}
+            />
           )}
 
           {tab === 'perms' && (
@@ -247,6 +255,105 @@ export default function UserAccessPanel({ user, roles = [], scopeLabel, onClose 
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The screens their role reaches, each with a switch to take it out of their sidebar.
+ *
+ * The honesty notice is not decoration. An administrator who believes this removes access will
+ * make a worse decision than one who has no override at all — they will hide Payroll from a head
+ * and consider the payslips protected, when the permission is untouched and the API still serves
+ * them. So the panel says what it does and what it does not, above the switches rather than
+ * below them.
+ */
+function ScreensTab({ user, sections, hidden, isSuperAdmin, loading, error, pendingId, onToggle }) {
+  if (isSuperAdmin) {
+    return (
+      <Empty>
+        A super admin’s screens cannot be hidden. The account that can undo an override must not be
+        the one locked out by it — the database refuses this too, not just the interface.
+      </Empty>
+    );
+  }
+  if (sections.length === 0) {
+    return <Empty>This login sees no screens at all — it can sign in and go nowhere.</Empty>;
+  }
+
+  return (
+    <>
+      <div className="rounded-xl border border-amber-300 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-950/25 p-3.5 flex items-start gap-2.5">
+        <Info size={15} className="shrink-0 mt-0.5 text-amber-700 dark:text-amber-400" />
+        <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
+          <p className="font-bold">This hides a screen. It does not remove the permission.</p>
+          <p className="opacity-90">
+            Hiding Payroll from a department head does not take away <code className="font-mono">payslip.read</code> —
+            they keep it, and the database still serves the data to anything that asks for it. Use
+            this for “not part of your job”. For “must not have this”, take the role away.
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-300">
+          {humanDbError(error, 'user_screen_overrides')}
+        </p>
+      )}
+
+      {sections.map((sec) => (
+        <div key={sec.id} className="rounded-xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+          <div className="px-3.5 py-2 bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-2">
+            <Layers size={12} className="text-neutral-400 shrink-0" />
+            <span className="text-xs font-bold text-neutral-700 dark:text-neutral-200">{sec.label}</span>
+          </div>
+          <ul className="divide-y divide-neutral-100 dark:divide-neutral-900/60">
+            {sec.tabs.map((t) => {
+              const isHidden = hidden.has(t.id);
+              const locked = UNHIDEABLE.has(t.id);
+              const busy = pendingId === t.id;
+              return (
+                <li key={t.id} className="px-3.5 py-2.5 flex items-center gap-3 text-sm">
+                  <ChevronRight size={12} className="text-neutral-300 dark:text-neutral-700 shrink-0" />
+                  <span className={`min-w-0 truncate ${isHidden ? 'text-neutral-400 line-through' : 'text-neutral-700 dark:text-neutral-200'}`}>
+                    {t.label}
+                  </span>
+                  {t.perm && (
+                    <span className="hidden sm:inline text-2xs font-mono text-neutral-400 shrink-0 ml-auto">
+                      {t.perm}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    disabled={locked || loading || busy}
+                    onClick={() => onToggle(t.id, !isHidden)}
+                    title={
+                      locked
+                        ? 'Everyone needs somewhere to land after signing in.'
+                        : isHidden ? `Put ${t.label} back` : `Hide ${t.label} from ${user?.employee_name || 'this login'}`
+                    }
+                    aria-label={
+                      isHidden ? `Show ${t.label} again` : `Hide ${t.label}`
+                    }
+                    aria-pressed={isHidden}
+                    className={`shrink-0 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold border cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      t.perm ? '' : 'ml-auto'
+                    } ${
+                      isHidden
+                        ? 'border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:border-[#0ea971]/45 hover:text-neutral-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {busy ? <Loader2 size={11} className="animate-spin" />
+                      : isHidden ? <EyeOff size={11} /> : <Eye size={11} />}
+                    <span>{isHidden ? 'Hidden' : 'Visible'}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </>
   );
 }
 
