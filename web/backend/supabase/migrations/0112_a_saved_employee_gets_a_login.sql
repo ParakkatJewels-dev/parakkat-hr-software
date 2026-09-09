@@ -36,6 +36,33 @@ returns text language sql immutable as $$
 $$;
 
 /*
+ * The usable words of a name, in order.
+ *
+ * One tokenizer for both derivations below. They used to disagree: the first word came from
+ * split_part(name, ' ', 1) and the last from split_part(name, ' ', array_length(regexp_split_to_
+ * array(name, '\s+'), 1)). split_part splits on a SINGLE space, so "Ramesh  Kumar" — two spaces,
+ * which typed and imported data is full of — has an empty second part, while the regexp collapsed
+ * them and reported a length of two. The index pointed at the empty string, the surname vanished,
+ * and every "Ramesh <anything>" collapsed onto ramesh@ and started colliding with the others.
+ *
+ * Words that slug to nothing (an initial like "S.", a stray hyphen) are dropped rather than left
+ * in as empties, so "Anu K. S." ends at a real word.
+ */
+create or replace function app.name_words(_s text)
+returns text[] language sql immutable as $$
+  select coalesce(
+    array_agg(w) filter (where w <> ''),
+    '{}'::text[]
+  )
+  from (
+    select app.slug_name(part) as w
+    from regexp_split_to_table(btrim(coalesce(_s, '')), '\s+') as part
+  ) t;
+$$;
+
+
+
+/*
  * The login email for an employee.
  *
  * first.last@parakkatjewels.com, and where two people share a name — which they will, at this
@@ -50,6 +77,7 @@ declare
   _first    text;
   _last     text;
   _base     text;
+  _words    text[];
   _taken_by uuid;
 begin
   select id, full_name, employee_code into e from public.employees where id = _employee_id;
@@ -57,10 +85,10 @@ begin
     raise exception 'employee not found';
   end if;
 
-  _first := app.slug_name(split_part(btrim(e.full_name), ' ', 1));
-  _last  := app.slug_name(
-              nullif(split_part(btrim(e.full_name), ' ',
-                array_length(regexp_split_to_array(btrim(e.full_name), '\s+'), 1)), ''));
+  _words := app.name_words(e.full_name);
+  _first := coalesce(_words[1], '');
+  _last  := case when array_length(_words, 1) > 1
+                 then _words[array_length(_words, 1)] else null end;
 
   if _first = '' then
     -- No usable name at all. The code is always there and always unique.
@@ -101,13 +129,15 @@ create or replace function app.derive_login_password(_employee_id uuid)
 returns text language plpgsql stable security definer set search_path = app, public as $$
 declare
   e       record;
+  _words  text[];
   _name   text;
   _digits text;
   _out    text;
 begin
   select full_name, phone, employee_code into e from public.employees where id = _employee_id;
 
-  _name := app.slug_name(split_part(btrim(coalesce(e.full_name, '')), ' ', 1));
+  _words := app.name_words(e.full_name);
+  _name := coalesce(_words[1], '');
   if _name = '' then _name := 'parakkat'; end if;
   _name := upper(left(_name, 1)) || substr(_name, 2);
 

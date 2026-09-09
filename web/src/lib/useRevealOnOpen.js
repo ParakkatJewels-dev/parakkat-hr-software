@@ -29,21 +29,27 @@ const prefersReducedMotion = () => {
  * @param open       whether the panel is showing
  * @param options.focus  select the first field too (default true)
  * @param options.block  scroll alignment; 'nearest' avoids yanking a panel that is already visible
+ * @param options.key    what makes this a DIFFERENT open. A panel that stays mounted while its
+ *                       subject changes — the comment composer moving from one reply target to
+ *                       the next — never goes closed, so without this the second Reply did
+ *                       nothing at all: the chip changed and the caret stayed where it was.
  * @returns a ref to put on the panel's outermost element
  */
-export function useRevealOnOpen(open, { focus = true, block = 'nearest' } = {}) {
+export function useRevealOnOpen(open, { focus = true, block = 'nearest', key = null } = {}) {
   const ref = useRef(null);
   // Only act on the transition into open — a re-render while open must not steal focus back from
-  // whatever the user has since clicked into.
-  const wasOpen = useRef(false);
+  // whatever the user has since clicked into. `key` marks a genuinely new open on a panel that
+  // never closed in between.
+  const shownFor = useRef(null);
 
   useEffect(() => {
     if (!open) {
-      wasOpen.current = false;
+      shownFor.current = null;
       return undefined;
     }
-    if (wasOpen.current) return undefined;
-    wasOpen.current = true;
+    const token = key ?? 'open';
+    if (shownFor.current === token) return undefined;
+    shownFor.current = token;
 
     const node = ref.current;
     if (!node) return undefined;
@@ -74,7 +80,7 @@ export function useRevealOnOpen(open, { focus = true, block = 'nearest' } = {}) 
       cancelAnimationFrame(raf);
       if (timer) clearTimeout(timer);
     };
-  }, [open, focus, block]);
+  }, [open, focus, block, key]);
 
   return ref;
 }

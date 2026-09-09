@@ -188,7 +188,9 @@ function Thread({ taskId, rows, loading, myUserId }) {
   const add = useAddTaskComment();
   const remove = useDeleteTaskComment();
   const error = humanDbError(add.error || remove.error, 'task_comments');
-  const composerRef = useRevealOnOpen(Boolean(replyTo), { block: 'center' });
+  // Keyed on which comment is being answered: switching targets is a new open, or clicking
+  // Reply on a second comment moves the chip and leaves the caret behind.
+  const composerRef = useRevealOnOpen(Boolean(replyTo), { block: 'center', key: replyTo?.id ?? null });
 
   const thread = buildThread(rows);
   // 0110 may not be applied yet — the query falls back to the flat shape then. Offering Reply
