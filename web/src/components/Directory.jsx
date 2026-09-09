@@ -483,13 +483,19 @@ export default function Directory() {
             saveSalary.reset();
             let employeeId = editing.id || null;
             let employeeName = payload.full_name;
+            let provisioned = null;
+            let provisionFailed = null;
             try {
               if (editing.id) {
                 await updateEmployee.mutateAsync({ id: editing.id, ...payload });
               } else {
-                const created = await createEmployee.mutateAsync(payload);
+                // wantAccess means the operator typed an address and password themselves; the
+                // derived login stands down so the person does not end up with two.
+                const created = await createEmployee.mutateAsync({ ...payload, provisionLogin: !wantAccess });
                 employeeId = created.id;
                 employeeName = created.full_name;
+                provisioned = created.login;
+                provisionFailed = created.loginError;
               }
 
               // Pay is its own table, so it can only be written once the employee row exists —
@@ -510,7 +516,27 @@ export default function Directory() {
 
               setJustSaved(employeeId);
               if (!wantAccess) {
+                if (provisionFailed) {
+                  // Leave the form open. The employee IS saved, but the message lives inside this
+                  // panel, and closing it first would report the failure to an empty screen.
+                  setEditing({ id: employeeId, ...payload, full_name: employeeName });
+                  setFormSaveError(
+                    `${employeeName} is saved, but their login could not be created: ${provisionFailed} ` +
+                    'Grant access from Administration → Users & Access.'
+                  );
+                  return;
+                }
                 setEditing(null);
+                // Show HR what to read out. A password nobody can see is a login nobody can use,
+                // and this is the only moment it is visible — 0111 makes the person replace it the
+                // first time they sign in.
+                if (provisioned?.created) {
+                  setNewLogin({
+                    name: employeeName,
+                    email: provisioned.email,
+                    password: provisioned.password,
+                  });
+                }
                 return;
               }
               await grantAccess.mutateAsync({ employee_id: employeeId, ...wantAccess });

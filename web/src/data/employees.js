@@ -117,21 +117,50 @@ function describeEmployeeError(error) {
   return error;
 }
 
+/**
+ * Save a new employee, and give them their login.
+ *
+ * The login follows from the record rather than being a second job somebody has to remember —
+ * provision_employee_login (0112) derives both halves from the row that was just written, so the
+ * Directory form and the bulk import get the same convention from one definition.
+ *
+ * Provisioning failing does NOT fail the save. The employee is real and their record is correct;
+ * refusing to keep it because a login could not be minted would be the wrong trade, and the
+ * operator can grant access from Users & Access afterwards. The reason comes back on the result so
+ * the form can say so rather than pretending everything went to plan.
+ */
 export function useCreateEmployee() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload) => {
+    mutationFn: async ({ provisionLogin = true, ...payload }) => {
       const { data, error } = await supabase
         .from('employees')
         .insert(cleanEmployeePayload(payload))
         .select('id, full_name, employee_code')
         .single();
       if (error) throw describeEmployeeError(error);
-      return data;
+
+      // The operator can still enter an address and password by hand on the same form. Doing both
+      // would leave the employee holding two logins — the derived one and the typed one — so the
+      // explicit choice wins and this step stands down.
+      if (!provisionLogin) return { ...data, login: null, loginError: null };
+
+      let login = null;
+      let loginError = null;
+      try {
+        const { data: provisioned, error: provErr } =
+          await supabase.rpc('provision_employee_login', { _employee_id: data.id });
+        if (provErr) throw provErr;
+        login = provisioned ?? null;
+      } catch (e) {
+        loginError = e?.message ?? 'The login could not be created.';
+      }
+      return { ...data, login, loginError };
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['employees'] });
       qc.invalidateQueries({ queryKey: ['employee'] });
+      qc.invalidateQueries({ queryKey: ['managed-users'] });
     },
   });
 }
