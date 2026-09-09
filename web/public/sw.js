@@ -1,4 +1,4 @@
-const VERSION = 'parakkat-hr-pwa-v5';
+const VERSION = 'parakkat-hr-pwa-v6';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 90;
@@ -124,7 +124,10 @@ async function cachedShellFallback() {
 async function navigationResponse(event) {
   try {
     const preload = await event.preloadResponse;
+    // A preload that failed is still a truthy Response. Returning it unchecked hands the user
+    // Vercel's error body instead of the shell we already have cached.
     if (preload) {
+      if (!preload.ok) return cachedShellFallback();
       await putShellResponse(preload.clone());
       return preload;
     }
@@ -140,11 +143,34 @@ async function navigationResponse(event) {
   }
 }
 
+// Hashed assets are served `immutable`, and Vercel puts that same header on a 404. A request
+// that misses during a deploy therefore pins a 404 in the browser's HTTP cache for a year, and
+// a plain fetch() here would read it back forever. On any failure, retry once with
+// `cache: 'reload'`, which is the only mode that both bypasses the HTTP cache and overwrites
+// the entry it finds there — repairing the poisoned record rather than just stepping around it.
+async function fetchRepairing(request) {
+  let response = null;
+  try {
+    response = await fetch(request);
+    if (response.ok) return response;
+  } catch {
+    // fall through to the bypass attempt
+  }
+
+  try {
+    const fresh = await fetch(request, { cache: 'reload' });
+    if (fresh.ok) return fresh;
+    return fresh;
+  } catch {
+    return response;
+  }
+}
+
 async function staleWhileRevalidate(request) {
   const cached = await caches.match(request);
-  const network = fetch(request)
+  const network = fetchRepairing(request)
     .then(async (response) => {
-      await putRuntime(request, response.clone());
+      if (response) await putRuntime(request, response.clone());
       return response;
     })
     .catch(() => null);

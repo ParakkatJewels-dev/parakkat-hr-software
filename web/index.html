@@ -33,5 +33,77 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Boot guard. Hashed assets are served with `immutable`, and Vercel applies that same
+      // header to a 404 — so a request that misses during a deploy leaves a 404 pinned in the
+      // browser's disk cache for a year, and `immutable` means it is never revalidated. The app
+      // is then permanently blank on that device: React never mounts, so neither the service
+      // worker update path nor the in-app version check ever gets to run. Nothing inside the
+      // bundle can fix this, because the bundle is the thing that will not load.
+      //
+      // So: if #root is still empty well after load, force-refetch the entry assets with
+      // `cache: 'reload'` (the one fetch mode that bypasses *and* overwrites the HTTP cache),
+      // drop the service worker and its caches, then reload. Once per tab — a repair that
+      // failed must not become a refresh loop.
+      (function () {
+        var KEY = 'pk-boot-repair';
+        var GRACE_MS = 9000;
+
+        function booted() {
+          var root = document.getElementById('root');
+          return !!(root && root.firstElementChild);
+        }
+
+        function repair() {
+          if (booted()) return;
+          try {
+            if (sessionStorage.getItem(KEY)) return; // already tried this tab; leave the page alone
+            sessionStorage.setItem(KEY, '1');
+          } catch (e) {
+            return; // no sessionStorage (private mode) means no loop guard, so do nothing
+          }
+
+          var urls = [];
+          document.querySelectorAll('script[src], link[rel="stylesheet"][href]').forEach(function (el) {
+            var u = el.src || el.href;
+            if (u && u.indexOf(location.origin) === 0) urls.push(u);
+          });
+
+          var jobs = urls.map(function (u) {
+            return fetch(u, { cache: 'reload' }).catch(function () {});
+          });
+
+          if (window.caches) {
+            jobs.push(
+              caches.keys().then(function (keys) {
+                return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+              }).catch(function () {})
+            );
+          }
+          if (navigator.serviceWorker) {
+            jobs.push(
+              navigator.serviceWorker.getRegistrations().then(function (rs) {
+                return Promise.all(rs.map(function (r) { return r.unregister(); }));
+              }).catch(function () {})
+            );
+          }
+
+          Promise.all(jobs).then(function () {
+            location.reload();
+          });
+        }
+
+        // A successful boot clears the flag, so a later genuine failure can still repair itself.
+        function settle() {
+          if (booted()) {
+            try { sessionStorage.removeItem(KEY); } catch (e) {}
+          } else {
+            repair();
+          }
+        }
+
+        window.addEventListener('load', function () { setTimeout(settle, GRACE_MS); });
+      })();
+    </script>
   </body>
 </html>
