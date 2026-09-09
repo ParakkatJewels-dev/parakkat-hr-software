@@ -21,7 +21,9 @@ import { humanDbError } from '../lib/dbErrors';
 import { relativeTime } from '../lib/dates';
 import { btnClass } from './ui/Btn';
 import Avatar from './ui/Avatar';
-import { buildThread, mentionFor, replyToggleLabel } from '../lib/commentThread';
+import {
+  buildThread, mentionFor, replyToggleLabel, threadingAvailable,
+} from '../lib/commentThread';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 
 const INPUT =
@@ -189,6 +191,10 @@ function Thread({ taskId, rows, loading, myUserId }) {
   const composerRef = useRevealOnOpen(Boolean(replyTo), { block: 'center' });
 
   const thread = buildThread(rows);
+  // 0110 may not be applied yet — the query falls back to the flat shape then. Offering Reply
+  // would take somebody's answer and post it as a new top-level comment under a chip promising
+  // otherwise, so the affordance is simply absent until the column exists.
+  const canReply = threadingAvailable(rows);
 
   const toggle = (id) =>
     setExpanded((prev) => {
@@ -231,7 +237,7 @@ function Thread({ taskId, rows, loading, myUserId }) {
               <CommentRow
                 comment={c}
                 mine={c.author_user === myUserId}
-                onReply={() => startReply(c, c.id)}
+                onReply={canReply ? () => startReply(c, c.id) : null}
                 onDelete={() => remove.mutate(c.id)}
               />
 
@@ -253,7 +259,7 @@ function Thread({ taskId, rows, loading, myUserId }) {
                       comment={r}
                       compact
                       mine={r.author_user === myUserId}
-                      onReply={() => startReply(r, c.id)}
+                      onReply={canReply ? () => startReply(r, c.id) : null}
                       onDelete={() => remove.mutate(r.id)}
                     />
                   ))}
@@ -322,12 +328,14 @@ function CommentRow({ comment, mine, compact = false, onReply, onDelete }) {
         {/* Actions sit under the text rather than beside the name: on a phone a row of name, time
             and two controls has nowhere left for the name. */}
         <div className="flex items-center gap-3 mt-1">
-          <button
-            type="button" onClick={onReply}
-            className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer py-0.5"
-          >
-            Reply
-          </button>
+          {onReply && (
+            <button
+              type="button" onClick={onReply}
+              className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer py-0.5"
+            >
+              Reply
+            </button>
+          )}
           {mine && (
             <button
               type="button" onClick={onDelete}

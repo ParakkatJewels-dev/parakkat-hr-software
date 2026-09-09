@@ -7,6 +7,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../auth/AuthContext';
+import { withSchemaFallback, isMissingSchema } from '../lib/pendingMigration';
 
 /** Comment counts for a page of tasks, in one query rather than one per card. */
 export function useTaskCommentCounts(taskIds) {
@@ -28,20 +29,36 @@ export function useTaskCommentCounts(taskIds) {
   });
 }
 
-/** The thread on one task. Only fetched once somebody opens it. */
+const COMMENT_FIELDS =
+  'id, body, created_at, edited_at, author_user, author:employees!task_comments_author_id_fkey(id, full_name, employee_code)';
+
+/**
+ * The thread on one task. Only fetched once somebody opens it.
+ *
+ * parent_id arrives with 0110. Asking for a column the database does not have yet makes PostgREST
+ * reject the WHOLE query, so before this fallback existed an unapplied migration did not merely
+ * disable replies — it took the entire comment thread down with it. Now the thread loads flat and
+ * the reply affordance is simply absent until the migration lands.
+ */
 export function useTaskComments(taskId, { enabled = true } = {}) {
   return useQuery({
     enabled: enabled && Boolean(taskId),
     queryKey: ['task-comments', taskId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_comments')
-        .select('id, body, created_at, edited_at, author_user, parent_id, author:employees!task_comments_author_id_fkey(id, full_name, employee_code)')
-        .eq('task_id', taskId)
-        .order('created_at', { ascending: true })
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
+      const read = (fields) => async () => {
+        const { data, error } = await supabase
+          .from('task_comments')
+          .select(fields)
+          .eq('task_id', taskId)
+          .order('created_at', { ascending: true })
+          .limit(500);
+        if (error) throw error;
+        return data ?? [];
+      };
+      return withSchemaFallback(
+        read(`${COMMENT_FIELDS}, parent_id`),
+        read(COMMENT_FIELDS)
+      );
     },
   });
 }
@@ -68,15 +85,22 @@ export function useAddTaskComment() {
       // parentId is the comment being answered. Answering a REPLY is allowed and lands on that
       // reply's own parent — 0110's trigger does that, so the client never has to walk the chain
       // and cannot disagree with the database about where a reply belongs.
-      const { data, error } = await supabase
-        .from('task_comments')
-        .insert({
-          task_id: taskId, body: text, parent_id: parentId,
-          author_id: employee?.id ?? null, author_user: user?.id,
-        })
-        .select('id');
-      if (error) throw error;
-      if (!data?.length) throw new Error('That comment could not be posted. Your access to the task may have changed.');
+      const base = { task_id: taskId, body: text, author_id: employee?.id ?? null, author_user: user?.id };
+      const write = (row) => async () => {
+        const { data, error } = await supabase.from('task_comments').insert(row).select('id');
+        if (error) throw error;
+        if (!data?.length) {
+          throw new Error('That comment could not be posted. Your access to the task may have changed.');
+        }
+        return data;
+      };
+      // Before 0110 there is no parent_id. Posting the remark as a top-level comment is a better
+      // outcome than refusing it — the person typed something worth keeping, and losing it to
+      // explain a migration they cannot run is the wrong trade.
+      return withSchemaFallback(
+        write({ ...base, parent_id: parentId }),
+        write(base)
+      );
     },
     onSuccess: invalidate,
   });

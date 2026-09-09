@@ -72,3 +72,19 @@ export function replyToggleLabel(count, expanded) {
   if (expanded) return count === 1 ? 'Hide reply' : 'Hide replies';
   return count === 1 ? 'View 1 reply' : `View ${count} replies`;
 }
+
+/**
+ * Can this thread be replied to?
+ *
+ * parent_id arrives with migration 0110, and the query falls back to the pre-0110 shape when it is
+ * absent (see lib/pendingMigration.js) — so the rows come back without the KEY at all, rather than
+ * with a null. Offering Reply then would take somebody's answer and post it as a new top-level
+ * comment under a chip promising otherwise, which is worse than not offering it.
+ *
+ * Checked on the key rather than the value: every parent_id is legitimately null on a thread with
+ * no replies yet, and that thread can still be replied to.
+ */
+export function threadingAvailable(rows = []) {
+  if (!rows.length) return true;   // nothing to go on; assume the current schema
+  return rows.some((r) => r && Object.prototype.hasOwnProperty.call(r, 'parent_id'));
+}

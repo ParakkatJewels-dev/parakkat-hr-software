@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildThread, totalComments, mentionFor, replyToggleLabel } from './commentThread.js';
+import {
+  buildThread, totalComments, mentionFor, replyToggleLabel, threadingAvailable,
+} from './commentThread.js';
 
 const c = (id, at, parent_id = null, name = 'Ramesh Kumar') => ({
   id,
@@ -72,4 +74,17 @@ test('the reply disclosure counts, and singularises', () => {
   assert.equal(replyToggleLabel(1, true), 'Hide reply');
   assert.equal(replyToggleLabel(4, true), 'Hide replies');
   assert.equal(replyToggleLabel(0, false), '', 'no disclosure when there is nothing behind it');
+});
+
+test('threading is offered when the rows carry parent_id, even if every one is null', () => {
+  assert.equal(threadingAvailable([c('a', 1)]), true, 'a thread with no replies is still repliable');
+  assert.equal(threadingAvailable([]), true, 'nothing to go on — assume the current schema');
+});
+
+test('threading is NOT offered when the rows came back without the column', () => {
+  // The pre-0110 fallback shape: no parent_id KEY at all.
+  const legacy = [{ id: 'a', body: 'x', created_at: '2026-09-20T10:00:00Z' }];
+  assert.equal(threadingAvailable(legacy), false);
+  // ...and such rows still build a readable flat thread.
+  assert.deepEqual(buildThread(legacy).map((r) => r.id), ['a']);
 });
