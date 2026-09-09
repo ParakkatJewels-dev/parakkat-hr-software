@@ -4970,6 +4970,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   margin-left: 0 !important;
 }
 
+/* The joined view switcher in Task Management. It owns its overflow rather than using the
+   `overflow-x-auto` utility, because the phone breakpoint deliberately forces that utility back to
+   `visible !important` so wide content wraps instead of hiding behind a scrollbar. That is right
+   for a table and wrong for one segmented control, which must stay a single row. */
+.view-switch { overflow: hidden; }
+
 .summary-card-link {
   cursor: pointer;
   transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
@@ -6641,6 +6647,39 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     flex: 0 0 auto;
     min-width: min(9rem, 46vw);
     min-height: 2.45rem;
+    scroll-snap-align: start;
+  }
+
+  /* Dense pill rows. The 46vw minimum above is right for a two- or three-tab row, where a tab
+     that spans half the screen is easy to hit. It is wrong for a row of seven filters: at that
+     width the Task Management status row measured 1051px inside a 360px screen, so two of the
+     seven were reachable and the rest lived off-screen behind a scroll with no affordance.
+     Opting in with -dense sizes each pill to its own label instead, which fits four or five at
+     once, while keeping the scroll, the snap and the pill look for the remainder. */
+  main .mobile-segmented-dense > button {
+    min-width: 0;
+    padding-inline: .7rem !important;
+    scroll-snap-align: start;
+  }
+
+  /* The joined view switcher. It is one control, so it keeps its shared border and corners and
+     scrolls as a unit rather than wrapping into a second row of half-buttons. */
+  main .view-switch {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+  }
+
+  main .view-switch::-webkit-scrollbar { display: none; }
+
+  main .view-switch > button {
+    flex: 1 0 auto;
+    justify-content: center;
+    min-height: 2.45rem;
+    white-space: nowrap;
     scroll-snap-align: start;
   }
 

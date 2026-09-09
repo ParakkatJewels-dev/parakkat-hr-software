@@ -308,14 +308,16 @@ export default function TaskManagement() {
         )}
       </div>
 
-      {/* stats — the board's, so not shown while looking at requests */}
+      {/* stats — the board's, so not shown while looking at requests.
+          Five cards into two columns leaves the last one stranded beside a gap, so Overdue takes
+          the whole final row on a phone — also the one worth the extra width. */}
       {isBoard && (
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <Stat label="Total" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="To Do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => setStatusFilter('To Do')} />
         <Stat label="In Progress" value={stats.progress} active={statusFilter === 'In Progress'} onClick={() => setStatusFilter('In Progress')} />
         <Stat label="Done" value={stats.done} active={statusFilter === 'Done'} onClick={() => setStatusFilter('Done')} />
-        <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} />
+        <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} className="col-span-2 sm:col-span-1" />
       </div>
       )}
 
@@ -362,16 +364,19 @@ export default function TaskManagement() {
 
       {/* controls */}
       <div className="mobile-toolbar flex flex-wrap items-center justify-between gap-3">
-        <div className="mobile-segmented flex flex-wrap items-center gap-1.5">
+        {/* Seven filters do not fit a phone, so this row scrolls. `-dense` drops the shared
+            46vw minimum that is right for a three-tab row and wrong for this one: at that width
+            only two of the seven were reachable without scrolling past the rest. */}
+        <div className="mobile-segmented mobile-segmented-dense flex flex-wrap items-center gap-1.5">
           {(!isBoard ? [] : ['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All']).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
               aria-current={statusFilter === s ? 'page' : undefined}
-              className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
+              className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                 statusFilter === s
-                  ? 'bg-black text-white border-black dark:bg-[#0ea971] dark:text-white dark:border-neutral-700'
-                  : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-850 hover:text-neutral-900 dark:hover:text-white'
+                  ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border border-[#0ea971]/25'
+                  : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
               }`}
             >
               {s}
@@ -382,17 +387,20 @@ export default function TaskManagement() {
           {isBoard && canViewTeamTasks && employee?.id && (
             <button
               onClick={() => setMineOnly((v) => !v)}
-              className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
+              className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors shrink-0 ${
                 mineOnly
-                  ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border-[#0ea971]/30'
-                  : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-850 hover:text-neutral-900 dark:hover:text-white'
+                  ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border border-[#0ea971]/25'
+                  : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
               }`}
             >
               My tasks
             </button>
           )}
+          {/* `overflow-hidden` on a four-button group is a trap: at 360px it fit with one pixel to
+              spare, so any longer label or a two-digit badge would have silently cut "Routine" off
+              with no way to reach it. Scroll instead of clip. */}
           {(canViewTeamTasks || canUseRequests || true) && (
-            <div className="flex rounded-lg border border-neutral-200 dark:border-neutral-850 overflow-hidden">
+            <div className="view-switch flex rounded-lg border border-neutral-200 dark:border-neutral-850">
               {canViewTeamTasks && (
                 <>
                   <ViewBtn active={effectiveView === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
@@ -641,9 +649,15 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
       <div className="mobile-list-row flex items-start justify-between gap-3">
         <div className="min-w-0 space-y-1.5">
           <div className="flex items-center gap-2 flex-wrap">
-            {nested && <CornerDownRight size={13} className="text-neutral-400 shrink-0" />}
-            <span className={`w-2 h-2 rounded-full shrink-0 ${pm.dot}`} title={`${task.priority} priority`} aria-label={`${task.priority} priority`} />
-            <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 truncate">{task.title}</span>
+            {/* The dot belongs to the title, so it is grouped with it. Left as a sibling of a
+                two-line title it was pushed onto a row of its own and read as a stray bullet. */}
+            <div className="flex items-start gap-2 min-w-0 flex-[1_1_100%] sm:flex-[1_1_0%]">
+              {nested && <CornerDownRight size={13} className="text-neutral-400 shrink-0 mt-0.5" />}
+              <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${pm.dot}`} title={`${task.priority} priority`} aria-label={`${task.priority} priority`} />
+              {/* Was `truncate`: on a 360px screen that clipped a real title at 338px of the 449
+                  it needed, and the rest was unreadable. Two lines, then ellipsis. */}
+              <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 min-w-0 line-clamp-2">{task.title}</span>
+            </div>
             <span className={`text-2xs font-bold uppercase font-mono ${pm.text}`}>{task.priority}</span>
             {subCount > 0 && (
               <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-200 dark:border-neutral-800 flex items-center gap-1">
@@ -891,9 +905,9 @@ function ViewBtn({ active, onClick, icon: Icon, label, badge = 0 }) {
     <button
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      className={`flex items-center gap-1.5 text-base font-semibold px-2.5 py-1 cursor-pointer transition-colors ${
+      className={`flex items-center justify-center gap-1.5 whitespace-nowrap text-base font-semibold px-3 py-1.5 cursor-pointer transition-colors ${
         active
-          ? 'bg-black text-white dark:bg-[#0ea971] dark:text-white'
+          ? 'bg-[#0ea971]/15 text-[#0c9765] dark:bg-[#0ea971] dark:text-white'
           : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
       }`}
     >
@@ -907,12 +921,12 @@ function ViewBtn({ active, onClick, icon: Icon, label, badge = 0 }) {
   );
 }
 
-function Stat({ label, value, accent, onClick, active = false }) {
+function Stat({ label, value, accent, onClick, active = false, className = '' }) {
   const Tag = onClick ? 'button' : 'div';
   return (
     <Tag
       {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
-      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
+      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''} ${className}`}
     >
       <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
       <span className={`text-2xl font-extrabold font-mono block mt-1.5 ${accent ? 'text-rose-500' : 'text-neutral-850 dark:text-slate-100'}`}>{value}</span>

@@ -106,23 +106,40 @@ export default function Team() {
         </div>
       </div>
 
-      {/* Only worth a picker when they run more than one. */}
+      {/* Only worth a picker when they run more than one. Styled like every other picker in the
+          app — Performance, Reports, Payroll all use the soft accent for the selected one. This
+          row used to be a hard black pill at text-base, which read as a different control from a
+          different product. The headcount is a badge rather than a bare digit trailing the name,
+          which looked like part of the department. */}
       {departments.length > 1 && (
-        <div className="mobile-segmented flex flex-wrap items-center gap-1.5">
-          {departments.map((d) => (
-            <button
-              key={d.id}
-              onClick={() => setSelectedId(d.id)}
-              aria-current={d.id === departmentId ? 'page' : undefined}
-              className={`text-base font-semibold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
-                d.id === departmentId
-                  ? 'bg-black text-white border-black dark:bg-[#0ea971] dark:text-white dark:border-neutral-700'
-                  : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-850 hover:text-neutral-900 dark:hover:text-white'
-              }`}
-            >
-              {d.name} <span className="font-mono text-2xs opacity-70">{d.headcount}</span>
-            </button>
-          ))}
+        <div className="mobile-segmented mobile-segmented-dense flex flex-wrap items-center gap-1.5">
+          {departments.map((d) => {
+            const on = d.id === departmentId;
+            return (
+              <button
+                key={d.id}
+                onClick={() => setSelectedId(d.id)}
+                aria-current={on ? 'page' : undefined}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
+                  on
+                    ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border border-[#0ea971]/25'
+                    : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
+                }`}
+              >
+                <span className="truncate">{d.name}</span>
+                <span
+                  className={`font-mono text-2xs font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
+                    on
+                      ? 'bg-[#0ea971]/20 text-[#0c9765] dark:text-[#10b981]'
+                      : 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500'
+                  }`}
+                  aria-label={`${d.headcount} ${d.headcount === 1 ? 'person' : 'people'}`}
+                >
+                  {d.headcount}
+                </span>
+              </button>
+            );
+          })}
         </div>
       )}
 
