@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
+import {
+  ESS_NAV, OVERSIGHT_NAV, canSeeTab, visibleSections as navSections,
+} from './lib/navMap';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell,
@@ -344,202 +347,38 @@ export default function App() {
     else resetPullRefresh();
   }, [finishPullRefresh, resetPullRefresh]);
 
-  // Grouped Sidebar Sections (Miller's Law / Law of Proximity)
-  // Each item names the permission required to SEE it (held at any scope). null = always visible.
-  // RLS still scopes what data appears inside each screen. This mapping is a sensible default and
-  // is easy to tune per your policy.
-  //
-  // The sidebar is role-aware: a pure ESS employee gets a compact "My Workspace" layout with
-  // self-service labels; anyone holding an oversight role gets the full grouped structure below.
-  // Item ids are identical in both, so routing and permission guards are shared.
-  const essNavSections = [
-    {
-      title: 'My Workspace',
-      items: [
-        { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, perm: null },
-        { id: 'attendance', label: 'My Attendance', icon: Clock, perm: 'attendance.read' },
-        { id: 'leave', label: 'My Leave', icon: Calendar, perm: 'leave.read' },
-        { id: 'payroll', label: 'My Payslips', icon: DollarSign, perm: 'payslip.read' },
-        { id: 'tasks', label: 'My Tasks', icon: ListChecks, perm: 'task.read' },
-        // The employee role holds goal.read AND goal.update — goals are something they are meant to
-        // keep up to date, not just something managers set. Without this the screen existed only at
-        // /performance, reachable by typing the URL, so in practice nobody used it.
-        { id: 'performance', label: 'My Goals', icon: Target, perm: 'goal.read' },
-        { id: 'expense', label: 'My Expenses', icon: Receipt, perm: 'expense.read' },
-        { id: 'my-assets', label: 'My Assets', icon: Boxes, perm: 'asset.read' },
-        { id: 'documents', label: 'My Documents', icon: FolderOpen, perm: 'document.read' }
-      ]
-    },
-    {
-      title: 'Support',
-      items: [
-        { id: 'helpdesk', label: 'Help & Support', icon: HelpCircle, perm: 'ticket.read' },
-        { id: 'profile', label: 'My Profile', icon: UserRound, perm: null },
-        { id: 'notifications', label: 'Notifications', icon: Bell, perm: null },
-        { id: 'settings', label: 'Settings', icon: Settings, perm: null }
-      ]
-    }
-  ];
+  // The sidebar tree now lives in lib/navMap.js — one definition, because Administration's access
+  // inspector evaluates the same tree against another user's permissions, and a second copy would
+  // drift from this one within a release. Icons stay here: navMap is plain data so it can be
+  // tested without pulling React in.
+  const SECTION_ICONS = {
+    home: LayoutDashboard, people: Users, time: Clock, pay: DollarSign,
+    'asset-management': Boxes, work: ListChecks, support: HelpCircle,
+    insights: BarChart3, account: UserRound, admin: Shield,
+  };
+  const ESS_ICONS = {
+    dashboard: LayoutDashboard, attendance: Clock, leave: Calendar, payroll: DollarSign,
+    tasks: ListChecks, performance: Target, expense: Receipt, 'my-assets': Boxes,
+    documents: FolderOpen, helpdesk: HelpCircle, profile: UserRound, notifications: Bell,
+    settings: Settings,
+  };
 
-  // Oversight navigation: eight destinations, each grouping the screens that belong to one job.
-  //
-  // The previous shape put 19 flat items in front of an entity admin and split things that are
-  // one task — attendance logs sat apart from attendance setup, hiring was two entries, and
-  // Administration was a catch-all. Now the sidebar answers "what am I doing?" and the tab bar
-  // answers "which part of it?", reusing the section->tabs pattern the Payroll and Administration
-  // screens already use. Screen ids are unchanged, so every existing link and dashboard shortcut
-  // still resolves.
-  /**
-   * A screen that serves two audiences needs to say which one it is serving.
-   *
-   * Payroll and Documents are both reachable by anyone who holds the permission at ANY scope,
-   * including the self scope every manager has through employee@self (0096) — that is deliberate,
-   * because a branch manager still needs their own payslip and their own contract. What was wrong
-   * was the label: they arrived at a screen headed "Payroll", under "Pay & Expenses", containing
-   * one payslip, and reasonably concluded the payroll module was broken or open to everyone.
-   *
-   * Since 0100 the data matches the label in both directions: only HR and entity admins hold these
-   * beyond self, so only they see the company-wide view, and only they get the company-wide word.
-   */
-  const selfOrAll = (perm, mine, all) => (canBeyondSelf(perm) ? all : mine);
+  const navPredicates = { canAny, canBeyondSelf };
 
-  const oversightSections = [
-    {
-      id: 'home',
-      label: 'Home',
-      icon: LayoutDashboard,
-      tabs: [{ id: 'dashboard', label: 'Dashboard', perm: null }],
-    },
-    {
-      id: 'people',
-      label: 'People',
-      icon: Users,
-      tabs: [
-        // `scoped` = oversight module: needs the permission beyond self scope, so a pure ESS
-        // employee (self-scoped employee.read) never sees the company directory.
-        // Ahead of the Directory on purpose: a department head's question is "who works for me",
-        // and the Directory answers "who works here". employee.assign is the narrow grant that
-        // lets them change it — see migration 0099.
-        { id: 'team', label: 'My Team', perm: 'employee.assign' },
-        { id: 'directory', label: 'Directory', perm: 'employee.read', scoped: true },
-        { id: 'employee-import', label: 'Import', perm: 'employee.create' },
-        { id: 'organization', label: 'Structure', perm: 'org.manage' },
-        { id: 'recruitment', label: 'Hiring', perm: 'recruitment.manage' },
-        { id: 'onboarding', label: 'Onboarding', perm: 'onboarding.manage' },
-        { id: 'documents', label: selfOrAll('document.read', 'My Documents', 'Documents'), perm: 'document.read' },
-      ],
-    },
-    {
-      id: 'time',
-      label: 'Time & Attendance',
-      icon: Clock,
-      tabs: [
-        { id: 'attendance', label: 'Attendance', perm: 'attendance.read' },
-        { id: 'attendance-person', label: 'By person', perm: 'attendance.read', scoped: true },
-        { id: 'leave', label: 'Leave', perm: 'leave.read' },
-        { id: 'attendance-admin', label: 'Shifts & Devices', perm: 'device.manage' },
-      ],
-    },
-    {
-      id: 'pay',
-      label: 'Pay & Expenses',
-      icon: DollarSign,
-      tabs: [
-        { id: 'payroll', label: selfOrAll('payslip.read', 'My Payslips', 'Payroll'), perm: 'payslip.read' },
-        { id: 'expense', label: 'Expenses', perm: 'expense.read' },
-      ],
-    },
-    // Its own destination rather than a tab inside Work. What the company owns and who has it is
-    // a job of its own — it was sitting third behind Tasks and Goals, which is where people went
-    // looking for it and did not find it.
-    {
-      id: 'asset-management',
-      label: 'Asset Management',
-      icon: Boxes,
-      tabs: [
-        // scoped: the register lists who holds every item. An employee's own equipment is on their
-        // profile instead; without this, 0088's self-scoped asset.read opened the whole register by
-        // URL for anyone.
-        { id: 'assets', label: 'Assets', perm: 'asset.read', scoped: true },
-      ],
-    },
-    {
-      id: 'work',
-      label: 'Work',
-      icon: ListChecks,
-      tabs: [
-        { id: 'tasks', label: 'Tasks', perm: 'task.read' },
-        { id: 'performance', label: 'Goals', perm: 'goal.read' },
-      ],
-    },
-    {
-      id: 'support',
-      label: 'Support',
-      icon: HelpCircle,
-      tabs: [{ id: 'helpdesk', label: 'Helpdesk & Exits', perm: 'ticket.read' }],
-    },
-    {
-      id: 'insights',
-      label: 'Reports',
-      icon: BarChart3,
-      tabs: [{ id: 'reports', label: 'Reports', perm: 'report.read' }],
-    },
-    {
-      id: 'account',
-      label: 'My Profile',
-      icon: UserRound,
-      tabs: [
-        { id: 'profile', label: 'Profile', perm: null },
-        { id: 'notifications', label: 'Notifications', perm: null },
-        // Settings lives here, with the rest of what is yours.
-        //
-        // It used to sit in Administration, and because it needs no permission it kept that whole
-        // section alive for everybody: an HR manager, a branch manager and a department head all
-        // had "Administration" in their sidebar, opening on a Settings page and nothing else. The
-        // section announced an authority they do not have, which is the "why is admin in front of
-        // me" complaint in its original form. Nothing about theme, time format or which of your
-        // own roles you are working as is administration.
-        { id: 'settings', label: 'Settings', perm: null },
-      ],
-    },
-    {
-      id: 'admin',
-      label: 'Administration',
-      icon: Shield,
-      // Every tab here now carries a real administrative permission, so the section itself appears
-      // only for someone who holds one — visibleSections drops a section with no permitted tabs.
-      tabs: [
-        { id: 'administration', label: 'Users & Access', perm: 'rbac.manage' },
-        { id: 'admin-roles', label: 'Roles', perm: 'rbac.manage' },
-        // audit.read, not rbac.manage. The audit_log policy requires audit.read, which only
-        // entity_admin and super_admin hold — gating the tab on rbac.manage handed it to
-        // dept_head, branch_manager, zonal_manager and hr_manager, all of whom then saw a
-        // permanently empty screen.
-        { id: 'admin-audit', label: 'Audit Log', perm: 'audit.read' },
-      ],
-    },
-  ];
+  // Sections the user may see at all, with their permitted screens, each carrying its icon.
+  const visibleSections = navSections(primaryRole, navPredicates).map((sec) => ({
+    ...sec,
+    icon: SECTION_ICONS[sec.id] ?? ESS_ICONS[sec.id] ?? LayoutDashboard,
+    tabs: sec.tabs.map((t) => ({ ...t, icon: t.icon ?? ESS_ICONS[t.id] })),
+  }));
 
-  // ESS keeps a flat list: with a compact self-service set, adding a second level would be friction.
-  const essSections = essNavSections.flatMap((g) =>
-    g.items.map((it) => ({ id: it.id, label: it.label, icon: it.icon, tabs: [{ ...it }] }))
-  );
-
-  const sections = primaryRole === 'employee' ? essSections : oversightSections;
-
-  // Can the current user see a screen? `scoped` items need the permission beyond self scope.
-  const canSeeTab = (t) =>
-    !t.perm || (t.scoped ? canBeyondSelf(t.perm) : canAny(t.perm));
-
-  // Sections the user may see at all, with their permitted screens.
-  const visibleSections = sections
-    .map((sec) => ({ ...sec, tabs: sec.tabs.filter(canSeeTab) }))
-    .filter((sec) => sec.tabs.length > 0);
-
-  const allTabs = sections.flatMap((sec) => sec.tabs);
+  const allTabs = visibleSections.flatMap((sec) => sec.tabs);
   // Every tab the application defines, in either tree. `allTabs` above is only the tabs in THIS
   // user's nav, which is the wrong set to authorise against.
-  const allKnownTabs = [...essSections, ...oversightSections].flatMap((sec) => sec.tabs);
+  const allKnownTabs = [
+    ...ESS_NAV.flatMap((g) => g.items),
+    ...OVERSIGHT_NAV.flatMap((sec) => sec.tabs),
+  ];
 
   /**
    * May this user open this screen?
@@ -556,7 +395,7 @@ export default function App() {
    */
   const canViewTab = (tabId) => {
     const t = allTabs.find((x) => x.id === tabId) ?? allKnownTabs.find((x) => x.id === tabId);
-    return Boolean(t) && canSeeTab(t);
+    return Boolean(t) && canSeeTab(t, navPredicates);
   };
 
   // Which section owns the screen on show? Drives sidebar highlighting and the tab bar, so a

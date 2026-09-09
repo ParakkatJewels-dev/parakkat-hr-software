@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShieldCheck, Clipboard, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Search } from 'lucide-react';
+import { ShieldCheck, Clipboard, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Search, Eye } from 'lucide-react';
 import { useAuditLog } from '../data/audit';
 import { relativeTime } from '../lib/dates';
 import { useVisibleOrg, useScopeCoverage } from '../data/org';
@@ -14,6 +14,7 @@ import GrantAccessPanel from './GrantAccessPanel';
 import { maxGrantableRank } from '../lib/roleGrants';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
+import UserAccessPanel from './UserAccessPanel';
 import Pagination, { usePagination } from './ui/Pagination';
 
 const BTN = btnClass('primary');
@@ -146,6 +147,9 @@ function UsersAccess() {
   const [showGrant, setShowGrant] = useState(false);
   const [grantForUser, setGrantForUser] = useState(null); // employee whose login gains a role
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
+  // "What can this person actually reach?" — the question this screen could not answer, because it
+  // is organised by role and the question is about a person. See UserAccessPanel.
+  const [inspecting, setInspecting] = useState(null);
   // 500+ staff means 500+ logins. This list had no way to find one.
   const [q, setQ] = useState('');
 
@@ -407,6 +411,14 @@ function UsersAccess() {
               )}
 
               <div className="mobile-list-actions ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => setInspecting(u)}
+                  className={btnClass('ghost', 'sm')}
+                  title={`See everything ${displayName} can reach`}
+                  aria-label={`See everything ${displayName} can reach`}
+                >
+                  <Eye size={12} /> <span>Access</span>
+                </button>
                 {isSuperAdmin && (
                   <button
                     onClick={() => setSuper.mutate({ user_id: u.user_id, flag: !u.is_super_admin })}
@@ -453,6 +465,15 @@ function UsersAccess() {
         <div className="premium-card p-8 text-center text-xs text-neutral-500">
           No logins yet. Use <b>Give app access</b> above to create the first one for an employee.
         </div>
+      )}
+
+      {inspecting && (
+        <UserAccessPanel
+          user={inspecting}
+          roles={roles}
+          scopeLabel={scopeLabel}
+          onClose={() => setInspecting(null)}
+        />
       )}
 
       {linkFor && (
