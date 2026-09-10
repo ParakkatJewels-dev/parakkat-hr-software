@@ -197,14 +197,65 @@ export function useStartDirect() {
   return useMutation({
     mutationFn: async ({ employeeId }) => {
       if (!employee?.id) throw new Error('Your account is not linked to an employee record.');
+      if (!employeeId) throw new Error('No colleague was chosen. Pick somebody from the list and try again.');
       if (employeeId === employee.id) throw new Error('You cannot start a conversation with yourself.');
 
       const key = directKey(employee.id, employeeId);
 
+      /*
+       * Both people, in ONE row shape.
+       *
+       * This is where direct conversations were broken for every user. The two rows used to be
+       * written as object literals with different keys — the first carried `role: 'owner'`, the
+       * second left role out and expected the column default. PostgREST takes the UNION of the keys
+       * across a bulk insert and sends NULL for any key a row omits; it does not fall back to the
+       * default. So the second row arrived with role = NULL, the NOT NULL constraint refused it,
+       * and the conversation that had already been created was left with no members at all.
+       *
+       * Groups never hit this because useCreateGroup maps every row through one .map(), which
+       * cannot produce a ragged shape. Anything writing more than one row at a time should be built
+       * the same way, for the same reason.
+       *
+       * Written as an upsert so it also REPAIRS: a conversation stranded by the old bug gets its
+       * members attached the next time somebody opens it, rather than staying permanently unusable.
+       */
+      const attachBoth = async (conversationId) => {
+        const rows = [
+          { conversation_id: conversationId, employee_id: employee.id, role: 'owner' },
+          { conversation_id: conversationId, employee_id: employeeId, role: 'member' },
+        ];
+
+        const first = await supabase.from('conversation_members').insert(rows);
+        if (!first.error) return;
+        // 23505 means at least one of the two was already attached — a repair, or a second tab.
+        if (first.error.code !== '23505') throw first.error;
+
+        /*
+         * One at a time, tolerating the duplicate.
+         *
+         * NOT `.upsert(..., { ignoreDuplicates: true })`, which is the obvious way to write this and
+         * cannot work here. supabase-js turns that into INSERT ... ON CONFLICT DO NOTHING, and an
+         * ON CONFLICT clause makes Postgres apply the table's SELECT policy so it can look at the
+         * conflicting row. conversation_members_select asks whether you are already a member of the
+         * conversation — which is precisely what this call is trying to make you. The identical row
+         * inserts fine without the clause and is refused with it.
+         *
+         * So: a plain insert per row, and a duplicate is success, because the end state is the one
+         * we wanted either way.
+         */
+        for (const row of rows) {
+          const { error } = await supabase.from('conversation_members').insert(row);
+          if (error && error.code !== '23505') throw error;
+        }
+      };
+
       const existing = await supabase
         .from('conversations').select('id').eq('direct_key', key).maybeSingle();
       if (existing.error && !isMissingSchema(existing.error)) throw existing.error;
-      if (existing.data?.id) return existing.data.id;
+      if (existing.data?.id) {
+        await attachBoth(existing.data.id);
+        return existing.data.id;
+      }
 
       const created = await supabase
         .from('conversations')
@@ -218,7 +269,10 @@ export function useStartDirect() {
           const again = await supabase
             .from('conversations').select('id').eq('direct_key', key).maybeSingle();
           if (again.error) throw again.error;
-          if (again.data?.id) return again.data.id;
+          if (again.data?.id) {
+            await attachBoth(again.data.id);
+            return again.data.id;
+          }
           // The row exists — the unique index just said so — but it is not visible yet, because
           // the winner has not finished attaching us as a member. Milliseconds, and only when two
           // people press message on each other at once. Say what happened rather than surfacing
@@ -228,12 +282,7 @@ export function useStartDirect() {
         throw created.error;
       }
 
-      const { error: memberError } = await supabase.from('conversation_members').insert([
-        { conversation_id: created.data.id, employee_id: employee.id, role: 'owner' },
-        { conversation_id: created.data.id, employee_id: employeeId },
-      ]);
-      if (memberError) throw memberError;
-
+      await attachBoth(created.data.id);
       return created.data.id;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
@@ -278,8 +327,11 @@ export function useCreateGroup() {
 /** Add somebody to a group, or take them out of it. */
 export function useAddMembers() {
   return useConversationMutation(async ({ conversationId, employeeIds = [] }) => {
+    // `role` stated rather than left to the column default. Omitting it from EVERY row happens to
+    // work — PostgREST only sends columns that appear somewhere in the batch — but that is one
+    // edit away from the ragged-shape bug that broke direct conversations. Say it.
     const rows = employeeIds.filter(Boolean).map((id) => ({
-      conversation_id: conversationId, employee_id: id,
+      conversation_id: conversationId, employee_id: id, role: 'member',
     }));
     if (rows.length === 0) return;
     const { error } = await supabase.from('conversation_members').insert(rows);

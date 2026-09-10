@@ -1,364 +1,163 @@
-// My list.
-//
-// The team board answers "what is outstanding across my people". This answers the smaller and far
-// more frequent question — what is on MY plate, and what moves next. People were using the team
-// board for it and getting the wrong shape: grouped by person when there is only one person, led
-// by a delegation tree when nothing here is delegated, and with a New Task form that asks who to
-// assign it to when the answer is always the same.
-//
-// Anyone can use it. Filing work on your own board needs no permission (0113) — the assignee
-// picker used to offer your own name and the database then refused the insert, because task.create
-// stops at dept_head and nobody had noticed that it also stopped you writing down your own to-do.
-//
-// One tap moves an item along. The pipeline is To Do -> In Progress -> Done, with Blocked as a
-// state you leave rather than a stage you pass through, so its button says Unblock.
-import React, { useMemo, useState } from 'react';
-import {
-  ListTodo, Plus, Loader2, AlertTriangle, CalendarClock, Trash2, Flag, Check, Play, RotateCcw,
-  ChevronDown, ChevronRight,
-} from 'lucide-react';
+// Personal work uses the same readable rows as the team list, with a self-assigned quick add.
+import React, { useEffect, useMemo, useState } from 'react';
+import { Plus, Loader2, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useCreateTask, useUpdateTask, useDeleteTask } from '../data/tasks';
+import { useTaskCommentCounts } from '../data/taskComments';
+import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { useAuth } from '../auth/AuthContext';
 import { humanDbError } from '../lib/dbErrors';
 import { istToday } from '../lib/dates';
-import { isOverdue, TASK_PRIORITIES } from '../lib/taskBoard';
-import { checklistProgress } from '../lib/checklist';
-import {
-  PIPELINE, myBoard, progress, nextStage, advanceLabel, isSelfSet,
-} from '../lib/todoPipeline';
-import { btnClass } from './ui/Btn';
+import { TASK_PRIORITIES, searchTasks } from '../lib/taskBoard';
+import { myBoard, progress, isSelfSet } from '../lib/todoPipeline';
+import TaskListRow, { TaskListColumns } from './TaskListRow';
+import TaskDetail from './TaskDetail';
 import Pagination, { usePagination } from './ui/Pagination';
 import ConfirmDialog from './ui/ConfirmDialog';
 
-const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 ' +
-  'dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
-
-const STAGE_TONE = {
-  'To Do': 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300',
-  'In Progress': 'bg-sky-100 text-sky-800 dark:bg-sky-950/40 dark:text-sky-300',
-  Blocked: 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300',
-  Done: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
-};
-
-const ADVANCE_ICON = { 'To Do': Play, 'In Progress': Check, Blocked: RotateCcw };
-
-const TODO_DATE_FORMATTER = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
-});
-
-const readableTodoDate = (iso) => {
-  if (!iso) return '';
-  const [year, month, day] = iso.slice(0, 10).split('-').map(Number);
-  return TODO_DATE_FORMATTER.format(new Date(Date.UTC(year, month - 1, day)));
-};
-
-export default function TaskTodo({ tasks = [], loading }) {
+export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowProps }) {
   const { employee } = useAuth();
   const me = employee?.id ?? null;
   const today = istToday();
-
   const create = useCreateTask();
   const update = useUpdateTask();
   const remove = useDeleteTask();
-
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [due, setDue] = useState('');
+  const [query, setQuery] = useState('');
   const [showClosed, setShowClosed] = useState(false);
+  const [openDetail, setOpenDetail] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
-
   const board = useMemo(() => myBoard(tasks, me, { today }), [tasks, me, today]);
   const stats = useMemo(() => progress(tasks, me, { today }), [tasks, me, today]);
-
-  const openPager = usePagination(board.open, 10);
-  const closedPager = usePagination(board.closed, 10);
-
+  // A notification must remain findable even when it points to finished work.
+  const focusedClosed = board.closed.some((task) => task.id === focusId);
+  const finishedVisible = showClosed || focusedClosed;
+  useEffect(() => {
+    if (focusedClosed) setShowClosed(true);
+  }, [focusedClosed]);
+  const openRows = useMemo(() => searchTasks(board.open, query), [board.open, query]);
+  const closedRows = useMemo(() => searchTasks(board.closed, query), [board.closed, query]);
+  const openPager = usePagination(openRows, 10, focusId);
+  const closedPager = usePagination(closedRows, 10, focusId);
+  const visibleIds = useMemo(() => [
+    ...openPager.slice.map((task) => task.id),
+    ...(finishedVisible ? closedPager.slice.map((task) => task.id) : []),
+  ], [openPager.slice, closedPager.slice, finishedVisible]);
+  const { data: commentCounts = {} } = useTaskCommentCounts(visibleIds);
+  const { data: attachmentCounts = {} } = useTaskAttachmentCounts(visibleIds);
   const error = humanDbError(create.error || update.error || remove.error, 'tasks');
 
   if (!me) {
-    return (
-      <div className="premium-card p-8 text-center text-sm text-neutral-500 max-w-prose mx-auto">
-        Your login is not linked to an employee record yet, so there is no board to put anything on.
-        An administrator can link it in Administration → Users &amp; Access.
-      </div>
-    );
+    return <div className="work-empty">Your login is not linked to an employee record yet. An administrator can link it in Administration → Users &amp; Access.</div>;
   }
 
-  const add = async (e) => {
-    e.preventDefault();
-    const text = title.trim();
-    if (!text || create.isPending) return;
+  const add = async (event) => {
+    event.preventDefault();
+    if (!title.trim() || create.isPending) return;
     try {
-      // assigned_by is me as well: that is what makes it mine to delete later (0113).
       await create.mutateAsync({
-        employee_id: me,
-        assigned_by: me,
-        title: text,
-        priority,
-        due_date: due || null,
+        employee_id: me, assigned_by: me, title: title.trim(), priority, due_date: due || null,
       });
       setTitle('');
       setDue('');
       setPriority('Medium');
-    } catch { /* shown below */ }
+      setQuery('');
+      openPager.setPage(1);
+    } catch { /* shown below; keep the draft */ }
   };
 
+  const actions = {
+    today, rowProps, openDetail, commentCounts, attachmentCounts,
+    toggleDetail: (id) => setOpenDetail((current) => current === id ? null : id),
+    setStatus: (id, status) => update.mutate({ id, status }),
+    busy: update.isPending,
+    canUpdate: () => true, // myBoard only includes work assigned to this employee.
+    canManage: (task) => isSelfSet(task, me),
+    remove: (task) => { remove.reset(); setConfirmDelete(task); },
+  };
+
+  const renderList = (pager, label) => (
+    <>
+      <div className="task-list-summary" aria-live="polite">
+        <div><span className="task-list-summary-label">{label}</span>
+          <strong>Showing {pager.from}–{pager.to} of {pager.count} task{pager.count === 1 ? '' : 's'}</strong>
+        </div>
+      </div>
+      <div className="work-list" role="list" aria-label={label}>
+        <TaskListColumns />
+        {pager.slice.map((task) => (
+          <TaskListRow key={task.id} task={task} actions={actions}>
+            <TaskDetail task={task} open={openDetail === task.id} />
+          </TaskListRow>
+        ))}
+      </div>
+      <Pagination {...pager} noun="tasks" sizes={[10, 25, 50, 100]} keepVisible />
+    </>
+  );
+
   return (
-    <div className="space-y-4">
-      {/* ---- how far along the whole board is ---- */}
-      <section className="premium-card space-y-3">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-1.5">
-            <ListTodo size={13} className="text-[#0ea971]" /> My list
-          </h2>
-          <span className="font-mono text-xs text-neutral-500">
-            <span className="font-bold text-neutral-900 dark:text-white">{stats.done}</span> of {stats.total} done
-            {stats.overdue > 0 && (
-              <span className="text-rose-600 dark:text-rose-400 font-bold"> · {stats.overdue} overdue</span>
-            )}
-          </span>
+    <div className="work-personal">
+      <section className="work-personal-summary" aria-label="My task progress">
+        <div><strong>{stats.open} task{stats.open === 1 ? '' : 's'} to go</strong>
+          <span>{stats.done} of {stats.total} completed{stats.overdue > 0 && <span className="work-overdue"> · {stats.overdue} overdue</span>}</span>
         </div>
-
-        <div
-          className="h-2 rounded-full bg-neutral-150 dark:bg-neutral-850 overflow-hidden"
-          role="progressbar" aria-valuenow={stats.percent} aria-valuemin={0} aria-valuemax={100}
-          aria-label={`${stats.percent}% of your list is done`}
-        >
-          <div
-            className="h-full bg-[#0a7d53] dark:bg-[#10b981] transition-[width] duration-500"
-            style={{ width: `${stats.percent}%` }}
-          />
-        </div>
-
-        {/* The stages, as counts. A row rather than columns: a Kanban board on a 360px screen is
-            four columns nobody can read, and this is a list people open on the floor. */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-          {PIPELINE.map((stage) => (
-            <div key={stage} className={`rounded-lg px-2.5 py-1.5 ${STAGE_TONE[stage]}`}>
-              <div className="font-mono font-bold text-sm">{stats.byStage[stage]}</div>
-              <div className="text-2xs font-semibold">{stage}</div>
-            </div>
-          ))}
+        <div className="work-progress" role="progressbar" aria-valuenow={stats.percent} aria-valuemin={0} aria-valuemax={100} aria-label="My task completion">
+          <span style={{ width: `${stats.percent}%` }} />
         </div>
       </section>
 
-      {/* ---- add something ---- */}
-      <form onSubmit={add} className="premium-card space-y-2.5">
-        <label htmlFor="todo-title" className="block text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500">
-          Add to my list
-        </label>
-        <input
-          id="todo-title" value={title} onChange={(e) => setTitle(e.target.value)}
-          placeholder="What needs doing?" className={INPUT} maxLength={200}
-        />
-        <div className="flex flex-col sm:flex-row gap-2">
-          <label className="sr-only" htmlFor="todo-priority">Priority</label>
-          <select id="todo-priority" value={priority} onChange={(e) => setPriority(e.target.value)} className={INPUT + ' sm:w-32'}>
-            {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+      <form onSubmit={add} className="work-quick-add">
+        <label htmlFor="todo-title">Add a task for yourself</label>
+        <div className="work-quick-fields">
+          <input id="todo-title" value={title} onChange={(event) => setTitle(event.target.value)}
+            placeholder="What needs to get done?" maxLength={200} disabled={create.isPending} required />
+          <select aria-label="Priority for new task" value={priority} onChange={(event) => setPriority(event.target.value)} disabled={create.isPending}>
+            {TASK_PRIORITIES.map((value) => <option key={value}>{value}</option>)}
           </select>
-          <label className="sr-only" htmlFor="todo-due">Due date</label>
-          <input id="todo-due" type="date" value={due} onChange={(e) => setDue(e.target.value)} className={INPUT + ' sm:flex-1'} />
-          <button type="submit" disabled={!title.trim() || create.isPending} className={btnClass('primary') + ' sm:w-auto'}>
-            {create.isPending ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Add
+          <input aria-label="Due date for new task" type="date" value={due} onChange={(event) => setDue(event.target.value)} disabled={create.isPending} />
+          <button type="submit" disabled={!title.trim() || create.isPending} className="work-button work-button-primary">
+            {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add task
           </button>
         </div>
-        {error && (
-          <p role="alert" className="text-xs text-red-600 dark:text-red-300">{error}</p>
-        )}
       </form>
+      {error && <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">{error}</p>}
+      {loadError && <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">
+        {tasks.length ? 'Your list may be out of date. ' : 'Could not load tasks. '}{humanDbError(loadError, 'tasks')}
+      </p>}
 
-      {/* ---- what is live ---- */}
-      {loading ? (
-        <div className="flex justify-center py-12 text-[#0ea971]"><Loader2 size={20} className="animate-spin" /></div>
-      ) : board.open.length === 0 ? (
-        <div className="premium-card p-8 text-center text-sm text-neutral-500 space-y-1">
-          <p className="font-semibold text-neutral-700 dark:text-neutral-300">Nothing on your list.</p>
-          <p className="text-xs">Add the thing you keep meaning to do.</p>
-        </div>
-      ) : (
-        <>
-          <div className="task-list-summary" aria-live="polite">
-            <div>
-              <span className="task-list-summary-label">Active tasks</span>
-              <strong>
-                Showing {openPager.from}–{openPager.to} of {openPager.count} task{openPager.count === 1 ? '' : 's'}
-              </strong>
-            </div>
-            {openPager.totalPages > 1 && <span>Page {openPager.page} of {openPager.totalPages}</span>}
-          </div>
-          <ul className="space-y-2">
-            {openPager.slice.map((task) => (
-              <TodoRow
-                key={task.id}
-                task={task}
-                today={today}
-                mine={me}
-                busy={update.isPending}
-                onAdvance={() => {
-                  const next = nextStage(task.status);
-                  if (next) update.mutate({ id: task.id, status: next });
-                }}
-                onBlock={() => update.mutate({ id: task.id, status: 'Blocked' })}
-                onDelete={() => setConfirmDelete(task)}
-              />
-            ))}
-          </ul>
-          <Pagination {...openPager} noun="tasks" sizes={[10, 25, 50, 100]} />
-        </>
-      )}
+      <label className="work-search">
+        <Search size={16} />
+        <input type="search" value={query} aria-label="Search my tasks" placeholder="Search my tasks…"
+          onChange={(event) => { setQuery(event.target.value); openPager.setPage(1); closedPager.setPage(1); }} />
+      </label>
+      {loading ? <div className="work-empty" role="status"><Loader2 size={22} className="animate-spin" aria-label="Loading tasks" /></div>
+        : !openRows.length ? <div className="work-empty">
+          <strong>{query ? 'No active tasks match your search.' : loadError ? 'Your tasks could not be loaded.' : 'Your list is clear.'}</strong>
+          <p>{query ? 'Try another search or check your finished tasks below.' : 'Add a task above. Tasks assigned by your team also appear here.'}</p>
+        </div> : renderList(openPager, 'Active tasks')}
 
-      {/* ---- what is finished, folded away ---- */}
       {board.closed.length > 0 && (
-        <section className="space-y-2">
-          <button
-            type="button"
-            onClick={() => setShowClosed((v) => !v)}
-            aria-expanded={showClosed}
-            className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer py-1"
-          >
-            {showClosed ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            Finished <span className="font-mono opacity-70">{board.closed.length}</span>
+        <section className="work-personal">
+          <button type="button" className="work-finished-toggle" aria-expanded={finishedVisible}
+            aria-controls="finished-tasks" onClick={() => setShowClosed((value) => !value)}>
+            {finishedVisible ? <ChevronDown size={15} /> : <ChevronRight size={15} />} Finished <span>{board.closed.length}</span>
           </button>
-          {showClosed && (
-            <>
-              <div className="task-list-summary" aria-live="polite">
-                <div>
-                  <span className="task-list-summary-label">Finished tasks</span>
-                  <strong>
-                    Showing {closedPager.from}–{closedPager.to} of {closedPager.count} task{closedPager.count === 1 ? '' : 's'}
-                  </strong>
-                </div>
-                {closedPager.totalPages > 1 && <span>Page {closedPager.page} of {closedPager.totalPages}</span>}
-              </div>
-              <ul className="space-y-2">
-                {closedPager.slice.map((task) => (
-                  <TodoRow
-                    key={task.id} task={task} today={today} mine={me} busy={update.isPending}
-                    onReopen={() => update.mutate({ id: task.id, status: 'To Do' })}
-                    onDelete={() => setConfirmDelete(task)}
-                  />
-                ))}
-              </ul>
-              <Pagination {...closedPager} noun="tasks" sizes={[10, 25, 50, 100]} />
-            </>
-          )}
+          <div id="finished-tasks" className="work-personal" hidden={!finishedVisible}>
+            {finishedVisible && (closedRows.length ? renderList(closedPager, 'Finished tasks') : <p className="work-empty">No finished tasks match your search.</p>)}
+          </div>
         </section>
       )}
-
       {confirmDelete && (
-        <ConfirmDialog
-          title={`Remove "${confirmDelete.title}"?`}
-          confirmLabel="Remove"
-          busy={remove.isPending}
-          error={remove.error?.message}
+        <ConfirmDialog title={`Delete “${confirmDelete.title}”?`} confirmLabel="Delete task" busy={remove.isPending} error={remove.error?.message}
           onCancel={() => { remove.reset(); setConfirmDelete(null); }}
           onConfirm={async () => {
             try { await remove.mutateAsync(confirmDelete.id); setConfirmDelete(null); }
             catch { /* shown in the dialog */ }
-          }}
-        >
-          <p>This takes it off your list for good. Nobody else sees it go.</p>
+          }}>
+          <p>This task and its subtasks will be removed for everyone assigned to it. This cannot be undone.</p>
         </ConfirmDialog>
       )}
     </div>
-  );
-}
-
-/** One item: what it is, when it is due, and the one move that makes sense next. */
-function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDelete }) {
-  const overdue = isOverdue(task, today);
-  const label = advanceLabel(task.status);
-  const Icon = ADVANCE_ICON[task.status];
-  const done = task.status === 'Done';
-  const cancelled = task.status === 'Cancelled';
-  // A task with steps is finished by ticking them, not by a button here — the rollup would undo a
-  // hand-set Done on the very next tick, so the row points at the checklist instead of competing
-  // with it. Open the task on the board to tick them.
-  const steps = checklistProgress(task.checklist ?? []);
-  const stepsOutstanding = steps.total > 0 && !steps.allDone;
-  const advanceBlocked = stepsOutstanding && nextStage(task.status) === 'Done';
-
-  return (
-    <li className="task-todo-card premium-card">
-      <div className="task-todo-row flex items-start gap-3">
-        <div className="task-todo-main min-w-0 flex-1 space-y-1">
-          <div className="task-todo-heading flex items-start gap-2 flex-wrap">
-            <span className={`task-todo-title font-bold text-sm min-w-0 ${
-              done || cancelled ? 'text-neutral-400 line-through' : 'text-neutral-850 dark:text-slate-100'
-            }`}>
-              {task.title}
-            </span>
-            <span className={`task-todo-status text-2xs font-bold px-1.5 py-0.5 rounded shrink-0 ${STAGE_TONE[task.status] ?? 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'}`}>
-              {task.status}
-            </span>
-          </div>
-          {task.description && (
-            <p className={`task-todo-description ${done || cancelled ? 'task-todo-description-closed' : ''}`}>
-              {task.description}
-            </p>
-          )}
-          <div className="task-todo-meta flex items-center gap-2.5 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400">
-            <span className="task-todo-meta-item"><Flag size={11} /> Priority <strong>{task.priority}</strong></span>
-            {steps.total > 0 && (
-              <span
-                className={`task-todo-meta-item ${steps.allDone ? 'text-[#0c9765] dark:text-[#10b981]' : ''}`}
-                title={`${steps.done} of ${steps.total} subtasks done`}
-              >
-                <ListTodo size={11} /> Subtasks <strong>{steps.done}/{steps.total}</strong>
-              </span>
-            )}
-            {task.due_date && (
-              <span className={`task-todo-meta-item ${overdue && !done ? 'task-todo-meta-overdue' : ''}`}>
-                <CalendarClock size={11} /> {overdue && !done ? 'Overdue' : 'Due'} <strong>{readableTodoDate(task.due_date)}</strong>
-              </span>
-            )}
-            {/* Says where it came from, because a job your head gave you is not one you can remove. */}
-            {!isSelfSet(task, mine) && <span className="task-todo-origin">Assigned to you</span>}
-          </div>
-        </div>
-
-        <div className="task-todo-actions flex flex-col items-end gap-1.5 shrink-0">
-          {label && onAdvance && (
-            <button
-              onClick={onAdvance} disabled={busy || advanceBlocked}
-              title={advanceBlocked
-                ? `${steps.total - steps.done} subtask${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
-                : undefined}
-              className={btnClass(task.status === 'In Progress' ? 'success' : 'ghost', 'sm')}
-            >
-              {Icon && <Icon size={12} />} {label}
-            </button>
-          )}
-          {onReopen && (
-            <button onClick={onReopen} disabled={busy} className={btnClass('ghost', 'sm')}>
-              <RotateCcw size={12} /> Reopen
-            </button>
-          )}
-          <div className="flex items-center gap-1">
-            {task.status !== 'Blocked' && !done && !cancelled && onBlock && (
-              <button
-                onClick={onBlock} disabled={busy}
-                title="Mark blocked" aria-label={`Mark "${task.title}" blocked`}
-                className={btnClass('dangerGhost', 'sm')}
-              >
-                <AlertTriangle size={12} /> Blocked
-              </button>
-            )}
-            {/* 0113 lets you remove work you set yourself and not work somebody gave you, so the
-                button is only drawn where the database will honour it. */}
-            {isSelfSet(task, mine) && (
-              <button
-                onClick={onDelete}
-                title="Remove from my list" aria-label={`Remove "${task.title}" from my list`}
-                className="p-1.5 rounded-lg text-neutral-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40 cursor-pointer"
-              >
-                <Trash2 size={13} />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </li>
   );
 }

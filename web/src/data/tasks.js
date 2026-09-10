@@ -28,11 +28,11 @@ const TASK_FIELDS = `id, title, description, priority, status, due_date, complet
    assigner:employees!tasks_assigned_by_fkey(id, full_name, employee_code)`;
 
 // Everything 0114 adds: who else is on the task, and how much of its checklist is ticked. The
-// checklist embed is deliberately two columns — the card only needs "2 of 3", and pulling every
+// checklist embed only includes completion fields — the row needs "2 of 3", and pulling every
 // title for every row on the board to render a counter would be a much larger read for nothing.
 const TASK_FIELDS_WITH_ASSIGNEES = `${TASK_FIELDS},
    assignees:task_assignees(employee_id, employee:employees!task_assignees_employee_id_fkey(id, full_name, employee_code, branch:branches(code))),
-   checklist:task_checklist_items(id, completed_at)`;
+   checklist:task_checklist_items(id, completed_at, completed_by)`;
 
 export function useTasks() {
   return useQuery({

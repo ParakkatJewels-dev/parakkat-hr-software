@@ -132,7 +132,14 @@ export default function Messages() {
 
   return (
     <div className="page-shell messages-shell animate-fade-in">
-      <div className="messages-panes flex gap-4 h-[calc(100vh-13rem)] min-h-[24rem]">
+      {/* vh -> dvh, which is the whole of the fix here.
+          100vh does not shrink when a phone's address bar and on-screen keyboard appear, so the
+          composer ended up underneath the keyboard at exactly the moment somebody was typing into
+          it. 100dvh tracks the viewport that is actually visible.
+          The 13rem is still a hand-measured allowance for the header and section chrome above this
+          screen, and still a magic number — it is just now subtracted from the right thing. Worth
+          replacing with a container query or a measured ref if this screen grows another header. */}
+      <div className="messages-panes flex gap-4 min-h-0 h-[calc(100dvh-13rem)] max-h-[calc(100dvh-13rem)] sm:min-h-[24rem]">
         {/* The list. On a phone it IS the screen until a conversation is opened. */}
         <aside className={`messages-list flex flex-col gap-3 w-full lg:w-80 lg:shrink-0 ${open ? 'hidden lg:flex' : 'flex'}`}>
           <div className="flex items-center gap-2">
@@ -150,9 +157,9 @@ export default function Messages() {
               type="button"
               onClick={() => setComposing(true)}
               aria-label="Start a new conversation"
-              className={btnClass('primary', 'md', true)}
+              className="shrink-0 h-11 w-11 grid place-items-center rounded-xl bg-[#0a7d54] text-white hover:bg-[#0c9765] active:bg-[#095f41] transition-colors cursor-pointer"
             >
-              <Plus size={15} />
+              <Plus size={20} />
             </button>
           </div>
 
@@ -173,8 +180,12 @@ export default function Messages() {
                   {query ? 'No conversation matches that.' : 'No conversations yet.'}
                 </p>
                 {!query && (
-                  <button type="button" onClick={() => setComposing(true)} className={`${btnClass('primary', 'sm')} mt-3`}>
-                    <Plus size={12} /> Start one
+                  <button
+                    type="button"
+                    onClick={() => setComposing(true)}
+                    className="mt-3 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-[#0a7d54] text-white text-xs font-bold hover:bg-[#0c9765] active:bg-[#095f41] transition-colors cursor-pointer"
+                  >
+                    <Plus size={16} /> Start one
                   </button>
                 )}
               </div>
@@ -252,7 +263,7 @@ function ConversationRow({ conversation, me, active, onOpen }) {
           </span>
           {unread && (
             <span
-              className="shrink-0 text-2xs font-mono font-bold px-1.5 rounded-full bg-[#0ea971] text-white"
+              className="shrink-0 min-w-[1.25rem] text-center text-2xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-[#0a7d54] text-white"
               aria-label={`${conversation.unread_count} unread`}
             >
               {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
@@ -296,9 +307,9 @@ function Thread({ conversation, me, onBack }) {
           type="button"
           onClick={onBack}
           aria-label="Back to conversations"
-          className="lg:hidden p-1.5 -ml-1 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+          className="lg:hidden h-11 w-11 -ml-2 grid place-items-center rounded-xl text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 active:bg-neutral-150 dark:active:bg-neutral-850 transition-colors cursor-pointer"
         >
-          <ArrowLeft size={16} />
+          <ArrowLeft size={20} />
         </button>
         {isGroup
           ? <span className="shrink-0 h-8 w-8 rounded-full grid place-items-center bg-neutral-150 dark:bg-neutral-850 text-neutral-500"><Users size={14} /></span>
@@ -317,9 +328,9 @@ function Thread({ conversation, me, onBack }) {
             onClick={() => setManaging((v) => !v)}
             aria-label="Group settings"
             aria-expanded={managing}
-            className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 cursor-pointer"
+            className="h-11 w-11 grid place-items-center rounded-xl text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 active:bg-neutral-150 dark:active:bg-neutral-850 transition-colors cursor-pointer"
           >
-            <UserPlus size={15} />
+            <UserPlus size={20} />
           </button>
         )}
       </header>
@@ -352,6 +363,14 @@ function Thread({ conversation, me, onBack }) {
                 message={m}
                 me={me}
                 withSender={showsSender(m, rows[i - 1] ?? null, { kind: conversation.kind })}
+                // The clock belongs to the END of a burst, so it marks where one stopped rather
+                // than counting its parts. `showsSender` on the NEXT message answers exactly that
+                // question — a new speaker or a long gap — so the two stay in step by construction.
+                endsRun={
+                  i === rows.length - 1
+                  || rows[i + 1].sender_id !== m.sender_id
+                  || showsSender(rows[i + 1], m, { kind: 'group' })
+                }
               />
             ))}
           </div>
@@ -366,8 +385,29 @@ function Thread({ conversation, me, onBack }) {
 
 /* --------------------------------------------------------------- one message -- */
 
-function MessageBubble({ message, me, withSender }) {
+/**
+ * One message.
+ *
+ * Three things here were wrong in the first pass and are worth naming, because each was invisible
+ * on the machine it was written on:
+ *
+ *   * DELETE WAS HOVER-ONLY (`opacity-0 group-hover:opacity-100`). There is no hover on a phone, and
+ *     a phone is what almost everybody here uses — so nobody could remove their own message. Tapping
+ *     your own bubble now reveals the action. A tap works with a mouse too, so this replaces the
+ *     hover behaviour rather than sitting beside it.
+ *
+ *   * THE GREEN FAILED CONTRAST. #0ea971 with white text measures 3.03:1, under the 4.5:1 needed for
+ *     body text. #0a7d54 measures 5.18:1 and still reads as the same green at a glance. The accent
+ *     is unchanged everywhere it is used for borders, icons and chips — only text-bearing fills
+ *     had to move.
+ *
+ *   * A TIMESTAMP UNDER EVERY BUBBLE. Six messages in a minute produced six clock readings and a
+ *     column of grey noise down the thread. The time now sits at the end of the bubble and only on
+ *     the last message of a run, so it marks where a burst ended instead of counting its parts.
+ */
+function MessageBubble({ message, me, withSender, endsRun }) {
   const mine = isMine(message, me);
+  const [showActions, setShowActions] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const remove = useDeleteMessage();
 
@@ -381,39 +421,65 @@ function MessageBubble({ message, me, withSender }) {
     );
   }
 
+  const isMedia = message.kind !== 'text';
+
   return (
-    <div className={`flex ${mine ? 'justify-end' : 'justify-start'} group`}>
-      <div className={`max-w-[85%] sm:max-w-[70%] min-w-0 ${mine ? 'items-end' : 'items-start'} flex flex-col gap-0.5`}>
+    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[85%] sm:max-w-[70%] min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
         {withSender && !mine && (
-          <span className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 px-1">
+          <span className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 px-1 pb-0.5">
             {message.sender?.full_name ?? 'Unknown'}
           </span>
         )}
 
-        <div className={`rounded-2xl px-3 py-2 text-sm break-words ${
-          mine
-            ? 'bg-[#0ea971] text-white rounded-br-md'
-            : 'bg-neutral-100 dark:bg-neutral-850 text-neutral-800 dark:text-neutral-100 rounded-bl-md'
-        }`}>
-          {message.kind !== 'text' && <MediaBubble message={message} mine={mine} />}
-          {message.body && (
-            <p className={`whitespace-pre-wrap ${message.kind !== 'text' ? 'mt-1.5' : ''}`}>{message.body}</p>
+        {/* Your own bubble is the control that reveals its own actions. Not a button element: it
+            wraps selectable text, and a <button> would fight text selection on desktop. */}
+        <div
+          role={mine ? 'button' : undefined}
+          tabIndex={mine ? 0 : undefined}
+          aria-expanded={mine ? showActions : undefined}
+          aria-label={mine ? 'Your message — activate for options' : undefined}
+          onClick={mine ? () => setShowActions((v) => !v) : undefined}
+          onKeyDown={mine ? (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowActions((v) => !v); }
+          } : undefined}
+          className={`rounded-2xl text-sm break-words transition-colors ${isMedia ? 'p-1.5' : 'px-3 py-2'} ${
+            mine
+              ? 'bg-[#0a7d54] text-white rounded-br-md cursor-pointer active:bg-[#095f41]'
+              : 'bg-neutral-100 dark:bg-neutral-850 text-neutral-800 dark:text-neutral-100 rounded-bl-md'
+          }`}
+        >
+          {isMedia && <MediaBubble message={message} mine={mine} />}
+
+          {/* The clock rides on the last line of the bubble rather than under it. `float` keeps it
+              on the same line as short text and lets long text wrap around it, which is what stops
+              a two-word message becoming two rows tall. */}
+          {(message.body || !isMedia) && (
+            <p className={`whitespace-pre-wrap ${isMedia ? 'px-1.5 pt-1.5 pb-0.5' : ''}`}>
+              {message.body}
+              {endsRun && (
+                <span className={`float-right ml-2 mt-1 text-[10px] font-mono tabular-nums ${
+                  mine ? 'text-white/70' : 'text-neutral-400 dark:text-neutral-500'
+                }`}>
+                  {clockOf(message.created_at)}
+                </span>
+              )}
+            </p>
           )}
         </div>
 
-        <span className="flex items-center gap-2 px-1">
-          <span className="text-2xs font-mono text-neutral-400">{clockOf(message.created_at)}</span>
-          {mine && (
+        {mine && showActions && (
+          <div className="flex items-center gap-1 pt-1 animate-fade-in">
             <button
               type="button"
               onClick={() => setConfirming(true)}
-              aria-label="Delete this message"
-              className="text-2xs text-neutral-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity cursor-pointer"
+              className="inline-flex items-center gap-1 h-11 px-2.5 -my-1.5 text-2xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-rose-500 active:text-rose-600 transition-colors cursor-pointer"
             >
-              <Trash2 size={11} />
+              <Trash2 size={12} /> Delete
             </button>
-          )}
-        </span>
+            <span className="text-[10px] font-mono text-neutral-400">{clockOf(message.created_at)}</span>
+          </div>
+        )}
       </div>
 
       {confirming && (
@@ -424,8 +490,11 @@ function MessageBubble({ message, me, withSender }) {
           error={remove.error?.message}
           onCancel={() => { remove.reset(); setConfirming(false); }}
           onConfirm={async () => {
-            try { await remove.mutateAsync({ messageId: message.id, conversationId: message.conversation_id }); setConfirming(false); }
-            catch { /* shown in the dialog */ }
+            try {
+              await remove.mutateAsync({ messageId: message.id, conversationId: message.conversation_id });
+              setConfirming(false);
+              setShowActions(false);
+            } catch { /* shown in the dialog */ }
           }}
         >
           <p>Everyone in the conversation will see that a message was deleted, but not what it said.</p>
@@ -521,6 +590,7 @@ function Composer({ conversationId }) {
   const [body, setBody] = useState('');
   const [pending, setPending] = useState(null);   // { file, kind, durationMs } awaiting send
   const [localError, setLocalError] = useState(null);
+  const [attachOpen, setAttachOpen] = useState(false);
   const send = useSendMessage();
   const upload = useUploadMedia();
   const fileRef = useRef(null);
@@ -528,6 +598,8 @@ function Composer({ conversationId }) {
 
   const busy = send.isPending || upload.isPending;
   const error = localError || send.error || upload.error;
+  // Something to send: typed words, or a file waiting to go with them.
+  const canSend = Boolean(body.trim()) || Boolean(pending);
 
   const pick = (file) => {
     setLocalError(null);
@@ -595,25 +667,51 @@ function Composer({ conversationId }) {
           onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }}
         />
 
-        <button
-          type="button" onClick={() => imageRef.current?.click()} disabled={busy}
-          aria-label="Send a photo or video" title="Photo or video"
-          className={btnClass('ghost', 'md', true)}
-        >
-          <ImageIcon size={15} />
-        </button>
-        <button
-          type="button" onClick={() => fileRef.current?.click()} disabled={busy}
-          aria-label="Send a file" title="File"
-          className={btnClass('ghost', 'md', true)}
-        >
-          <Paperclip size={15} />
-        </button>
-        <VoiceButton
-          disabled={busy || Boolean(pending)}
-          onRecorded={(file, durationMs) => setPending({ file, kind: 'voice', durationMs })}
-          onError={(err) => setLocalError(err)}
-        />
+        {/* One attach button, not three.
+            Three 30px icon buttons plus an input plus send left roughly 150px to type in on a 360px
+            phone, and every one of those buttons was under the 48dp Android minimum anyway. Folding
+            photo / video / file behind a single 44px "+" gives the input back its width and gives
+            each choice a full-width row with a readable label instead of a guessable glyph. */}
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => setAttachOpen((v) => !v)}
+            disabled={busy}
+            aria-label="Attach a photo, video or file"
+            aria-expanded={attachOpen}
+            className="h-11 w-11 grid place-items-center rounded-xl text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850 active:bg-neutral-150 dark:active:bg-neutral-800 disabled:opacity-45 transition-colors cursor-pointer"
+          >
+            <Plus size={20} className={`transition-transform duration-200 ${attachOpen ? 'rotate-45' : ''}`} />
+          </button>
+
+          {attachOpen && (
+            <>
+              {/* Tap anywhere else to dismiss. A menu on a phone that only closes by pressing the
+                  same small button again is a menu people get stuck in. */}
+              <button
+                type="button"
+                aria-label="Close attachment menu"
+                onClick={() => setAttachOpen(false)}
+                className="fixed inset-0 z-30 cursor-default"
+              />
+              <div className="absolute bottom-full left-0 mb-2 z-40 w-48 rounded-xl border border-neutral-200 dark:border-neutral-850 bg-white dark:bg-neutral-950 shadow-xl overflow-hidden animate-fade-in">
+                {[
+                  { icon: ImageIcon, label: 'Photo or video', onClick: () => imageRef.current?.click() },
+                  { icon: Paperclip, label: 'File', onClick: () => fileRef.current?.click() },
+                ].map(({ icon: Icon, label, onClick }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => { setAttachOpen(false); onClick(); }}
+                    className="w-full h-12 px-3 flex items-center gap-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-900 active:bg-neutral-150 dark:active:bg-neutral-850 transition-colors cursor-pointer"
+                  >
+                    <Icon size={16} className="text-[#0c9765] dark:text-[#10b981]" /> {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
 
         <textarea
           rows={1}
@@ -625,18 +723,28 @@ function Composer({ conversationId }) {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
           }}
           placeholder={pending ? 'Add a caption…' : 'Write a message…'}
-          className={INPUT + ' resize-none max-h-32 flex-1'}
+          className={INPUT + ' resize-none max-h-32 flex-1 min-w-0 py-2.5'}
           maxLength={4000}
         />
 
-        <button
-          type="submit"
-          disabled={busy || (!body.trim() && !pending)}
-          aria-label="Send"
-          className={btnClass('primary', 'md', true)}
-        >
-          {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-        </button>
+        {/* Mic OR send, never both. There is nothing to send until there is something to send, and
+            the swap is what buys the input its width back on a narrow screen. */}
+        {canSend ? (
+          <button
+            type="submit"
+            disabled={busy}
+            aria-label="Send"
+            className="shrink-0 h-11 w-11 grid place-items-center rounded-xl bg-[#0a7d54] text-white hover:bg-[#0c9765] active:bg-[#095f41] disabled:opacity-45 transition-colors cursor-pointer"
+          >
+            {busy ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+          </button>
+        ) : (
+          <VoiceButton
+            disabled={busy || Boolean(pending)}
+            onRecorded={(file, durationMs) => setPending({ file, kind: 'voice', durationMs })}
+            onError={(err) => setLocalError(err)}
+          />
+        )}
       </div>
     </form>
   );
@@ -721,10 +829,15 @@ function VoiceButton({ disabled, onRecorded, onError }) {
     return (
       <button
         type="button" onClick={stop} aria-label="Stop recording"
-        className={`${btnClass('dangerSolid', 'md')} shrink-0 gap-1.5`}
+        className="shrink-0 h-11 px-3 inline-flex items-center gap-1.5 rounded-xl border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 active:bg-red-100 dark:active:bg-red-950/50 transition-colors cursor-pointer"
       >
-        <Square size={13} />
-        <span className="font-mono text-2xs">
+        {/* A dot that pulses says "recording" faster than any label, and the clock says how long
+            for. Both live inside one 44px control so stopping is the easy thing to hit. */}
+        <span className="relative grid place-items-center">
+          <span className="absolute h-3 w-3 rounded-full bg-red-500/40 animate-ping" />
+          <Square size={12} className="relative" />
+        </span>
+        <span className="font-mono text-2xs tabular-nums">
           {String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}
         </span>
       </button>
@@ -735,9 +848,9 @@ function VoiceButton({ disabled, onRecorded, onError }) {
     <button
       type="button" onClick={start} disabled={disabled}
       aria-label="Record a voice note" title="Voice note"
-      className={btnClass('ghost', 'md', true)}
+      className="shrink-0 h-11 w-11 grid place-items-center rounded-xl text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850 active:bg-neutral-150 dark:active:bg-neutral-800 disabled:opacity-45 transition-colors cursor-pointer"
     >
-      <Mic size={15} />
+      <Mic size={20} />
     </button>
   );
 }
@@ -802,7 +915,7 @@ function NewConversation({ me, onClose, onOpened }) {
               aria-current={mode === value ? 'page' : undefined}
               className={`flex-1 text-xs font-semibold py-1.5 cursor-pointer transition-colors ${
                 mode === value
-                  ? 'bg-[#0ea971]/15 text-[#0c9765] dark:bg-[#0ea971] dark:text-white'
+                  ? 'bg-[#0ea971]/15 text-[#0a7d54] dark:bg-[#0a7d54] dark:text-white'
                   : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >

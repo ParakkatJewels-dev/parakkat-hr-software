@@ -131,7 +131,7 @@ const PRIORITY_RANK = { Urgent: 4, High: 3, Medium: 2, Low: 1 };
  * newest. Sorting the FILTERED list before the tree is built means sub-tasks come out in the same
  * order under their parent, and each person's list in the By Person view does too.
  */
-export function sortTasks(tasks, today = istToday()) {
+export function sortTasks(tasks, today = istToday(), order = 'recommended') {
   const rank = (t) => [
     CLOSED.has(t.status) ? 1 : 0,          // done and cancelled sink
     isOverdue(t, today) ? 0 : 1,           // late work floats
@@ -139,6 +139,18 @@ export function sortTasks(tasks, today = istToday()) {
     t.due_date || '9999-12-31',            // soonest deadline; undated last
   ];
   return [...(tasks ?? [])].sort((a, b) => {
+    // Display sorting applies to the entire filtered set before pagination. Keep closed work at
+    // the end for due-date and priority views; newest/title are literal across all visible tasks.
+    if (order === 'newest') return String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
+    if (order === 'title') return String(a.title ?? '').localeCompare(String(b.title ?? ''), 'en', { sensitivity: 'base', numeric: true });
+    if (order === 'due' || order === 'priority') {
+      const closed = Number(CLOSED.has(a.status)) - Number(CLOSED.has(b.status));
+      if (closed) return closed;
+      const chosen = order === 'due'
+        ? (a.due_date || '9999-12-31').localeCompare(b.due_date || '9999-12-31')
+        : (PRIORITY_RANK[b.priority] ?? 0) - (PRIORITY_RANK[a.priority] ?? 0);
+      if (chosen) return chosen;
+    }
     const ra = rank(a), rb = rank(b);
     for (let i = 0; i < ra.length; i++) {
       if (ra[i] < rb[i]) return -1;

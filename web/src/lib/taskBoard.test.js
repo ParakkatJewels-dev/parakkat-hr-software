@@ -68,6 +68,55 @@ const board = [
 const ids = (list) => list.map((t) => t.id);
 const TODAY = '2026-09-08';
 
+test('due-date sorting puts dated open work first and closed work last', () => {
+  const input = [
+    task({ id: 'undated', priority: 'Urgent' }),
+    task({ id: 'finished', status: 'Done', due_date: '2020-01-01' }),
+    task({ id: 'later', due_date: '2026-10-01', priority: 'Urgent' }),
+    task({ id: 'sooner', due_date: '2026-09-10', priority: 'Low' }),
+  ];
+  assert.deepEqual(ids(sortTasks(input, TODAY, 'due')), ['sooner', 'later', 'undated', 'finished']);
+  assert.deepEqual(ids(input), ['undated', 'finished', 'later', 'sooner'], 'does not mutate the query cache');
+});
+
+test('priority sorting puts urgent work ahead of older low-priority work', () => {
+  const input = [
+    task({ id: 'low', priority: 'Low', due_date: '2020-01-01' }),
+    task({ id: 'closed', status: 'Cancelled', priority: 'Urgent' }),
+    task({ id: 'high', priority: 'High' }),
+    task({ id: 'urgent', priority: 'Urgent' }),
+  ];
+  assert.deepEqual(ids(sortTasks(input, TODAY, 'priority')), ['urgent', 'high', 'low', 'closed']);
+});
+
+test('title sorting is case-insensitive and natural for numbered tasks', () => {
+  const input = [
+    task({ id: '10', title: 'Task 10' }),
+    task({ id: '2', title: 'task 2' }),
+    task({ id: 'a', title: 'Audit', status: 'Done' }),
+  ];
+  assert.deepEqual(ids(sortTasks(input, TODAY, 'title')), ['a', '2', '10']);
+});
+
+test('newest sorting uses creation date across all visible statuses, with missing dates last', () => {
+  const input = [
+    task({ id: 'missing' }),
+    task({ id: 'old', created_at: '2026-01-01T00:00:00Z' }),
+    task({ id: 'new', status: 'Done', created_at: '2026-09-08T00:00:00Z' }),
+  ];
+  assert.deepEqual(ids(sortTasks(input, TODAY, 'newest')), ['new', 'old', 'missing']);
+});
+
+test('display sorting happens before slicing a filtered page', () => {
+  const input = Array.from({ length: 23 }, (_, index) => task({
+    id: String(index), title: `Task ${23 - index}`,
+  }));
+  const sorted = sortTasks(filterTasks(input, { statusFilter: 'Active', today: TODAY }), TODAY, 'title');
+  assert.equal(sorted[0].title, 'Task 1');
+  assert.equal(sorted.slice(10, 20)[0].title, 'Task 11');
+  assert.equal(sorted.slice(20).length, 3);
+});
+
 test('Active hides what is finished with', () => {
   assert.deepEqual(ids(filterTasks(board, { statusFilter: 'Active', today: TODAY })), ['a', 'b', 'e']);
 });

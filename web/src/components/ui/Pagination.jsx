@@ -64,9 +64,10 @@ export function usePagination(items, initialSize = 25, focusId = null) {
  */
 export default function Pagination({
   page, setPage, totalPages, pageSize, setPageSize, count, from, to,
-  noun = 'rows', sizes = [25, 50, 100, 200], className = '',
+  noun = 'rows', sizes = [25, 50, 100, 200], className = '', keepVisible = false,
 }) {
-  if (!shouldShowPager(count, pageSize)) return null;
+  // Task lists keep the size selector available, including after choosing a larger page size.
+  if (!keepVisible && !shouldShowPager(count, pageSize)) return null;
 
   // The select shows the size actually in use. Without this a caller starting at 8 rendered a
   // dropdown whose value matched no option, which browsers draw as the first one — a control
@@ -123,7 +124,7 @@ export default function Pagination({
         <span>Per page</span>
         <select
           value={pageSize}
-          onChange={(e) => setPageSize(Number(e.target.value))}
+          onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
           aria-label="Rows per page"
         >
           {options.map((n) => (

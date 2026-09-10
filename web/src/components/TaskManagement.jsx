@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
-  ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, Flag,
-  CalendarClock, User, ChevronRight, Search, PenLine, ShieldAlert, HandHelping,
-  MessageSquare, Paperclip, CheckSquare, ListTodo, Square,
+  ListChecks, Plus, X, Loader2, AlertTriangle, Flag,
+  CalendarClock, User, Search, PenLine, ShieldAlert, HandHelping,
+  CheckSquare, Square, ArrowDownWideNarrow,
 } from 'lucide-react';
 import {
   useTasks, useCreateTask, useUpdateTask, useDeleteTask, useAddAssignee, useRemoveAssignee,
@@ -12,7 +12,6 @@ import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import FormSection from './ui/FormSection';
 import ConfirmDialog from './ui/ConfirmDialog';
-import { btnClass } from './ui/Btn';
 import { usePermissions } from '../auth/usePermissions';
 import { useUrlTab } from '../lib/useUrlTab';
 // A help request is a request for a TASK, so it lives here rather than beside the team roster:
@@ -24,13 +23,12 @@ import { pendingCount, outgoingRequests } from '../lib/helpRequests';
 // The board's reasoning — filtering, counting, nesting, grouping — lives in lib so it can be
 // tested. This file imports Supabase through its data hooks, which the test runner cannot load.
 import {
-  TASK_STATUSES, TASK_PRIORITIES,
-  isOverdue, filterTasks, sortTasks, taskStats, composerKey, assigneesOf, assigneeIds,
+  TASK_PRIORITIES,
+  filterTasks, sortTasks, taskStats, composerKey, assigneesOf, assigneeIds,
 } from '../lib/taskBoard';
-import { checklistProgress } from '../lib/checklist';
+import TaskListRow, { TaskListColumns } from './TaskListRow';
+import './tasks.css';
 import Pagination, { usePagination } from './ui/Pagination';
-import IconInput from './ui/IconInput';
-import Avatar from './ui/Avatar';
 import { useFocusRow } from '../lib/useFocusRow';
 import { focusIsMissing } from '../lib/focusRow';
 import { humanDbError } from '../lib/dbErrors';
@@ -42,22 +40,7 @@ import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
-
-// The -450 step is defined for `neutral` only, so the emerald and amber variants that used to be
-// here compiled to nothing at all and Done and To Do kept their LIGHT-mode text — emerald-800 on a
-// near-black emerald card. The two statuses that failed were the most-read ones. -300 matches the
-// sky and rose siblings, which were right all along. The same typo was in eight other screens.
-const statusClass = (s) =>
-  s === 'Done'
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30'
-    : s === 'In Progress'
-    ? 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/30'
-    : s === 'Blocked'
-    ? 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/30'
-    : s === 'Cancelled'
-    ? 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-500 dark:border-neutral-800'
-    : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/30';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#5263c7] transition-colors';
 
 /**
  * What to call an assignee whose employees row this viewer cannot read.
@@ -75,25 +58,6 @@ const ASSIGNEE_HIDDEN = 'Assignee not visible';
 const WINDOW_MONTHS = Math.round(CLOSED_TASK_WINDOW_DAYS / 30);
 const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelled ones are kept for ${WINDOW_MONTHS} months.`;
 const TASKS_PER_PAGE = 10;
-
-const priorityMeta = (p) =>
-  p === 'Urgent'
-    ? { dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-300' }
-    : p === 'High'
-    ? { dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' }
-    : p === 'Low'
-    ? { dot: 'bg-neutral-400', text: 'text-neutral-600 dark:text-neutral-300' }
-    : { dot: 'bg-sky-500', text: 'text-sky-700 dark:text-sky-300' };
-
-const TASK_DATE_FORMATTER = new Intl.DateTimeFormat('en-IN', {
-  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
-});
-
-const readableTaskDate = (iso) => {
-  if (!iso) return 'No deadline';
-  const [year, month, day] = iso.slice(0, 10).split('-').map(Number);
-  return TASK_DATE_FORMATTER.format(new Date(Date.UTC(year, month - 1, day)));
-};
 
 export default function TaskManagement() {
   const { data: tasks = [], isLoading, error } = useTasks();
@@ -155,6 +119,7 @@ export default function TaskManagement() {
   const [composer, setComposer] = useState(null); // { defaultAssignee } | { task } | null
   const [toDelete, setToDelete] = useState(null); // the task awaiting confirmation
   const [query, setQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('recommended');
   // Sent here by a notification. Unlike Leave and Expenses, this board does NOT default to "All" —
   // it opens on Active — so a completed task somebody was linked to would render nothing at all and
   // the link would look broken. Widen to All when the target is not in the current view.
@@ -205,9 +170,9 @@ export default function TaskManagement() {
   const filtered = useMemo(
     () => sortTasks(
       filterTasks(tasks, { mineOnly: effectiveMineOnly, myEmployeeId, personId, statusFilter, query: deferredQuery, today }),
-      today
+      today, sortOrder
     ),
-    [tasks, effectiveMineOnly, myEmployeeId, personId, statusFilter, deferredQuery, today]
+    [tasks, effectiveMineOnly, myEmployeeId, personId, statusFilter, deferredQuery, today, sortOrder]
   );
   const stats = useMemo(
     () => taskStats(tasks, { mineOnly: effectiveMineOnly, myEmployeeId, personId, query: deferredQuery, today }),
@@ -338,6 +303,7 @@ export default function TaskManagement() {
     commentCounts,
     attachmentCounts,
     setStatus: (id, status) => update.mutate({ id, status }),
+    busy: update.isPending,
     // A task was write-once: a typo in the title, a date that moved, or the wrong person could only
     // be fixed by deleting it and filing it again — losing its sub-tasks and its history with it.
     // `task.manage` has advertised "Reassign / delete" since 0017 with no way to reassign.
@@ -355,177 +321,59 @@ export default function TaskManagement() {
   };
 
   return (
-    <div className="task-management-page page-shell space-y-6 animate-slide-up">
-      <div className="task-page-header flex flex-wrap justify-between items-center gap-3">
+    <div className="task-management-page work-page">
+      <header className="work-page-header">
         <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-            <ListChecks size={20} className="text-[#0ea971]" /> {canViewTeamTasks ? 'Task Management' : 'My Tasks'}
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {canViewTeamTasks
-              ? 'Assign work down your branch, zone or entity and track it as it flows through the hierarchy.'
-              : 'Track your assigned work and update its status.'}
-          </p>
+          <div className="work-eyebrow">Workspace / Tasks</div>
+          <h1>{canViewTeamTasks ? 'Tasks' : 'My tasks'}</h1>
+          <p>Everything to do. One place to move it forward.</p>
         </div>
-        {canCreate && (
-          <button
-            onClick={() => setComposer({ defaultAssignee: employee?.id })}
-            className={btnClass('primary')}
-          >
-            <Plus size={14} /> <span>New Task</span>
-          </button>
+        {canCreate && isBoard && (
+          <button type="button" onClick={() => setComposer({ defaultAssignee: employee?.id })} className="work-button work-button-primary"><Plus size={16} /> New task</button>
         )}
-      </div>
-
-      {/* stats — the board's, so not shown while looking at requests.
-          Five cards into two columns leaves the last one stranded beside a gap, so Overdue takes
-          the whole final row on a phone — also the one worth the extra width. */}
-      {isBoard && (
-      <div className="task-stats grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-        <Stat label="Total" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
-        <Stat label="To Do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => setStatusFilter('To Do')} />
-        <Stat label="In Progress" value={stats.progress} active={statusFilter === 'In Progress'} onClick={() => setStatusFilter('In Progress')} />
-        <Stat label="Done" value={stats.done} active={statusFilter === 'Done'} onClick={() => setStatusFilter('Done')} />
-        <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => setStatusFilter('Overdue')} className="col-span-2 sm:col-span-1" />
-      </div>
-      )}
-
-      {/* search — searches the board, so it comes off with it */}
-      {isBoard && (
-      <div className="task-search-row flex flex-wrap items-center gap-3">
-        <IconInput
-          icon={Search}
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          aria-label="Search tasks"
-          placeholder={
-            canViewTeamTasks
-              ? 'Search a task, a person, a code or a branch…'
-              : 'Search your tasks…'
-          }
-          className="flex-1 min-w-0 sm:max-w-md"
-          inputClassName={INPUT}
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            className={btnClass('ghost')}
-          >
-            <X size={13} /> Clear
-          </button>
-        )}
-        {query && (
-          <span className="text-2xs font-mono text-neutral-500" role="status" aria-live="polite">
-            {filtered.length} match{filtered.length === 1 ? '' : 'es'}
-            {/* Says out loud what the search can and cannot reach, so nobody reads an empty
-                result as "there is no such task" when it means "not one of yours". */}
-            {!canViewTeamTasks
-              ? ' in your tasks'
-              : effectiveMineOnly
-              ? ' in your tasks'
-              : ' in what you can see'}
-          </span>
-        )}
-      </div>
-      )}
-
-      {/* controls */}
-      <div className="task-controls mobile-toolbar flex flex-wrap items-center justify-between gap-3">
-        {/* What By Person used to be. Only offered when there is more than one person to choose
-            between — a filter with a single name in it is furniture, not a control. */}
-        {isBoard && canViewTeamTasks && peopleOnBoard.length > 1 && (
-          <label className="task-status-select">
-            <span>Person</span>
-            <select
-              value={personId}
-              onChange={(e) => setPersonId(e.target.value)}
-              aria-label="Filter tasks by person"
-            >
-              <option value="">Everyone</option>
-              {peopleOnBoard.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        {isBoard && (
-          <label className="task-status-select">
-            <span>Status</span>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              aria-label="Filter tasks by status"
-            >
-              {['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All'].map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        {/* Desktop keeps the fast one-click filters; phones use the labelled select above so no
-            status is hidden behind an invisible horizontal scroll. */}
-        <div className="task-status-pills mobile-segmented mobile-segmented-dense flex flex-wrap items-center gap-1.5">
-          {(!isBoard ? [] : ['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All']).map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              aria-current={statusFilter === s ? 'page' : undefined}
-              className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
-                statusFilter === s
-                  ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border border-[#0ea971]/25'
-                  : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
-              }`}
-            >
-              {s}
-            </button>
-          ))}
+      </header>
+      <nav className="work-view-tabs" aria-label="Task views">
+        {canViewTeamTasks && <ViewBtn active={isBoard} onClick={() => setView('board')} icon={ListChecks} label="Team tasks" />}
+        <ViewBtn active={effectiveView === 'todo'} onClick={() => setView('todo')} icon={User} label="My tasks" />
+        {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests" badge={waitingOnMe} />}
+        <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" />
+      </nav>
+      {isBoard && <>
+        <div className="work-overview" aria-label="Task summary">
+          <Stat label="All tasks" value={stats.total} active={statusFilter === 'All'} onClick={() => { setStatusFilter('All'); pager.setPage(1); }} />
+          <Stat label="To do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => { setStatusFilter('To Do'); pager.setPage(1); }} />
+          <Stat label="In progress" value={stats.progress} active={statusFilter === 'In Progress'} onClick={() => { setStatusFilter('In Progress'); pager.setPage(1); }} />
+          <Stat label="Completed" value={stats.done} active={statusFilter === 'Done'} onClick={() => { setStatusFilter('Done'); pager.setPage(1); }} />
+          <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => { setStatusFilter('Overdue'); pager.setPage(1); }} />
         </div>
-        <div className="task-toolbar-actions mobile-toolbar-actions flex items-center gap-2">
-          {isBoard && canViewTeamTasks && employee?.id && (
-            <button
-              onClick={() => setMineOnly((v) => !v)}
-              className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors shrink-0 ${
-                mineOnly
-                  ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border border-[#0ea971]/25'
-                  : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
-              }`}
-            >
-              My tasks
-            </button>
-          )}
-          {/* `overflow-hidden` on a four-button group is a trap: at 360px it fit with one pixel to
-              spare, so any longer label or a two-digit badge would have silently cut "Routine" off
-              with no way to reach it. Scroll instead of clip. */}
-          <div className="task-view-switch view-switch flex rounded-lg border border-neutral-200 dark:border-neutral-850">
-            {canViewTeamTasks && (
-              <ViewBtn active={effectiveView === 'board'} onClick={() => setView('board')} icon={ListChecks} label="Board" />
-            )}
-            {canUseRequests && (
-              <ViewBtn
-                active={effectiveView === 'requests'}
-                onClick={() => setView('requests')}
-                icon={HandHelping}
-                label="Requests"
-                badge={waitingOnMe}
-              />
-            )}
-            <ViewBtn
-              active={effectiveView === 'todo'}
-              onClick={() => setView('todo')}
-              icon={ListTodo}
-              label="My List"
-            />
-            <ViewBtn
-              active={effectiveView === 'routine'}
-              onClick={() => setView('routine')}
-              icon={CheckSquare}
-              label="Routine"
-            />
+        <div className="work-toolbar">
+          <label className="work-search">
+            <Search size={16} />
+            <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); pager.setPage(1); }}
+              aria-label="Search tasks" placeholder="Search tasks, people or branches…" />
+          </label>
+          <div className="work-filters">
+            <label className="work-filter"><span>Status</span>
+              <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); pager.setPage(1); }} aria-label="Filter tasks by status">
+                {['Active', 'All', 'To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled', 'Overdue'].map((s) => <option key={s} value={s}>{s === 'All' ? 'All statuses' : s}</option>)}
+              </select>
+            </label>
+            {peopleOnBoard.length > 1 && <label className="work-filter"><span>Assignee</span>
+              <select value={personId} onChange={(e) => { setPersonId(e.target.value); pager.setPage(1); }} aria-label="Filter tasks by person">
+                <option value="">Everyone</option>
+                {peopleOnBoard.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>}
+            <label className="work-filter"><ArrowDownWideNarrow size={14} /><span className="sr-only">Sort</span>
+              <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); pager.setPage(1); }} aria-label="Sort tasks">
+                <option value="recommended">Recommended</option><option value="due">Due date</option><option value="priority">Priority</option><option value="newest">Newest first</option><option value="title">Title A–Z</option>
+              </select>
+            </label>
+            {employee?.id && <button type="button" className="work-button work-mine" aria-pressed={mineOnly} onClick={() => { setMineOnly((v) => !v); pager.setPage(1); }}><User size={14} />Assigned to me</button>}
+            {(query || personId || mineOnly || statusFilter !== 'Active') && <button type="button" className="work-button" onClick={() => { setQuery(''); setPersonId(''); setMineOnly(false); setStatusFilter('Active'); pager.setPage(1); }}><X size={13} />Clear filters</button>}
           </div>
         </div>
-      </div>
+      </>}
 
       {/* A rejected status change or delete used to say nothing at all. Both mutations were written
           to throw a specific message when RLS matched no row — "your access may have changed, or
@@ -598,11 +446,11 @@ export default function TaskManagement() {
       {effectiveView === 'requests' ? (
         <TeamRequests myDepartments={myDepartments} />
       ) : effectiveView === 'todo' ? (
-        <TaskTodo tasks={tasks} loading={isLoading} />
+        <TaskTodo tasks={tasks} loading={isLoading} loadError={error} focusId={focusId} rowProps={rowProps} />
       ) : effectiveView === 'routine' ? (
         <TaskRoutine employees={employees} />
       ) : isLoading ? (
-        <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>
+        <div className="flex justify-center py-16 text-[#5263c7]"><Loader2 size={24} className="animate-spin" /></div>
       ) : error && tasks.length === 0 ? (
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
@@ -651,10 +499,15 @@ export default function TaskManagement() {
               <span>Page {pager.page} of {pager.totalPages}</span>
             )}
           </div>
-          {pager.slice.map((t) => (
-            <TaskCard key={t.id} task={t} actions={actions} />
-          ))}
-          <Pagination {...pager} noun="tasks" sizes={[10, 25, 50, 100]} className="task-list-pagination" />
+          <div className="work-list" role="list" aria-label="Tasks">
+            <TaskListColumns />
+            {pager.slice.map((t) => (
+              <TaskListRow key={t.id} task={t} actions={actions}>
+                <TaskDetail task={t} open={actions.openDetail === t.id} />
+              </TaskListRow>
+            ))}
+          </div>
+          <Pagination {...pager} noun="tasks" sizes={[10, 25, 50, 100]} className="task-list-pagination" keepVisible />
         </div>
       )}
 
@@ -696,161 +549,6 @@ function StaleWarning({ error }) {
     <div role="status" className="flex items-start gap-2 px-1 text-2xs text-amber-700 dark:text-amber-300">
       <AlertTriangle size={13} className="mt-0.5 shrink-0" />
       <span>Showing the last tasks loaded — the latest refresh failed ({error.message}).</span>
-    </div>
-  );
-}
-
-function TaskCard({ task, actions }) {
-  const pm = priorityMeta(task.priority);
-  const overdue = isOverdue(task, actions.today);
-  const detailOpen = actions.openDetail === task.id;
-  const comments = actions.commentCounts?.[task.id];
-  const files = actions.attachmentCounts?.[task.id];
-  const people = assigneesOf(task);
-  // The board's read is the cheap one — two columns per item, not every title — so this is a count
-  // and nothing more. The list itself loads when somebody opens the card.
-  const steps = checklistProgress(task.checklist ?? []);
-  const primaryName = people[0]?.employee?.full_name || task.assignee?.full_name || ASSIGNEE_HIDDEN;
-  const otherPeople = Math.max(people.length - 1, 0);
-  const canEdit = actions.canEdit(task);
-  const canManage = actions.canManage(task);
-  return (
-    <div
-      {...actions.rowProps(task.id)}
-      className={`task-card premium-card ${overdue ? 'task-card-overdue' : ''}`}
-    >
-      <div className="task-card-top">
-        <div className="task-card-copy task-card-content">
-          <span className="task-card-content-label"><ListTodo size={14} /> Task</span>
-          <h3 className="task-card-title-text">{task.title}</h3>
-          {task.description ? (
-            <p className="task-card-description">{task.description}</p>
-          ) : (
-            <p className="task-card-description task-card-description-empty">No additional details provided.</p>
-          )}
-          <div className="task-card-labels">
-            <span className={`task-priority-pill ${pm.text}`}>
-              <Flag size={12} /> {task.priority} priority
-            </span>
-            {overdue && (
-              <span className="task-overdue-pill">
-                <AlertTriangle size={12} /> Overdue
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="task-card-status">
-          <span className="task-card-field-label">Status</span>
-          {actions.canUpdate(task) ? (
-            <select
-              value={task.status}
-              onChange={(e) => actions.setStatus(task.id, e.target.value)}
-              aria-label={`Status of ${task.title}`}
-              title={steps.total > 0 && !steps.allDone
-                ? `${steps.total - steps.done} subtask${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
-                : undefined}
-              className={`status-pill task-status-pill focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${statusClass(task.status)}`}
-            >
-              {TASK_STATUSES
-                .filter((status) => status === task.status || status !== 'Done' || steps.total === 0 || steps.allDone)
-                .map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
-          ) : (
-            <span className={`task-status-pill task-status-readonly ${statusClass(task.status)}`}>
-              {task.status}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="task-card-facts">
-        <div className="task-card-fact">
-          <span className="task-card-field-label">Assigned to</span>
-          <span className="task-card-person" title={people.map((row) => row.employee?.full_name ?? ASSIGNEE_HIDDEN).join(', ')}>
-            {people.length > 0 && people[0].employee?.full_name
-              ? <Avatar name={people[0].employee.full_name} size="xs" />
-              : <User size={14} className="text-neutral-400" />}
-            <strong>{primaryName}</strong>
-            {otherPeople > 0 && <span className="task-card-more-people">+{otherPeople}</span>}
-            {people.length === 1 && task.assignee?.branch?.code && (
-              <span className="task-card-branch">{task.assignee.branch.code}</span>
-            )}
-          </span>
-        </div>
-
-        <div className={`task-card-fact ${overdue ? 'task-card-fact-overdue' : ''}`}>
-          <span className="task-card-field-label">Due date</span>
-          <span className="task-card-date">
-            <CalendarClock size={14} />
-            <strong>{readableTaskDate(task.due_date)}</strong>
-            {overdue && <span>Needs attention</span>}
-          </span>
-        </div>
-
-        {task.assigner && task.assigner.id !== task.assignee?.id && (
-          <div className="task-card-fact">
-            <span className="task-card-field-label">Assigned by</span>
-            <span className="task-card-person">
-              <Avatar name={task.assigner.full_name} size="xs" />
-              <strong>{task.assigner.full_name}</strong>
-            </span>
-          </div>
-        )}
-      </div>
-
-      {steps.total > 0 && (
-        <div className="task-card-progress">
-          <div>
-            <span><ListTodo size={13} /> Subtasks</span>
-            <strong>{steps.done} of {steps.total} complete</strong>
-          </div>
-          <div
-            className="task-card-progress-track"
-            role="progressbar"
-            aria-valuenow={steps.percent}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`${steps.percent}% of ${task.title}'s subtasks are complete`}
-          >
-            <span style={{ width: `${steps.percent}%` }} />
-          </div>
-        </div>
-      )}
-
-      <div className="task-card-footer">
-        <button
-          type="button"
-          onClick={() => actions.toggleDetail(task.id)}
-          aria-expanded={detailOpen}
-          aria-label={`${detailOpen ? 'Hide' : 'Open'} checklist, comments and attachments for ${task.title}`}
-          className={`task-card-open ${detailOpen ? 'task-card-open-active' : ''}`}
-        >
-          <span><ListTodo size={14} /> Open task</span>
-          <span className="task-card-activity-count"><MessageSquare size={13} /> {comments || 0}<em>comments</em></span>
-          <span className="task-card-activity-count"><Paperclip size={13} /> {files || 0}<em>files</em></span>
-          <ChevronRight size={15} className={detailOpen ? 'rotate-90' : ''} />
-        </button>
-
-        {(canEdit || canManage) && (
-          <div className="task-card-secondary-actions">
-            {canEdit && (
-              <button onClick={() => actions.edit(task)} className={btnClass('ghost', 'sm')}>
-                <PenLine size={13} /> Edit
-              </button>
-            )}
-            {canManage && (
-              <button onClick={() => actions.remove(task)} className={btnClass('dangerGhost', 'sm')}>
-                <Trash2 size={13} /> Delete
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Opens in place on the card, so the list keeps its position. Nothing is fetched until it is
-          opened — fifty cards must not mean a hundred queries. */}
-      <TaskDetail task={task} open={detailOpen} />
     </div>
   );
 }
@@ -1012,7 +710,7 @@ function TaskComposer({
                           key={id}
                           className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-2xs ${
                             index === 0
-                              ? 'border-[#0ea971]/30 bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981]'
+                              ? 'border-[#5263c7]/30 bg-[#5263c7]/10 text-[#4251ad] dark:text-[#a5b4fc]'
                               : 'border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 text-neutral-700 dark:text-neutral-300'
                           }`}
                         >
@@ -1065,7 +763,7 @@ function TaskComposer({
                 )}
                 {currentEmployeeId && !chosenIds.includes(currentEmployeeId)
                   && (!canAssignTo || employees.some((e) => e.id === currentEmployeeId && canAssignTo(e))) && (
-                  <button type="button" onClick={() => addPerson(currentEmployeeId)} className="text-xs text-[#0c9765] dark:text-[#10b981] hover:underline cursor-pointer mt-1">
+                  <button type="button" onClick={() => addPerson(currentEmployeeId)} className="text-xs text-[#4251ad] dark:text-[#a5b4fc] hover:underline cursor-pointer mt-1">
                     Add myself
                   </button>
                 )}
@@ -1135,7 +833,7 @@ function TaskComposer({
                       type="button"
                       onClick={addStep}
                       aria-label={`Add subtask "${stepDraft.trim()}"`}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-lg bg-[#0ea971] text-white hover:bg-[#0c9765] transition-colors cursor-pointer animate-fade-in"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-lg bg-[#5263c7] text-white hover:bg-[#4251ad] transition-colors cursor-pointer animate-fade-in"
                     >
                       <Plus size={14} />
                     </button>
@@ -1173,34 +871,17 @@ function TaskComposer({
 
 function ViewBtn({ active, onClick, icon: Icon, label, badge = 0 }) {
   return (
-    <button
-      onClick={onClick}
-      aria-current={active ? 'page' : undefined}
-      className={`flex items-center justify-center gap-1.5 whitespace-nowrap text-base font-semibold px-3 py-1.5 cursor-pointer transition-colors ${
-        active
-          ? 'bg-[#0ea971]/15 text-[#0c9765] dark:bg-[#0ea971] dark:text-white'
-          : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-      }`}
-    >
-      <Icon size={12} /> {label}
-      {badge > 0 && (
-        <span className="text-2xs font-mono px-1.5 rounded-full bg-amber-500 text-white" aria-label={`${badge} waiting for you`}>
-          {badge}
-        </span>
-      )}
+    <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className="work-view-tab">
+      <Icon size={15} /> {label}
+      {badge > 0 && <span className="work-tab-count" aria-label={`${badge} waiting for you`}>{badge}</span>}
     </button>
   );
 }
 
-function Stat({ label, value, accent, onClick, active = false, className = '' }) {
-  const Tag = onClick ? 'button' : 'div';
+function Stat({ label, value, accent, onClick, active = false }) {
   return (
-    <Tag
-      {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
-      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''} ${className}`}
-    >
-      <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
-      <span className={`text-2xl font-extrabold font-mono block mt-1.5 ${accent ? 'text-rose-500' : 'text-neutral-850 dark:text-slate-100'}`}>{value}</span>
-    </Tag>
+    <button type="button" onClick={onClick} aria-pressed={active} className={`work-stat ${accent ? 'work-stat-overdue' : ''}`}>
+      <span className="work-stat-value">{value}</span><span>{label}</span>
+    </button>
   );
 }
