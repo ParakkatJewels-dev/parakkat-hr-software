@@ -125,6 +125,33 @@
 .conversation-row-top { margin-bottom: 5px; }
 .conversation-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
 .conversation-row-time { flex-shrink: 0; font-size: 10px; color: var(--chat-muted); }
+/* Monitoring, not participating. Deliberately quiet — this appears on every row in the company for
+   a super admin, so a loud badge would turn the whole list into warning stripes. It has to be
+   legible enough to notice before reading, and no louder than that. */
+.conversation-row-watching {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border: 1px solid var(--chat-border);
+  border-radius: 20px;
+  color: var(--chat-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+.conversation-row-watching svg { flex-shrink: 0; }
+/* Sits where the composer would be, so the eye lands where the hand expects a text box. */
+.messages-chat-watching {
+  gap: 9px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--chat-border);
+  background: var(--chat-chrome);
+  color: var(--chat-muted);
+  font-size: 13px;
+  text-align: center;
+}
 .conversation-row-preview { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.6; color: var(--chat-muted); }
 .conversation-row-unread .conversation-row-name { font-weight: 750; }
 .conversation-row-unread .conversation-row-preview { color: var(--chat-text); }

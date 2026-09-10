@@ -950,7 +950,7 @@ export default function App() {
         <main
           id="main-content"
           tabIndex={-1}
-          className={`app-main flex-1 min-h-0 overflow-y-auto py-4 ${pullRefresh.pulling || pullRefresh.refreshing ? 'is-pulling-refresh' : ''}`}
+          className={`app-main flex-1 min-h-0 overflow-y-auto px-2 py-4 ${pullRefresh.pulling || pullRefresh.refreshing ? 'is-pulling-refresh' : ''}`}
           onTouchStart={handlePullStart}
           onTouchMove={handlePullMove}
           onTouchEnd={handlePullEnd}

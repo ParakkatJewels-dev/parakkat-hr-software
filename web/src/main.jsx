@@ -169,6 +169,54 @@ function FullScreenError({ error }) {
   );
 }
 
+/*
+ * A screen that will not load because the file it was in no longer exists.
+ *
+ * Every screen here is `lazy()`-loaded, so the browser fetches its chunk on first visit. The chunk
+ * filename carries a content hash, which is what makes caching safe — and what makes a tab that was
+ * open across a deploy ask for a file that is not there any more. The same thing happens in
+ * development whenever Vite re-optimises its dependency graph under an open tab.
+ *
+ * The result is "Failed to fetch dynamically imported module", which reads to a user like the app
+ * broke. It did not: they are simply holding yesterday's map of today's building. One reload fixes
+ * it, and the app can do that reload itself instead of asking.
+ */
+const isStaleChunkError = (error) => {
+  const text = `${error?.name ?? ''} ${error?.message ?? ''}`;
+  return /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|ChunkLoadError/i.test(text);
+};
+
+/*
+ * Reload, but only once.
+ *
+ * The flag is the whole safety of this: if a deploy is genuinely broken — a chunk that 404s for
+ * everyone, every time — an unguarded reload turns one bad screen into an infinite refresh loop
+ * that nobody can escape or even read the error behind. Once per tab session, then the error is
+ * shown honestly and the user decides.
+ *
+ * sessionStorage, not localStorage: the mark should die with the tab, so the NEXT deploy is allowed
+ * its own single automatic recovery.
+ */
+const STALE_CHUNK_MARK = 'parakkat:reloaded-for-stale-chunk';
+
+function recoverFromStaleChunk() {
+  try {
+    if (window.sessionStorage.getItem(STALE_CHUNK_MARK)) return false;
+    window.sessionStorage.setItem(STALE_CHUNK_MARK, '1');
+  } catch {
+    // Storage disabled: no way to remember we already tried, so do not risk the loop.
+    return false;
+  }
+  window.location.reload();
+  return true;
+}
+
+// Vite raises this for a failed module preload before any React boundary sees a rejected import,
+// so catching it here recovers without the error screen appearing at all.
+window.addEventListener('vite:preloadError', (event) => {
+  if (recoverFromStaleChunk()) event.preventDefault();
+});
+
 class AppErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -177,6 +225,19 @@ class AppErrorBoundary extends Component {
 
   static getDerivedStateFromError(error) {
     return { error };
+  }
+
+  componentDidMount() {
+    // Rendered without throwing, so whatever chunk was stale is loaded now. Clearing the mark lets
+    // the next deploy recover automatically too. Guarded on state.error because this also fires
+    // when the boundary mounted only to show the fallback.
+    if (!this.state.error) {
+      try { window.sessionStorage.removeItem(STALE_CHUNK_MARK); } catch { /* nothing to clear */ }
+    }
+  }
+
+  componentDidCatch(error) {
+    if (isStaleChunkError(error)) recoverFromStaleChunk();
   }
 
   render() {

@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown,
+  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
@@ -238,6 +238,15 @@ function ConversationRow({ conversation, me, active, onOpen }) {
           <span className="conversation-row-name">
             {name}
           </span>
+          {/* A super admin sees every conversation in the company here (0119). Without a mark, a
+              colleague's private chat is indistinguishable from your own, which is how somebody
+              ends up reading one they meant to skip — and how they end up typing into one they
+              cannot post in. */}
+          {conversation.is_member === false && (
+            <span className="conversation-row-watching" title="You are not in this conversation">
+              <Eye size={11} aria-hidden="true" /> Monitoring
+            </span>
+          )}
           <span className="conversation-row-time">
             {conversation.last_message_at ? relativeTime(conversation.last_message_at) : ''}
           </span>
@@ -340,8 +349,18 @@ function Thread({ conversation, me, onBack }) {
         </div>
         {awayFromBottom && <button type="button" className="messages-jump-latest" onClick={jumpToLatest} aria-label="Jump to latest messages"><ArrowDown size={20} /></button>}
       </div>
-      <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
-        onSent={() => { setReplyId(null); jumpToLatest(); }} />
+      {/* Reading somebody's conversation is oversight; writing in it under their colleague's nose
+          is a different thing, and messages_insert refuses it. Offering a composer that the
+          database will reject is worse than not offering one — so this says why instead. */}
+      {conversation.is_member === false ? (
+        <p className="messages-chat-notice messages-chat-watching" role="status">
+          <Eye size={16} aria-hidden="true" />
+          You are monitoring this conversation. Only the people in it can reply.
+        </p>
+      ) : (
+        <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
+          onSent={() => { setReplyId(null); jumpToLatest(); }} />
+      )}
     </div>
   );
 }
