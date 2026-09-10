@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import {
   ESS_NAV, OVERSIGHT_NAV, canSeeTab, visibleSections as navSections,
+  mobilePrimarySections as pickMobilePrimary,
 } from './lib/navMap';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
@@ -52,6 +53,10 @@ import { syncNativeTheme } from './mobile/native';
 const prettyRole = (key) =>
   key.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+// Short names for the phone, where a section is a 138px tile or a bar label under an icon and
+// "My Expenses" next to "Leave" reads as two different apps. Keyed by SECTION id, and the two trees
+// name their sections differently — 'expense' and 'profile' are sections only in the ESS tree,
+// where in the oversight tree they are tabs inside Pay and My Profile — so these do not collide.
 const MOBILE_NAV_LABELS = {
   dashboard: 'Home',
   attendance: 'Time',
@@ -60,6 +65,10 @@ const MOBILE_NAV_LABELS = {
   tasks: 'Tasks',
   team: 'My Team',
   performance: 'Goals',
+  expense: 'Expenses',
+  documents: 'Documents',
+  helpdesk: 'Help',
+  profile: 'Profile',
   home: 'Home',
   people: 'People',
   time: 'Time',
@@ -141,6 +150,7 @@ export default function App() {
   // inner tab in the URL every one of those addresses fell through to the not-found redirect.
   const location = useLocation();
   const navigate = useNavigate();
+  const routeStageRef = useRef(null);
   const activeTab = location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || 'dashboard';
   // Deliberately the same shape as the setState it replaces, so every onNavigate / onBack /
   // command-palette caller keeps working untouched. Switching screens drops the inner tab, which
@@ -167,6 +177,28 @@ export default function App() {
         ?.scrollIntoView({ block: 'nearest', inline: 'center' });
     });
     return () => window.cancelAnimationFrame(frame);
+  }, [location.pathname]);
+
+  // Animate the shared content stage instead of keying/remounting the routed screen. Several
+  // screens keep useful local state while their second URL segment changes; remounting would make
+  // a pleasant transition cost somebody an open panel or an unfinished form. Replaying one class
+  // on the stable wrapper covers screen changes, inner routed tabs, Back and notification links.
+  useLayoutEffect(() => {
+    const stage = routeStageRef.current;
+    if (!stage) return undefined;
+
+    stage.classList.remove('route-stage-enter');
+    // Force the browser to commit the class removal before it is added again. Without this, two
+    // quick route changes can be coalesced and the second animation never starts.
+    void stage.offsetWidth;
+    stage.classList.add('route-stage-enter');
+
+    const finish = () => stage.classList.remove('route-stage-enter');
+    stage.addEventListener('animationend', finish, { once: true });
+    return () => {
+      stage.removeEventListener('animationend', finish);
+      stage.classList.remove('route-stage-enter');
+    };
   }, [location.pathname]);
 
   // Sidebar collapsed state
@@ -435,7 +467,11 @@ export default function App() {
 
   // Four plus More. Five primary sections became six physical buttons as soon as a user had any
   // overflow, which crowded labels and tap targets on 360px phones.
-  const mobilePrimarySections = visibleSections.slice(0, 4);
+  //
+  // Which four is navMap's MOBILE_PRIMARY_IDS to answer, not `slice(0, 4)`: the bar is the whole
+  // navigation on a phone, and it should seat what somebody opens the app to do rather than
+  // whatever happens to sit at the top of the sidebar.
+  const mobilePrimarySections = pickMobilePrimary(visibleSections, primaryRole);
   const mobileOverflowActive =
     Boolean(activeSection) && !mobilePrimarySections.some((sec) => sec.id === activeSection.id);
 
@@ -539,10 +575,18 @@ export default function App() {
    * repeating "Assets / Assets" would be noise, not navigation.
    */
   const renderEmployeeMobileNavTree = () => {
-    const primaryIds = new Set(mobilePrimarySections.map((sec) => sec.id));
+    // Headed by the tree's own groups — Work, Me, Support — rather than by "Today" and "More".
+    // Those two split the list at whatever the bottom bar happened to seat, so the drawer's
+    // headings described the bar instead of the app, and a screen moved on or off the bar changed
+    // heading without changing what it is. Work leads here for the same reason it leads the bar.
+    const titles = ESS_NAV.map((group) => group.title);
     const groups = [
-      { title: 'Today', sections: mobilePrimarySections },
-      { title: 'More', sections: visibleSections.filter((sec) => !primaryIds.has(sec.id)) },
+      ...titles.map((title) => ({
+        title,
+        sections: visibleSections.filter((sec) => sec.group === title),
+      })),
+      // A section the ESS tree did not group cannot go unlisted just because it is unexpected.
+      { title: 'More', sections: visibleSections.filter((sec) => !titles.includes(sec.group)) },
     ].filter((group) => group.sections.length > 0);
 
     return (
@@ -925,12 +969,13 @@ export default function App() {
               {pullRefresh.refreshing ? 'Refreshing' : pullRefresh.ready ? 'Release to refresh' : 'Pull to refresh'}
             </strong>
           </div>
-          <Suspense fallback={<div className="page-shell py-24 flex justify-center text-neutral-400 text-xs">Loading…</div>}>
-          {(() => {
-            if (!canViewTab(activeTab)) {
-              return <AccessDenied />;
-            }
-            switch (activeTab) {
+          <div ref={routeStageRef} className="route-stage">
+            <Suspense fallback={<div className="page-shell py-24 flex justify-center text-neutral-400 text-xs">Loading…</div>}>
+            {(() => {
+              if (!canViewTab(activeTab)) {
+                return <AccessDenied />;
+              }
+              switch (activeTab) {
               case 'dashboard':
                 return <Dashboard onNavigate={setActiveTab} viewRole={primaryRole} />;
               case 'employee-import':
@@ -996,15 +1041,16 @@ export default function App() {
                 return <Notifications onNavigate={setActiveTab} />;
               case 'profile':
                 return <UserProfile roleLabel={roleLabel} onOpenSettings={() => setActiveTab('settings')} />;
-              default:
-                // A screen name in the URL that this build does not have: a stale bookmark, a
-                // typo, a link from an older version. Now that the address bar can name a screen,
-                // this is reachable — send them home rather than painting a blank page they have
-                // no way out of.
-                return <Navigate to="/" replace />;
-            }
-          })()}
-          </Suspense>
+                default:
+                  // A screen name in the URL that this build does not have: a stale bookmark, a
+                  // typo, a link from an older version. Now that the address bar can name a screen,
+                  // this is reachable — send them home rather than painting a blank page they have
+                  // no way out of.
+                  return <Navigate to="/" replace />;
+              }
+            })()}
+            </Suspense>
+          </div>
         </main>
 
         <InstallPrompt

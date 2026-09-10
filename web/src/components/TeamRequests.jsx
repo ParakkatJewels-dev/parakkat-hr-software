@@ -81,7 +81,7 @@ export default function TeamRequests({ myDepartments = [] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="task-subview-header flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
           Need somebody outside your department? Ask their head. They decide who does it.
         </p>

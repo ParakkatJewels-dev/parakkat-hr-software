@@ -292,8 +292,8 @@ export default function TaskManagement() {
   };
 
   return (
-    <div className="page-shell space-y-6 animate-slide-up">
-      <div className="flex flex-wrap justify-between items-center gap-3">
+    <div className="task-management-page page-shell space-y-6 animate-slide-up">
+      <div className="task-page-header flex flex-wrap justify-between items-center gap-3">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
             <ListChecks size={20} className="text-[#0ea971]" /> {canViewTeamTasks ? 'Task Management' : 'My Tasks'}
@@ -318,7 +318,7 @@ export default function TaskManagement() {
           Five cards into two columns leaves the last one stranded beside a gap, so Overdue takes
           the whole final row on a phone — also the one worth the extra width. */}
       {isBoard && (
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="task-stats grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         <Stat label="Total" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="To Do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => setStatusFilter('To Do')} />
         <Stat label="In Progress" value={stats.progress} active={statusFilter === 'In Progress'} onClick={() => setStatusFilter('In Progress')} />
@@ -329,7 +329,7 @@ export default function TaskManagement() {
 
       {/* search — searches the board, so it comes off with it */}
       {isBoard && (
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="task-search-row flex flex-wrap items-center gap-3">
         <IconInput
           icon={Search}
           type="search"
@@ -369,11 +369,24 @@ export default function TaskManagement() {
       )}
 
       {/* controls */}
-      <div className="mobile-toolbar flex flex-wrap items-center justify-between gap-3">
-        {/* Seven filters do not fit a phone, so this row scrolls. `-dense` drops the shared
-            46vw minimum that is right for a three-tab row and wrong for this one: at that width
-            only two of the seven were reachable without scrolling past the rest. */}
-        <div className="mobile-segmented mobile-segmented-dense flex flex-wrap items-center gap-1.5">
+      <div className="task-controls mobile-toolbar flex flex-wrap items-center justify-between gap-3">
+        {isBoard && (
+          <label className="task-status-select">
+            <span>Status</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              aria-label="Filter tasks by status"
+            >
+              {['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All'].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        {/* Desktop keeps the fast one-click filters; phones use the labelled select above so no
+            status is hidden behind an invisible horizontal scroll. */}
+        <div className="task-status-pills mobile-segmented mobile-segmented-dense flex flex-wrap items-center gap-1.5">
           {(!isBoard ? [] : ['Active', 'To Do', 'In Progress', 'Blocked', 'Done', 'Overdue', 'All']).map((s) => (
             <button
               key={s}
@@ -389,7 +402,7 @@ export default function TaskManagement() {
             </button>
           ))}
         </div>
-        <div className="mobile-toolbar-actions flex items-center gap-2">
+        <div className="task-toolbar-actions mobile-toolbar-actions flex items-center gap-2">
           {isBoard && canViewTeamTasks && employee?.id && (
             <button
               onClick={() => setMineOnly((v) => !v)}
@@ -405,37 +418,35 @@ export default function TaskManagement() {
           {/* `overflow-hidden` on a four-button group is a trap: at 360px it fit with one pixel to
               spare, so any longer label or a two-digit badge would have silently cut "Routine" off
               with no way to reach it. Scroll instead of clip. */}
-          {(canViewTeamTasks || canUseRequests || true) && (
-            <div className="view-switch flex rounded-lg border border-neutral-200 dark:border-neutral-850">
-              {canViewTeamTasks && (
-                <>
-                  <ViewBtn active={effectiveView === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
-                  <ViewBtn active={effectiveView === 'people'} onClick={() => setView('people')} icon={Users} label="By Person" />
-                </>
-              )}
-              {canUseRequests && (
-                <ViewBtn
-                  active={effectiveView === 'requests'}
-                  onClick={() => setView('requests')}
-                  icon={HandHelping}
-                  label="Requests"
-                  badge={waitingOnMe}
-                />
-              )}
+          <div className="task-view-switch view-switch flex rounded-lg border border-neutral-200 dark:border-neutral-850">
+            {canViewTeamTasks && (
+              <>
+                <ViewBtn active={effectiveView === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
+                <ViewBtn active={effectiveView === 'people'} onClick={() => setView('people')} icon={Users} label="By Person" />
+              </>
+            )}
+            {canUseRequests && (
               <ViewBtn
-                active={effectiveView === 'todo'}
-                onClick={() => setView('todo')}
-                icon={ListTodo}
-                label="My List"
+                active={effectiveView === 'requests'}
+                onClick={() => setView('requests')}
+                icon={HandHelping}
+                label="Requests"
+                badge={waitingOnMe}
               />
-              <ViewBtn
-                active={effectiveView === 'routine'}
-                onClick={() => setView('routine')}
-                icon={CheckSquare}
-                label="Routine"
-              />
-            </div>
-          )}
+            )}
+            <ViewBtn
+              active={effectiveView === 'todo'}
+              onClick={() => setView('todo')}
+              icon={ListTodo}
+              label="My List"
+            />
+            <ViewBtn
+              active={effectiveView === 'routine'}
+              onClick={() => setView('routine')}
+              icon={CheckSquare}
+              label="Routine"
+            />
+          </div>
         </div>
       </div>
 
@@ -564,16 +575,16 @@ export default function TaskManagement() {
             // anyone whose employees row this viewer cannot read, and every such person was handed
             // the same key 'x' — React then rendered one group where there were several.
             <div key={g.key} className="space-y-2.5">
-              <div className="flex items-center gap-2 px-1">
+              <div className="task-person-header flex items-center gap-2 px-1">
                 {/* One Avatar definition for the whole app (ui/Avatar.jsx). The tile here used to be
                     hand-rolled — and briefly, in an earlier pass, carried btnClass('primary'), which
                     dressed a non-interactive div as the page's primary BUTTON directly under the
                     real one. The group's person is `assignee`; `employee` is not a field on it. */}
                 <Avatar name={g.assignee?.full_name} size="md" />
-                <span className={`font-bold text-sm ${g.assignee ? 'text-neutral-800 dark:text-slate-100' : 'text-neutral-500 italic'}`}>
+                <span className={`task-person-name font-bold text-sm ${g.assignee ? 'text-neutral-800 dark:text-slate-100' : 'text-neutral-500 italic'}`}>
                   {g.assignee?.full_name || ASSIGNEE_HIDDEN}
                 </span>
-                <span className="text-2xs font-mono text-neutral-400">
+                <span className="task-person-meta text-2xs font-mono text-neutral-400">
                   {g.assignee?.employee_code}{g.assignee?.branch?.code ? ` · ${g.assignee.branch.code}` : ''} · {g.tasks.length} task{g.tasks.length !== 1 ? 's' : ''}
                 </span>
               </div>
@@ -638,7 +649,12 @@ function StaleWarning({ error }) {
 function TaskTree({ task, childrenOf, depth, actions }) {
   const kids = childrenOf.get(task.id) || [];
   return (
-    <div className={depth > 0 ? 'ml-4 sm:ml-7 border-l border-neutral-200 dark:border-neutral-850 pl-3 sm:pl-4' : ''}>
+    <div
+      data-task-depth={depth}
+      className={depth > 0
+        ? `task-tree-branch ${depth > 1 ? 'task-tree-branch-deep' : ''} ml-4 sm:ml-7 border-l border-neutral-200 dark:border-neutral-850 pl-3 sm:pl-4`
+        : ''}
+    >
       <TaskCard task={task} actions={actions} subCount={kids.length} nested={depth > 0} />
       {kids.length > 0 && (
         <div className="mt-2.5 space-y-2.5">
@@ -658,13 +674,13 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
   const comments = actions.commentCounts?.[task.id];
   const files = actions.attachmentCounts?.[task.id];
   return (
-    <div {...actions.rowProps(task.id)} className={`premium-card ${nested ? 'bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}>
-      <div className="mobile-list-row flex items-start justify-between gap-3">
-        <div className="min-w-0 space-y-1.5">
-          <div className="flex items-center gap-2 flex-wrap">
+    <div {...actions.rowProps(task.id)} className={`task-card premium-card ${nested ? 'task-card-nested bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}>
+      <div className="task-card-row mobile-list-row flex items-start justify-between gap-3">
+        <div className="task-card-main min-w-0 space-y-1.5">
+          <div className="task-card-heading flex items-center gap-2 flex-wrap">
             {/* The dot belongs to the title, so it is grouped with it. Left as a sibling of a
                 two-line title it was pushed onto a row of its own and read as a stray bullet. */}
-            <div className="flex items-start gap-2 min-w-0 flex-[1_1_100%] sm:flex-[1_1_0%]">
+            <div className="task-card-title flex items-start gap-2 min-w-0 flex-[1_1_100%] sm:flex-[1_1_0%]">
               {nested && <CornerDownRight size={13} className="text-neutral-400 shrink-0 mt-0.5" />}
               <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${pm.dot}`} title={`${task.priority} priority`} aria-label={`${task.priority} priority`} />
               {/* Was `truncate`: on a 360px screen that clipped a real title at 338px of the 449
@@ -697,7 +713,7 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
           {task.description && (
             <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{task.description}</p>
           )}
-          <div className="flex items-center gap-3 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400 pt-0.5">
+          <div className="task-card-meta flex items-center gap-3 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400 pt-0.5">
             <span className="inline-flex items-center gap-1.5">
               {task.assignee?.full_name
                 ? <Avatar name={task.assignee.full_name} size="xs" />
@@ -720,7 +736,7 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
           </div>
         </div>
 
-        <div className="mobile-list-actions flex flex-col items-end gap-2 shrink-0">
+        <div className="task-card-actions mobile-list-actions flex flex-col items-end gap-2 shrink-0">
           {actions.canUpdate(task) ? (
             <select
               value={task.status}

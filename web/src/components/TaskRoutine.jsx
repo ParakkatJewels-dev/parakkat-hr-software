@@ -64,7 +64,7 @@ export default function TaskRoutine({ employees = [] }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="task-subview-header flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-neutral-500 dark:text-neutral-400">
           The same duties every day. Ticks reset overnight — today is <span className="font-mono">{today}</span>.
         </p>

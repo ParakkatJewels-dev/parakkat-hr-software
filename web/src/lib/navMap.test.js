@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ESS_NAV, OVERSIGHT_NAV, canSeeTab, labelForTab, visibleSections, allScreenIds, predicatesFor,
+  mobilePrimarySections, MOBILE_PRIMARY_IDS, MOBILE_NAV_SLOTS,
 } from './navMap.js';
 
 // Each role's grants at its own scope, plus the employee@self grants every manager also holds
@@ -243,4 +244,73 @@ test('canSeeTab takes a Set or a plain array', () => {
   assert.equal(canSeeTab(tab, { hidden: ['reports'] }), false);
   assert.equal(canSeeTab(tab, { hidden: new Set() }), true);
   assert.equal(canSeeTab(tab, {}), true, 'no override list at all is not an override');
+});
+
+// ---- the phone's bottom bar --------------------------------------------------------------------
+//
+// On a phone the bar IS the navigation — four seats, and everything else is behind More. These
+// tests exist because the seats used to be decided by `sections.slice(0, 4)`, so a row moved in the
+// sidebar rearranged them silently, and the four went to what an employee opens monthly rather than
+// daily. If somebody reorders a tree again, these say so rather than the users noticing.
+
+const barFor = (role) =>
+  mobilePrimarySections(
+    visibleSections(role, predicatesFor(permsFor(role))),
+    role
+  ).map((section) => section.id);
+
+test('an employee gets work on the bottom bar, not payslips', () => {
+  const bar = barFor('employee');
+  assert.deepEqual(bar, ['dashboard', 'tasks', 'attendance', 'leave']);
+  assert.ok(!bar.includes('payroll'), 'Pay is opened monthly and does not hold a seat');
+});
+
+test('a manager reaches Work without opening More', () => {
+  for (const role of ['entity_admin', 'hr_manager', 'branch_manager', 'dept_head']) {
+    const bar = barFor(role);
+    assert.ok(bar.includes('work'), `${role} should reach Work from the bar`);
+    assert.equal(bar[0], 'home');
+    assert.equal(bar[1], 'work', `${role} should have Work seated second`);
+  }
+});
+
+test('the bar never seats more than it has room for, nor renders short', () => {
+  for (const role of ['employee', 'entity_admin', 'dept_head']) {
+    const bar = barFor(role);
+    assert.equal(bar.length, MOBILE_NAV_SLOTS, `${role} should fill the bar`);
+    assert.equal(new Set(bar).size, bar.length, `${role} has a section seated twice`);
+  }
+});
+
+test('a section the viewer cannot see is skipped, and the bar tops up from tree order', () => {
+  // No task.read at all: Tasks leaves the tree, so its seat goes to the next section rather than
+  // leaving a gap or shrinking the bar to three.
+  const noTasks = permsFor('employee').filter((p) => p.permission !== 'task.read');
+  const sections = visibleSections('employee', predicatesFor(noTasks));
+  const bar = mobilePrimarySections(sections, 'employee').map((s) => s.id);
+
+  assert.ok(!bar.includes('tasks'));
+  assert.equal(bar.length, MOBILE_NAV_SLOTS);
+  assert.deepEqual(bar.slice(0, 3), ['dashboard', 'attendance', 'leave'], 'stated order holds');
+});
+
+test('every section the bar names is a real one in its tree', () => {
+  const essIds = ESS_NAV.flatMap((g) => g.items.map((i) => i.id));
+  for (const id of MOBILE_PRIMARY_IDS.employee) {
+    assert.ok(essIds.includes(id), `${id} is not a screen in the ESS tree`);
+  }
+  const oversightIds = OVERSIGHT_NAV.map((s) => s.id);
+  for (const id of MOBILE_PRIMARY_IDS.oversight) {
+    assert.ok(oversightIds.includes(id), `${id} is not a section in the oversight tree`);
+  }
+});
+
+test('an employee section carries the drawer heading it belongs under', () => {
+  const sections = visibleSections('employee', predicatesFor(permsFor('employee')));
+  const titles = ESS_NAV.map((g) => g.title);
+  for (const section of sections) {
+    assert.ok(titles.includes(section.group), `${section.id} has no drawer heading`);
+  }
+  assert.equal(sections.find((s) => s.id === 'tasks').group, 'Work');
+  assert.equal(sections.find((s) => s.id === 'payroll').group, 'Me');
 });

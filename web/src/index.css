@@ -4976,6 +4976,25 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
    for a table and wrong for one segmented control, which must stay a single row. */
 .view-switch { overflow: hidden; }
 
+/* Task Management has seven status choices. On narrow screens these become one labelled select,
+   so every choice is visible without relying on an invisible horizontal scrollbar. */
+.task-status-select { display: none; }
+
+@media (max-width: 900px) {
+  .task-management-page .task-controls {
+    align-items: stretch;
+  }
+
+  .task-management-page .task-status-pills,
+  .task-management-page .task-toolbar-actions {
+    width: 100%;
+  }
+
+  .task-management-page .task-toolbar-actions {
+    justify-content: space-between;
+  }
+}
+
 .summary-card-link {
   cursor: pointer;
   transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
@@ -5016,13 +5035,23 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 /* ---- Motion -------------------------------------------------------------- */
 @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes routeStageEnter {
+  from { opacity: .62; transform: translate3d(0, 4px, 0) scale(.998); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
 .animate-slide-up { animation: slideUp .35s cubic-bezier(.16, 1, .3, 1) both; }
 .animate-fade-in { animation: fadeIn .2s ease-out both; }
+.route-stage { width: 100%; transform-origin: 50% 0; }
+.route-stage-enter {
+  will-change: opacity, transform;
+  animation: routeStageEnter .2s cubic-bezier(.16, 1, .3, 1) both;
+}
 @media (prefers-reduced-motion: reduce) {
   /* Honour the OS setting properly: kill entrance animations, transitions and the loading
      shimmer, not just the two named keyframes. Vestibular disorders make sliding panels and
      pulsing skeletons genuinely unpleasant. */
-  .animate-slide-up, .animate-fade-in, .animate-pulse, .animate-spin { animation: none !important; }
+  .animate-slide-up, .animate-fade-in, .route-stage-enter, .animate-pulse, .animate-spin { animation: none !important; }
+  .route-stage-enter { will-change: auto; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -6683,6 +6712,187 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     min-height: 2.45rem;
     white-space: nowrap;
     scroll-snap-align: start;
+  }
+
+  /* Task Management --------------------------------------------------------
+     The generic mobile rules above favour horizontally scrolling pill rows. This screen has two
+     separate, long control groups, so showing all of them as proper phone controls is clearer and
+     prevents the toolbar from becoming wider than the viewport. */
+  main .task-management-page .task-status-pills {
+    display: none !important;
+  }
+
+  main .task-management-page .task-status-select {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .75rem;
+    width: 100%;
+    padding: .45rem .5rem .45rem .75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+  }
+
+  main .task-management-page .task-status-select > span {
+    color: var(--surface-text-soft);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  main .task-management-page .task-status-select > select {
+    width: 100%;
+    min-height: 2.5rem;
+    padding: .45rem 2rem .45rem .7rem;
+    color: var(--surface-text);
+    font-size: .82rem;
+    font-weight: 700;
+  }
+
+  main .task-management-page .task-toolbar-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .5rem;
+  }
+
+  main .task-management-page .task-toolbar-actions > button {
+    width: 100%;
+  }
+
+  main .task-management-page .task-view-switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .4rem;
+    width: 100%;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  main .task-management-page .task-view-switch > button {
+    width: 100%;
+    min-height: 2.65rem;
+    padding: .55rem .5rem;
+    border: 1px solid var(--surface-border);
+    border-radius: var(--radius-sm);
+    white-space: normal;
+  }
+
+  main .task-management-page .task-view-switch > button:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  main .task-management-page .task-search-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .5rem;
+  }
+
+  main .task-management-page .task-search-row > [role="status"] {
+    grid-column: 1 / -1;
+  }
+
+  main .task-management-page .task-tree-branch {
+    margin-left: .35rem !important;
+    padding-left: .45rem !important;
+  }
+
+  /* More indentation communicates no more hierarchy on a phone, but it does keep taking width.
+     Preserve one visual branch level and flatten deeper descendants. */
+  main .task-management-page .task-tree-branch-deep {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+    border-left: 0;
+  }
+
+  main .task-management-page .task-card-row,
+  main .task-management-page .task-todo-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    gap: .65rem;
+  }
+
+  main .task-management-page .task-card-main,
+  main .task-management-page .task-todo-main {
+    width: 100%;
+  }
+
+  main .task-management-page .task-card-title,
+  main .task-management-page .task-card-title > span:last-child,
+  main .task-management-page .task-todo-main span {
+    overflow-wrap: anywhere;
+  }
+
+  main .task-management-page .task-card-meta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: .3rem;
+  }
+
+  main .task-management-page .task-card-actions {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding-top: .6rem;
+    border-top: 1px solid color-mix(in srgb, var(--surface-border) 80%, transparent);
+  }
+
+  main .task-management-page .task-card-actions > div {
+    margin-left: auto;
+  }
+
+  main .task-management-page .task-card-actions .status-pill {
+    min-height: 2.5rem;
+    max-width: 11rem;
+  }
+
+  main .task-management-page .task-todo-actions {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    width: 100%;
+    padding-top: .6rem;
+    border-top: 1px solid color-mix(in srgb, var(--surface-border) 80%, transparent);
+  }
+
+  main .task-management-page .task-todo-actions > button {
+    flex: 1 1 8rem;
+  }
+
+  main .task-management-page .task-todo-actions > div {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+  }
+
+  main .task-management-page .task-person-header {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    row-gap: .2rem;
+  }
+
+  main .task-management-page .task-person-name {
+    overflow-wrap: anywhere;
+  }
+
+  main .task-management-page .task-person-meta {
+    grid-column: 2;
+  }
+
+  main .task-management-page .task-subview-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  main .task-management-page .task-subview-header > button {
+    width: 100%;
   }
 
   main .mobile-segmented .drawer-tab {

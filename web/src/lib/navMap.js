@@ -17,18 +17,31 @@
 
 /**
  * The self-service tree, shown to somebody whose most senior role is `employee`.
- * Flat on purpose: with a set this small, a second level is friction.
+ *
+ * Ordered by what somebody actually opens this on a phone to DO, which is not the order it used to
+ * be in. Attendance, Leave and Payslips led the tree, so those were the four things the bottom bar
+ * offered (see MOBILE_PRIMARY_IDS) and Tasks — the screen an employee touches several times a day
+ * — was behind More, two taps and a scroll away. Pay is opened once a month and had a permanent
+ * seat; work had none.
+ *
+ * The groups are titles the phone drawer prints, so they have to read as a map of the app rather
+ * than as internal vocabulary: what you do, what is yours, and where to get help.
  */
 export const ESS_NAV = [
   {
-    title: 'My Workspace',
+    title: 'Work',
     items: [
       { id: 'dashboard', label: 'Dashboard', perm: null },
+      { id: 'tasks', label: 'My Tasks', perm: 'task.read' },
       { id: 'attendance', label: 'My Attendance', perm: 'attendance.read' },
+      { id: 'performance', label: 'My Goals', perm: 'goal.read' },
+    ],
+  },
+  {
+    title: 'Me',
+    items: [
       { id: 'leave', label: 'My Leave', perm: 'leave.read' },
       { id: 'payroll', label: 'My Payslips', perm: 'payslip.read' },
-      { id: 'tasks', label: 'My Tasks', perm: 'task.read' },
-      { id: 'performance', label: 'My Goals', perm: 'goal.read' },
       { id: 'expense', label: 'My Expenses', perm: 'expense.read' },
       { id: 'my-assets', label: 'My Assets', perm: 'asset.read' },
       { id: 'documents', label: 'My Documents', perm: 'document.read' },
@@ -62,6 +75,28 @@ export const OVERSIGHT_NAV = [
     label: 'Home',
     tabs: [{ id: 'dashboard', label: 'Dashboard', perm: null }],
   },
+  // Second, not sixth. This is the section a manager opens between meetings; People and Pay are
+  // where they go when they sit down. Sixth also put it off the phone's bottom bar entirely, back
+  // when that bar was the first four sections of this list — see MOBILE_PRIMARY_IDS, which now
+  // names its four rather than inheriting them.
+  {
+    id: 'work',
+    label: 'Work',
+    tabs: [
+      { id: 'tasks', label: 'Tasks', perm: 'task.read' },
+      { id: 'performance', label: 'Goals', perm: 'goal.read' },
+    ],
+  },
+  {
+    id: 'time',
+    label: 'Time & Attendance',
+    tabs: [
+      { id: 'attendance', label: 'Attendance', perm: 'attendance.read' },
+      { id: 'attendance-person', label: 'By person', perm: 'attendance.read', scoped: true },
+      { id: 'leave', label: 'Leave', perm: 'leave.read' },
+      { id: 'attendance-admin', label: 'Shifts & Devices', perm: 'device.manage' },
+    ],
+  },
   {
     id: 'people',
     label: 'People',
@@ -76,16 +111,6 @@ export const OVERSIGHT_NAV = [
     ],
   },
   {
-    id: 'time',
-    label: 'Time & Attendance',
-    tabs: [
-      { id: 'attendance', label: 'Attendance', perm: 'attendance.read' },
-      { id: 'attendance-person', label: 'By person', perm: 'attendance.read', scoped: true },
-      { id: 'leave', label: 'Leave', perm: 'leave.read' },
-      { id: 'attendance-admin', label: 'Shifts & Devices', perm: 'device.manage' },
-    ],
-  },
-  {
     id: 'pay',
     label: 'Pay & Expenses',
     tabs: [
@@ -97,14 +122,6 @@ export const OVERSIGHT_NAV = [
     id: 'asset-management',
     label: 'Asset Management',
     tabs: [{ id: 'assets', label: 'Assets', perm: 'asset.read', scoped: true }],
-  },
-  {
-    id: 'work',
-    label: 'Work',
-    tabs: [
-      { id: 'tasks', label: 'Tasks', perm: 'task.read' },
-      { id: 'performance', label: 'Goals', perm: 'goal.read' },
-    ],
   },
   {
     id: 'support',
@@ -177,7 +194,12 @@ export function visibleSections(primaryRole, predicates) {
   const sections =
     primaryRole === 'employee'
       ? ESS_NAV.flatMap((group) =>
-          group.items.map((item) => ({ id: item.id, label: item.label, tabs: [item] }))
+          // `group` rides along so the phone drawer can print the tree's own headings — Work, Me,
+          // Support — instead of inventing its own. It used to head the first four "Today" and the
+          // remainder "More", which described the bottom bar rather than the app.
+          group.items.map((item) => ({
+            id: item.id, label: item.label, group: group.title, tabs: [item],
+          }))
         )
       : OVERSIGHT_NAV;
 
@@ -189,6 +211,48 @@ export function visibleSections(primaryRole, predicates) {
         .map((tab) => ({ ...tab, label: labelForTab(tab, predicates) })),
     }))
     .filter((section) => section.tabs.length > 0);
+}
+
+/** How many sections the phone's bottom bar seats before the fifth becomes "More". */
+export const MOBILE_NAV_SLOTS = 4;
+
+/**
+ * What the bottom bar offers, in order, and why it is a list rather than `sections.slice(0, 4)`.
+ *
+ * A slice makes the phone's four most valuable pieces of screen a side effect of sidebar order, so
+ * moving one row in the tree silently rearranges the bar — which is how Pay came to hold a seat it
+ * is opened once a month to use while Tasks, opened several times a day, had none.
+ *
+ * Stated here instead: the bar is for what somebody came to the app to do. Leave is on it despite
+ * living under "Me" in the tree, because applying for it is frequent; Pay and Goals are not,
+ * because they are not. A section named here that this viewer cannot see is skipped, and the bar
+ * is topped up from tree order so it never renders short.
+ */
+export const MOBILE_PRIMARY_IDS = {
+  employee: ['dashboard', 'tasks', 'attendance', 'leave'],
+  oversight: ['home', 'work', 'time', 'people'],
+};
+
+/**
+ * The sections this viewer's bottom bar seats, in bar order.
+ *
+ * Takes the sections already resolved for the viewer — this decides arrangement, never access.
+ */
+export function mobilePrimarySections(sections, primaryRole) {
+  const wanted =
+    primaryRole === 'employee' ? MOBILE_PRIMARY_IDS.employee : MOBILE_PRIMARY_IDS.oversight;
+
+  const seated = [];
+  for (const id of wanted) {
+    const section = sections.find((s) => s.id === id);
+    if (section) seated.push(section);
+  }
+  // Somebody who holds none of the named screens still gets a usable bar rather than one button.
+  for (const section of sections) {
+    if (seated.length >= MOBILE_NAV_SLOTS) break;
+    if (!seated.includes(section)) seated.push(section);
+  }
+  return seated.slice(0, MOBILE_NAV_SLOTS);
 }
 
 /** Every screen id the application defines, in either tree — for route validation. */
