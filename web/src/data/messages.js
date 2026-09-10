@@ -216,9 +216,14 @@ export function useStartDirect() {
         // 23505: the other person created it between our read and our write.
         if (created.error.code === '23505') {
           const again = await supabase
-            .from('conversations').select('id').eq('direct_key', key).single();
+            .from('conversations').select('id').eq('direct_key', key).maybeSingle();
           if (again.error) throw again.error;
-          return again.data.id;
+          if (again.data?.id) return again.data.id;
+          // The row exists — the unique index just said so — but it is not visible yet, because
+          // the winner has not finished attaching us as a member. Milliseconds, and only when two
+          // people press message on each other at once. Say what happened rather than surfacing
+          // "no rows returned", which reads as though the conversation failed to be created.
+          throw new Error('They just started this conversation too. Give it a second and try again.');
         }
         throw created.error;
       }
