@@ -31,7 +31,7 @@ const TASK_FIELDS = `id, title, description, priority, status, due_date, complet
 // checklist embed is deliberately two columns — the card only needs "2 of 3", and pulling every
 // title for every row on the board to render a counter would be a much larger read for nothing.
 const TASK_FIELDS_WITH_ASSIGNEES = `${TASK_FIELDS},
-   assignees:task_assignees(employee_id, employee:employees(id, full_name, employee_code, branch:branches(code))),
+   assignees:task_assignees(employee_id, employee:employees!task_assignees_employee_id_fkey(id, full_name, employee_code, branch:branches(code))),
    checklist:task_checklist_items(id, completed_at)`;
 
 export function useTasks() {

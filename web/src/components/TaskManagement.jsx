@@ -607,7 +607,8 @@ export default function TaskManagement() {
           <div>
             <p className="font-semibold">Couldn't load tasks.</p>
             <p className="text-neutral-500 dark:text-neutral-400 mt-1">
-              {error.message}. If it mentions <code>tasks</code>, run migration <code>0017_tasks.sql</code>.
+              {error.message}. For a missing task table, apply <code>0017_tasks.sql</code>; for missing
+              assignees or checklists, apply <code>0114_many_hands_and_a_list.sql</code>.
             </p>
           </div>
         </div>
