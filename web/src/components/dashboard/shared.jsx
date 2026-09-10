@@ -255,7 +255,7 @@ export const STATUS_BADGE = {
   Approved: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   Rejected: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
   Open: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  'In Progress': 'bg-violet-500/10 text-violet-500 border-violet-500/20',
+  'In Progress': 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20',
   Resolved: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   Paid: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
 };
@@ -360,7 +360,7 @@ export function HolidaysCard({ showAnniversaries, onNavigate }) {
             className="mobile-list-row flex items-center justify-between rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5"
           >
             <span className="flex items-center gap-1.5 text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
-              <PartyPopper size={11} className="text-[#0ea971] shrink-0" />
+              <PartyPopper size={11} className="text-brand-ink shrink-0" />
               <span className="truncate">{e.full_name}</span>
             </span>
             <span className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 shrink-0">
@@ -387,11 +387,11 @@ export function QuickActions({ actions, onNavigate }) {
           <button
             key={label}
             onClick={() => onNavigate?.(tab)}
-            className="mobile-list-row dashboard-action-tile flex items-center justify-between rounded-xl border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-left text-xs font-semibold text-neutral-700 hover:text-neutral-900 hover:border-neutral-350 dark:border-neutral-855 dark:bg-charcoal-900/40 dark:text-warm-gray-350 dark:hover:text-white dark:hover:border-[#10b981]/30 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer shadow-sm group"
+            className="mobile-list-row dashboard-action-tile flex items-center justify-between rounded-xl border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-left text-xs font-semibold text-neutral-700 hover:text-neutral-900 hover:border-neutral-350 dark:border-neutral-855 dark:bg-charcoal-900/40 dark:text-warm-gray-350 dark:hover:text-white dark:hover:border-brand/30 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer shadow-sm group"
           >
             <span className="flex items-center gap-2.5">
               <div className="dashboard-action-icon p-1 bg-neutral-100 dark:bg-charcoal-800 rounded-lg group-hover:bg-neutral-250 dark:group-hover:bg-charcoal-700 transition-colors">
-                <Icon size={12} className="text-neutral-500 dark:text-[#10b981]" />
+                <Icon size={12} className="text-neutral-500 dark:text-brand-ink" />
               </div>
               <span>{label}</span>
             </span>

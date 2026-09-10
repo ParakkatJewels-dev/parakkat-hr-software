@@ -125,6 +125,17 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Semantic brand utilities resolve in the element's theme, including nested dark-mode panels. */
+@theme inline {
+  --color-brand: var(--accent);
+  --color-brand-strong: var(--accent-strong);
+  --color-brand-ink: var(--accent-ink);
+  --color-brand-soft: var(--accent-soft);
+  --color-brand-action: var(--accent-action);
+  --color-brand-action-hover: var(--accent-action-hover);
+  --color-brand-on: var(--accent-on);
+}
+
 /* ---- Semantic surface variables ------------------------------------------ */
 :root {
   --surface-bg: #f2f5f4;         /* soft mint-gray canvas */
@@ -138,6 +149,10 @@
   --accent: #0ea971;
   --accent-strong: #0a8c5d;
   --accent-soft: rgba(14, 169, 113, 0.10);
+  --accent-ink: #08764f;
+  --accent-action: #0a7d53;
+  --accent-action-hover: #086b47;
+  --accent-on: #ffffff;
   /* One gap for every row of tab pills in the application.
      There were three, and they were close enough that nobody could name what was wrong while
      still being obviously uneven side by side: .mobile-segmented sat at .45rem, .tab-scroll at
@@ -192,6 +207,10 @@
   --accent: #10b981;
   --accent-strong: #34d399;
   --accent-soft: rgba(16, 185, 129, 0.14);
+  --accent-ink: #6ee7b7;
+  --accent-action: #10b981;
+  --accent-action-hover: #34d399;
+  --accent-on: #05130d;
   --tone-blue: #60a5fa;
   --tone-violet: #a78bfa;
   --tone-amber: #fbbf24;
@@ -301,8 +320,8 @@
 
   .pull-refresh-indicator[data-ready="true"] > span,
   .pull-refresh-indicator[data-refreshing="true"] > span {
-    background: var(--accent);
-    color: #fff;
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .pull-refresh-indicator[data-refreshing="true"] svg {
@@ -328,7 +347,7 @@
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
-  ::selection { background: var(--accent); color: #fff; }
+  ::selection { background: var(--accent-action); color: var(--accent-on); }
 
   /* Form controls inherit surface theming; element selectors stay below utilities. */
   input, select, textarea {
@@ -394,6 +413,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .dark input, .dark select:not(.status-pill), .dark textarea { border-color: var(--surface-border) !important; background-color: var(--surface-subtle) !important; color: #f4f6f5 !important; }
 .dark input::placeholder, .dark textarea::placeholder { color: var(--surface-text-soft); }
 .dark select option { background: var(--surface-elevated); color: #f4f6f5; }
+.dark .work-status select { border-color: transparent !important; background: transparent !important; color: inherit !important; }
 
 /* Keep primary black→white swap buttons high-contrast in dark. */
 .dark [class~="bg-black"][class*="dark:bg-white"], .dark [class~="bg-black"][class*="dark:bg-neutral-100"] { background: #ffffff !important; border-color: #ffffff !important; color: #05130d !important; box-shadow: 0 8px 18px rgba(0, 0, 0, .28); }
@@ -593,12 +613,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   /* The banner these tones were built for is gone; the shell still uses them to tint the
      dashboard, so only the .dashboard-role-* rules were removed. */
-  .dashboard-shell[data-dashboard-role="super_admin"] { --dashboard-role-tone: var(--tone-violet); }
-  .dashboard-shell[data-dashboard-role="entity_admin"] { --dashboard-role-tone: var(--tone-blue); }
+  .dashboard-shell[data-dashboard-role="super_admin"] { --dashboard-role-tone: var(--accent); }
+  .dashboard-shell[data-dashboard-role="entity_admin"] { --dashboard-role-tone: var(--accent); }
   .dashboard-shell[data-dashboard-role="hr_manager"] { --dashboard-role-tone: var(--accent); }
-  .dashboard-shell[data-dashboard-role="zonal_manager"] { --dashboard-role-tone: var(--tone-amber); }
-  .dashboard-shell[data-dashboard-role="branch_manager"] { --dashboard-role-tone: var(--tone-orange); }
-  .dashboard-shell[data-dashboard-role="dept_head"] { --dashboard-role-tone: var(--tone-blue); }
+  .dashboard-shell[data-dashboard-role="zonal_manager"] { --dashboard-role-tone: var(--accent); }
+  .dashboard-shell[data-dashboard-role="branch_manager"] { --dashboard-role-tone: var(--accent); }
+  .dashboard-shell[data-dashboard-role="dept_head"] { --dashboard-role-tone: var(--accent); }
   .dashboard-shell[data-dashboard-role="employee"] { --dashboard-role-tone: var(--accent); }
 
   .employee-today-hero {
@@ -740,8 +760,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .employee-today-actions button[data-primary="true"] {
     border-color: var(--accent);
-    background: var(--accent);
-    color: #fff;
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .employee-today-actions button:hover {
@@ -879,8 +899,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .self-service-hero-actions button[data-primary="true"] {
     border-color: var(--accent);
-    background: var(--accent);
-    color: #fff;
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .self-service-hero-actions button:hover {
@@ -1267,8 +1287,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     min-height: 2.1rem;
     border-radius: var(--radius-sm);
     padding: .45rem .8rem;
-    background: var(--accent);
-    color: #fff;
+    background: var(--accent-action);
+    color: var(--accent-on);
     font-size: .76rem;
     font-weight: 850;
     transition: background-color .16s ease;
@@ -1936,21 +1956,21 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .directory-action-button-primary {
-    background: var(--surface-text);
-    color: var(--surface-elevated);
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .directory-action-button-primary:hover {
-    background: color-mix(in srgb, var(--surface-text) 86%, var(--accent));
+    background: var(--accent-action-hover);
   }
 
   .dark .directory-action-button-primary {
-    background: var(--accent);
-    color: #04120c;
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .dark .directory-action-button-primary:hover {
-    background: var(--accent-strong);
+    background: var(--accent-action-hover);
   }
 
   .directory-table-card {
@@ -2257,17 +2277,17 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .people-action-button-primary {
-    background: var(--surface-text);
-    color: var(--surface-elevated);
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .people-action-button-primary:hover {
-    background: color-mix(in srgb, var(--surface-text) 86%, var(--accent));
+    background: var(--accent-action-hover);
   }
 
   .dark .people-action-button-primary {
-    background: var(--accent);
-    color: #04120c;
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .people-action-button-secondary {
@@ -3652,8 +3672,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .asset-panel-buttons > button.is-primary {
     border-color: transparent;
-    background: var(--accent);
-    color: #fff;
+    background: var(--accent-action);
+    color: var(--accent-on);
   }
 
   .asset-panel-buttons > button.is-primary:hover:not(:disabled) {
@@ -4333,7 +4353,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 /* ---- Shared page shell + standardized page header (structural, unlayered) - */
-.page-shell { width: min(100%, 1600px); margin-inline: auto; }
+/* Every screen uses the width it is given.
+   This used to cap at 1600px and centre, which put an empty band down both sides of every screen
+   on a wide monitor — the sidebar already establishes the left edge, so the cap was reserving
+   space against nothing. The app is a data tool: a directory of 160 people, an attendance grid, a
+   payroll run. Those want the pixels.
+   Note the trade: a long paragraph measured across 2000px is hard to read, so anything that is
+   prose rather than data still sets its own max-width (see the page-header <p> below, which keeps
+   46rem). Width is released here; readable measure stays the responsibility of the thing being
+   read. */
+.page-shell { width: 100%; margin-inline: 0; }
 .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
 .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) {
   display: flex;
@@ -5399,11 +5428,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 .task-message-send {
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-action);
+  color: var(--accent-on);
 }
 
-.task-message-send:hover:not(:disabled) { background: var(--accent-strong); }
+.task-message-send:hover:not(:disabled) { background: var(--accent-action-hover); }
 .task-message-send:disabled,
 .task-message-attach:disabled { opacity: .45; cursor: not-allowed; }
 
@@ -5673,15 +5702,15 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .nav-item-active {
   font-weight: 700;
   border-radius: var(--radius-control);
-  background: var(--accent) !important;
-  color: #ffffff !important;
+  background: var(--accent-action) !important;
+  color: var(--accent-on) !important;
   box-shadow: 0 6px 16px rgba(14, 169, 113, 0.28) !important;
   border-color: var(--accent) !important;
   transition: all .25s cubic-bezier(.4, 0, .2, 1);
 }
-.nav-item-active svg { color: #ffffff !important; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .18)) !important; }
-.dark .nav-item-active { background: var(--accent) !important; color: #05130d !important; box-shadow: 0 6px 20px rgba(16, 185, 129, .3) !important; border-color: var(--accent) !important; }
-.dark .nav-item-active svg { color: #05130d !important; }
+.nav-item-active svg { color: var(--accent-on) !important; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .18)) !important; }
+.dark .nav-item-active { background: var(--accent-action) !important; color: var(--accent-on) !important; box-shadow: 0 6px 20px rgba(16, 185, 129, .3) !important; border-color: var(--accent) !important; }
+.dark .nav-item-active svg { color: var(--accent-on) !important; }
 
 /* ---- Scrollbars ---------------------------------------------------------- */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -6063,8 +6092,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   gap: .35rem;
   padding: .5rem .85rem;
   border-radius: .7rem;
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-action);
+  color: var(--accent-on);
   font-size: .72rem;
   font-weight: 700;
   cursor: pointer;
@@ -7030,8 +7059,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     width: 3rem;
     height: 3rem;
     border-radius: 999px;
-    background: var(--accent);
-    color: #fff;
+    background: var(--accent-action);
+    color: var(--accent-on);
     box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 42%, transparent);
     /* Off until you have scrolled past the real filter bar. Kept in the DOM rather than unmounted
        so it fades rather than blinking into existence. */
@@ -9123,7 +9152,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .dark .mobile-bottom-nav-item-active {
-    color: #54d99d;
+    color: var(--accent-ink);
   }
 }
 
@@ -9801,8 +9830,8 @@ button.role-chip:hover,
   z-index: 60;
   padding: 0.5rem 0.875rem;
   border-radius: var(--radius-sm);
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-action);
+  color: var(--accent-on);
   font-size: 12px;
   font-weight: 700;
   transition: top 150ms ease;

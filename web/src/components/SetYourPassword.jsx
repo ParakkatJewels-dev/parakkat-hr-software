@@ -22,8 +22,8 @@ import { passwordProblem, RULES } from '../lib/passwordRules';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2.5 pr-10 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 ' +
-  'dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-[#0ea971] ' +
-  'focus:ring-2 focus:ring-[#0ea971]/20 transition-colors';
+  'dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-brand ' +
+  'focus:ring-2 focus:ring-brand/20 transition-colors';
 
 export default function SetYourPassword() {
   const { user, employee, signOut, reloadAccess } = useAuth();
@@ -59,7 +59,7 @@ export default function SetYourPassword() {
     <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 px-5 py-10">
       <div className="w-full max-w-md space-y-5">
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-[#0ea971]/12 text-[#0a7d53] dark:text-[#10b981] flex items-center justify-center mx-auto">
+          <div className="w-14 h-14 rounded-2xl bg-brand/12 text-brand-ink dark:text-brand-ink flex items-center justify-center mx-auto">
             <KeyRound size={24} />
           </div>
           <h1 className="text-lg font-bold text-neutral-900 dark:text-warm-gray-100">Choose your password</h1>
@@ -96,7 +96,7 @@ export default function SetYourPassword() {
                 const met = pw.length > 0 && rule.ok(pw, { name: employee?.full_name, email: user?.email });
                 return (
                   <li key={rule.id} className={`flex items-center gap-1.5 text-2xs ${
-                    met ? 'text-[#0a7d53] dark:text-[#10b981]' : 'text-neutral-400'
+                    met ? 'text-brand-ink dark:text-brand-ink' : 'text-neutral-400'
                   }`}>
                     <Check size={11} className={met ? '' : 'opacity-30'} aria-hidden="true" />
                     {rule.label}

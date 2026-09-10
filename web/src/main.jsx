@@ -138,7 +138,7 @@ supabase.auth.onAuthStateChange((event, session) => {
 
 function FullScreenLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-[#0ea971]">
+    <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-brand-ink">
       <Loader2 size={28} className="animate-spin" />
     </div>
   );
@@ -161,7 +161,7 @@ function FullScreenError({ error }) {
       ) : null}
       <button
         onClick={() => window.location.reload()}
-        className="inline-flex items-center gap-2 px-4 py-2 mt-6 bg-black dark:bg-[#0ea971] dark:text-white text-white text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90"
+        className="inline-flex items-center gap-2 px-4 py-2 mt-6 bg-brand-action text-brand-on text-xs font-semibold rounded-xl cursor-pointer hover:bg-brand-action-hover"
       >
         <RefreshCw size={14} /> Refresh app
       </button>
@@ -210,7 +210,7 @@ function NoAccess() {
         </button>
         <button
           onClick={signOut}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-black dark:bg-[#0ea971] dark:text-white text-white text-xs font-semibold rounded-xl cursor-pointer hover:opacity-90"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-brand-action text-brand-on text-xs font-semibold rounded-xl cursor-pointer hover:bg-brand-action-hover"
         >
           <LogOut size={14} /> Sign out
         </button>

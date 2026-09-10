@@ -21,14 +21,14 @@ export default function FilterSelect({ label, value, options, onChange, allValue
     <div
       className={`filter-select flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 rounded-xl border px-3 py-2 sm:py-1.5 w-full sm:w-auto transition-colors ${
         active
-          ? 'border-[#0ea971]/40 bg-[#0ea971]/10'
+          ? 'border-brand/40 bg-brand/10'
           : 'border-neutral-200 dark:border-neutral-855 bg-neutral-50/80 dark:bg-charcoal-900/50'
       }`}
     >
       <label
         htmlFor={id}
         className={`text-2xs font-bold uppercase tracking-wider shrink-0 ${
-          active ? 'text-[#0c9765] dark:text-[#10b981]' : 'text-neutral-400'
+          active ? 'text-brand-ink dark:text-brand-ink' : 'text-neutral-400'
         }`}
       >
         {label}
@@ -37,8 +37,8 @@ export default function FilterSelect({ label, value, options, onChange, allValue
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`bg-transparent border-none text-sm font-semibold cursor-pointer w-full sm:max-w-[150px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 rounded-md ${
-          active ? 'text-[#0c9765] dark:text-[#10b981]' : 'text-neutral-700 dark:text-neutral-300'
+        className={`bg-transparent border-none text-sm font-semibold cursor-pointer w-full sm:max-w-[150px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-md ${
+          active ? 'text-brand-ink dark:text-brand-ink' : 'text-neutral-700 dark:text-neutral-300'
         }`}
       >
         {options.map((o) => (

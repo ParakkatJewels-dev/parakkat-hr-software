@@ -37,7 +37,7 @@ import { messageLinkParts } from '../lib/messageLinks';
 import './messages.css';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#737373] transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
 const readableSize = (bytes) =>
   !bytes ? '' : bytes < 1024 ? `${bytes} B`
@@ -102,7 +102,7 @@ export default function Messages() {
   if (!me) {
     return (
       <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-        <MessageSquare size={28} className="text-neutral-400 dark:text-[#525252] mb-3" />
+        <MessageSquare size={28} className="text-brand-ink mb-3" />
         <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">
           This account cannot send messages
         </h2>
@@ -119,7 +119,7 @@ export default function Messages() {
   if (data?.pending) {
     return (
       <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-        <MessageSquare size={28} className="text-neutral-400 dark:text-[#525252] mb-3" />
+        <MessageSquare size={28} className="text-brand-ink mb-3" />
         <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">Messages are not switched on yet</h2>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
           The database migration for messaging (0115) has not been run against this project. Nothing
@@ -170,7 +170,7 @@ export default function Messages() {
                   <button
                     type="button"
                     onClick={() => setComposing(true)}
-                    className="mt-3 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-[#171717] text-white text-xs font-bold hover:bg-[#525252] active:bg-[#000000] transition-colors cursor-pointer"
+                    className="mt-3 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-brand-action text-brand-on text-xs font-bold hover:bg-brand-action-hover transition-colors cursor-pointer"
                   >
                     <Plus size={16} /> Start one
                   </button>
@@ -438,7 +438,7 @@ function MediaBubble({ message, mine }) {
   if (message.kind === 'voice') {
     return (
       <span className="messages-audio">
-        <Play size={13} className={mine ? 'text-white/90' : 'text-[#737373]'} />
+        <Play size={13} className={mine ? 'text-white/90' : 'text-brand-ink'} />
         <audio src={url} controls preload="metadata" className="h-8 max-w-full" />
       </span>
     );
@@ -773,7 +773,7 @@ function NewConversation({ me, onClose, onOpened }) {
               aria-current={mode === value ? 'page' : undefined}
               className={`flex-1 text-xs font-semibold py-1.5 cursor-pointer transition-colors ${
                 mode === value
-                  ? 'bg-[#737373]/15 text-[#171717] dark:bg-[#171717] dark:text-white'
+                  ? 'bg-brand-soft text-brand-ink'
                   : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -821,7 +821,7 @@ function NewConversation({ me, onClose, onOpened }) {
                 onClick={() => choose(e.id)}
                 disabled={busy}
                 className={`w-full text-left flex items-center gap-2.5 py-2 px-1 cursor-pointer transition-colors ${
-                  on ? 'bg-[#737373]/10' : 'hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                  on ? 'bg-brand-soft' : 'hover:bg-neutral-50 dark:hover:bg-neutral-900'
                 }`}
               >
                 <Avatar name={e.full_name} size="sm" />
@@ -831,7 +831,7 @@ function NewConversation({ me, onClose, onOpened }) {
                     {e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}
                   </span>
                 </span>
-                {mode === 'group' && on && <span className="text-2xs font-bold text-[#525252] dark:text-[#d4d4d4]">added</span>}
+                {mode === 'group' && on && <span className="text-2xs font-bold text-brand-ink">added</span>}
               </button>
             );
           })}

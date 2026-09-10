@@ -277,7 +277,7 @@ export default function DocumentManagement() {
               <input
                 type="checkbox" checked={form.attachSelf}
                 onChange={(e) => setForm({ ...form, attachSelf: e.target.checked })}
-                className="accent-[#0ea971] cursor-pointer"
+                className="accent-brand cursor-pointer"
               />
               Attach to my own record (otherwise it is company-wide)
             </label>
@@ -296,7 +296,7 @@ export default function DocumentManagement() {
               aria-current={scope === s.id ? 'page' : undefined}
               className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
                 scope === s.id
-                  ? 'border-[#0ea971] text-[#0ea971]'
+                  ? 'border-brand text-brand-ink'
                   : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -325,7 +325,7 @@ export default function DocumentManagement() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             aria-label="Search documents"
-            className="w-full bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl pl-10 pr-9 py-2 text-base text-neutral-850 dark:text-neutral-100 placeholder-neutral-450 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20 transition-colors"
+            className="w-full bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl pl-10 pr-9 py-2 text-base text-neutral-850 dark:text-neutral-100 placeholder-neutral-450 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors"
           />
           {search && (
             <button
@@ -339,7 +339,7 @@ export default function DocumentManagement() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>
+          <div className="flex justify-center py-10 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>
         ) : error ? (
           <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
         ) : scoped.length === 0 ? (

@@ -144,7 +144,7 @@ export default function HelpdeskExit() {
                 <HelpCircle size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Support Tickets
               </h3>
               {isLoading ? (
-                <div className="flex justify-center py-8 text-[#0ea971]"><Loader2 size={20} className="animate-spin" /></div>
+                <div className="flex justify-center py-8 text-brand-ink"><Loader2 size={20} className="animate-spin" /></div>
               ) : error ? (
                 <div className="flex items-start gap-2 text-amber-700 dark:text-amber-300 py-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
               ) : tickets.length === 0 ? (
@@ -273,7 +273,7 @@ export default function HelpdeskExit() {
   );
 }
 
-const INPUT = 'w-full text-xs rounded-xl px-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] font-medium';
+const INPUT = 'w-full text-xs rounded-xl px-3 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand font-medium';
 const Field = ({ label, children }) => (
   <div className="space-y-1"><label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">{label}</label>{children}</div>
 );

@@ -4,7 +4,7 @@ export default function IconInput({ icon: Icon, inputClassName = '', className =
       {Icon && (
         <Icon
           size={13}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#0ea971]"
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-ink"
           aria-hidden="true"
         />
       )}

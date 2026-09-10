@@ -146,7 +146,7 @@ export function OnboardingPipeline({ onNavigate }) {
             <button
               key={r.id}
               onClick={() => onNavigate?.('onboarding')}
-              className="w-full text-left rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-2 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+              className="w-full text-left rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-2 cursor-pointer hover:border-brand/40 transition-colors"
             >
               <div className="mobile-list-row flex items-center justify-between">
                 <span className="text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
@@ -158,7 +158,7 @@ export function OnboardingPipeline({ onNavigate }) {
               </div>
               <div className="mt-1.5 flex items-center gap-2">
                 <div className="h-1 flex-1 rounded-full bg-neutral-150 dark:bg-charcoal-800 overflow-hidden">
-                  <div className="h-full rounded-full bg-[#0ea971]" style={{ width: `${r.progress ?? 0}%` }} />
+                  <div className="h-full rounded-full bg-brand-action" style={{ width: `${r.progress ?? 0}%` }} />
                 </div>
                 <span className="text-2xs font-mono font-bold text-neutral-500">{r.progress ?? 0}%</span>
               </div>
@@ -185,7 +185,7 @@ export function ExitPipeline({ onNavigate }) {
             <button
               key={r.id}
               onClick={() => onNavigate?.('helpdesk')}
-              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-brand/40 transition-colors"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
@@ -221,7 +221,7 @@ export function RecruitmentOverview({ onNavigate }) {
     <Widget title="Recruitment" icon={Briefcase} badge={open.length || null} action="Hub" onAction={() => onNavigate?.('recruitment')}>
       <button
         onClick={() => onNavigate?.('recruitment')}
-        className="w-full mb-2 flex items-center justify-between rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+        className="w-full mb-2 flex items-center justify-between rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-brand/40 transition-colors"
       >
         <span className="text-base font-semibold text-neutral-700 dark:text-warm-gray-200">Open positions</span>
         <span className="text-xs font-bold font-mono text-neutral-900 dark:text-white">
@@ -256,7 +256,7 @@ export function ExpenseSpend({ onNavigate }) {
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => onNavigate?.('expense')}
-          className="text-left rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+          className="text-left rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 cursor-pointer hover:border-brand/40 transition-colors"
         >
           <p className="text-sm font-bold font-mono text-neutral-900 dark:text-white leading-none">{inr(sum(approved))}</p>
           <p className="mt-1.5 text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
@@ -265,7 +265,7 @@ export function ExpenseSpend({ onNavigate }) {
         </button>
         <button
           onClick={() => onNavigate?.('expense')}
-          className="text-left rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+          className="text-left rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 cursor-pointer hover:border-brand/40 transition-colors"
         >
           <p className="text-sm font-bold font-mono text-neutral-900 dark:text-white leading-none">{inr(sum(pending))}</p>
           <p className="mt-1.5 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
@@ -292,7 +292,7 @@ export function DocumentsSnapshot({ onNavigate }) {
             <button
               key={d.id}
               onClick={() => onNavigate?.('documents')}
-              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-brand/40 transition-colors"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">{d.title}</span>
@@ -401,11 +401,11 @@ export function AuditFeed({ onNavigate }) {
             <button
               key={r.id}
               onClick={() => onNavigate?.('administration')}
-              className="w-full text-left flex items-center gap-2 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+              className="w-full text-left flex items-center gap-2 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-brand/40 transition-colors"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
-                  <span className="font-mono text-[#0ea971]">{r.action}</span> · {r.table_name}
+                  <span className="font-mono text-brand-ink">{r.action}</span> · {r.table_name}
                 </span>
                 <span className="block text-2xs text-neutral-450 dark:text-neutral-500 truncate">{r.actor_email}</span>
               </span>

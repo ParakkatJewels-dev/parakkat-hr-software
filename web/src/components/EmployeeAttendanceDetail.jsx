@@ -36,7 +36,7 @@ const SHOW = [
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const statusTone = (r) =>
-  r.status === 'Present' ? 'text-[#0c9765] dark:text-[#10b981]'
+  r.status === 'Present' ? 'text-brand-ink dark:text-brand-ink'
   : r.status === 'Absent' ? 'text-rose-600 dark:text-rose-400'
   : r.status === 'On Leave' ? 'text-blue-600 dark:text-blue-400'
   : 'text-neutral-400';
@@ -165,7 +165,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
               value={q}
               onChange={(e) => setQ(e.target.value)}
               placeholder="Search by name or employee code…"
-              className="w-full text-sm rounded-lg pl-8 pr-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20"
+              className="w-full text-sm rounded-lg pl-8 pr-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             />
             {matches.length > 0 && (
               <ul className="absolute z-20 mt-1 w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-charcoal-900 shadow-2xl overflow-hidden">
@@ -292,7 +292,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                         <div key={i} className="flex-1 text-center">
                           <div className="h-16 flex items-end justify-center">
                             <div
-                              className={`w-full rounded-t ${pct > 40 ? 'bg-amber-500' : 'bg-[#0ea971]'}`}
+                              className={`w-full rounded-t ${pct > 40 ? 'bg-amber-500' : 'bg-brand-action'}`}
                               style={{ height: `${Math.max(pct, d.total ? 4 : 0)}%` }}
                               title={`${n} of ${d.total} ${summary.flexible ? 'short of the hours' : 'late'}`}
                             />
@@ -393,7 +393,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                             <td data-label="Late" className="hidden md:table-cell tabular-nums text-amber-600 dark:text-amber-400">
                               {r.late_minutes ? `${r.late_minutes}m` : '—'}
                             </td>
-                            <td data-label="OT" className="hidden md:table-cell tabular-nums text-[#0c9765] dark:text-[#10b981]">
+                            <td data-label="OT" className="hidden md:table-cell tabular-nums text-brand-ink dark:text-brand-ink">
                               {r.ot_minutes ? `${r.ot_minutes}m` : '—'}
                             </td>
                           </tr>
@@ -473,7 +473,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
 }
 
 function Stat({ label, value, sub, tone, icon: Icon }) {
-  const toneCls = tone === 'green' ? 'text-[#0c9765] dark:text-[#10b981]'
+  const toneCls = tone === 'green' ? 'text-brand-ink dark:text-brand-ink'
     : tone === 'amber' ? 'text-amber-600 dark:text-amber-400'
     : 'text-neutral-900 dark:text-white';
   return (

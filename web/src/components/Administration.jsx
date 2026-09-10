@@ -20,7 +20,7 @@ import Pagination, { usePagination } from './ui/Pagination';
 const BTN = btnClass('primary');
 const BTN_GHOST = btnClass('ghost');
 const ICON_BTN = btnClass('subtle', 'md', true);
-const INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
+const INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
 const SCOPE_TYPES = [
   { key: 'global', label: 'Global — all entities', needsId: false },
@@ -94,7 +94,7 @@ function AdminHeader({ view }) {
   const meta = VIEW_META[view] ?? VIEW_META.users;
   return (
     <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-[#0ea971] flex items-center gap-1.5">
+      <p className="text-xs font-bold uppercase tracking-wider text-brand-ink flex items-center gap-1.5">
         <ShieldCheck size={12} /> Administration
       </p>
       <h1 className="text-xl font-bold text-neutral-900 dark:text-white font-sans mt-1">{meta.title}</h1>
@@ -203,7 +203,7 @@ function UsersAccess() {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>;
+    return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
   }
   if (error) {
     return (
@@ -227,7 +227,7 @@ function UsersAccess() {
           person manages comes from their employee record — is kept. */}
       <div className="premium-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-start gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-          <KeyRound size={14} className="shrink-0 mt-0.5 text-[#0ea971]" />
+          <KeyRound size={14} className="shrink-0 mt-0.5 text-brand-ink" />
           <span>
             Creates a login and grants the role in one step. The area they manage — branch, department,
             zone or company — comes from their employee record.
@@ -274,7 +274,7 @@ function UsersAccess() {
               onChange={(e) => setQ(e.target.value)}
               aria-label="Search logins"
               placeholder="Search by name, email, employee code or role…"
-              className="w-full text-base rounded-xl pl-9 pr-9 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20 transition-colors"
+              className="w-full text-base rounded-xl pl-9 pr-9 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors"
             />
             {q && (
               <button onClick={() => setQ('')} aria-label="Clear search"
@@ -300,7 +300,7 @@ function UsersAccess() {
             {/* Identity first: a person's NAME is what you scan for. The email is a credential,
                 so it drops to the secondary line with the employee code. */}
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-base font-mono shrink-0 select-none">
+              <div className="w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-brand-ink flex items-center justify-center font-bold text-base font-mono shrink-0 select-none">
                 {initials}
               </div>
 
@@ -310,7 +310,7 @@ function UsersAccess() {
                     {displayName}
                   </h3>
                   {u.is_super_admin && (
-                    <span className="text-2xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981]">
+                    <span className="text-2xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand/15 text-brand-ink dark:text-brand-ink">
                       Super Admin
                     </span>
                   )}
@@ -425,13 +425,13 @@ function UsersAccess() {
                     disabled={setSuper.isPending}
                     className={`inline-flex items-center gap-1.5 text-sm font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors border disabled:opacity-60 ${
                       u.is_super_admin
-                        ? 'border-[#0ea971]/40 bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981] hover:bg-[#0ea971]/20'
+                        ? 'border-brand/40 bg-brand/10 text-brand-ink dark:text-brand-ink hover:bg-brand/20'
                         : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
                     }`}
                     title={u.is_super_admin ? 'Remove Super Admin access' : 'Grant Super Admin access'}
                     aria-label={u.is_super_admin ? 'Remove Super Admin access' : 'Grant Super Admin access'}
                   >
-                    <Star size={12} className={u.is_super_admin ? 'fill-[#0ea971]' : ''} />
+                    <Star size={12} className={u.is_super_admin ? 'fill-brand' : ''} />
                     {u.is_super_admin ? 'Super Admin' : 'Make Super Admin'}
                   </button>
                 )}
@@ -810,7 +810,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
           type="button"
           onClick={onClose}
           aria-label="Close"
-          className={ICON_BTN + ' shrink-0 focus:outline-none focus:ring-2 focus:ring-[#0ea971]/40'}
+          className={ICON_BTN + ' shrink-0 focus:outline-none focus:ring-2 focus:ring-brand/40'}
         >
           <X size={14} />
         </button>
@@ -940,7 +940,7 @@ function RolesMatrix() {
   const [editing, setEditing] = useState(null); // role object, or {} for a new role
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  if (isLoading) return <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>;
+  if (isLoading) return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
   if (error) return <p className="text-xs text-amber-600">{error.message}</p>;
 
   // The editor REPLACES the list rather than appending to it.
@@ -1047,7 +1047,7 @@ function RoleCard({ role: r, canEdit, onEdit, onDelete }) {
               className={`text-2xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${
                 r.is_system
                   ? 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-200 dark:border-neutral-800'
-                  : 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981]'
+                  : 'bg-brand/15 text-brand-ink dark:text-brand-ink'
               }`}
             >
               {r.is_system ? 'Built-in' : 'Custom'}
@@ -1103,7 +1103,7 @@ function RoleCard({ role: r, canEdit, onEdit, onDelete }) {
             <button
               onClick={() => setShowKeys((v) => !v)}
               aria-expanded={showKeys}
-              className="mt-2 text-xs font-semibold text-neutral-500 hover:text-[#0ea971] cursor-pointer transition-colors"
+              className="mt-2 text-xs font-semibold text-neutral-500 hover:text-brand-ink cursor-pointer transition-colors"
             >
               {showKeys ? 'Hide permission keys' : `Show all ${r.permissionKeys.length} permission keys`}
             </button>
@@ -1225,7 +1225,7 @@ function RoleEditorPanel({ role, catalog, busy, error, onClose, onSubmit }) {
                         type="checkbox"
                         checked={selected.has(p.key)}
                         onChange={() => toggle(p.key)}
-                        className="accent-[#0ea971] cursor-pointer"
+                        className="accent-brand cursor-pointer"
                       />
                       <span className="font-mono text-xs">{p.action}</span>
                       {p.description && <span className="text-neutral-400 truncate">— {p.description}</span>}
@@ -1250,7 +1250,7 @@ function RoleEditorPanel({ role, catalog, busy, error, onClose, onSubmit }) {
 // audit trail. The colour of the marker carries the severity so a delete stands out while scrolling.
 const AUDIT_VERBS = { INSERT: 'added', UPDATE: 'changed', DELETE: 'deleted' };
 const AUDIT_TONES = {
-  INSERT: 'bg-[#0ea971]',
+  INSERT: 'bg-brand-action',
   UPDATE: 'bg-amber-500',
   DELETE: 'bg-red-500',
 };
@@ -1269,7 +1269,7 @@ function AuditLogs() {
   }, [logs, q]);
 
   if (isLoading) {
-    return <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>;
+    return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
   }
   if (error) {
     return (
@@ -1374,7 +1374,7 @@ function Panel({ title, onClose, children }) {
         <button
           onClick={onClose}
           aria-label={`Close ${title}`}
-          className={ICON_BTN + ' focus:outline-none focus:ring-2 focus:ring-[#0ea971]/40'}
+          className={ICON_BTN + ' focus:outline-none focus:ring-2 focus:ring-brand/40'}
         >
           <X size={15} />
         </button>

@@ -21,7 +21,7 @@ import { ROLE_PRESETS, grantableRoles } from '../lib/roleGrants';
 export { ROLE_PRESETS, grantableRoles };
 
 const inputCls =
-  'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/60';
+  'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60';
 
 const labelCls = 'block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5';
 
@@ -200,7 +200,7 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
     <section className="premium-card space-y-4 animate-fade-in">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <UserPlus size={15} className="text-[#0ea971] shrink-0" />
+          <UserPlus size={15} className="text-brand-ink shrink-0" />
           <h3 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white truncate">
             Give app access
             {fixedEmployee && (
@@ -245,14 +245,14 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
             {result.created && (
               <button
                 onClick={copy}
-                className="flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 text-base font-bold text-neutral-700 dark:text-neutral-300 hover:border-[#0ea971]/40 cursor-pointer"
+                className="flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 text-base font-bold text-neutral-700 dark:text-neutral-300 hover:border-brand/40 cursor-pointer"
               >
                 {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied' : 'Copy details'}
               </button>
             )}
             <button
               onClick={onClose}
-              className="rounded-lg bg-[#0ea971] hover:bg-[#0c9765] px-4 py-1.5 text-base font-bold text-white cursor-pointer"
+              className="rounded-lg bg-brand-action hover:bg-brand-action-hover px-4 py-1.5 text-base font-bold text-brand-on cursor-pointer"
             >
               Done
             </button>
@@ -297,7 +297,7 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                       key={r.key}
                       className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition-colors ${
                         roleKey === r.key
-                          ? 'border-[#0ea971]/50 bg-[#0ea971]/5'
+                          ? 'border-brand/50 bg-brand/5'
                           : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
                       }`}
                     >
@@ -306,7 +306,7 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                         name="grant-role"
                         checked={roleKey === r.key}
                         onChange={() => { setRoleKey(r.key); setOverrideScopeId(''); setShowOverride(false); }}
-                        className="mt-0.5 accent-[#0ea971] shrink-0"
+                        className="mt-0.5 accent-brand shrink-0"
                       />
                       <span className="min-w-0">
                         <span className="block text-sm font-bold text-neutral-800 dark:text-neutral-100">{r.label}</span>
@@ -325,7 +325,7 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                 <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <span className="flex items-start gap-1.5 text-xs text-neutral-600 dark:text-neutral-300 min-w-0">
-                      <ShieldCheck size={12} className="text-[#0ea971] shrink-0 mt-0.5" />
+                      <ShieldCheck size={12} className="text-brand-ink shrink-0 mt-0.5" />
                       {!employeeId ? (
                         <span className="text-neutral-400">Pick an employee to see the access area.</span>
                       ) : preset.scopeType === 'self' ? (
@@ -451,7 +451,7 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
             <button
               onClick={submit}
               disabled={!canSubmit}
-              className="flex-1 sm:flex-none sm:min-w-56 flex items-center justify-center gap-1.5 rounded-lg bg-[#0ea971] hover:bg-[#0c9765] px-4 py-2 text-base font-bold text-white cursor-pointer disabled:opacity-50 disabled:cursor-default mt-2"
+              className="flex-1 sm:flex-none sm:min-w-56 flex items-center justify-center gap-1.5 rounded-lg bg-brand-action hover:bg-brand-action-hover px-4 py-2 text-base font-bold text-brand-on cursor-pointer disabled:opacity-50 disabled:cursor-default mt-2"
             >
               {busy ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
               {hasLogin ? 'Add this role' : 'Create login & grant access'}

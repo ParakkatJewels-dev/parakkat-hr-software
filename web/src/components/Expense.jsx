@@ -176,7 +176,7 @@ export default function Expense() {
                   aria-pressed={mineOnly === v}
                   className={`px-2.5 py-1 text-2xs font-bold rounded-lg transition-colors cursor-pointer ${
                     mineOnly === v
-                      ? 'bg-[#0ea971] text-white'
+                      ? 'bg-brand-action text-brand-on'
                       : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
                   }`}
                 >
@@ -217,7 +217,7 @@ export default function Expense() {
               <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Claim History
             </h3>
             {isLoading ? (
-              <div className="flex justify-center py-10 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>
+              <div className="flex justify-center py-10 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>
             ) : error ? (
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
             ) : visibleExpenses.length === 0 ? (
@@ -242,7 +242,7 @@ export default function Expense() {
                         <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold border ${statusClass(exp.status)}`}>{exp.status}</span>
                         {canDecide(exp) && exp.status === 'Pending' && (
                           <>
-                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id })} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-[#0ea971]/10 dark:bg-[#0ea971]/15 text-[#0c7d55] dark:text-[#10b981] hover:bg-[#0ea971]/20 cursor-pointer"><Check size={13} /></button>
+                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id })} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-brand/10 dark:bg-brand/15 text-brand-ink dark:text-brand-ink hover:bg-brand/20 cursor-pointer"><Check size={13} /></button>
                             <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Rejected', approverEmployeeId: employee?.id })} title="Reject" aria-label="Reject" className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 cursor-pointer"><Ban size={13} /></button>
                           </>
                         )}

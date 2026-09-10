@@ -57,7 +57,7 @@ export default function NotificationBell({ onNavigate }) {
       >
         <Bell size={16} />
         {unread.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 bg-[#0ea971] dark:bg-[#10b981] text-white text-2xs font-bold rounded-full border border-white dark:border-charcoal-900 flex items-center justify-center leading-none">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 bg-brand-action dark:bg-brand-action text-brand-on text-2xs font-bold rounded-full border border-white dark:border-charcoal-900 flex items-center justify-center leading-none">
             {unread.length > 9 ? '9+' : unread.length}
           </span>
         )}
@@ -77,7 +77,7 @@ export default function NotificationBell({ onNavigate }) {
             {unread.length > 0 && (
               <button
                 onClick={() => markAllRead.mutate()}
-                className="flex items-center gap-1 text-2xs font-bold text-neutral-500 hover:text-black dark:hover:text-[#0ea971] px-1.5 py-0.5 bg-neutral-100 dark:bg-charcoal-800 rounded transition-all cursor-pointer"
+                className="flex items-center gap-1 text-2xs font-bold text-neutral-500 hover:text-black dark:hover:text-brand-ink px-1.5 py-0.5 bg-neutral-100 dark:bg-charcoal-800 rounded transition-all cursor-pointer"
               >
                 <CheckCheck size={10} /> Mark all read
               </button>

@@ -65,7 +65,7 @@ export default function Notifications({ onNavigate }) {
         {unread.length > 0 && (
           <button
             onClick={() => markAllRead.mutate()}
-            className="flex items-center gap-1.5 text-2xs font-bold text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-[#0ea971] px-2.5 py-1.5 bg-neutral-100 dark:bg-charcoal-800 rounded-xl transition-colors cursor-pointer shrink-0"
+            className="flex items-center gap-1.5 text-2xs font-bold text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-brand-ink px-2.5 py-1.5 bg-neutral-100 dark:bg-charcoal-800 rounded-xl transition-colors cursor-pointer shrink-0"
           >
             <CheckCheck size={12} /> Mark all read
           </button>

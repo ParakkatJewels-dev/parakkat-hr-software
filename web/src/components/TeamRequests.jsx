@@ -30,7 +30,7 @@ import Avatar from './ui/Avatar';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
 const statusClass = (s) =>
   s === 'Accepted' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30'
@@ -62,7 +62,7 @@ export default function TeamRequests({ myDepartments = [] }) {
   const mutationError = respond.error || cancel.error;
 
   if (isLoading) {
-    return <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>;
+    return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>;
   }
 
   if (error) {
@@ -317,13 +317,13 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
       {request.preferred && (
         <button
           type="button" disabled={busy} onClick={() => onAssign(request.preferred.id, priority)}
-          className="w-full text-left rounded-lg border border-[#0ea971]/40 bg-[#0ea971]/5 px-3 py-2 text-sm hover:border-[#0ea971] cursor-pointer disabled:opacity-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2"
+          className="w-full text-left rounded-lg border border-brand/40 bg-brand/5 px-3 py-2 text-sm hover:border-brand cursor-pointer disabled:opacity-50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2"
         >
           <span className="min-w-0">
             <span className="font-semibold text-neutral-800 dark:text-neutral-200">{request.preferred.full_name}</span>
             <span className="font-mono text-xs text-neutral-500"> · {request.preferred.employee_code}</span>
           </span>
-          <span className="text-xs font-mono text-[#0c7d55] dark:text-[#10b981] sm:shrink-0">the one they asked for</span>
+          <span className="text-xs font-mono text-brand-ink dark:text-brand-ink sm:shrink-0">the one they asked for</span>
         </button>
       )}
 
@@ -334,7 +334,7 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-4 text-[#0ea971]"><Loader2 size={16} className="animate-spin" /></div>
+        <div className="flex justify-center py-4 text-brand-ink"><Loader2 size={16} className="animate-spin" /></div>
       ) : (
         <>
         {/* department_people caps at 50 in SQL (0101). Say so, or a head concludes the person they
@@ -389,7 +389,7 @@ function OutgoingCard({ request, busy, onCancel, onEdit }) {
 
       {request.status === 'Accepted' && request.assignee && (
         <p className="text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-1.5 flex-wrap">
-          <ArrowRight size={11} className="text-[#0ea971] shrink-0" />
+          <ArrowRight size={11} className="text-brand-ink shrink-0" />
           <span className="font-semibold">{request.assignee.full_name}</span> is on it
           {request.task?.status && (
             <span className="font-mono text-2xs text-neutral-500">· {request.task.status}</span>

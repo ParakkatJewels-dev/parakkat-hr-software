@@ -104,7 +104,7 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
           {time(punches[0])} → {time(punches[punches.length - 1])}
         </span>
         <span className="text-neutral-500">
-          <span className="tabular-nums font-semibold text-[#0c9765] dark:text-[#10b981]">
+          <span className="tabular-nums font-semibold text-brand-ink dark:text-brand-ink">
             {(worked / 60).toFixed(1)}h
           </span> in
         </span>
@@ -178,7 +178,7 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
                 ? 'bg-[repeating-linear-gradient(45deg,transparent,transparent_3px,rgb(120_120_120/0.4)_3px,rgb(120_120_120/0.4)_6px)]'
                 : s.away
                   ? 'bg-[repeating-linear-gradient(45deg,transparent,transparent_3px,rgb(217_119_6/0.45)_3px,rgb(217_119_6/0.45)_6px)]'
-                  : 'bg-[#0c9765] dark:bg-[#10b981]'
+                  : 'bg-brand-action dark:bg-brand-action'
             }`}
             style={{ left: `${pct(s.from)}%`, width: `${Math.max(0.6, pct(s.to) - pct(s.from))}%` }}
           />
@@ -215,7 +215,7 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
               <span
                 className={`px-1 rounded text-2xs font-semibold tabular-nums leading-none py-0.5 ${
                   first || last
-                    ? 'bg-[#0c9765]/10 text-[#0c9765] dark:bg-[#10b981]/15 dark:text-[#10b981]'
+                    ? 'bg-brand/10 text-brand-ink dark:bg-brand/15 dark:text-brand-ink'
                     : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
                 }`}
                 title={first ? 'Arrived' : last ? 'Left' : leaving ? 'Went out' : 'Came back'}

@@ -18,7 +18,7 @@ import { detectLayout, extractPeople, planImport, runImport } from '../data/empl
 import PageHeader from './ui/PageHeader';
 
 const STATUS_STYLE = {
-  new: 'text-[#0c9765] dark:text-[#10b981]',
+  new: 'text-brand-ink dark:text-brand-ink',
   update: 'text-blue-600 dark:text-blue-400',
   skip: 'text-neutral-400',
   duplicate: 'text-amber-600 dark:text-amber-400',
@@ -193,7 +193,7 @@ export default function EmployeeImport({ onDone }) {
                     id="imp-entity"
                     value={entityId}
                     onChange={(e) => setEntityId(e.target.value)}
-                    className="w-full sm:max-w-sm text-sm rounded-lg px-2.5 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 cursor-pointer focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20"
+                    className="w-full sm:max-w-sm text-sm rounded-lg px-2.5 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 cursor-pointer focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
                   >
                     <option value="">Select…</option>
                     {entities.map((e) => (
@@ -232,7 +232,7 @@ export default function EmployeeImport({ onDone }) {
                   )}
                   <div className="premium-card import-plan-card">
                     {[
-                      ['Will be created', plan.counts.create, 'text-[#0c9765] dark:text-[#10b981]'],
+                      ['Will be created', plan.counts.create, 'text-brand-ink dark:text-brand-ink'],
                       ['Will be filled in', plan.counts.update, 'text-blue-600 dark:text-blue-400'],
                       ['Nothing to change', plan.counts.skip, 'text-neutral-400'],
                       ['Duplicate in file', plan.counts.duplicate, 'text-amber-600 dark:text-amber-400'],
@@ -279,11 +279,11 @@ export default function EmployeeImport({ onDone }) {
                               <td data-label="Name" className="font-semibold text-neutral-900 dark:text-white">{r.full_name}</td>
                               <td data-label="Designation" className="hidden sm:table-cell text-neutral-500">
                                 {r.designation || '—'}
-                                {r.newDesignation && <span className="ml-1.5 text-2xs text-[#0ea971]">new</span>}
+                                {r.newDesignation && <span className="ml-1.5 text-2xs text-brand-ink">new</span>}
                               </td>
                               <td data-label="Branch" className="hidden md:table-cell text-neutral-500">
                                 {r.branch || '—'}
-                                {r.newBranch && <span className="ml-1.5 text-2xs text-[#0ea971]">new</span>}
+                                {r.newBranch && <span className="ml-1.5 text-2xs text-brand-ink">new</span>}
                               </td>
                               <td data-label="Status" className={`text-xs font-semibold ${STATUS_STYLE[r.status]}`}>
                                 {r.status === 'new' ? 'Will be created' : r.note}
@@ -307,7 +307,7 @@ export default function EmployeeImport({ onDone }) {
           {result.ok ? (
             <>
               <p className="flex items-center gap-2 text-md font-bold text-neutral-900 dark:text-white">
-                <Check size={16} className="text-[#0ea971]" />
+                <Check size={16} className="text-brand-ink" />
                 {result.created > 0 && `Added ${result.created} people`}
                 {result.created > 0 && result.updated > 0 && ' · '}
                 {result.updated > 0 && `Filled in ${result.updated} existing`}

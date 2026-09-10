@@ -16,7 +16,7 @@ import { Check, X, Loader2 } from 'lucide-react';
 import { btnClass } from './Btn';
 
 const INPUT =
-  'w-full min-w-0 text-sm rounded-lg px-2 py-1.5 bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20 transition-colors';
+  'w-full min-w-0 text-sm rounded-lg px-2 py-1.5 bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors';
 
 /**
  * @param fields       [{ key, label, required, placeholder, type:'select', from }]
@@ -46,7 +46,7 @@ export default function InlineRowForm({
   };
 
   return (
-    <tr className="bg-[#0ea971]/5">
+    <tr className="bg-brand/5">
       <td colSpan={colSpan} className="py-2.5">
         <div className="inline-row-form flex flex-wrap items-end gap-2" onKeyDown={onKeyDown}>
           {fields.map((f, i) => (

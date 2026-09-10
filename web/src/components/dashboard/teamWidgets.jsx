@@ -55,7 +55,7 @@ export function TeamAttendanceToday({ onNavigate }) {
                 <button
                   key={r.id}
                   onClick={() => onNavigate?.('attendance')}
-                  className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+                  className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-brand/40 transition-colors"
                 >
                   <Avatar name={r.employee?.full_name} />
                   <span className="min-w-0 flex-1">
@@ -168,7 +168,7 @@ export function ApprovalsQueue({ onNavigate }) {
             onClick={() => setActive(t.id)}
             className={`rounded-lg px-2.5 py-1 text-2xs font-bold transition-colors cursor-pointer ${
               tab.id === t.id
-                ? 'bg-[#0ea971]/15 text-[#0ea971] dark:text-[#10b981] border border-[#0ea971]/25'
+                ? 'bg-brand/15 text-brand-ink dark:text-brand-ink border border-brand/25'
                 : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
             }`}
           >
@@ -198,7 +198,7 @@ export function ApprovalsQueue({ onNavigate }) {
                 <button
                   onClick={() => decide(row, true)}
                   disabled={busy}
-                  className="flex items-center gap-1 rounded-lg bg-[#0ea971] hover:bg-[#0c9765] px-2.5 py-1 text-2xs font-bold text-white transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg bg-brand-action hover:bg-brand-action-hover px-2.5 py-1 text-2xs font-bold text-brand-on transition-colors cursor-pointer disabled:opacity-50"
                 >
                   <Check size={10} /> Approve
                 </button>
@@ -213,12 +213,12 @@ export function ApprovalsQueue({ onNavigate }) {
             </div>
           </div>
         ))}
-        {busy && <div className="flex justify-center py-1 text-[#0ea971]"><Loader2 size={14} className="animate-spin" /></div>}
+        {busy && <div className="flex justify-center py-1 text-brand-ink"><Loader2 size={14} className="animate-spin" /></div>}
         {tab.rows.length === 0 && <EmptyNote>Queue is clear. Nothing pending here.</EmptyNote>}
         {tab.rows.length > 6 && (
           <button
             onClick={() => onNavigate?.(tab.id === 'expenses' ? 'expense' : tab.id === 'regs' ? 'attendance' : 'leave')}
-            className="w-full text-center text-2xs font-bold text-[#0ea971] hover:underline cursor-pointer py-1"
+            className="w-full text-center text-2xs font-bold text-brand-ink hover:underline cursor-pointer py-1"
           >
             View all {tab.rows.length}
           </button>
@@ -253,7 +253,7 @@ export function OnLeaveThisWeek({ onNavigate }) {
             <button
               key={l.id}
               onClick={() => onNavigate?.('leave')}
-              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-brand/40 transition-colors"
             >
               <Avatar name={l.employee?.full_name} />
               <span className="min-w-0 flex-1">
@@ -290,7 +290,7 @@ export function TeamTickets({ onNavigate }) {
             <button
               key={t.id}
               onClick={() => onNavigate?.('helpdesk')}
-              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+              className="w-full text-left flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 cursor-pointer hover:border-brand/40 transition-colors"
             >
               <span className="min-w-0 flex-1">
                 <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">{t.subject}</span>
@@ -356,7 +356,7 @@ export function TeamTasksBoard({ onNavigate }) {
     <Widget title="Team Tasks" icon={ListChecks} badge={active.length || null} action="Board" onAction={() => onNavigate?.('tasks')}>
       <div className="grid grid-cols-3 gap-1.5 mb-3">
         <StatPill label="To do" value={counts.todo} tone="neutral" onClick={() => onNavigate?.('tasks')} />
-        <StatPill label="In progress" value={counts.progress} tone="blue" onClick={() => onNavigate?.('tasks')} />
+        <StatPill label="In progress" value={counts.progress} tone="amber" onClick={() => onNavigate?.('tasks')} />
         <StatPill label="Overdue" value={counts.overdue} tone="red" onClick={() => onNavigate?.('tasks')} />
       </div>
       {overdue.length > 0 && (

@@ -52,7 +52,7 @@ export function NotificationRow({ n, onOpen, compact = false }) {
       } ${n.read_at ? 'opacity-70' : 'bg-neutral-50/60 dark:bg-charcoal-900/20'}`}
     >
       <div
-        className={`rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-600 dark:text-[#10b981] flex items-center justify-center shrink-0 mt-0.5 ${
+        className={`rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-600 dark:text-brand-ink flex items-center justify-center shrink-0 mt-0.5 ${
           compact ? 'w-7 h-7' : 'w-9 h-9'
         }`}
       >
@@ -63,7 +63,7 @@ export function NotificationRow({ n, onOpen, compact = false }) {
           <span className={`font-bold text-neutral-800 dark:text-warm-gray-100 truncate ${compact ? 'text-base' : 'text-sm'}`}>
             {n.title}
           </span>
-          {!n.read_at && <span className="w-2 h-2 rounded-full bg-[#0ea971] dark:bg-[#10b981] shrink-0" />}
+          {!n.read_at && <span className="w-2 h-2 rounded-full bg-brand-action dark:bg-brand-action shrink-0" />}
         </div>
         {n.body && (
           <p className={`text-neutral-500 dark:text-neutral-400 leading-snug mt-0.5 ${compact ? 'text-2xs line-clamp-2' : 'text-xs'}`}>
@@ -87,4 +87,3 @@ export function EmptyState({ compact = false }) {
     </div>
   );
 }
-

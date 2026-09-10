@@ -6,9 +6,9 @@
 //
 // COLOUR CARRIES IDENTITY, NOT STATUS.
 // A thread of eight comments in one grey is eight anonymous paragraphs; the eye needs something to
-// group "these three are the same person" without reading the name each time. The hue is derived
-// from the name, so it is stable across sessions and devices without storing anything, and it is
-// held at low saturation so a comment thread does not turn into a bag of sweets. Every pairing is
+// group "these three are the same person" without reading the name each time. The tint is derived
+// from the name, so it is stable across sessions and devices without storing anything. All shades
+// stay within the shared emerald palette. Every pairing is
 // dark text on a light tint (and the reverse in dark mode), so contrast does not depend on which
 // hue somebody's name happened to land on.
 //
@@ -25,14 +25,14 @@ export const initialsOf = (name) =>
     .join('')
     .toUpperCase();
 
-// Six tints that all clear 4.5:1 with their paired ink, in both themes.
+// Stable shades of the shared brand, with accessible text in both themes.
 const TINTS = [
-  'bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200',
-  'bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200',
-  'bg-violet-100 text-violet-900 dark:bg-violet-950 dark:text-violet-200',
-  'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200',
-  'bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200',
-  'bg-teal-100 text-teal-900 dark:bg-teal-950 dark:text-teal-200',
+  'bg-brand/5 text-brand-ink',
+  'bg-brand/8 text-brand-ink',
+  'bg-brand/11 text-brand-ink',
+  'bg-brand/14 text-brand-ink',
+  'bg-brand/17 text-brand-ink',
+  'bg-brand/20 text-brand-ink',
 ];
 
 /** Stable per name, so the same person is the same colour everywhere and every session. */

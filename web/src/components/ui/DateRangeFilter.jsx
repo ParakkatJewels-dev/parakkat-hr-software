@@ -59,7 +59,7 @@ export default function DateRangeFilter({ preset, from, to, setPreset, setFrom, 
           onClick={() => setPreset(p.key)}
           className={`rounded-lg px-2.5 py-1.5 text-sm font-bold cursor-pointer transition-colors ${
             preset === p.key
-              ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981]'
+              ? 'bg-brand/15 text-brand-ink dark:text-brand-ink'
               : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
           }`}
         >
@@ -82,7 +82,7 @@ export default function DateRangeFilter({ preset, from, to, setPreset, setFrom, 
       </span>
 
       {preset === 'custom' ? (
-        <span className="text-2xs font-bold uppercase tracking-wider text-[#0c9765] dark:text-[#10b981]">
+        <span className="text-2xs font-bold uppercase tracking-wider text-brand-ink dark:text-brand-ink">
           Custom
         </span>
       ) : null}

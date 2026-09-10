@@ -12,7 +12,7 @@ import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import { btnClass } from './Btn';
 
 export const FIELD =
-  'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20 transition-colors';
+  'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors';
 
 /** Labelled field wrapper — every input gets a real <label>, not a placeholder standing in for one. */
 export function Field({ label, htmlFor, hint, required, children, className = '' }) {
@@ -101,7 +101,7 @@ export default function FormSection({
     >
       <div className="form-section-header flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          {Icon && <Icon size={15} className="text-[#0ea971] shrink-0" />}
+          {Icon && <Icon size={15} className="text-brand-ink shrink-0" />}
           <div className="min-w-0">
             <h3 className="font-bold text-sm text-neutral-900 dark:text-white">{title}</h3>
             {subtitle && <p className="form-section-subtitle text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
@@ -112,7 +112,7 @@ export default function FormSection({
             type="button"
             onClick={onClose}
             aria-label={`Close ${title}`}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-[#0ea971]/40 cursor-pointer shrink-0 transition-colors"
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/40 cursor-pointer shrink-0 transition-colors"
           >
             <X size={16} />
           </button>

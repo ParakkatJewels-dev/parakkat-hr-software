@@ -29,7 +29,7 @@ import { useClockFormat } from '../lib/timeFormat';
 import { CLOCK_FORMATS } from '../lib/clock';
 
 const inputClass =
-  'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-1.5 rounded-xl text-neutral-805 dark:text-neutral-200 text-xs focus:outline-none focus:border-[#0ea971]/50 disabled:bg-neutral-100 dark:disabled:bg-neutral-905 disabled:text-neutral-500 dark:disabled:text-neutral-400';
+  'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-1.5 rounded-xl text-neutral-805 dark:text-neutral-200 text-xs focus:outline-none focus:border-brand/50 disabled:bg-neutral-100 dark:disabled:bg-neutral-905 disabled:text-neutral-500 dark:disabled:text-neutral-400';
 
 function Field({ label, children, hint }) {
   return (
@@ -48,7 +48,7 @@ function SaveButton({ onClick, pending, saved, disabled }) {
     <button
       onClick={onClick}
       disabled={disabled || pending}
-      className="flex items-center gap-1.5 rounded-lg bg-[#0ea971] hover:bg-[#0c9765] px-3.5 py-1.5 text-base font-bold text-white transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
+      className="flex items-center gap-1.5 rounded-lg bg-brand-action hover:bg-brand-action-hover px-3.5 py-1.5 text-base font-bold text-brand-on transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
     >
       {pending ? <Loader2 size={11} className="animate-spin" /> : saved ? <Check size={11} /> : null}
       {saved ? 'Saved' : 'Save changes'}
@@ -59,7 +59,7 @@ function SaveButton({ onClick, pending, saved, disabled }) {
 function CardTitle({ icon: Icon, title, subtitle }) {
   return (
     <div className="flex items-start gap-2.5">
-      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0ea971]/10 text-[#0ea971] dark:bg-[#0ea971]/15">
+      <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand-ink dark:bg-brand/15">
         <Icon size={15} />
       </span>
       <div className="min-w-0">
@@ -105,7 +105,7 @@ function ToggleSwitch({ checked, onChange, label }) {
       onClick={onChange}
       className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors cursor-pointer ${
         checked
-          ? 'border-[#0ea971] bg-[#0ea971]'
+          ? 'border-brand bg-brand-action'
           : 'border-neutral-300 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800'
       }`}
     >
@@ -123,7 +123,7 @@ function ToggleSwitch({ checked, onChange, label }) {
 function ActionButton({ children, onClick, disabled, variant = 'secondary' }) {
   const variantClass =
     variant === 'primary'
-      ? 'border-[#0ea971] bg-[#0ea971] text-white hover:bg-[#0c9765]'
+      ? 'border-brand bg-brand-action text-brand-on hover:bg-brand-action-hover'
       : 'border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-300 dark:hover:bg-neutral-900';
 
   return (
@@ -412,7 +412,7 @@ export default function SettingsPage({
     <div className="page-shell settings-page space-y-5 animate-fade-in text-xs text-neutral-500">
       <div className="settings-hero">
         <div className="min-w-0">
-          <p className="text-2xs font-bold uppercase tracking-wider text-[#0c9765] dark:text-[#10b981]">
+          <p className="text-2xs font-bold uppercase tracking-wider text-brand-ink dark:text-brand-ink">
             Preferences
           </p>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">

@@ -41,7 +41,7 @@ export default function Onboarding() {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>
+        <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>
       ) : error ? (
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300"><AlertTriangle size={16} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
       ) : list.length === 0 ? (
@@ -105,7 +105,7 @@ export default function Onboarding() {
                     const done = task.status === 'Completed';
                     return (
                       <button key={task.id} type="button" onClick={() => toggleTask(selected, task.id)} className="onboarding-task-row">
-                        <div className={`absolute left-[-18px] top-1.5 w-6 h-6 rounded-full border flex items-center justify-center transition-all ${done ? 'bg-black border-black text-white dark:bg-[#0ea971] dark:border-neutral-700 dark:text-charcoal-900' : 'bg-white border-neutral-300 dark:bg-neutral-950 dark:border-neutral-800 group-hover:border-black dark:group-hover:border-[#0ea971]'}`}>
+                        <div className={`absolute left-[-18px] top-1.5 w-6 h-6 rounded-full border flex items-center justify-center transition-all ${done ? 'bg-brand-action border-brand text-brand-on' : 'bg-white border-neutral-300 dark:bg-neutral-950 dark:border-neutral-800 group-hover:border-black dark:group-hover:border-brand'}`}>
                           <span className="text-2xs font-bold">{done ? <CheckCircle2 size={12} /> : idx + 1}</span>
                         </div>
                         <div className="space-y-0.5 text-left">

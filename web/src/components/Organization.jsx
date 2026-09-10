@@ -606,7 +606,7 @@ function QuickSetup({ onDone, onCancel }) {
           </div>
         ))}
         <button type="button" onClick={addRow(branches, setBranches, { code: '', name: '', city: '' })}
-          className="text-sm font-bold text-[#0ea971] hover:underline cursor-pointer">
+          className="text-sm font-bold text-brand-ink hover:underline cursor-pointer">
           + Add another branch
         </button>
       </fieldset>
@@ -637,7 +637,7 @@ function QuickSetup({ onDone, onCancel }) {
           </div>
         ))}
         <button type="button" onClick={addRow(departments, setDepartments, { name: '', code: '', branchCode: '' })}
-          className="text-sm font-bold text-[#0ea971] hover:underline cursor-pointer">
+          className="text-sm font-bold text-brand-ink hover:underline cursor-pointer">
           + Add another department
         </button>
       </fieldset>
@@ -764,7 +764,7 @@ function StructureSection({ section, rows, columns, canEditRow, canAdd, fields, 
             onChange={(e) => setQ(e.target.value)}
             aria-label={`Search ${section.label.toLowerCase()}`}
             placeholder={`Search ${rows.length} ${section.label.toLowerCase()}…`}
-            className="w-full text-sm rounded-lg pl-8 pr-8 py-1.5 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20 transition-colors"
+            className="w-full text-sm rounded-lg pl-8 pr-8 py-1.5 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors"
           />
           {q && (
             <button type="button" onClick={() => setQ('')} aria-label="Clear search"
@@ -783,12 +783,12 @@ function StructureSection({ section, rows, columns, canEditRow, canAdd, fields, 
                     of records that already exist. */}
                 All {inactiveCount} {section.label.toLowerCase()} here are switched off
                 {' — '}
-                <button onClick={() => setShowInactive(true)} className="font-bold text-[#0ea971] hover:underline cursor-pointer">show them</button>
-                {canAdd ? <> or <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add a new one</button>.</> : '.'}
+                <button onClick={() => setShowInactive(true)} className="font-bold text-brand-ink hover:underline cursor-pointer">show them</button>
+                {canAdd ? <> or <button onClick={() => setEditing('new')} className="font-bold text-brand-ink hover:underline cursor-pointer">add a new one</button>.</> : '.'}
               </>
             : <>
                 No {section.label.toLowerCase()} yet
-                {canAdd ? <> — <button onClick={() => setEditing('new')} className="font-bold text-[#0ea971] hover:underline cursor-pointer">add the first one</button>.</> : '.'}
+                {canAdd ? <> — <button onClick={() => setEditing('new')} className="font-bold text-brand-ink hover:underline cursor-pointer">add the first one</button>.</> : '.'}
               </>}
         </p>
       ) : (

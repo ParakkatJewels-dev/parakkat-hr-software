@@ -379,7 +379,7 @@ function TodayView({ workDate, setWorkDate }) {
             <button
               key={chip.id}
               onClick={chip.clear}
-              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-[#0ea971]/25 bg-[#0ea971]/10 px-2.5 py-1 text-xs font-bold text-[#0c9765] dark:text-[#10b981]"
+              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand-ink dark:text-brand-ink"
               title={`Remove ${chip.label}`}
             >
               <span className="truncate">{chip.label}</span>
@@ -776,7 +776,7 @@ function ExceptionsView() {
           <button
             onClick={() => recompute.mutate({ from, to }, { onSuccess: () => refetch() })}
             disabled={recompute.isPending}
-            className="px-3 py-2 rounded-xl bg-neutral-900 dark:bg-[#0ea971] text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-2 rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
           >
             {recompute.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
             Recompute range
@@ -1009,7 +1009,7 @@ function RegularizationsView({ employee, canApprove }) {
           </label>
 
           <button type="submit" disabled={create.isPending || !employee?.id}
-            className="w-full py-2 rounded-xl bg-neutral-900 dark:bg-[#0ea971] text-white text-xs font-bold disabled:opacity-50">
+            className="w-full py-2 rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover text-xs font-bold disabled:opacity-50">
             {create.isPending ? 'Submitting…' : 'Submit for approval'}
           </button>
 
@@ -1078,7 +1078,7 @@ function RegularizationsView({ employee, canApprove }) {
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Approved' })}
                             disabled={decide.isPending}
-                            className="px-2 py-1 rounded-lg bg-[#0a7d53] hover:bg-[#086b47] text-white text-2xs font-bold mr-1 disabled:opacity-50 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-brand-action hover:bg-brand-action-hover text-brand-on text-2xs font-bold mr-1 disabled:opacity-50 cursor-pointer"
                           >
                             Approve
                           </button>

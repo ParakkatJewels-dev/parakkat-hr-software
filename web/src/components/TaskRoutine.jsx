@@ -23,7 +23,7 @@ import FormSection from './ui/FormSection';
 import Pagination, { usePagination } from './ui/Pagination';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
 export default function TaskRoutine({ employees = [] }) {
   const today = istToday();
@@ -46,7 +46,7 @@ export default function TaskRoutine({ employees = [] }) {
   const teamPager = usePagination(others, 10);
   const mutationError = humanDbError(setTick.error || retire.error, 'routine_ticks');
 
-  if (isLoading) return <div className="flex justify-center py-16 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>;
+  if (isLoading) return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>;
 
   if (error) {
     return (
@@ -188,7 +188,7 @@ function DutyRow({ item, today, onTick, canEdit, onEdit, onRetire, compact = fal
         aria-label={`${item.done ? 'Untick' : 'Tick'} ${item.title}`}
         className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer group"
       >
-        <Icon size={17} className={`shrink-0 ${item.done ? 'text-[#0ea971]' : 'text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-500'}`} />
+        <Icon size={17} className={`shrink-0 ${item.done ? 'text-brand-ink' : 'text-neutral-300 dark:text-neutral-600 group-hover:text-neutral-500'}`} />
         <span className="min-w-0">
           <span className={`block text-sm font-semibold truncate ${item.done ? 'text-neutral-400 line-through' : 'text-neutral-800 dark:text-neutral-200'}`}>
             {item.title}

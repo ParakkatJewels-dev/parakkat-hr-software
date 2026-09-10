@@ -16,7 +16,7 @@ import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 
 const INPUT =
-  'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/60';
+  'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60';
 const BTN = btnClass('primary');
 const fmtDate = (iso) => {
   if (!iso) return null;
@@ -79,7 +79,7 @@ export default function Performance() {
     <div className="page-shell space-y-5 animate-fade-in">
       <div>
         <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-          <Target size={20} className="text-[#0ea971]" /> Goals &amp; KRAs
+          <Target size={20} className="text-brand-ink" /> Goals &amp; KRAs
         </h1>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           Track objectives and progress. {canManage ? "Set goals for your team and follow them through." : 'Update progress on your own goals.'}
@@ -124,7 +124,7 @@ export default function Performance() {
               aria-current={view === k ? 'page' : undefined}
               className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                 view === k
-                  ? 'bg-[#0ea971]/15 text-[#0ea971] border border-[#0ea971]/25'
+                  ? 'bg-brand/15 text-brand-ink border border-brand/25'
                   : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
               }`}
             >
@@ -179,7 +179,7 @@ export default function Performance() {
                 <div className="mt-3 flex items-center gap-3">
                   <div className="h-1.5 flex-1 rounded-full bg-neutral-150 dark:bg-charcoal-800 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${g.progress >= 100 ? 'bg-emerald-500' : 'bg-[#0ea971]'}`}
+                      className={`h-full rounded-full transition-all ${g.progress >= 100 ? 'bg-emerald-500' : 'bg-brand-action'}`}
                       style={{ width: `${Math.max(0, Math.min(100, g.progress))}%` }}
                     />
                   </div>
@@ -194,14 +194,14 @@ export default function Performance() {
                       <button
                         key={p}
                         onClick={() => setProgress(g, p)}
-                        className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-2xs font-semibold text-neutral-600 dark:text-neutral-300 hover:border-[#0ea971]/40 cursor-pointer"
+                        className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-2xs font-semibold text-neutral-600 dark:text-neutral-300 hover:border-brand/40 cursor-pointer"
                       >
                         {p}%
                       </button>
                     ))}
                     <button
                       onClick={() => setProgress(g, 100)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-[#0ea971] hover:bg-[#0c9765] px-2.5 py-1 text-2xs font-bold text-white cursor-pointer"
+                      className="inline-flex items-center gap-1 rounded-lg bg-brand-action hover:bg-brand-action-hover px-2.5 py-1 text-2xs font-bold text-brand-on cursor-pointer"
                     >
                       <Check size={10} /> Done
                     </button>

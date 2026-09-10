@@ -209,7 +209,7 @@ export default function Leave() {
                   aria-pressed={mineOnly === v}
                   className={`px-2.5 py-1 text-2xs font-bold rounded-lg transition-colors cursor-pointer ${
                     mineOnly === v
-                      ? 'bg-[#0ea971] text-white'
+                      ? 'bg-brand-action text-brand-on'
                       : 'text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white'
                   }`}
                 >
@@ -258,7 +258,7 @@ export default function Leave() {
             </h3>
 
             {isLoading ? (
-              <div className="flex justify-center py-10 text-[#0ea971]"><Loader2 size={22} className="animate-spin" /></div>
+              <div className="flex justify-center py-10 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>
             ) : error ? (
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3">
                 <AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span>
@@ -340,7 +340,7 @@ export default function Leave() {
                 <div className="space-y-1">
                   <label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">Leave Type</label>
                   <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3.5 py-2 focus:outline-none focus:border-black dark:focus:border-[#0ea971] cursor-pointer font-medium">
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3.5 py-2 focus:outline-none focus:border-black dark:focus:border-brand cursor-pointer font-medium">
                     {activeTypes.map((t) => (
                       <option key={t.code} value={t.code}>
                         {t.name}{t.is_paid === false ? ' — unpaid' : ''}
@@ -352,18 +352,18 @@ export default function Leave() {
                   <div className="space-y-1">
                     <label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">Start</label>
                     <input type="date" required value={form.start} onChange={(e) => setForm({ ...form, start: e.target.value })}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-855 rounded-xl px-3 py-1.5 focus:outline-none focus:border-black dark:focus:border-[#0ea971]" />
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-855 rounded-xl px-3 py-1.5 focus:outline-none focus:border-black dark:focus:border-brand" />
                   </div>
                   <div className="space-y-1">
                     <label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">End</label>
                     <input type="date" required min={form.start || undefined} value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })}
-                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-855 rounded-xl px-3 py-1.5 focus:outline-none focus:border-black dark:focus:border-[#0ea971]" />
+                      className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-855 rounded-xl px-3 py-1.5 focus:outline-none focus:border-black dark:focus:border-brand" />
                   </div>
                 </div>
                 <div className="space-y-1">
                   <label className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">Reason</label>
                   <textarea required rows={3} placeholder="Reason for time-off…" value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })}
-                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3.5 py-2 focus:outline-none focus:border-black dark:focus:border-[#0ea971] resize-none" />
+                    className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3.5 py-2 focus:outline-none focus:border-black dark:focus:border-brand resize-none" />
                 </div>
                 {formError && <p className="text-xs text-red-500">{formError}</p>}
                 {apply.error && <p className="text-xs text-red-500">{apply.error.message}</p>}

@@ -26,18 +26,17 @@ import { Loader2 } from 'lucide-react';
 const BASE =
   'inline-flex items-center justify-center gap-1.5 font-bold rounded-lg cursor-pointer ' +
   'transition-colors select-none whitespace-normal sm:whitespace-nowrap ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ' +
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 ' +
   'disabled:opacity-45 disabled:cursor-not-allowed';
 
 const VARIANT = {
-  // NEUTRAL — "carry on". No outcome encoded, so it never competes with a green or a red.
-  // One primary per screen area: submit the form, open the composer, save the draft.
-  primary: 'bg-neutral-900 text-white hover:bg-neutral-800 dark:bg-[#0ea971] dark:hover:bg-[#0c9765]',
+  // One branded primary per screen area: submit the form, open the composer, save the draft.
+  primary: 'bg-brand-action text-brand-on hover:bg-brand-action-hover',
   // The default for anything secondary — bordered, quiet, survives sitting in a row of six.
   // This is also what Cancel and Close use: dismissal is not an outcome worth a colour.
   ghost:
     'border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 ' +
-    'hover:border-[#0ea971]/45 hover:text-neutral-900 dark:hover:text-white',
+    'hover:border-brand/45 hover:text-neutral-900 dark:hover:text-white',
   // No border at all; for actions inside a row or card that should not compete.
   subtle: 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800',
 
@@ -45,11 +44,11 @@ const VARIANT = {
   // Measurably darker than the brand green, not decoratively: white on #0ea971 is 3.03:1 and white
   // on #0c8f60 is still only 4.11:1. #0a7d53 is 5.16:1, the first step that clears the 4.5:1 floor.
   // Dark mode keeps the brand green, where the text on it is not white.
-  success: 'bg-[#0a7d53] text-white hover:bg-[#086b47] dark:bg-[#0ea971] dark:hover:bg-[#0c9765]',
+  success: 'bg-brand-action text-brand-on hover:bg-brand-action-hover',
   // Approve, but sitting in a row rather than being the one thing on screen.
   successGhost:
-    'border border-[#0ea971]/40 text-[#0c7d55] dark:text-[#10b981] ' +
-    'hover:bg-[#0ea971]/10 hover:border-[#0ea971]',
+    'border border-brand/40 text-brand-ink dark:text-brand-ink ' +
+    'hover:bg-brand/10 hover:border-brand',
 
   // NEGATIVE — reject, decline, delete, revoke, remove. The half that takes something away.
   danger: 'bg-red-600 text-white hover:bg-red-700',

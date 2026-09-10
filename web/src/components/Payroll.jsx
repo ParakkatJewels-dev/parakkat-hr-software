@@ -45,7 +45,7 @@ const money = (n) =>
     : `₹${Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const INPUT =
-  'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/60';
+  'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60';
 const BTN = btnClass('primary');
 const BTN_GHOST = btnClass('ghost');
 const statusClass = (s) =>
@@ -97,7 +97,7 @@ export default function Payroll() {
     <div className="page-shell space-y-5 animate-fade-in">
       <div>
         <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-          <DollarSign size={20} className="text-[#0ea971]" /> Payroll
+          <DollarSign size={20} className="text-brand-ink" /> Payroll
         </h1>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           {canManage
@@ -115,7 +115,7 @@ export default function Payroll() {
               aria-current={tab === t.id ? 'page' : undefined}
               className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
                 tab === t.id
-                  ? 'border-[#0ea971] text-[#0ea971]'
+                  ? 'border-brand text-brand-ink'
                   : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -819,11 +819,11 @@ function ComponentsTab() {
             {(org?.branches ?? []).map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}
           </select>
           <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300 cursor-pointer">
-            <input type="checkbox" checked={form.prorate_on_lop} onChange={(e) => setForm({ ...form, prorate_on_lop: e.target.checked })} className="accent-[#0ea971]" />
+            <input type="checkbox" checked={form.prorate_on_lop} onChange={(e) => setForm({ ...form, prorate_on_lop: e.target.checked })} className="accent-brand" />
             Reduce with unpaid days
           </label>
           <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300 cursor-pointer">
-            <input type="checkbox" checked={form.employer_share} onChange={(e) => setForm({ ...form, employer_share: e.target.checked })} className="accent-[#0ea971]" />
+            <input type="checkbox" checked={form.employer_share} onChange={(e) => setForm({ ...form, employer_share: e.target.checked })} className="accent-brand" />
             Employer's share (not deducted)
           </label>
         </div>

@@ -17,7 +17,7 @@ import { useAuth } from '../auth/AuthContext';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
 
 const LOGIN_INPUT =
-  'w-full rounded-xl border border-neutral-200 bg-white/85 px-10 py-3 text-[16px] text-neutral-900 shadow-sm outline-none transition focus:border-[#0ea971] focus:ring-4 focus:ring-[#0ea971]/10 dark:border-neutral-800 dark:bg-neutral-950/70 dark:text-warm-gray-100';
+  'w-full rounded-xl border border-neutral-200 bg-white/85 px-10 py-3 text-[16px] text-neutral-900 shadow-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-neutral-800 dark:bg-neutral-950/70 dark:text-warm-gray-100';
 
 function LoginField({ icon: Icon, label, children }) {
   return (
@@ -104,7 +104,7 @@ export default function Login() {
         <main className="flex w-full justify-center lg:justify-end">
           <div className="w-full max-w-md">
             <div className="mb-5 flex items-center gap-3 lg:hidden">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0ea971] text-white shadow-[0_10px_26px_rgba(14,169,113,.28)]">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-action text-brand-on shadow-[0_10px_26px_rgba(14,169,113,.28)]">
                 <BrandMark size={29} title="Parakkat Jewels" />
               </div>
               <div>
@@ -118,7 +118,7 @@ export default function Login() {
             <div className="login-card overflow-hidden rounded-sm border border-white/80 bg-white/90 p-6 shadow-2xl shadow-emerald-950/10 backdrop-blur dark:border-neutral-800 dark:bg-neutral-950/72 dark:shadow-black/30 sm:p-7">
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
-                  <p className="inline-flex items-center gap-1.5 rounded-full bg-[#e7f7f0] px-2.5 py-1 text-xs font-bold text-[#087a53] dark:bg-[#0ea971]/15 dark:text-[#7be0b7]">
+                  <p className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1 text-xs font-bold text-brand-ink">
                     <ShieldCheck size={13} aria-hidden="true" />
                     Secure sign in
                   </p>
@@ -127,7 +127,7 @@ export default function Login() {
                     Use your work login to continue.
                   </p>
                 </div>
-                <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-950 text-white dark:bg-[#0ea971] dark:text-charcoal-950 sm:flex">
+                <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-action text-brand-on sm:flex">
                   <BrandMark size={28} title="Parakkat Jewels" />
                 </div>
               </div>
@@ -182,7 +182,7 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={busy}
-                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#073f31] py-3 text-sm font-bold text-white shadow-lg shadow-emerald-950/15 transition hover:bg-[#0b563f] disabled:cursor-not-allowed disabled:opacity-60 dark:bg-[#0ea971] dark:text-charcoal-950 dark:hover:bg-[#25c98f]"
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand-action py-3 text-sm font-bold text-brand-on shadow-lg shadow-emerald-950/15 transition hover:bg-brand-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {busy ? <Loader2 size={17} className="animate-spin" /> : <LogIn size={17} />}
                   {busy ? 'Signing in...' : 'Sign in'}

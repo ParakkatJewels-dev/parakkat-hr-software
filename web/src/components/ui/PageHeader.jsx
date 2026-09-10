@@ -18,7 +18,7 @@ export default function PageHeader({ eyebrow, icon: Icon, title, subtitle, actio
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
       <div className="min-w-0 flex-1">
         {eyebrow && (
-          <p className="text-2xs font-bold uppercase tracking-wider text-[#0ea971] flex items-center gap-1.5">
+          <p className="text-2xs font-bold uppercase tracking-wider text-brand-ink flex items-center gap-1.5">
             {Icon && <Icon size={11} />}
             {eyebrow}
           </p>

@@ -71,7 +71,7 @@ function ExportButton({ label, onClick, pending, disabled, title, icon: Icon = D
       onClick={onClick}
       disabled={pending || disabled}
       title={title} aria-label={title}
-      className="flex items-center gap-1.5 rounded-lg border border-neutral-200/80 dark:border-neutral-850 bg-neutral-50/60 dark:bg-charcoal-900/40 px-3 py-1.5 text-base font-bold text-neutral-700 dark:text-warm-gray-300 hover:border-[#0ea971]/40 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+      className="flex items-center gap-1.5 rounded-lg border border-neutral-200/80 dark:border-neutral-850 bg-neutral-50/60 dark:bg-charcoal-900/40 px-3 py-1.5 text-base font-bold text-neutral-700 dark:text-warm-gray-300 hover:border-brand/40 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer disabled:opacity-50"
     >
       {pending ? <Loader2 size={11} className="animate-spin" /> : <Icon size={11} />}
       {label}
@@ -227,13 +227,13 @@ export default function ReportsAnalytics() {
           value={period}
           max={today.slice(0, 7)}
           onChange={(e) => e.target.value && setPeriod(e.target.value)}
-          className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/50"
+          className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/50"
         />
         {branchId !== 'all' && (
           <div className="mobile-active-filter-row flex flex-wrap items-center gap-1.5 sm:hidden">
             <button
               onClick={() => { setBranchId('all'); setFiltersOpen(false); }}
-              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-[#0ea971]/25 bg-[#0ea971]/10 px-2.5 py-1 text-xs font-bold text-[#0c9765] dark:text-[#10b981]"
+              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand-ink dark:text-brand-ink"
               title={`Remove ${branchLabel}`}
             >
               <span className="truncate">{branchLabel}</span>
@@ -259,7 +259,7 @@ export default function ReportsAnalytics() {
               setBranchId(e.target.value);
               if (e.target.value !== 'all') setFiltersOpen(false);
             }}
-            className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]/50 cursor-pointer"
+            className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/50 cursor-pointer"
           >
             <option value="all">All branches (in your scope)</option>
             {branches.map((b) => (
@@ -275,7 +275,7 @@ export default function ReportsAnalytics() {
               aria-current={tab === t.id ? 'page' : undefined}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold transition-colors cursor-pointer ${
                 tab === t.id
-                  ? 'bg-[#0ea971]/15 text-[#0ea971] dark:text-[#10b981] border border-[#0ea971]/25'
+                  ? 'bg-brand/15 text-brand-ink dark:text-brand-ink border border-brand/25'
                   : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
               }`}
             >
@@ -290,7 +290,7 @@ export default function ReportsAnalytics() {
         <section className="premium-card space-y-4">
           <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
-              <BarChart3 size={13} className="text-[#0ea971]" /> Attendance Summary · {period}
+              <BarChart3 size={13} className="text-brand-ink" /> Attendance Summary · {period}
             </h3>
             <div className="mobile-list-actions flex flex-wrap gap-2">
               {canExportRegister && (
@@ -363,7 +363,7 @@ export default function ReportsAnalytics() {
         <section className="premium-card space-y-4">
           <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
-              <CalendarDays size={13} className="text-[#0ea971]" /> Leave Report · {period}
+              <CalendarDays size={13} className="text-brand-ink" /> Leave Report · {period}
             </h3>
             <div className="mobile-list-actions flex flex-wrap gap-2">
               <ExportButton
@@ -419,7 +419,7 @@ export default function ReportsAnalytics() {
         <section className="premium-card space-y-4">
           <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
-              <ReceiptText size={13} className="text-[#0ea971]" /> Expense Report · {period}
+              <ReceiptText size={13} className="text-brand-ink" /> Expense Report · {period}
             </h3>
             <ExportButton
               label="Claims (CSV)"
@@ -453,7 +453,7 @@ export default function ReportsAnalytics() {
         <section className="premium-card space-y-4">
           <div className="mobile-list-row flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 flex items-center gap-2">
-              <Users size={13} className="text-[#0ea971]" /> Headcount & Movement · {period}
+              <Users size={13} className="text-brand-ink" /> Headcount & Movement · {period}
             </h3>
             <ExportButton
               label="Headcount (CSV)"

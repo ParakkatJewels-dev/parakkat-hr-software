@@ -72,8 +72,8 @@ export default function ConfirmDialog({
   // that commits the change. #0a7d53 is 5.16:1.
   const confirmClass =
     tone === 'danger'
-      ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500/40'
-      : 'bg-[#0a7d53] hover:bg-[#086b47] focus:ring-[#0ea971]/40';
+      ? 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500/40'
+      : 'bg-brand-action text-brand-on hover:bg-brand-action-hover focus:ring-brand/40';
 
   return (
     // z-50 is the app's top layer (see the scale used across the shell: 30 header, 50 overlay).
@@ -94,7 +94,7 @@ export default function ConfirmDialog({
             className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${
               tone === 'danger'
                 ? 'bg-red-100 text-red-600 dark:bg-red-950/40 dark:text-red-400'
-                : 'bg-[#0ea971]/10 text-[#0ea971]'
+                : 'bg-brand/10 text-brand-ink'
             }`}
           >
             <AlertTriangle size={17} />
@@ -128,7 +128,7 @@ export default function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-base font-bold text-white focus:outline-none focus:ring-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-colors ${confirmClass}`}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-base font-bold focus:outline-none focus:ring-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-colors ${confirmClass}`}
           >
             {busy && <Loader2 size={12} className="animate-spin" />}
             {confirmLabel}

@@ -221,7 +221,7 @@ export function MyLeaveBalances({ onNavigate }) {
               <button
                 key={b.id}
                 onClick={() => onNavigate?.('leave')}
-                className="w-full text-left rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-2 cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+                className="w-full text-left rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-2 cursor-pointer hover:border-brand/40 transition-colors"
               >
                 <div className="mobile-list-row flex items-center justify-between">
                   <span className="text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
@@ -332,7 +332,7 @@ export function MyTasks({ onNavigate }) {
                 <button
                   onClick={() => updateTask.mutate({ id: t.id, status: 'Done' })}
                   title="Mark done" aria-label={`Mark "${t.title}" done`}
-                  className="shrink-0 inline-flex items-center justify-center w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-neutral-300 dark:border-neutral-700 text-transparent hover:text-[#0a7d53] dark:hover:text-[#10b981] hover:border-[#0ea971] hover:bg-[#0ea971]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 transition-colors cursor-pointer"
+                  className="shrink-0 inline-flex items-center justify-center w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-neutral-300 dark:border-neutral-700 text-transparent hover:text-brand-ink dark:hover:text-brand-ink hover:border-brand hover:bg-brand/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 transition-colors cursor-pointer"
                 >
                   <Check size={14} />
                 </button>
@@ -377,7 +377,7 @@ export function MyPayslip({ onNavigate }) {
       ) : (
         <button
           onClick={() => onNavigate?.('payroll')}
-          className="mobile-list-row w-full flex items-center justify-between rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 text-left cursor-pointer hover:border-[#0ea971]/40 transition-colors"
+          className="mobile-list-row w-full flex items-center justify-between rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5 text-left cursor-pointer hover:border-brand/40 transition-colors"
         >
           <div>
             <p className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">{latest.period}</p>

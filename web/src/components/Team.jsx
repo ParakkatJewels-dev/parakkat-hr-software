@@ -26,7 +26,7 @@ import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 import { relativeTime } from '../lib/dates';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
 
 export default function Team() {
@@ -47,7 +47,7 @@ export default function Team() {
   const memberPager = usePagination(members);
 
   if (loadingDepts) {
-    return <div className="page-shell flex justify-center py-16 text-[#0ea971]"><Loader2 size={24} className="animate-spin" /></div>;
+    return <div className="page-shell flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
   }
 
   if (deptError) {
@@ -85,7 +85,7 @@ export default function Team() {
       <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-            <Users size={20} className="text-[#0ea971]" /> My Team
+            <Users size={20} className="text-brand-ink" /> My Team
           </h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             Who works in your department. Changes here stay in this app — nothing is written back to
@@ -118,7 +118,7 @@ export default function Team() {
                 aria-current={on ? 'page' : undefined}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                   on
-                    ? 'bg-[#0ea971]/15 text-[#0c9765] dark:text-[#10b981] border border-[#0ea971]/25'
+                    ? 'bg-brand/15 text-brand-ink dark:text-brand-ink border border-brand/25'
                     : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
                 }`}
               >
@@ -126,7 +126,7 @@ export default function Team() {
                 <span
                   className={`font-mono text-2xs font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
                     on
-                      ? 'bg-[#0ea971]/20 text-[#0c9765] dark:text-[#10b981]'
+                      ? 'bg-brand/20 text-brand-ink dark:text-brand-ink'
                       : 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500'
                   }`}
                   aria-label={`${d.headcount} ${d.headcount === 1 ? 'person' : 'people'}`}
@@ -165,7 +165,7 @@ export default function Team() {
         </h2>
 
         {loadingMembers ? (
-          <div className="flex justify-center py-12 text-[#0ea971]"><Loader2 size={20} className="animate-spin" /></div>
+          <div className="flex justify-center py-12 text-brand-ink"><Loader2 size={20} className="animate-spin" /></div>
         ) : members.length === 0 ? (
           <div className="premium-card p-10 text-center text-xs text-neutral-500 space-y-1.5">
             <p className="font-semibold text-neutral-700 dark:text-neutral-300">Nobody in this department yet.</p>
@@ -240,7 +240,7 @@ function AddToTeam({ department, busy, onClose, onPick }) {
     <div ref={panelRef} className="premium-card form-section space-y-4 animate-fade-in scroll-mt-4">
       <div className="form-section-header flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <UserPlus size={15} className="text-[#0ea971] shrink-0" />
+          <UserPlus size={15} className="text-brand-ink shrink-0" />
           <div className="min-w-0">
             <h3 className="font-bold text-sm text-neutral-900 dark:text-white">Add to {department.name}</h3>
             <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
@@ -268,7 +268,7 @@ function AddToTeam({ department, busy, onClose, onPick }) {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-8 text-[#0ea971]"><Loader2 size={18} className="animate-spin" /></div>
+        <div className="flex justify-center py-8 text-brand-ink"><Loader2 size={18} className="animate-spin" /></div>
       ) : candidates.length === 0 ? (
         <p className="text-xs text-neutral-500 py-4 text-center">
           {q.trim() ? `Nobody active matches “${q.trim()}” in this company.` : 'Everyone in this company is already on your team.'}

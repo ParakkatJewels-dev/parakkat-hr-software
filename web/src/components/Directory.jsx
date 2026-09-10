@@ -458,7 +458,7 @@ export default function Directory() {
 
         {isEdit && editEmployeeQuery.isLoading ? (
           <div className="premium-card p-5 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-            <Loader2 size={14} className="animate-spin text-[#0ea971]" />
+            <Loader2 size={14} className="animate-spin text-brand-ink" />
             Loading the private fields for this employee…
           </div>
         ) : editEmployeeQuery.error ? (
@@ -588,10 +588,10 @@ export default function Directory() {
       {/* The one thing that must not be lost when the form closes: the password. It is shown
           once, is not recoverable, and the admin has to hand it over. */}
       {newLogin && (
-        <div className="premium-card border-[#0ea971]/40 animate-fade-in">
+        <div className="premium-card border-brand/40 animate-fade-in">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-2.5 min-w-0">
-              <span className="shrink-0 w-8 h-8 rounded-xl bg-[#0ea971]/10 text-[#0ea971] flex items-center justify-center">
+              <span className="shrink-0 w-8 h-8 rounded-xl bg-brand/10 text-brand-ink flex items-center justify-center">
                 <Check size={16} />
               </span>
               <div className="min-w-0">
@@ -626,7 +626,7 @@ export default function Directory() {
                   onClick={() => navigator.clipboard?.writeText(value)}
                   title={`Copy ${label.toLowerCase()}`}
                   aria-label={`Copy ${label.toLowerCase()}`}
-                  className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-[#0ea971] cursor-pointer transition-colors"
+                  className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-brand-ink cursor-pointer transition-colors"
                 >
                   <Copy size={14} />
                 </button>
@@ -735,7 +735,7 @@ export default function Directory() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               aria-label="Search employees"
-              className="w-full bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl pl-10 pr-9 py-2 text-base text-neutral-850 dark:text-neutral-100 placeholder-neutral-450 focus:outline-none focus:border-[#0ea971] focus:ring-2 focus:ring-[#0ea971]/20 transition-colors"
+              className="w-full bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl pl-10 pr-9 py-2 text-base text-neutral-850 dark:text-neutral-100 placeholder-neutral-450 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors"
             />
             {search && (
               <button
@@ -771,7 +771,7 @@ export default function Directory() {
               id="dir-sort"
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="w-full bg-transparent border-none text-sm font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 rounded-md"
+              className="w-full bg-transparent border-none text-sm font-semibold text-neutral-700 dark:text-neutral-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-md"
             >
               <option value="name-asc" className="bg-white dark:bg-black">Name (A–Z)</option>
               <option value="name-desc" className="bg-white dark:bg-black">Name (Z–A)</option>
@@ -787,7 +787,7 @@ export default function Directory() {
               key={`${chip.label}-${chip.value}`}
               type="button"
               onClick={chip.clear}
-              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-[#0ea971]/25 bg-[#0ea971]/10 px-2.5 py-1 text-xs font-bold text-[#0c9765] dark:text-[#10b981]"
+              className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand-ink dark:text-brand-ink"
               title={`Clear ${chip.label}`}
             >
               <span className="text-2xs uppercase tracking-wider opacity-75">{chip.label}</span>
@@ -876,12 +876,12 @@ export default function Directory() {
                       role="button"
                       aria-label={`Open the profile for ${emp.full_name}`}
                       aria-current={open ? 'true' : undefined}
-                      className={`cursor-pointer group transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0ea971]/60 ${
+                      className={`cursor-pointer group transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/60 ${
                         open
-                          ? 'bg-[#0ea971]/8 dark:bg-[#0ea971]/10'
+                          ? 'bg-brand/8 dark:bg-brand/10'
                           : justSaved === emp.id
                           // Just came back from the form — show which row it was.
-                          ? 'bg-[#0ea971]/10 dark:bg-[#0ea971]/12'
+                          ? 'bg-brand/10 dark:bg-brand/12'
                           : 'hover:bg-neutral-50 dark:hover:bg-charcoal-900/40'
                       }`}
                     >
@@ -892,7 +892,7 @@ export default function Directory() {
                         <div className="flex items-center gap-2.5 min-w-0">
                           {/* Steady colours. The avatar used to invert to solid black on hover,
                               which flickered down the whole list as the pointer travelled. */}
-                          <div className="avatar-cell directory-avatar w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
+                          <div className="avatar-cell directory-avatar w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-brand-ink flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
                             {avatars[emp.id]
                               ? <img src={avatars[emp.id]} alt="" loading="lazy" />
                               : initials(emp.full_name)}
@@ -945,15 +945,15 @@ export default function Directory() {
               onClick={() => setSelectedEmp(emp)}
               aria-label={`Open the profile for ${emp.full_name}`}
               aria-current={selectedEmp?.id === emp.id ? 'true' : undefined}
-              className={`premium-card directory-person-card text-left cursor-pointer flex flex-col justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${
+              className={`premium-card directory-person-card text-left cursor-pointer flex flex-col justify-between transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 ${
                 selectedEmp?.id === emp.id
-                  ? 'border-[#0ea971]/45 bg-[#0ea971]/5'
-                  : 'hover:border-neutral-300 dark:hover:border-[#0ea971]/35'
+                  ? 'border-brand/45 bg-brand/5'
+                  : 'hover:border-neutral-300 dark:hover:border-brand/35'
               }`}
             >
               <div className="w-full">
                 <div className="mobile-list-row flex items-start justify-between gap-2">
-                  <div className="directory-avatar w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-[#10b981] flex items-center justify-center font-bold text-sm shrink-0 font-mono select-none">
+                  <div className="directory-avatar w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-brand-ink flex items-center justify-center font-bold text-sm shrink-0 font-mono select-none">
                     {avatars[emp.id]
                       ? <img src={avatars[emp.id]} alt="" loading="lazy" />
                       : initials(emp.full_name)}
@@ -1026,7 +1026,7 @@ export default function Directory() {
               </p>
               <button
                 onClick={clearFilters}
-                className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 border border-neutral-200 dark:border-neutral-800 rounded-xl text-base font-bold text-neutral-700 dark:text-neutral-200 hover:border-[#0ea971]/40 cursor-pointer transition-colors"
+                className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 border border-neutral-200 dark:border-neutral-800 rounded-xl text-base font-bold text-neutral-700 dark:text-neutral-200 hover:border-brand/40 cursor-pointer transition-colors"
               >
                 <X size={13} /> Clear {activeFilterCount} filter{activeFilterCount === 1 ? '' : 's'}
               </button>
@@ -1115,7 +1115,7 @@ export default function Directory() {
   );
 }
 
-const FORM_INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-855 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
+const FORM_INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-855 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 /** Page numbers to show: always first and last, a window around the current page, ellipses between. */
 function pageWindow(current, total) {
   if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
@@ -1554,7 +1554,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
 
             <div className="border-t border-neutral-200 dark:border-neutral-850 pt-3 space-y-2.5">
               <h3 className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-200">
-                <User size={13} className="text-[#0ea971]" /> Family &amp; identity
+                <User size={13} className="text-brand-ink" /> Family &amp; identity
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -1701,7 +1701,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
             {canManagePay && (
               <div className="border-t border-neutral-200 dark:border-neutral-850 pt-3 space-y-2.5">
                 <h3 className="flex items-center gap-1.5 text-xs font-bold text-neutral-700 dark:text-neutral-200">
-                  <Award size={13} className="text-[#0ea971]" /> Compensation
+                  <Award size={13} className="text-brand-ink" /> Compensation
                   <span className="font-normal text-neutral-400">— monthly, effective-dated</span>
                 </h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1913,7 +1913,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                           onClick={() => navigator.clipboard?.writeText(access.password)}
                           title="Copy password"
                           aria-label="Copy the temporary password"
-                          className="shrink-0 px-2 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-[#0ea971] cursor-pointer transition-colors"
+                          className="shrink-0 px-2 rounded-xl border border-neutral-200 dark:border-neutral-800 text-neutral-500 hover:text-brand-ink cursor-pointer transition-colors"
                         >
                           <Copy size={14} />
                         </button>
@@ -1964,7 +1964,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           <div className="flex items-center gap-3">
             <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-bold text-base font-mono shrink-0 select-none transition-colors ${
               form.full_name.trim()
-                ? 'bg-[#0ea971]/12 text-[#0c9765] dark:text-[#10b981]'
+                ? 'bg-brand/12 text-brand-ink dark:text-brand-ink'
                 : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-400'
             }`}>
               {form.full_name.trim() ? initials(form.full_name) : '—'}
@@ -2055,7 +2055,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
             ].filter(Boolean);
             if (!gaps.length) {
               return (
-                <p className="mt-3.5 pt-3.5 border-t border-neutral-100 dark:border-neutral-855 text-xs text-[#0c9765] dark:text-[#10b981]">
+                <p className="mt-3.5 pt-3.5 border-t border-neutral-100 dark:border-neutral-855 text-xs text-brand-ink dark:text-brand-ink">
                   Ready for payroll.
                 </p>
               );
@@ -2217,7 +2217,7 @@ function Header({ count, total }) {
   const filtered = total != null && count !== total;
   return (
     <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-[#0ea971] flex items-center gap-1.5">
+      <p className="text-xs font-bold uppercase tracking-wider text-brand-ink flex items-center gap-1.5">
         <User size={12} /> People
       </p>
       <h1 className="text-xl font-bold text-neutral-900 dark:text-white font-sans mt-1">Directory</h1>
@@ -2237,8 +2237,8 @@ function SortHeader({ label, active, dir, onClick }) {
       type="button"
       onClick={onClick}
       aria-sort={active ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}
-      className={`inline-flex items-center gap-1 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 rounded ${
-        active ? 'text-[#0c9765] dark:text-[#10b981]' : 'hover:text-neutral-900 dark:hover:text-white'
+      className={`inline-flex items-center gap-1 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded ${
+        active ? 'text-brand-ink dark:text-brand-ink' : 'hover:text-neutral-900 dark:hover:text-white'
       }`}
     >
       {label}

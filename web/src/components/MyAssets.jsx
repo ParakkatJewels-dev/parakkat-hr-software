@@ -63,7 +63,7 @@ export default function MyAssets() {
           <span>Your login is not linked to an employee profile yet.</span>
         </div>
       ) : isLoading ? (
-        <div className="premium-card flex justify-center py-10 text-[#0ea971]">
+        <div className="premium-card flex justify-center py-10 text-brand-ink">
           <Loader2 size={22} className="animate-spin" />
         </div>
       ) : error ? (

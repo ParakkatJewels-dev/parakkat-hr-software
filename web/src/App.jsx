@@ -83,7 +83,7 @@ const MOBILE_NAV_LABELS = {
 function AccessDenied() {
   return (
     <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-      <Shield size={28} className="text-neutral-400 dark:text-[#0c9765] mb-3" />
+      <Shield size={28} className="text-neutral-400 dark:text-brand-ink mb-3" />
       <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">Access restricted</h2>
       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
         You don't have permission to view this section. If you believe this is a mistake, contact your
@@ -547,7 +547,7 @@ export default function App() {
                 size={isCollapsedDesktop ? 18 : 16}
                 className={`shrink-0 ${
                   isActive
-                    ? 'text-black dark:text-[#10b981]'
+                    ? 'text-black dark:text-brand-ink'
                     : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-850 dark:group-hover:text-warm-gray-100'
                 }`}
               />
@@ -682,7 +682,7 @@ export default function App() {
           {!isSidebarCollapsed ? (
             <>
               <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="p-2 bg-[#0ea971] text-white rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center shrink-0">
+                <div className="p-2 bg-brand-action text-brand-on rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center shrink-0">
                   <BrandMark size={15} />
                 </div>
                 <div className="flex flex-col min-w-0">
@@ -700,7 +700,7 @@ export default function App() {
             </>
           ) : (
             <>
-              <div className="p-2 bg-[#0ea971] text-white rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center">
+              <div className="p-2 bg-brand-action text-brand-on rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center">
                 <BrandMark size={16} />
               </div>
               <button
@@ -725,11 +725,11 @@ export default function App() {
           <button
             type="button"
             onClick={() => setActiveTab('profile')}
-            className="flex items-center space-x-2.5 min-w-0 text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
+            className="flex items-center space-x-2.5 min-w-0 text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
             title="Open my profile"
             aria-label="Open my profile"
           >
-            <div className="w-9 h-9 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
+            <div className="w-9 h-9 rounded-xl bg-brand-action text-brand-on flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
               {displayInitials}
             </div>
             {!isSidebarCollapsed && (
@@ -782,7 +782,7 @@ export default function App() {
             {/* Ctrl + K search bar */}
             <button
               onClick={() => setShowCommandPalette(true)}
-              className="hidden md:flex items-center gap-2 w-56 lg:w-72 px-3 py-2 bg-neutral-100 dark:bg-charcoal-800/60 border border-neutral-200/85 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-[#0ea971]/25 text-neutral-500 dark:text-neutral-400 rounded-xl text-xs cursor-pointer transition-all"
+              className="hidden md:flex items-center gap-2 w-56 lg:w-72 px-3 py-2 bg-neutral-100 dark:bg-charcoal-800/60 border border-neutral-200/85 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-brand/25 text-neutral-500 dark:text-neutral-400 rounded-xl text-xs cursor-pointer transition-all"
             >
               <Search size={14} className="shrink-0" />
               <span className="truncate">Search anything…</span>
@@ -813,7 +813,7 @@ export default function App() {
             {pwaUpdateRegistration && (
               <button
                 onClick={applyPwaUpdate}
-                className="header-update-action inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-[#0ea971] hover:bg-[#0c9765] text-white rounded-xl text-2xs font-bold transition-colors cursor-pointer"
+                className="header-update-action inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-2 bg-brand-action hover:bg-brand-action-hover text-brand-on rounded-xl text-2xs font-bold transition-colors cursor-pointer"
                 title="Update app"
                 aria-label="Update app"
               >
@@ -860,11 +860,11 @@ export default function App() {
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className="header-profile-trigger flex min-h-11 min-w-11 sm:min-w-0 items-center justify-center gap-2.5 pl-0 sm:pl-3 ml-0.5 sm:border-l border-neutral-200 dark:border-neutral-800 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50"
+              className="header-profile-trigger flex min-h-11 min-w-11 sm:min-w-0 items-center justify-center gap-2.5 pl-0 sm:pl-3 ml-0.5 sm:border-l border-neutral-200 dark:border-neutral-800 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
               title="Open my profile"
               aria-label="Open my profile"
             >
-              <div className="w-8 h-8 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-white flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
+              <div className="w-8 h-8 rounded-xl bg-brand-action text-brand-on flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
                 {displayInitials}
               </div>
               <div className="hidden lg:flex flex-col leading-none min-w-0 max-w-[130px]">
@@ -887,7 +887,7 @@ export default function App() {
                 placeholder="Search action or type command (e.g. Apply for Leave)..."
                 value={commandSearch}
                 onChange={(e) => setCommandSearch(e.target.value)}
-                className="w-full bg-transparent border-none text-xs text-neutral-800 dark:text-neutral-250 placeholder-neutral-450 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 rounded-md"
+                className="w-full bg-transparent border-none text-xs text-neutral-800 dark:text-neutral-250 placeholder-neutral-450 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-md"
               />
               <button
                 onClick={() => setShowCommandPalette(false)}
@@ -935,7 +935,7 @@ export default function App() {
                     aria-current={on ? 'page' : undefined}
                     className={`section-tab-button shrink-0 whitespace-nowrap py-2.5 text-base font-semibold border-b-2 cursor-pointer transition-colors ${
                       on
-                        ? 'border-[#0ea971] text-[#0ea971]'
+                        ? 'border-brand text-brand-ink'
                         : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
                     }`}
                   >
@@ -1122,7 +1122,7 @@ export default function App() {
       {/* Mobile Drawer Sidebar Navigation */}
       {mobileMenuOpen && (
         <div
-          className="mobile-drawer fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex animate-fade-in lg:hidden"
+          className="mobile-drawer fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex animate-fade-in lg:hidden"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setMobileMenuOpen(false);
@@ -1138,7 +1138,7 @@ export default function App() {
             <button
               onClick={() => setMobileMenuOpen(false)}
               aria-label="Close navigation menu"
-              className="absolute top-4 right-4 p-2 bg-neutral-150 dark:bg-slate-800 hover:bg-neutral-200 dark:hover:bg-slate-700 rounded-xl text-neutral-500 dark:text-slate-400 hover:text-black dark:hover:text-white transition-all cursor-pointer"
+              className="absolute top-4 right-4 p-2 bg-neutral-150 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all cursor-pointer"
             >
               <X size={16} />
             </button>
@@ -1156,7 +1156,7 @@ export default function App() {
 
             <div className="p-2.5 border-t border-neutral-200 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-950/20 flex items-center justify-between transition-colors">
               <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-black dark:bg-[#0ea971] text-white dark:text-charcoal-900 flex items-center justify-center font-bold text-xs shrink-0 font-mono">
+                <div className="w-9 h-9 rounded-xl bg-brand-action text-brand-on flex items-center justify-center font-bold text-xs shrink-0 font-mono">
                   {displayInitials}
                 </div>
                 <div className="min-w-0">

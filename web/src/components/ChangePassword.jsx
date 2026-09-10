@@ -28,7 +28,7 @@ export default function ChangePassword() {
   return (
     <div className="premium-card space-y-4">
       <h3 className="font-semibold text-base text-neutral-800 dark:text-white flex items-center gap-2">
-        <KeyRound size={16} className="text-[#0ea971]" /> Change Password
+        <KeyRound size={16} className="text-brand-ink" /> Change Password
       </h3>
       <form onSubmit={submit} className="space-y-3 text-xs max-w-md">
         <div className="space-y-1">
@@ -49,4 +49,4 @@ export default function ChangePassword() {
   );
 }
 
-const INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971]';
+const INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand';

@@ -115,14 +115,14 @@ export default function UserAccessPanel({ user, roles = [], scopeLabel, onClose 
       >
         {/* header */}
         <div className="flex items-start gap-3 p-4 sm:p-5 border-b border-neutral-200 dark:border-neutral-800">
-          <div className="w-9 h-9 rounded-xl bg-[#0ea971]/10 text-[#0c7d55] dark:text-[#10b981] flex items-center justify-center shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-brand/10 text-brand-ink dark:text-brand-ink flex items-center justify-center shrink-0">
             <UserRound size={17} />
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-sm font-bold text-neutral-900 dark:text-white truncate">{name}</h2>
             <div className="flex flex-wrap items-center gap-1.5 mt-1">
               {isSuperAdmin && (
-                <span className="text-2xs font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#0ea971]/15 text-[#0c7d55] dark:text-[#10b981]">
+                <span className="text-2xs font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-brand/15 text-brand-ink dark:text-brand-ink">
                   super admin
                 </span>
               )}
@@ -167,7 +167,7 @@ export default function UserAccessPanel({ user, roles = [], scopeLabel, onClose 
               aria-current={tab === t.id ? 'page' : undefined}
               className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                 tab === t.id
-                  ? 'bg-[#0ea971]/15 text-[#0c7d55] dark:text-[#10b981] border border-[#0ea971]/25'
+                  ? 'bg-brand/15 text-brand-ink dark:text-brand-ink border border-brand/25'
                   : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
               }`}
             >
@@ -241,7 +241,7 @@ export default function UserAccessPanel({ user, roles = [], scopeLabel, onClose 
                     <span
                       className={`text-2xs font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0 ${
                         g.beyondSelf
-                          ? 'bg-[#0ea971]/12 text-[#0c7d55] dark:text-[#10b981]'
+                          ? 'bg-brand/12 text-brand-ink dark:text-brand-ink'
                           : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-400'
                       }`}
                     >
@@ -340,7 +340,7 @@ function ScreensTab({ user, sections, hidden, isSuperAdmin, loading, error, pend
                     } ${
                       isHidden
                         ? 'border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50'
-                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:border-[#0ea971]/45 hover:text-neutral-900 dark:hover:text-white'
+                        : 'border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:border-brand/45 hover:text-neutral-900 dark:hover:text-white'
                     }`}
                   >
                     {busy ? <Loader2 size={11} className="animate-spin" />
