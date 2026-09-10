@@ -43,6 +43,16 @@ const STAGE_TONE = {
 
 const ADVANCE_ICON = { 'To Do': Play, 'In Progress': Check, Blocked: RotateCcw };
 
+const TODO_DATE_FORMATTER = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+});
+
+const readableTodoDate = (iso) => {
+  if (!iso) return '';
+  const [year, month, day] = iso.slice(0, 10).split('-').map(Number);
+  return TODO_DATE_FORMATTER.format(new Date(Date.UTC(year, month - 1, day)));
+};
+
 export default function TaskTodo({ tasks = [], loading }) {
   const { employee } = useAuth();
   const me = employee?.id ?? null;
@@ -255,33 +265,33 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
     <li className="task-todo-card premium-card">
       <div className="task-todo-row flex items-start gap-3">
         <div className="task-todo-main min-w-0 flex-1 space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`font-bold text-sm min-w-0 line-clamp-2 ${
+          <div className="task-todo-heading flex items-start gap-2 flex-wrap">
+            <span className={`task-todo-title font-bold text-sm min-w-0 line-clamp-2 ${
               done || cancelled ? 'text-neutral-400 line-through' : 'text-neutral-850 dark:text-slate-100'
             }`}>
               {task.title}
             </span>
-            <span className={`text-2xs font-bold px-1.5 py-0.5 rounded shrink-0 ${STAGE_TONE[task.status] ?? 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'}`}>
+            <span className={`task-todo-status text-2xs font-bold px-1.5 py-0.5 rounded shrink-0 ${STAGE_TONE[task.status] ?? 'bg-neutral-100 text-neutral-500 dark:bg-neutral-900'}`}>
               {task.status}
             </span>
           </div>
-          <div className="flex items-center gap-2.5 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400">
-            <span className="inline-flex items-center gap-1 font-mono"><Flag size={10} /> {task.priority}</span>
+          <div className="task-todo-meta flex items-center gap-2.5 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400">
+            <span className="task-todo-meta-item"><Flag size={11} /> Priority <strong>{task.priority}</strong></span>
             {steps.total > 0 && (
               <span
-                className={`inline-flex items-center gap-1 font-mono ${steps.allDone ? 'text-[#0c9765] dark:text-[#10b981]' : ''}`}
+                className={`task-todo-meta-item ${steps.allDone ? 'text-[#0c9765] dark:text-[#10b981]' : ''}`}
                 title={`${steps.done} of ${steps.total} steps done`}
               >
-                <ListTodo size={10} /> {steps.done}/{steps.total}
+                <ListTodo size={11} /> Checklist <strong>{steps.done}/{steps.total}</strong>
               </span>
             )}
             {task.due_date && (
-              <span className={`inline-flex items-center gap-1 font-mono ${overdue && !done ? 'text-rose-600 dark:text-rose-400 font-bold' : ''}`}>
-                <CalendarClock size={10} /> {task.due_date}{overdue && !done ? ' · overdue' : ''}
+              <span className={`task-todo-meta-item ${overdue && !done ? 'task-todo-meta-overdue' : ''}`}>
+                <CalendarClock size={11} /> {overdue && !done ? 'Overdue' : 'Due'} <strong>{readableTodoDate(task.due_date)}</strong>
               </span>
             )}
             {/* Says where it came from, because a job your head gave you is not one you can remove. */}
-            {!isSelfSet(task, mine) && <span className="font-mono">given to you</span>}
+            {!isSelfSet(task, mine) && <span className="task-todo-origin">Assigned to you</span>}
           </div>
         </div>
 

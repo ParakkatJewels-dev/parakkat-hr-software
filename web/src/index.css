@@ -4995,6 +4995,460 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 }
 
+/* ---- Task cards ---------------------------------------------------------
+   A task is read in four passes: what it is, where it stands, who owns it / when it is due, then
+   what to do with it. The old card put all four into one dense flex row and reduced the actions to
+   unlabeled icons. These structural classes keep that reading order explicit at every width. */
+.task-management-page .task-card {
+  position: relative;
+  overflow: hidden;
+  padding: 1rem;
+  border-color: color-mix(in srgb, var(--surface-border-strong) 72%, transparent);
+  background:
+    linear-gradient(145deg, color-mix(in srgb, var(--accent) 3.5%, transparent), transparent 48%),
+    var(--surface-elevated);
+}
+
+.task-management-page .task-card-overdue {
+  border-color: color-mix(in srgb, #e11d48 38%, var(--surface-border));
+  box-shadow: inset 3px 0 0 #e11d48, 0 1px 2px rgba(16, 32, 26, .04);
+}
+
+.task-card-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 1rem;
+}
+
+.task-card-copy { min-width: 0; }
+
+.task-card-labels {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-bottom: .42rem;
+}
+
+.task-priority-pill,
+.task-overdue-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+  min-height: 1.55rem;
+  padding: .2rem .5rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-subtle) 76%, var(--surface-elevated));
+  font-size: .69rem;
+  font-weight: 800;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.task-overdue-pill {
+  border-color: color-mix(in srgb, #e11d48 32%, transparent);
+  background: color-mix(in srgb, #e11d48 8%, var(--surface-elevated));
+  color: #be123c;
+}
+
+.dark .task-overdue-pill { color: #fda4af; }
+
+.task-management-page .task-card-title-text {
+  margin: 0;
+  color: var(--surface-text);
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.task-card-description {
+  max-width: 75ch;
+  margin-top: .35rem;
+  color: var(--surface-text-soft);
+  font-size: .8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.task-card-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .32rem;
+  min-width: 8.75rem;
+}
+
+.task-card-field-label {
+  color: var(--surface-text-soft);
+  font-size: .68rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.task-management-page .task-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 8.75rem;
+  min-height: 2.15rem;
+  padding: .4rem .7rem;
+  border-width: 1px;
+  border-radius: .65rem;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.task-management-page select.task-status-pill { cursor: pointer; }
+
+.task-card-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: .55rem;
+  margin-top: .85rem;
+}
+
+.task-card-fact {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: .32rem;
+  min-width: 0;
+  min-height: 3.6rem;
+  padding: .58rem .7rem;
+  border: 1px solid color-mix(in srgb, var(--surface-border) 82%, transparent);
+  border-radius: .75rem;
+  background: color-mix(in srgb, var(--surface-subtle) 64%, var(--surface-elevated));
+}
+
+.task-card-person,
+.task-card-date {
+  display: flex;
+  align-items: center;
+  gap: .42rem;
+  min-width: 0;
+  color: var(--surface-text);
+  font-size: .77rem;
+  line-height: 1.3;
+}
+
+.task-card-person strong,
+.task-card-date strong {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-card-more-people,
+.task-card-branch {
+  flex: none;
+  padding: .12rem .34rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  color: var(--surface-text-soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .66rem;
+  font-weight: 700;
+}
+
+.task-card-date > svg { flex: none; color: var(--surface-text-soft); }
+
+.task-card-date > span {
+  margin-left: auto;
+  color: #be123c;
+  font-size: .68rem;
+  font-weight: 800;
+}
+
+.task-card-fact-overdue {
+  border-color: color-mix(in srgb, #e11d48 26%, var(--surface-border));
+  background: color-mix(in srgb, #e11d48 5%, var(--surface-elevated));
+}
+
+.task-card-fact-overdue .task-card-date,
+.task-card-fact-overdue .task-card-date > svg { color: #be123c; }
+.dark .task-card-fact-overdue .task-card-date,
+.dark .task-card-fact-overdue .task-card-date > svg,
+.dark .task-card-date > span { color: #fda4af; }
+
+.task-card-progress {
+  margin-top: .7rem;
+  padding: .62rem .7rem;
+  border-radius: .75rem;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-subtle));
+}
+
+.task-card-progress > div:first-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  color: var(--surface-text-soft);
+  font-size: .72rem;
+}
+
+.task-card-progress > div:first-child > span {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.task-card-progress > div:first-child > strong {
+  color: var(--surface-text);
+  font-weight: 700;
+}
+
+.task-card-progress-track {
+  height: .32rem;
+  margin-top: .48rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.task-card-progress-track > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .28s ease;
+}
+
+.task-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+  margin-top: .8rem;
+  padding-top: .7rem;
+  border-top: 1px solid color-mix(in srgb, var(--surface-border) 80%, transparent);
+}
+
+.task-card-open {
+  display: inline-flex;
+  align-items: center;
+  gap: .8rem;
+  min-height: 2.25rem;
+  padding: .42rem .65rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .65rem;
+  background: color-mix(in srgb, var(--surface-subtle) 70%, var(--surface-elevated));
+  color: var(--surface-text-soft);
+  cursor: pointer;
+  transition: color .18s ease, border-color .18s ease, background-color .18s ease;
+}
+
+.task-card-open:hover,
+.task-card-open-active {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--surface-border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-elevated));
+  color: var(--accent-strong);
+}
+
+.task-card-open > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  font-size: .72rem;
+  font-weight: 800;
+}
+
+.task-card-activity-count {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.task-card-activity-count em {
+  font-size: .7rem;
+  font-style: normal;
+  font-weight: 500;
+}
+
+.task-card-open > svg:last-child {
+  transition: transform .18s ease;
+}
+
+.task-card-secondary-actions {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.task-management-page .task-todo-card {
+  padding: .9rem;
+  border-color: color-mix(in srgb, var(--surface-border-strong) 70%, transparent);
+}
+
+.task-todo-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: .9rem;
+}
+
+.task-todo-heading { justify-content: space-between; }
+
+.task-todo-title {
+  flex: 1 1 15rem;
+  color: var(--surface-text);
+  font-size: .9rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.task-todo-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.6rem;
+  padding-inline: .55rem;
+  border-radius: 999px;
+  font-size: .68rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.task-todo-meta {
+  margin-top: .48rem;
+  gap: .42rem .8rem;
+}
+
+.task-todo-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .28rem;
+  color: var(--surface-text-soft);
+  font-size: .72rem;
+}
+
+.task-todo-meta-item > strong {
+  color: var(--surface-text);
+  font-weight: 750;
+}
+
+.task-todo-meta-overdue,
+.task-todo-meta-overdue > strong {
+  color: #be123c;
+  font-weight: 800;
+}
+
+.dark .task-todo-meta-overdue,
+.dark .task-todo-meta-overdue > strong { color: #fda4af; }
+
+.task-todo-origin {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.45rem;
+  padding: .15rem .42rem;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  color: var(--surface-text-soft);
+  font-size: .68rem;
+  font-weight: 700;
+}
+
+.task-todo-actions {
+  justify-content: center;
+  min-width: 8.75rem;
+  padding-left: .8rem;
+  border-left: 1px solid color-mix(in srgb, var(--surface-border) 80%, transparent);
+}
+
+@media (max-width: 640px) {
+  main .task-management-page .task-card {
+    padding: .8rem;
+  }
+
+  main .task-management-page .task-card-top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: .72rem;
+  }
+
+  main .task-management-page .task-card-status {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: .65rem;
+    width: 100%;
+    min-width: 0;
+    padding: .42rem .48rem .42rem .65rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .72rem;
+    background: color-mix(in srgb, var(--surface-subtle) 66%, var(--surface-elevated));
+  }
+
+  main .task-management-page .task-status-pill {
+    width: 100%;
+    min-width: 0;
+    min-height: 2.5rem;
+  }
+
+  main .task-management-page .task-card-facts {
+    grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+    gap: .45rem;
+    margin-top: .62rem;
+  }
+
+  main .task-management-page .task-card-fact {
+    min-height: 3.45rem;
+  }
+
+  main .task-management-page .task-card-progress {
+    margin-top: .55rem;
+  }
+
+  main .task-management-page .task-card-footer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    margin-top: .65rem;
+  }
+
+  main .task-management-page .task-card-open {
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 2.75rem;
+  }
+
+  main .task-management-page .task-card-open > svg:last-child {
+    margin-left: auto;
+  }
+
+  main .task-management-page .task-card-secondary-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  main .task-management-page .task-card-secondary-actions > button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  main .task-management-page .task-card-activity-count em {
+    display: none;
+  }
+
+  main .task-management-page .task-card-open {
+    gap: .58rem;
+  }
+}
+
 .summary-card-link {
   cursor: pointer;
   transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
@@ -6857,7 +7311,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     flex-flow: row wrap;
     align-items: center;
     width: 100%;
+    padding-left: 0;
     padding-top: .6rem;
+    border-left: 0;
     border-top: 1px solid color-mix(in srgb, var(--surface-border) 80%, transparent);
   }
 

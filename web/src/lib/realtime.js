@@ -51,6 +51,15 @@ const TABLE_KEYS = {
   branches: [['org']],
   departments: [['org']],
   designations: [['org']],
+  // A chat that arrives on the five-minute safety poll is not a chat. RLS applies to realtime too,
+  // so a subscriber is only sent messages from conversations they are already allowed to read.
+  //
+  // ['conversations'] as well as ['messages']: a new message changes the LIST — its order, its
+  // preview line and its unread badge — and the person it matters most to is the one looking at
+  // the list rather than at the thread.
+  messages: [['messages'], ['conversations']],
+  conversations: [['conversations']],
+  conversation_members: [['conversations']],
 };
 
 export function useRealtimeSync() {

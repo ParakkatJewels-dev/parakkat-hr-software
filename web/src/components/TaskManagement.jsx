@@ -77,12 +77,22 @@ const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelle
 
 const priorityMeta = (p) =>
   p === 'Urgent'
-    ? { dot: 'bg-rose-500', text: 'text-rose-600 dark:text-rose-400' }
+    ? { dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-300' }
     : p === 'High'
-    ? { dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' }
+    ? { dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-300' }
     : p === 'Low'
-    ? { dot: 'bg-neutral-400', text: 'text-neutral-500' }
-    : { dot: 'bg-sky-500', text: 'text-sky-600 dark:text-sky-400' };
+    ? { dot: 'bg-neutral-400', text: 'text-neutral-600 dark:text-neutral-300' }
+    : { dot: 'bg-sky-500', text: 'text-sky-700 dark:text-sky-300' };
+
+const TASK_DATE_FORMATTER = new Intl.DateTimeFormat('en-IN', {
+  day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
+});
+
+const readableTaskDate = (iso) => {
+  if (!iso) return 'No deadline';
+  const [year, month, day] = iso.slice(0, 10).split('-').map(Number);
+  return TASK_DATE_FORMATTER.format(new Date(Date.UTC(year, month - 1, day)));
+};
 
 export default function TaskManagement() {
   const { data: tasks = [], isLoading, error } = useTasks();
@@ -686,88 +696,35 @@ function TaskCard({ task, actions }) {
   // The board's read is the cheap one — two columns per item, not every title — so this is a count
   // and nothing more. The list itself loads when somebody opens the card.
   const steps = checklistProgress(task.checklist ?? []);
+  const primaryName = people[0]?.employee?.full_name || task.assignee?.full_name || ASSIGNEE_HIDDEN;
+  const otherPeople = Math.max(people.length - 1, 0);
+  const canEdit = actions.canEdit(task);
+  const canManage = actions.canManage(task);
   return (
-    <div {...actions.rowProps(task.id)} className="task-card premium-card">
-      <div className="task-card-row mobile-list-row flex items-start justify-between gap-3">
-        <div className="task-card-main min-w-0 space-y-1.5">
-          <div className="task-card-heading flex items-center gap-2 flex-wrap">
-            {/* The dot belongs to the title, so it is grouped with it. Left as a sibling of a
-                two-line title it was pushed onto a row of its own and read as a stray bullet. */}
-            <div className="task-card-title flex items-start gap-2 min-w-0 flex-[1_1_100%] sm:flex-[1_1_0%]">
-              <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${pm.dot}`} title={`${task.priority} priority`} aria-label={`${task.priority} priority`} />
-              {/* Was `truncate`: on a 360px screen that clipped a real title at 338px of the 449
-                  it needed, and the rest was unreadable. Two lines, then ellipsis. */}
-              <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 min-w-0 line-clamp-2">{task.title}</span>
-            </div>
-            <span className={`text-2xs font-bold uppercase font-mono ${pm.text}`}>{task.priority}</span>
-            {steps.total > 0 && (
-              <span
-                className={`text-2xs font-mono px-1.5 py-0.5 rounded border flex items-center gap-1 ${
-                  steps.allDone
-                    ? 'bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981] border-[#0ea971]/25'
-                    : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800'
-                }`}
-                title={`${steps.done} of ${steps.total} steps done`}
-              >
-                <ListTodo size={9} /> {steps.done}/{steps.total}
-              </span>
-            )}
-            {/* Opening the detail is the same gesture whichever of the two you came for, so one
-                control with two counts rather than two controls that open the same thing. */}
-            <button
-              type="button"
-              onClick={() => actions.toggleDetail(task.id)}
-              aria-expanded={detailOpen}
-              aria-label={`${detailOpen ? 'Hide' : 'Show'} comments and attachments for ${task.title}`}
-              className={`text-2xs font-mono px-1.5 py-0.5 rounded border flex items-center gap-1.5 cursor-pointer transition-colors ${
-                detailOpen
-                  ? 'bg-neutral-900 text-white border-neutral-900 dark:bg-[#0ea971] dark:border-[#0ea971]'
-                  : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800 hover:text-neutral-900 dark:hover:text-white'
-              }`}
-            >
-              <MessageSquare size={9} /> {comments || 0}
-              <Paperclip size={9} /> {files || 0}
-            </button>
-          </div>
-          {task.description && (
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{task.description}</p>
-          )}
-          <div className="task-card-meta flex items-center gap-3 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400 pt-0.5">
-            {/* Everyone on it. One name reads as before; more than one names the first and counts
-                the rest, because three full names wrap a 360px card onto its own line. */}
-            <span className="inline-flex items-center gap-1.5">
-              {people.length > 0 && people[0].employee?.full_name
-                ? <Avatar name={people[0].employee.full_name} size="xs" />
-                : <User size={11} className="text-neutral-400" />}
-              <span className={`font-semibold ${people[0]?.employee ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-500 italic'}`}>
-                {people[0]?.employee?.full_name || task.assignee?.full_name || ASSIGNEE_HIDDEN}
-              </span>
-              {people.length > 1 && (
-                <span
-                  className="font-mono px-1 rounded bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
-                  title={people.map((r) => r.employee?.full_name ?? ASSIGNEE_HIDDEN).join(', ')}
-                >
-                  +{people.length - 1}
-                </span>
-              )}
-              {people.length === 1 && task.assignee?.branch?.code && (
-                <span className="font-mono">· {task.assignee.branch.code}</span>
-              )}
+    <div
+      {...actions.rowProps(task.id)}
+      className={`task-card premium-card ${overdue ? 'task-card-overdue' : ''}`}
+    >
+      <div className="task-card-top">
+        <div className="task-card-copy">
+          <div className="task-card-labels">
+            <span className={`task-priority-pill ${pm.text}`}>
+              <Flag size={12} /> {task.priority} priority
             </span>
-            {task.assigner && task.assigner.id !== task.assignee?.id && (
-              <span className="inline-flex items-center gap-1 font-mono">
-                <ChevronRight size={10} /> by {task.assigner.full_name}
-              </span>
-            )}
-            {task.due_date && (
-              <span className={`inline-flex items-center gap-1 font-mono ${overdue ? 'text-rose-600 dark:text-rose-400 font-bold' : ''}`}>
-                <CalendarClock size={11} /> {task.due_date}{overdue ? ' · overdue' : ''}
+            {overdue && (
+              <span className="task-overdue-pill">
+                <AlertTriangle size={12} /> Overdue
               </span>
             )}
           </div>
+          <h3 className="task-card-title-text">{task.title}</h3>
+          {task.description && (
+            <p className="task-card-description line-clamp-2">{task.description}</p>
+          )}
         </div>
 
-        <div className="task-card-actions mobile-list-actions flex flex-col items-end gap-2 shrink-0">
+        <div className="task-card-status">
+          <span className="task-card-field-label">Status</span>
           {actions.canUpdate(task) ? (
             <select
               value={task.status}
@@ -776,40 +733,102 @@ function TaskCard({ task, actions }) {
               title={steps.total > 0 && !steps.allDone
                 ? `${steps.total - steps.done} step${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
                 : undefined}
-              // `status-pill` keeps the status colour in dark mode: index.css repaints every
-              // <select> with !important, which flattened all five statuses to the same grey — and
-              // only for the people who can change one. See the rule there.
-              className={`status-pill text-2xs font-bold uppercase tracking-wide font-mono rounded-md px-2 py-1 border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${statusClass(task.status)}`}
+              className={`status-pill task-status-pill focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${statusClass(task.status)}`}
             >
-              {/* Done is not offered while steps are outstanding. The checklist is what completes
-                  a task now (app.tg_task_checklist_rollup), so a hand-set Done would show "Done"
-                  beside "1/3" and then be undone by the next tick — the status and the list saying
-                  different things is exactly what the rollup exists to prevent. Cancelled stays
-                  available: stopping is a decision, not a completion. */}
               {TASK_STATUSES
-                .filter((st) => st === task.status || st !== 'Done' || steps.total === 0 || steps.allDone)
-                .map((st) => <option key={st} value={st}>{st}</option>)}
+                .filter((status) => status === task.status || status !== 'Done' || steps.total === 0 || steps.allDone)
+                .map((status) => <option key={status} value={status}>{status}</option>)}
             </select>
           ) : (
-            <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border ${statusClass(task.status)}`}>
+            <span className={`task-status-pill task-status-readonly ${statusClass(task.status)}`}>
               {task.status}
             </span>
           )}
-          <div className="flex items-center gap-1">
-            {actions.canEdit(task) && (
-              <button onClick={() => actions.edit(task)} title="Edit task" aria-label={`Edit ${task.title}`}
-                className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white cursor-pointer">
-                <PenLine size={13} />
+        </div>
+      </div>
+
+      <div className="task-card-facts">
+        <div className="task-card-fact">
+          <span className="task-card-field-label">Assigned to</span>
+          <span className="task-card-person" title={people.map((row) => row.employee?.full_name ?? ASSIGNEE_HIDDEN).join(', ')}>
+            {people.length > 0 && people[0].employee?.full_name
+              ? <Avatar name={people[0].employee.full_name} size="xs" />
+              : <User size={14} className="text-neutral-400" />}
+            <strong>{primaryName}</strong>
+            {otherPeople > 0 && <span className="task-card-more-people">+{otherPeople}</span>}
+            {people.length === 1 && task.assignee?.branch?.code && (
+              <span className="task-card-branch">{task.assignee.branch.code}</span>
+            )}
+          </span>
+        </div>
+
+        <div className={`task-card-fact ${overdue ? 'task-card-fact-overdue' : ''}`}>
+          <span className="task-card-field-label">Due date</span>
+          <span className="task-card-date">
+            <CalendarClock size={14} />
+            <strong>{readableTaskDate(task.due_date)}</strong>
+            {overdue && <span>Needs attention</span>}
+          </span>
+        </div>
+
+        {task.assigner && task.assigner.id !== task.assignee?.id && (
+          <div className="task-card-fact">
+            <span className="task-card-field-label">Assigned by</span>
+            <span className="task-card-person">
+              <Avatar name={task.assigner.full_name} size="xs" />
+              <strong>{task.assigner.full_name}</strong>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {steps.total > 0 && (
+        <div className="task-card-progress">
+          <div>
+            <span><ListTodo size={13} /> Checklist</span>
+            <strong>{steps.done} of {steps.total} complete</strong>
+          </div>
+          <div
+            className="task-card-progress-track"
+            role="progressbar"
+            aria-valuenow={steps.percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label={`${steps.percent}% of ${task.title}'s checklist is complete`}
+          >
+            <span style={{ width: `${steps.percent}%` }} />
+          </div>
+        </div>
+      )}
+
+      <div className="task-card-footer">
+        <button
+          type="button"
+          onClick={() => actions.toggleDetail(task.id)}
+          aria-expanded={detailOpen}
+          aria-label={`${detailOpen ? 'Hide' : 'Open'} checklist, comments and attachments for ${task.title}`}
+          className={`task-card-open ${detailOpen ? 'task-card-open-active' : ''}`}
+        >
+          <span><ListTodo size={14} /> Open task</span>
+          <span className="task-card-activity-count"><MessageSquare size={13} /> {comments || 0}<em>comments</em></span>
+          <span className="task-card-activity-count"><Paperclip size={13} /> {files || 0}<em>files</em></span>
+          <ChevronRight size={15} className={detailOpen ? 'rotate-90' : ''} />
+        </button>
+
+        {(canEdit || canManage) && (
+          <div className="task-card-secondary-actions">
+            {canEdit && (
+              <button onClick={() => actions.edit(task)} className={btnClass('ghost', 'sm')}>
+                <PenLine size={13} /> Edit
               </button>
             )}
-            {actions.canManage(task) && (
-              <button onClick={() => actions.remove(task)} title="Delete task" aria-label={`Delete ${task.title}`}
-                className="p-1.5 rounded-lg text-neutral-400 hover:bg-red-100 hover:text-red-500 dark:hover:bg-red-950/40 cursor-pointer">
-                <Trash2 size={13} />
+            {canManage && (
+              <button onClick={() => actions.remove(task)} className={btnClass('dangerGhost', 'sm')}>
+                <Trash2 size={13} /> Delete
               </button>
             )}
           </div>
-        </div>
+        )}
       </div>
 
       {/* Opens in place on the card, so the list keeps its position. Nothing is fetched until it is

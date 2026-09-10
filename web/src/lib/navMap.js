@@ -33,6 +33,9 @@ export const ESS_NAV = [
     items: [
       { id: 'dashboard', label: 'Dashboard', perm: null },
       { id: 'tasks', label: 'My Tasks', perm: 'task.read' },
+      // No permission: everybody can talk to everybody. A directory that will not let one branch
+      // message another is a directory people work around rather than use (0115).
+      { id: 'messages', label: 'Messages', perm: null },
       { id: 'attendance', label: 'My Attendance', perm: 'attendance.read' },
       { id: 'performance', label: 'My Goals', perm: 'goal.read' },
     ],
@@ -96,6 +99,11 @@ export const OVERSIGHT_NAV = [
       { id: 'leave', label: 'Leave', perm: 'leave.read' },
       { id: 'attendance-admin', label: 'Shifts & Devices', perm: 'device.manage' },
     ],
+  },
+  {
+    id: 'messages',
+    label: 'Messages',
+    tabs: [{ id: 'messages', label: 'Messages', perm: null }],
   },
   {
     id: 'people',

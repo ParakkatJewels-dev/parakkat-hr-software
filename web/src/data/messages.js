@@ -1,0 +1,357 @@
+// Talking to a colleague.
+//
+// Everything here rides on 0115's policies, so there is no permission check in this file: a query
+// returns the conversations you are in (plus, for a super admin, any conversation they open by id),
+// and an insert is refused unless you are a member sending as yourself. One boundary, not two.
+//
+// Live delivery is not here either. lib/realtime.js already subscribes to Postgres changes and
+// invalidates the matching caches, and `messages` is registered there — a second realtime mechanism
+// for one screen would be a second thing to debug when the first one is what everything else uses.
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../auth/AuthContext';
+import { isMissingSchema } from '../lib/pendingMigration';
+import { directKey, mediaPath } from '../lib/conversations';
+
+/**
+ * A ceiling on one thread.
+ *
+ * Explicit, so it is visible here rather than PostgREST's silent 1000-row default. Loading the
+ * newest 200 and reversing them client-side is what makes opening a two-year-old conversation as
+ * fast as opening yesterday's; older messages are still there and reachable by widening this, which
+ * is the point at which this screen wants real pagination rather than a bigger number.
+ */
+export const MESSAGE_PAGE = 200;
+
+const MEMBER_FIELDS =
+  'conversation_id, employee_id, role, joined_at, ' +
+  'employee:employees(id, full_name, employee_code, branch:branches(code))';
+
+const MESSAGE_FIELDS =
+  'id, conversation_id, sender_id, kind, body, storage_path, mime_type, byte_size, ' +
+  'duration_ms, reply_to, created_at, edited_at, deleted_at, ' +
+  'sender:employees!messages_sender_id_fkey(id, full_name, employee_code)';
+
+/**
+ * Every conversation I am in, newest activity first, with its unread count and preview.
+ *
+ * Two queries, not one per conversation: the view answers "what and how many", then one `in` query
+ * fetches the people across all of them. Twenty conversations is two round trips rather than
+ * forty-one.
+ *
+ * `pending` is how the screen tells "you have no conversations" apart from "0115 has not been run".
+ * The first is an empty state with a button on it; the second is a screen that cannot work yet, and
+ * showing the first when it is really the second sends somebody looking for a bug in their data.
+ */
+export function useConversations() {
+  return useQuery({
+    queryKey: ['conversations'],
+    queryFn: async () => {
+      const { data: rows, error } = await supabase
+        .from('my_conversations')
+        .select('*')
+        .order('last_message_at', { ascending: false })
+        .limit(500);
+
+      if (error) {
+        if (isMissingSchema(error)) return { pending: true, conversations: [] };
+        throw error;
+      }
+      if ((rows ?? []).length === 0) return { pending: false, conversations: [] };
+
+      const { data: members, error: memberError } = await supabase
+        .from('conversation_members')
+        .select(MEMBER_FIELDS)
+        .in('conversation_id', rows.map((r) => r.id));
+      if (memberError) throw memberError;
+
+      const byConversation = new Map();
+      for (const m of members ?? []) {
+        if (!byConversation.has(m.conversation_id)) byConversation.set(m.conversation_id, []);
+        byConversation.get(m.conversation_id).push(m);
+      }
+
+      return {
+        pending: false,
+        conversations: rows.map((r) => ({ ...r, members: byConversation.get(r.id) ?? [] })),
+      };
+    },
+  });
+}
+
+/** One thread, oldest at the top. Only fetched once a conversation is open. */
+export function useMessages(conversationId, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(conversationId),
+    queryKey: ['messages', conversationId],
+    queryFn: async () => {
+      // Newest first from the database so the LIMIT keeps the recent end of a long conversation,
+      // then reversed for reading. Ordering ascending and limiting would hand back the oldest 200
+      // messages and none of today's.
+      const { data, error } = await supabase
+        .from('messages')
+        .select(MESSAGE_FIELDS)
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: false })
+        .limit(MESSAGE_PAGE);
+      if (error) throw error;
+      return (data ?? []).slice().reverse();
+    },
+  });
+}
+
+function useConversationMutation(mutationFn) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: (_result, variables) => {
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+      if (variables?.conversationId) {
+        qc.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
+      }
+      qc.invalidateQueries({ queryKey: ['notifications'] });
+    },
+  });
+}
+
+export function useSendMessage() {
+  const { employee } = useAuth();
+  return useConversationMutation(async ({ conversationId, body, kind = 'text', media = null, replyTo = null }) => {
+    if (!employee?.id) {
+      throw new Error('Your account is not linked to an employee record, so it cannot send messages.');
+    }
+    const text = String(body ?? '').trim();
+    if (kind === 'text' && !text) return;
+
+    const { error } = await supabase.from('messages').insert({
+      conversation_id: conversationId,
+      sender_id: employee.id,
+      kind,
+      // A caption on a media message, and the message itself on a text one. Empty becomes null so
+      // the check constraint sees an absent caption rather than an empty string.
+      body: text || null,
+      storage_path: media?.path ?? null,
+      mime_type: media?.mimeType ?? null,
+      byte_size: media?.byteSize ?? null,
+      duration_ms: media?.durationMs ?? null,
+      reply_to: replyTo,
+    });
+    if (error) throw error;
+  });
+}
+
+/**
+ * Take back something you said.
+ *
+ * Soft: the row stays and the bubble says the message was deleted. A hole in a thread reads as a
+ * bug, and the reply underneath it would lose what it was answering.
+ */
+export function useDeleteMessage() {
+  return useConversationMutation(async ({ messageId }) => {
+    const { data, error } = await supabase
+      .from('messages')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', messageId)
+      .select('id');
+    if (error) throw error;
+    if (!data?.length) throw new Error('You can only delete your own messages.');
+  });
+}
+
+/**
+ * Mark this conversation read up to now.
+ *
+ * Fired when a thread is open and looked at. Deliberately not a mutation with an invalidate storm
+ * attached — it runs on nearly every screen view, and refetching the world each time would make
+ * reading a conversation the most expensive thing in the app.
+ */
+export function useMarkRead() {
+  const qc = useQueryClient();
+  const { employee } = useAuth();
+  return useMutation({
+    mutationFn: async ({ conversationId }) => {
+      if (!employee?.id || !conversationId) return;
+      const { error } = await supabase
+        .from('conversation_members')
+        .update({ last_read_at: new Date().toISOString() })
+        .eq('conversation_id', conversationId)
+        .eq('employee_id', employee.id);
+      if (error && !isMissingSchema(error)) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  });
+}
+
+/**
+ * Open the conversation with one person, creating it only if there is not one already.
+ *
+ * The lookup goes through `direct_key` — the sorted pair — rather than "a conversation whose
+ * members are exactly these two", which is a query PostgREST cannot express and which would race
+ * anyway. If two people press message on each other at the same instant, the unique index rejects
+ * the second insert and the catch below re-reads the row the winner just created, so both of them
+ * end up in the same conversation instead of two half-conversations.
+ */
+export function useStartDirect() {
+  const qc = useQueryClient();
+  const { employee } = useAuth();
+  return useMutation({
+    mutationFn: async ({ employeeId }) => {
+      if (!employee?.id) throw new Error('Your account is not linked to an employee record.');
+      if (employeeId === employee.id) throw new Error('You cannot start a conversation with yourself.');
+
+      const key = directKey(employee.id, employeeId);
+
+      const existing = await supabase
+        .from('conversations').select('id').eq('direct_key', key).maybeSingle();
+      if (existing.error && !isMissingSchema(existing.error)) throw existing.error;
+      if (existing.data?.id) return existing.data.id;
+
+      const created = await supabase
+        .from('conversations')
+        .insert({ kind: 'direct', direct_key: key, created_by: employee.id })
+        .select('id')
+        .single();
+
+      if (created.error) {
+        // 23505: the other person created it between our read and our write.
+        if (created.error.code === '23505') {
+          const again = await supabase
+            .from('conversations').select('id').eq('direct_key', key).single();
+          if (again.error) throw again.error;
+          return again.data.id;
+        }
+        throw created.error;
+      }
+
+      const { error: memberError } = await supabase.from('conversation_members').insert([
+        { conversation_id: created.data.id, employee_id: employee.id, role: 'owner' },
+        { conversation_id: created.data.id, employee_id: employeeId },
+      ]);
+      if (memberError) throw memberError;
+
+      return created.data.id;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  });
+}
+
+export function useCreateGroup() {
+  const qc = useQueryClient();
+  const { employee } = useAuth();
+  return useMutation({
+    mutationFn: async ({ title, memberIds = [] }) => {
+      if (!employee?.id) throw new Error('Your account is not linked to an employee record.');
+
+      const created = await supabase
+        .from('conversations')
+        .insert({
+          kind: 'group',
+          title: String(title ?? '').trim().slice(0, 120) || null,
+          created_by: employee.id,
+          // No direct_key on a group: two groups with the same people are two legitimate groups,
+          // and the unique index would refuse the second one.
+          direct_key: null,
+        })
+        .select('id')
+        .single();
+      if (created.error) throw created.error;
+
+      const rows = [...new Set([employee.id, ...memberIds])].filter(Boolean).map((id) => ({
+        conversation_id: created.data.id,
+        employee_id: id,
+        role: id === employee.id ? 'owner' : 'member',
+      }));
+      const { error } = await supabase.from('conversation_members').insert(rows);
+      if (error) throw error;
+
+      return created.data.id;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  });
+}
+
+/** Add somebody to a group, or take them out of it. */
+export function useAddMembers() {
+  return useConversationMutation(async ({ conversationId, employeeIds = [] }) => {
+    const rows = employeeIds.filter(Boolean).map((id) => ({
+      conversation_id: conversationId, employee_id: id,
+    }));
+    if (rows.length === 0) return;
+    const { error } = await supabase.from('conversation_members').insert(rows);
+    if (error) throw error;
+  });
+}
+
+export function useRemoveMember() {
+  return useConversationMutation(async ({ conversationId, employeeId }) => {
+    const { error } = await supabase
+      .from('conversation_members')
+      .delete()
+      .eq('conversation_id', conversationId)
+      .eq('employee_id', employeeId);
+    if (error) throw error;
+  });
+}
+
+export function useRenameGroup() {
+  return useConversationMutation(async ({ conversationId, title }) => {
+    const { data, error } = await supabase
+      .from('conversations')
+      .update({ title: String(title ?? '').trim().slice(0, 120) || null })
+      .eq('id', conversationId)
+      .select('id');
+    if (error) throw error;
+    if (!data?.length) throw new Error('Only people in this group can rename it.');
+  });
+}
+
+/* ---------------------------------------------------------------------- media -- */
+
+/**
+ * Put a file in the bucket and return what the message row needs to point at it.
+ *
+ * The path starts with the conversation id because 0115's storage policies read it back out with
+ * storage.foldername() to decide who may fetch the object — see mediaPath.
+ */
+export function useUploadMedia() {
+  return useMutation({
+    mutationFn: async ({ conversationId, file, durationMs = null }) => {
+      const path = mediaPath(conversationId, file?.name);
+      const { error } = await supabase.storage
+        .from('chat-media')
+        .upload(path, file, { contentType: file?.type || undefined, upsert: false });
+      if (error) throw error;
+      return {
+        path,
+        mimeType: file?.type || null,
+        byteSize: file?.size ?? null,
+        durationMs,
+      };
+    },
+  });
+}
+
+/** How long a signed URL lasts. Long enough to watch a video, short enough not to be a link people keep. */
+const SIGNED_SECONDS = 60 * 60;
+
+/**
+ * A URL for one attachment.
+ *
+ * Signed rather than public — the bucket is private, so this is the only way to render an image or
+ * play a voice note, and the link expires. Cached by path so scrolling a thread of twenty photos
+ * does not sign twenty URLs a second time on every re-render.
+ */
+export function useMediaUrl(storagePath, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(storagePath),
+    queryKey: ['chat-media-url', storagePath],
+    staleTime: (SIGNED_SECONDS - 300) * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.storage
+        .from('chat-media')
+        .createSignedUrl(storagePath, SIGNED_SECONDS);
+      if (error) throw error;
+      return data?.signedUrl ?? null;
+    },
+  });
+}

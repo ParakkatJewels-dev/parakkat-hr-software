@@ -5,7 +5,7 @@ import {
 } from './lib/navMap';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell, MessageSquare,
 } from 'lucide-react';
 
 // Import components
@@ -30,6 +30,7 @@ const DocumentManagement = lazy(() => import('./components/DocumentManagement'))
 const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
 const Administration = lazy(() => import('./components/Administration'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
+const Messages = lazy(() => import('./components/Messages'));
 const Team = lazy(() => import('./components/Team'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
@@ -63,6 +64,7 @@ const MOBILE_NAV_LABELS = {
   leave: 'Leave',
   payroll: 'Pay',
   tasks: 'Tasks',
+  messages: 'Chat',
   team: 'My Team',
   performance: 'Goals',
   expense: 'Expenses',
@@ -384,13 +386,13 @@ export default function App() {
   // drift from this one within a release. Icons stay here: navMap is plain data so it can be
   // tested without pulling React in.
   const SECTION_ICONS = {
-    home: LayoutDashboard, people: Users, time: Clock, pay: DollarSign,
+    home: LayoutDashboard, messages: MessageSquare, people: Users, time: Clock, pay: DollarSign,
     'asset-management': Boxes, work: ListChecks, support: HelpCircle,
     insights: BarChart3, account: UserRound, admin: Shield,
   };
   const ESS_ICONS = {
     dashboard: LayoutDashboard, attendance: Clock, leave: Calendar, payroll: DollarSign,
-    tasks: ListChecks, performance: Target, expense: Receipt, 'my-assets': Boxes,
+    tasks: ListChecks, messages: MessageSquare, performance: Target, expense: Receipt, 'my-assets': Boxes,
     documents: FolderOpen, helpdesk: HelpCircle, profile: UserRound, notifications: Bell,
     settings: Settings,
   };
@@ -497,6 +499,7 @@ export default function App() {
     { label: 'Go to Attendance', action: () => setActiveTab('attendance') },
     { label: 'Apply for Time-Off / Leave', action: () => setActiveTab('leave') },
     { label: 'Open Task Management', action: () => setActiveTab('tasks') },
+    { label: 'Open Messages', action: () => setActiveTab('messages') },
     { label: 'Submit an Expense Claim', action: () => setActiveTab('expense') },
     { label: 'View Asset Inventory', action: () => setActiveTab('assets') },
     { label: 'Run Payroll', action: () => setActiveTab('payroll') },
@@ -994,6 +997,8 @@ export default function App() {
                 return <Leave />;
               case 'tasks':
                 return <TaskManagement />;
+              case 'messages':
+                return <Messages />;
               case 'team':
                 return <Team />;
               case 'payroll':
