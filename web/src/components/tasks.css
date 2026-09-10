@@ -1,20 +1,20 @@
-/* A quiet task workspace. These tokens are local; the rest of the HR app keeps its brand. */
+/* Black and neutral-gray task surfaces. These tokens are local; the rest of the HR app keeps its brand. */
 .work-page {
   --work-bg: #fff;
-  --work-soft: #f8f9fb;
-  --work-hover: #f4f6fa;
-  --work-line: #e5e7eb;
-  --work-text: #202530;
-  --work-description: #4b5563;
-  --work-muted: #626b7b;
+  --work-soft: #fafafa;
+  --work-hover: #f5f5f5;
+  --work-line: #e5e5e5;
+  --work-text: #000;
+  --work-description: #404040;
+  --work-muted: #666;
   --work-accent: #4f5fc4;
   --work-selected: #eef1fc;
   --work-danger: #b74449;
   --surface-elevated: var(--work-bg);
   --surface-subtle: var(--work-soft);
-  --surface-muted: #e9ecf3;
+  --surface-muted: #ededed;
   --surface-border: var(--work-line);
-  --surface-border-strong: #cdd2dc;
+  --surface-border-strong: #ccc;
   --surface-text: var(--work-text);
   --surface-text-soft: var(--work-muted);
   --accent: var(--work-accent);
@@ -29,18 +29,18 @@
   color: var(--work-text);
 }
 .dark .work-page {
-  --work-bg: #1c1e24;
-  --work-soft: #22252d;
-  --work-hover: #282c35;
-  --work-line: #353945;
-  --work-text: #eef0f6;
-  --work-description: #c3c9d5;
-  --work-muted: #afb6c5;
+  --work-bg: #000;
+  --work-soft: #111;
+  --work-hover: #1a1a1a;
+  --work-line: #333;
+  --work-text: #f5f5f5;
+  --work-description: #d4d4d4;
+  --work-muted: #aaa;
   --work-accent: #a4afff;
   --work-selected: #2b3049;
   --work-danger: #f2a0a4;
-  --surface-muted: #353945;
-  --surface-border-strong: #555e70;
+  --surface-muted: #333;
+  --surface-border-strong: #555;
   --accent-strong: #bac2ff;
 }
 .work-page *, .work-page *::before, .work-page *::after { box-sizing: border-box; }
@@ -89,7 +89,7 @@
 .work-page .work-row-open { background: var(--work-soft); }
 .work-page .work-row-grid { padding: 20px; align-items: start; }
 .work-page .work-row-content { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
-.work-page .work-complete { position: relative; width: 24px; min-width: 24px; height: 28px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; flex: none; margin-top: -1px; color: #9098a7; background: transparent; border: 0; cursor: pointer; }
+.work-page .work-complete { position: relative; width: 24px; min-width: 24px; height: 28px; min-height: 28px; display: inline-flex; align-items: center; justify-content: center; flex: none; margin-top: -1px; color: #909090; background: transparent; border: 0; cursor: pointer; }
 /* Extend the tap area without turning a small completion indicator into a large colored tile. */
 .work-page .work-complete::after { content: ''; position: absolute; inset: -8px -6px; }
 .work-page .work-complete:hover:not(:disabled) { color: var(--work-accent); }
@@ -118,10 +118,10 @@
 .work-page .work-row-date > svg { flex: none; }
 .work-page .work-row-date.work-overdue { color: var(--work-danger); }
 .work-page .work-status { display: inline-flex; align-items: center; gap: 6px; min-width: 0; min-height: 27px; width: fit-content; padding: 3px 6px; border: 1px solid var(--work-line); border-radius: 5px; background: var(--work-bg); color: var(--work-muted); font-size: 11px; white-space: nowrap; }
-.work-page .work-status-dot { width: 7px; height: 7px; flex: none; border: 1.5px solid #979fab; border-radius: 50%; }
+.work-page .work-status-dot { width: 7px; height: 7px; flex: none; border: 1.5px solid #999; border-radius: 50%; }
 .work-page .work-status[data-status=in-progress] .work-status-dot { background: #7180d4; border-color: #7180d4; }
 .work-page .work-status[data-status=blocked] .work-status-dot { background: #ce777c; border-color: #ce777c; }
-.work-page .work-status[data-status=done] .work-status-dot { background: #778298; border-color: #778298; }
+.work-page .work-status[data-status=done] .work-status-dot { background: var(--work-text); border-color: var(--work-text); }
 .work-page .work-status select { min-width: 0; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .work-page .work-expand { display: flex; align-items: center; justify-content: center; min-width: 24px; min-height: 28px; border-radius: 5px; color: var(--work-muted); cursor: pointer; }
 .work-page .work-expand:hover { background: var(--work-hover); }
