@@ -1,5 +1,6 @@
 // Login screen. Guards the entire app: no session -> this is all you can see.
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   Eye,
@@ -10,7 +11,6 @@ import {
   Mail,
   MapPin,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import BrandMark from '../components/ui/BrandMark';
 import { useAuth } from '../auth/AuthContext';
@@ -47,11 +47,15 @@ export default function Login() {
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (busy) return;
     setError('');
     setBusy(true);
-    const { error: err } = await signIn(email.trim(), password);
-    setBusy(false);
-    if (err) setError(err.message || 'Sign in failed. Check your credentials.');
+    try {
+      const { error: err } = await signIn(email.trim(), password);
+      if (err) throw err;
+    } catch (err) {
+      setError(err.message || 'Sign in failed. Check your credentials.');
+    } finally { setBusy(false); }
     // On success, the auth listener flips the session and the router shows the app.
   };
 
@@ -172,6 +176,10 @@ export default function Login() {
                     {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </LoginField>
+
+                <div className="text-right">
+                  <Link to="/forgot-password" className="text-sm font-semibold text-brand-ink hover:underline">Forgot password?</Link>
+                </div>
 
                 {error && (
                   <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">

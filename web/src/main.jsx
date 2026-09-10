@@ -1,16 +1,17 @@
-import { Component, StrictMode } from 'react';
+import { Component, StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // HashRouter (not BrowserRouter): the native webview serves from a local origin where
 // history/path routing is fragile — hash routes work identically on web and in Capacitor.
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
-import { supabase } from './lib/supabaseClient';
 import { Loader2, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 import './index.css';
 import App from './App.jsx';
 import Login from './pages/Login.jsx';
+import ForgotPassword from './pages/ForgotPassword.jsx';
+import { accessCacheScope, guardedStorage } from './lib/accessCache';
 import SetYourPassword from './components/SetYourPassword.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import { initNative } from './mobile/native';
@@ -35,9 +36,9 @@ installPreloadErrorHandler();
 registerServiceWorker();
 
 // Apply the saved theme before first paint (App owns the toggle, but login/loader render outside it).
-if (localStorage.getItem('theme') === 'dark') {
-  document.documentElement.classList.add('dark');
-}
+try {
+  if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+} catch { /* A blocked storage policy must not prevent sign-in or recovery. */ }
 
 // Realtime (src/lib/realtime.js) is the push channel — it invalidates the exact caches that
 // changed, so polling only needs to be a safety net for a dropped socket.
@@ -48,7 +49,7 @@ if (localStorage.getItem('theme') === 'dark') {
 // attendance-exceptions query. A 5-minute net keeps the mobile guarantee the original comment
 // cared about (Capacitor webviews under-report "focus") at 1/60th the traffic; screens that truly
 // need to tick faster set their own interval (useDayAttendance, the sync-status hooks).
-const queryClient = new QueryClient({
+const queryOptions = {
   defaultOptions: {
     queries: {
       staleTime: 60_000,
@@ -62,7 +63,7 @@ const queryClient = new QueryClient({
       gcTime: 24 * 60 * 60_000,
     },
   },
-});
+};
 
 // --- surviving a refresh ----------------------------------------------------------------------
 // Without this the whole cache dies on every reload: the sync card, the roster, the day's
@@ -73,7 +74,7 @@ const queryClient = new QueryClient({
 // The version string is the safety catch. Restoring a cache whose shape no longer matches the code
 // reading it is worse than having no cache, so any change to the queries bumps this and every
 // stored cache is discarded.
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2-user-access';
 const CACHE_KEY = 'parakkat-hr-cache';
 
 /**
@@ -112,29 +113,54 @@ const safeStorage = {
   },
 };
 
-const persister = createSyncStoragePersister({
-  storage: safeStorage,
-  key: CACHE_KEY,
-  // A write per query result would thrash localStorage during the morning rush; batch them.
-  throttleTime: 2_000,
-});
+// Remove the legacy, unowned cache; it cannot safely be attributed to the current user.
+safeStorage.removeItem(CACHE_KEY);
 
-// One user's cached attendance must never be shown to the next person to sign in on this machine —
-// a shared HR laptop is exactly the situation this app is deployed into. The cache is therefore
-// keyed by user, and torn down the moment the signed-in identity changes.
-let cachedUserId = null;
-supabase.auth.onAuthStateChange((event, session) => {
-  const uid = session?.user?.id ?? null;
-  if (event === 'SIGNED_OUT' || (cachedUserId && uid && uid !== cachedUserId)) {
-    queryClient.clear();
-    try {
-      window.localStorage.removeItem(CACHE_KEY);
-    } catch {
-      // A browser with storage disabled simply has nothing to clear.
-    }
+function SessionQueries({ children, scope, userId, owner }) {
+  const [resources] = useState(() => {
+    const lease = { active: true };
+    return {
+      lease,
+      client: new QueryClient(queryOptions),
+      persister: createSyncStoragePersister({
+        storage: guardedStorage(safeStorage, () => lease.active && Boolean(scope) && owner.current === scope),
+        key: `${CACHE_KEY}:${userId ?? 'signed-out'}`,
+        throttleTime: 2_000,
+      }),
+    };
+  });
+  useEffect(() => {
+    resources.lease.active = true;
+    return () => {
+      resources.lease.active = false;
+      resources.client.clear();
+      resources.persister.removeClient();
+    };
+  }, [resources]);
+  return <PersistQueryClientProvider client={resources.client} persistOptions={{
+    persister: resources.persister,
+    maxAge: 24 * 60 * 60_000,
+    buster: `${CACHE_VERSION}:${scope}`,
+    dehydrateOptions: { shouldDehydrateQuery: (q) => Boolean(scope) && q.state.status === 'success' },
+  }}>{children}</PersistQueryClientProvider>;
+}
+
+function SessionBoundary() {
+  const { user, access, loading, passwordRecovery, recoveryRequested, mustChangePassword } = useAuth();
+  const { pathname } = useLocation();
+  const scope = accessCacheScope(user?.id, access);
+  const owner = useRef(scope);
+  owner.current = scope;
+  // Auth forms do not query HR data. Keep them outside the changing cache boundary so a slow
+  // access response cannot remount a recovery form and erase a password while it is being typed.
+  if (loading || !user || !access || passwordRecovery || recoveryRequested || mustChangePassword
+      || pathname === '/forgot-password' || pathname === '/login') {
+    return <AppErrorBoundary><RootRoutes /></AppErrorBoundary>;
   }
-  cachedUserId = uid;
-});
+  return <SessionQueries key={scope ?? 'unresolved'} scope={scope} userId={user?.id} owner={owner}>
+    <AppErrorBoundary><RootRoutes /></AppErrorBoundary>
+  </SessionQueries>;
+}
 
 function FullScreenLoader() {
   return (
@@ -288,7 +314,16 @@ function NoAccess() {
 // telling them "you're not authorized yet" while leaving the guessable password in place answers
 // the less important of the two problems.
 function AuthedApp() {
-  const { access, isSuperAdmin, assignments, mustChangePassword } = useAuth();
+  const { access, accessError, reloadAccess, signOut, accessLoading, isSuperAdmin, assignments, mustChangePassword } = useAuth();
+  if (accessError) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-neutral-50 dark:bg-charcoal-900 px-5 text-center">
+      <ShieldAlert size={28} className="text-brand-ink" />
+      <h1 className="text-lg font-bold text-neutral-900 dark:text-white">Could not load your access</h1>
+      <p role="alert" className="max-w-md text-sm text-neutral-500 dark:text-neutral-400">{accessError.message}</p>
+      <button disabled={accessLoading} onClick={reloadAccess} className="rounded-xl bg-brand-action text-brand-on px-4 py-2">{accessLoading ? 'Retrying…' : 'Try again'}</button>
+      <button onClick={signOut} className="text-sm text-brand-ink">Sign out</button>
+    </div>
+  );
   if (access === null) return <FullScreenLoader />; // access still resolving
   if (mustChangePassword) return <SetYourPassword />;
   const hasAccess = isSuperAdmin || (assignments?.length ?? 0) > 0;
@@ -297,10 +332,24 @@ function AuthedApp() {
 
 // Top-level auth gate: unauthenticated users only ever see /login.
 function RootRoutes() {
-  const { session, loading } = useAuth();
+  const { session, loading, sessionError, passwordRecovery, recoveryRequested, finishRecovery } = useAuth();
   if (loading) return <FullScreenLoader />;
+  if (sessionError) return <FullScreenError error={sessionError} />;
+  // Recovery is independent of roles and of whether a first-login password change is required.
+  if (passwordRecovery) return <SetYourPassword recovery />;
+  if (recoveryRequested) return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 bg-neutral-50 dark:bg-charcoal-900 px-5 text-center">
+      <h1 className="text-lg font-bold text-neutral-900 dark:text-white">This reset link could not be verified</h1>
+      <p className="max-w-md text-sm text-neutral-500 dark:text-neutral-400">It may have expired or already been used. Request a new link and open the most recent email.</p>
+      <button className="rounded-xl bg-brand-action text-brand-on px-4 py-2" onClick={() => {
+        finishRecovery();
+        window.location.hash = '/forgot-password';
+      }}>Request another link</button>
+    </div>
+  );
   return (
     <Routes>
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/login" element={session ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/*" element={session ? <AuthedApp /> : <Navigate to="/login" replace />} />
     </Routes>
@@ -309,26 +358,8 @@ function RootRoutes() {
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{
-        persister,
-        maxAge: 24 * 60 * 60_000,
-        buster: CACHE_VERSION,
-        dehydrateOptions: {
-          // Only successful results are worth keeping. Persisting an error would show a stale
-          // failure on next load for a request that would now succeed.
-          shouldDehydrateQuery: (q) => q.state.status === 'success',
-        },
-      }}
-    >
-      <HashRouter>
-        <AuthProvider>
-          <AppErrorBoundary>
-            <RootRoutes />
-          </AppErrorBoundary>
-        </AuthProvider>
-      </HashRouter>
-    </PersistQueryClientProvider>
+    <AuthProvider>
+      <HashRouter><SessionBoundary /></HashRouter>
+    </AuthProvider>
   </StrictMode>
 );

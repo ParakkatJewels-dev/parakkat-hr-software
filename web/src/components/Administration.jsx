@@ -6,7 +6,7 @@ import { useVisibleOrg, useScopeCoverage } from '../data/org';
 import { useEmployees } from '../data/employees';
 import {
   useManagedUsers, useRoles, useRolesWithPermissions, useAssignRole, useRevokeRole, useLinkEmployee,
-  usePermissionCatalog, useSaveRole, useDeleteRole, useSetSuperAdmin, useCreateUser, useDeleteLogin,
+  usePermissionCatalog, useSaveRole, useDeleteRole, useSetSuperAdmin, useCreateUser, useDeleteLogin, useSendPasswordReset,
 } from '../data/admin';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
@@ -16,6 +16,9 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
 import UserAccessPanel from './UserAccessPanel';
 import Pagination, { usePagination } from './ui/Pagination';
+import { canManageUser, assignmentScope, employeeScope, hasAssignment } from '../lib/adminUsers';
+import { RESET_REQUEST_MESSAGE } from '../lib/passwordRecovery';
+import { MIN_LENGTH } from '../lib/passwordRules';
 
 const BTN = btnClass('primary');
 const BTN_GHOST = btnClass('ghost');
@@ -106,16 +109,17 @@ function AdminHeader({ view }) {
 // ---------------------------------------------------------------- Users & Access
 function UsersAccess() {
   const { data: users = [], isLoading, error } = useManagedUsers();
-  const { data: roles = [] } = useRoles();
+  const { data: roles = [], error: rolesError } = useRoles();
   const { data: org } = useVisibleOrg();
-  const { data: employees = [] } = useEmployees();
-  const { isSuperAdmin } = usePermissions();
+  const { data: employees = [], error: employeesError } = useEmployees();
+  const { isSuperAdmin, can } = usePermissions();
   const assign = useAssignRole();
   const revoke = useRevokeRole();
   const link = useLinkEmployee();
   const createUser = useCreateUser();
   const setSuper = useSetSuperAdmin();
   const deleteLogin = useDeleteLogin();
+  const resetPassword = useSendPasswordReset();
   const { user: me, rank: myRank, assignments } = useAuth();
   const myRoles = assignments ?? [];
 
@@ -131,15 +135,19 @@ function UsersAccess() {
    * Same seniority rule the assign form already uses below: you may only take away a role you
    * could have granted.
    */
-  const rankOf = useMemo(() => new Map(roles.map((r) => [r.key, r.rank ?? 0])), [roles]);
   const roleByKey = useMemo(() => new Map(roles.map((r) => [r.key, r])), [roles]);
-  const mayRevoke = (roleKey) =>
-    canOfferRole(roleByKey.get(roleKey) ?? { key: roleKey, rank: rankOf.get(roleKey) ?? 0 }, {
+  const mayRevoke = (assignment, target) => {
+    if (!canOfferRole(roleByKey.get(assignment.role_key), {
       includeSuperAdmin: true,
       isSuperAdmin,
       myRank,
       myRoles,
-    });
+    })) return false;
+    if (isSuperAdmin) return true;
+    const scope = assignmentScope(assignment, target, employees, orgList);
+    return Boolean(scope && can('rbac.manage', scope));
+  };
+  const mayManage = (target) => canManageUser(target, { isSuperAdmin, myRank, roles, employees, can });
 
   const [assignFor, setAssignFor] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
@@ -147,6 +155,9 @@ function UsersAccess() {
   const [showGrant, setShowGrant] = useState(false);
   const [grantForUser, setGrantForUser] = useState(null); // employee whose login gains a role
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
+  const [resetFor, setResetFor] = useState(null);
+  const [resetNotice, setResetNotice] = useState('');
+  const [confirmSuper, setConfirmSuper] = useState(null);
   // "What can this person actually reach?" — the question this screen could not answer, because it
   // is organised by role and the question is about a person. See UserAccessPanel.
   const [inspecting, setInspecting] = useState(null);
@@ -182,6 +193,8 @@ function UsersAccess() {
 
   // One login per person eventually — 242 rows.
   const pager = usePagination(shown);
+  const { setPage } = pager;
+  useEffect(() => { setPage(1); }, [q, setPage]);
 
   const scopeLabel = (t, id) => {
     if (t === 'global') return 'Global';
@@ -264,6 +277,9 @@ function UsersAccess() {
       )}
 
       {setSuper.error && <ErrorLine msg={setSuper.error.message} />}
+      {rolesError && <ErrorLine msg={`Could not load roles: ${rolesError.message}`} />}
+      {employeesError && <ErrorLine msg={`Could not load employee links: ${employeesError.message}`} />}
+      {resetNotice && <p role="status" className="rounded-xl bg-brand/10 px-4 py-3 text-sm text-brand-ink">{resetNotice}</p>}
 
       {users.length > 8 && (
         <div className="mobile-toolbar flex items-center gap-3">
@@ -338,7 +354,7 @@ function UsersAccess() {
                     >
                       <span className="font-semibold text-neutral-700 dark:text-neutral-200">{prettyRole(r.role_key)}</span>
                       <span className="text-neutral-400 dark:text-neutral-500">{scopeLabel(r.scope_type, r.scope_id)}</span>
-                      {mayRevoke(r.role_key) && (
+                      {mayRevoke(r, u) && (
                       <button
                         onClick={() => revoke.mutate(r.assignment_id)}
                         disabled={revoke.isPending}
@@ -366,6 +382,8 @@ function UsersAccess() {
               {u.employee_id ? (
                 <button
                   onClick={() => setGrantForUser(employees.find((e) => e.id === u.employee_id) ?? null)}
+                  disabled={!employees.some((e) => e.id === u.employee_id)}
+                  title={employees.some((e) => e.id === u.employee_id) ? 'Add a role for this employee' : 'Employee details are unavailable'}
                   className={BTN}
                 >
                   <Plus size={12} /> Add role
@@ -387,7 +405,7 @@ function UsersAccess() {
                 />
               )}
 
-              {!u.employee_id && (
+              {!u.employee_id && isSuperAdmin && (
                 <button onClick={() => setLinkFor(u)} className={BTN_GHOST}>
                   <Link2 size={13} /> Link employee
                 </button>
@@ -411,6 +429,13 @@ function UsersAccess() {
               )}
 
               <div className="mobile-list-actions ml-auto flex items-center gap-2">
+                {u.email && mayManage(u) && (
+                  <button className={btnClass('ghost', 'sm')} onClick={() => {
+                    resetPassword.reset(); setResetNotice(''); setResetFor(u);
+                  }} aria-label={`Send password reset to ${u.email}`}>
+                    <KeyRound size={13} /> Reset password
+                  </button>
+                )}
                 <button
                   onClick={() => setInspecting(u)}
                   className={btnClass('ghost', 'sm')}
@@ -421,7 +446,7 @@ function UsersAccess() {
                 </button>
                 {isSuperAdmin && (
                   <button
-                    onClick={() => setSuper.mutate({ user_id: u.user_id, flag: !u.is_super_admin })}
+                    onClick={() => { setSuper.reset(); setConfirmSuper(u); }}
                     disabled={setSuper.isPending}
                     className={`inline-flex items-center gap-1.5 text-sm font-semibold px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors border disabled:opacity-60 ${
                       u.is_super_admin
@@ -438,7 +463,7 @@ function UsersAccess() {
                 {/* delete_login (0031, hardened in 0033) refuses an administrator account for
                     anyone but a super admin, so offering it to a delegated admin only ever bought
                     them a raw error. */}
-                {u.user_id !== me?.id && (isSuperAdmin || !u.is_super_admin) && (
+                {u.user_id !== me?.id && mayManage(u) && (
                   <button
                     onClick={() => { deleteLogin.reset(); setConfirmDeleteUser(u); }}
                     className="p-2 rounded-lg cursor-pointer text-neutral-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40 focus:outline-none focus:ring-2 focus:ring-red-500/40 transition-colors"
@@ -492,6 +517,40 @@ function UsersAccess() {
         />
       )}
 
+      {resetFor && (
+        <ConfirmDialog title="Send a password reset link?" confirmLabel="Send reset email" tone="primary"
+          busy={resetPassword.isPending} error={resetPassword.error?.message}
+          onCancel={() => { if (!resetPassword.isPending) setResetFor(null); }}
+          onConfirm={async () => {
+            try {
+              await resetPassword.mutateAsync(resetFor.email);
+              setResetNotice(RESET_REQUEST_MESSAGE);
+              setResetFor(null);
+            } catch { /* shown in the dialog */ }
+          }}>
+          <p>A reset link will be requested for <strong className="break-all">{resetFor.email}</strong>.</p>
+          <p>Their current password stays unchanged until they use the link. Your own password will not change.</p>
+        </ConfirmDialog>
+      )}
+
+      {confirmSuper && (
+        <ConfirmDialog title={confirmSuper.is_super_admin ? 'Remove Super Admin access?' : 'Grant Super Admin access?'}
+          confirmLabel={confirmSuper.is_super_admin ? 'Remove access' : 'Grant full access'}
+          busy={setSuper.isPending} error={setSuper.error?.message}
+          onCancel={() => { if (!setSuper.isPending) setConfirmSuper(null); }}
+          onConfirm={async () => {
+            try {
+              await setSuper.mutateAsync({ user_id: confirmSuper.user_id, flag: !confirmSuper.is_super_admin });
+              setConfirmSuper(null);
+            } catch { /* shown in the dialog */ }
+          }}>
+          <p className="break-all">{confirmSuper.email}</p>
+          <p>{confirmSuper.is_super_admin
+            ? 'Their separately assigned roles will remain. The last Super Admin cannot be removed.'
+            : 'This gives unrestricted access across every company, including payroll and user administration.'}</p>
+        </ConfirmDialog>
+      )}
+
       {confirmDeleteUser && (
         <ConfirmDialog
           title="Delete this login?"
@@ -524,7 +583,7 @@ function UsersAccess() {
 
       {showInvite && (
         <CreateUserPanel
-          employees={employees}
+          employees={employees.filter((e) => !e.user_id)}
           busy={createUser.isPending}
           error={createUser.error?.message}
           result={createUser.data}
@@ -576,9 +635,10 @@ function CreateUserPanel({ employees, busy, error, result, onClose, onSubmit }) 
 
   const submit = (e) => {
     e.preventDefault();
+    if (busy || !canSubmit) return;
     onSubmit({ email: email.trim(), password, employee_id: employeeId || null });
   };
-  const canSubmit = email.trim() && password.length >= 6;
+  const canSubmit = email.trim() && password.length >= MIN_LENGTH && (!employeeId || chosen);
 
   return (
     <Panel title="Create user" onClose={onClose}>
@@ -590,13 +650,13 @@ function CreateUserPanel({ employees, busy, error, result, onClose, onSubmit }) 
         <Field label="Password">
           <div className="relative">
             <input type={showPw ? 'text' : 'password'} className={INPUT + ' pr-16'} value={password}
-              onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" required minLength={6} />
+              onChange={(e) => setPassword(e.target.value)} placeholder={`At least ${MIN_LENGTH} characters`} required minLength={MIN_LENGTH} autoComplete="new-password" />
             <button type="button" onClick={() => setShowPw((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-2xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">
               {showPw ? 'Hide' : 'Show'}
             </button>
           </div>
-          <p className="text-2xs text-neutral-400 mt-1">You set this — share it with the user securely; they can change it after signing in.</p>
+          <p className="text-2xs text-neutral-400 mt-1">Share this temporary password securely. The user must replace it when they first sign in.</p>
         </Field>
         <Field label="Link to employee (optional)">
           {chosen ? (
@@ -648,7 +708,7 @@ function AssignRoleDropdown({
 
   // Escape or a click anywhere else closes it, the way any menu behaves.
   useEffect(() => {
-    if (!open) return;
+    if (!open || busy) return;
     const onKey = (e) => { if (e.key === 'Escape') onToggle(); };
     const onDown = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) onToggle(); };
     document.addEventListener('keydown', onKey);
@@ -657,13 +717,14 @@ function AssignRoleDropdown({
       document.removeEventListener('keydown', onKey);
       document.removeEventListener('mousedown', onDown);
     };
-  }, [open, onToggle]);
+  }, [open, onToggle, busy]);
 
   return (
     <div ref={wrapRef} className="relative">
       <button
         type="button"
         onClick={onToggle}
+        disabled={busy}
         className={triggerClass}
         title={triggerTitle}
         aria-expanded={open}
@@ -680,7 +741,7 @@ function AssignRoleDropdown({
           isSuperAdmin={isSuperAdmin}
           busy={busy}
           error={error}
-          onClose={onToggle}
+          onClose={() => { if (!busy) onToggle(); }}
           onSubmit={onSubmit}
         />
       )}
@@ -704,6 +765,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
   // grant paths disagreed about the same rule.
   const { rank: myRank, assignments } = useAuth();
   const { can } = usePermissions();
+  const { data: employees = [] } = useEmployees();
   const assignableRoles = useMemo(
     () => roles.filter((r) => canOfferRole(r, {
       isSuperAdmin,
@@ -759,10 +821,14 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
     const base = ROLE_SCOPES[role.key] ?? SCOPE_TYPES.map((s) => s.key);
     return base.filter((k) => {
       if (k === 'global') return isSuperAdmin;
+      if (k === 'self') {
+        const scope = employeeScope(employees.find((e) => e.id === user.employee_id));
+        return Boolean(user.employee_id) && (isSuperAdmin || (role.key === 'employee' && scope && can('rbac.manage', scope)));
+      }
       const def = SCOPE_TYPES.find((s) => s.key === k);
       return !def?.needsId || grantableItems[def.from]?.length > 0;
     });
-  }, [role, isSuperAdmin, grantableItems]);
+  }, [role, isSuperAdmin, grantableItems, user.employee_id, employees, can]);
 
   // Keep scopeType valid whenever the allowed set changes (i.e. the role changed).
   useEffect(() => {
@@ -786,9 +852,12 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
 
   const submit = (e) => {
     e.preventDefault();
+    if (!canSubmit || busy) return;
     onSubmit({ role_id: roleId, scope_type: scopeType, scope_id: scopeDef?.needsId ? scopeId : null });
   };
-  const canSubmit = roleId && scopeType && (!scopeDef?.needsId || scopeId);
+  const duplicate = hasAssignment(user.roles, role?.key, scopeType, scopeDef?.needsId ? scopeId : null);
+  const canSubmit = role && allowedScopes.includes(scopeType)
+    && (!scopeDef?.needsId || items.some((it) => it.id === scopeId)) && !duplicate;
 
   return (
     // Anchored under the trigger. z-20 keeps it above sibling cards but below the sticky header
@@ -868,6 +937,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
           </Field>
         )}
 
+        {duplicate && <p className="text-xs text-amber-700 dark:text-amber-300">This user already holds this role at this scope.</p>}
         {error && <ErrorLine msg={error} />}
 
         <div className="flex justify-end gap-2 pt-1">
@@ -891,9 +961,10 @@ function LinkEmployeePanel({ user, employees, busy, error, onClose, onSubmit }) 
   const results = useMemo(() => {
     const s = q.toLowerCase();
     return employees
+      .filter((e) => !e.user_id || e.user_id === user.user_id)
       .filter((e) => !s || (e.full_name || '').toLowerCase().includes(s) || (e.employee_code || '').toLowerCase().includes(s))
       .slice(0, 25);
-  }, [employees, q]);
+  }, [employees, q, user.user_id]);
 
   return (
     <Panel title={`Link employee — ${user.email}`} onClose={onClose}>

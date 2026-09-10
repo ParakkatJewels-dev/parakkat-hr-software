@@ -36,7 +36,7 @@ backend/
     │   └── 0015_repair_attendance_fks.sql  idempotent: adds any attendance FK that a partial
     │                              0013/0014 run left out, then reloads the PostgREST cache
     └── functions/                 Edge Functions (deployed with the Supabase CLI)
-        └── invite-user/           service-role user invitation (optional; script is the no-CLI path)
+        └── invite-user/           caller-authorized atomic login creation (optional)
 ```
 
 ## Setup order (run once)
@@ -58,6 +58,10 @@ backend/
 > server to start. (It used to run `supabase start`, which this project doesn't use.)
 
 ## Design notes
+
+Password recovery and the latest user/role fixes have a dedicated
+[audit and rollout checklist](USER_ACCOUNT_AUDIT.md), including migration `0120` and Supabase
+redirect/email setup.
 
 - **Security is in the database.** Every table has Row-Level Security; the single function
   `app.has_perm(perm, entity, zone, branch, dept, employee)` decides access. Scope inheritance is

@@ -3,6 +3,8 @@
 // straight to role_assignments — RLS + the escalation guard enforce who may grant what, where.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { revokeRole, createManagedUser, refreshUserAdministration } from '../lib/adminUsers';
+import { requestPasswordReset, passwordRecoveryRedirect } from '../lib/passwordRecovery';
 
 export function useManagedUsers() {
   return useQuery({
@@ -71,10 +73,7 @@ export function useGrantAppAccess() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['managed-users'] });
-      qc.invalidateQueries({ queryKey: ['employees'] });
-    },
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
@@ -89,10 +88,7 @@ export function useDeleteLogin() {
       const { error } = await supabase.rpc('delete_login', { _user: user_id });
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['managed-users'] });
-      qc.invalidateQueries({ queryKey: ['employees'] });
-    },
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
@@ -105,18 +101,15 @@ export function useAssignRole() {
         .insert({ user_id, role_id, scope_type, scope_id: scope_id || null });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
 export function useRevokeRole() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (assignmentId) => {
-      const { error } = await supabase.from('role_assignments').delete().eq('id', assignmentId);
-      if (error) throw error;
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
+    mutationFn: (assignmentId) => revokeRole(supabase, assignmentId),
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
@@ -130,7 +123,7 @@ export function useLinkEmployee() {
       });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
@@ -166,10 +159,7 @@ export function useSaveRole() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['roles'] });
-      qc.invalidateQueries({ queryKey: ['roles-with-perms'] });
-    },
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
@@ -180,10 +170,7 @@ export function useDeleteRole() {
       const { error } = await supabase.rpc('delete_role', { _role_id: roleId });
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['roles'] });
-      qc.invalidateQueries({ queryKey: ['roles-with-perms'] });
-    },
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
@@ -195,34 +182,25 @@ export function useSetSuperAdmin() {
       const { error } = await supabase.rpc('set_super_admin', { _user: user_id, _flag: flag });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
+    onSuccess: () => refreshUserAdministration(qc),
   });
 }
 
 // Create a login directly (super admin only) — the admin sets the email + password, no email is
-// sent. Backed by the admin_create_user RPC, then optionally link an employee and/or promote to
-// super admin. No Edge Function / service_role key in the browser.
+// sent. Creation and the optional employee link/promotion now share one database transaction.
+// No Edge Function / service_role key in the browser.
 export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ email, password, employee_id, super_admin }) => {
-      const { data: userId, error } = await supabase.rpc('admin_create_user', {
-        _email: email,
-        _password: password,
-      });
-      if (error) throw error;
-      if (employee_id) {
-        const { error: linkErr } = await supabase.rpc('link_user_to_employee', {
-          _user: userId, _employee: employee_id,
-        });
-        if (linkErr) throw linkErr;
-      }
-      if (super_admin) {
-        const { error: saErr } = await supabase.rpc('set_super_admin', { _user: userId, _flag: true });
-        if (saErr) throw saErr;
-      }
-      return { user_id: userId, email };
-    },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['managed-users'] }),
+    mutationFn: (payload) => createManagedUser(supabase, payload),
+    onSuccess: () => refreshUserAdministration(qc),
+  });
+}
+
+// This emails the TARGET account; auth.updateUser here would change the administrator's password.
+export function useSendPasswordReset() {
+  return useMutation({
+    mutationFn: (email) => requestPasswordReset(supabase.auth, email,
+      passwordRecoveryRedirect(window.location.href, import.meta.env.VITE_PUBLIC_APP_URL)),
   });
 }

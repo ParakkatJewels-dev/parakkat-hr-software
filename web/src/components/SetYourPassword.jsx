@@ -25,8 +25,8 @@ const INPUT =
   'dark:border-neutral-800 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:border-brand ' +
   'focus:ring-2 focus:ring-brand/20 transition-colors';
 
-export default function SetYourPassword() {
-  const { user, employee, signOut, reloadAccess } = useAuth();
+export default function SetYourPassword({ recovery = false }) {
+  const { user, employee, signOut, reloadAccess, finishRecovery } = useAuth();
   const [pw, setPw] = useState('');
   const [confirm, setConfirm] = useState('');
   const [show, setShow] = useState(false);
@@ -44,15 +44,15 @@ export default function SetYourPassword() {
     if (!ready || busy) return;
     setBusy(true);
     setError(null);
-    const { error: err } = await supabase.auth.updateUser({ password: pw });
-    if (err) {
-      setBusy(false);
+    try {
+      const { error: err } = await supabase.auth.updateUser({ password: pw });
+      if (err) throw err;
+      // Finish recovery even if refreshing permissions fails: the password itself was saved.
+      await reloadAccess();
+      if (recovery) finishRecovery();
+    } catch (err) {
       setError(humanDbError(err) ?? err.message);
-      return;
-    }
-    // The trigger has cleared the flag by now; re-read access so the gate comes down.
-    await reloadAccess();
-    setBusy(false);
+    } finally { setBusy(false); }
   };
 
   return (
@@ -62,10 +62,11 @@ export default function SetYourPassword() {
           <div className="w-14 h-14 rounded-2xl bg-brand/12 text-brand-ink dark:text-brand-ink flex items-center justify-center mx-auto">
             <KeyRound size={24} />
           </div>
-          <h1 className="text-lg font-bold text-neutral-900 dark:text-warm-gray-100">Choose your password</h1>
+          <h1 className="text-lg font-bold text-neutral-900 dark:text-warm-gray-100">{recovery ? 'Reset your password' : 'Choose your password'}</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 leading-relaxed max-w-sm mx-auto">
-            You signed in with the password you were given. Anyone who knows your name and phone
-            number could work that one out, so pick your own before you carry on.
+            {recovery
+              ? `Choose a new password for ${user?.email || 'your account'}.`
+              : 'You signed in with a temporary password. Choose your own before you carry on.'}
           </p>
         </div>
 

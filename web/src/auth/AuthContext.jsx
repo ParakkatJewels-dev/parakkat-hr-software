@@ -1,10 +1,15 @@
 // Global auth + access context.
 // Holds the Supabase session and the current user's scoped access (roles/permissions/employee),
 // fetched via the get_my_access() RPC. Screens read this instead of the old cosmetic role toggle.
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { createAccessLoader } from '../lib/accessLoader';
+import { isRecoveryUrl, recoveryUser, rememberRecovery, clearRecoveryUrl } from '../lib/passwordRecovery';
 
-const AuthContext = createContext(null);
+// Capture before Supabase consumes the URL fragment. A URL marker alone never authorizes a reset.
+const arrivedForRecovery = typeof window !== 'undefined' && isRecoveryUrl(window.location.href);
+
+export const AuthContext = createContext(null);
 
 export function useAuth() {
   const ctx = useContext(AuthContext);
@@ -14,45 +19,66 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
-  const [access, setAccess] = useState(null); // { is_super_admin, employee, assignments[], permissions[] }
+  const [accessState, setAccessState] = useState({ userId: null, data: null, error: null, loading: false });
+  const [sessionError, setSessionError] = useState(null);
+  const [recoveryId, setRecoveryId] = useState(recoveryUser);
+  const [recoveryRequested, setRecoveryRequested] = useState(arrivedForRecovery);
   const [loading, setLoading] = useState(true); // initial session resolution
-  const [accessLoading, setAccessLoading] = useState(false);
-
-  const loadAccess = useCallback(async () => {
-    setAccessLoading(true);
-    const { data, error } = await supabase.rpc('get_my_access');
-    if (error) {
-      console.error('[auth] get_my_access failed:', error.message);
-      setAccess(null);
-    } else {
-      setAccess(data);
-    }
-    setAccessLoading(false);
+  const loader = useMemo(() => createAccessLoader(() => supabase.rpc('get_my_access'), setAccessState), []);
+  const loadAccess = useCallback(() => loader.load(), [loader]);
+  const access = accessState.userId === session?.user?.id ? accessState.data : null;
+  const finishRecovery = useCallback(() => {
+    rememberRecovery(null);
+    setRecoveryId(null);
+    setRecoveryRequested(false);
+    clearRecoveryUrl();
   }, []);
 
   // Resolve the current session on mount and subscribe to auth changes.
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setSession(data.session ?? null);
-      setLoading(false);
-    });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    let receivedEvent = false;
+    const accept = (s) => {
+      loader.setUser(s?.user?.id ?? null);
       setSession(s ?? null);
+      setSessionError(null);
+      setLoading(false);
+    };
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (!active) return;
+      receivedEvent = true;
+      if (event === 'PASSWORD_RECOVERY' && s?.user) {
+        rememberRecovery(s.user.id);
+        setRecoveryId(s.user.id);
+        setRecoveryRequested(true);
+      } else if (event === 'SIGNED_OUT') {
+        finishRecovery();
+      } else if (recoveryUser() && recoveryUser() !== s?.user?.id) {
+        rememberRecovery(null);
+        setRecoveryId(null);
+      }
+      accept(s);
+    });
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!active || receivedEvent) return;
+      if (error) throw error;
+      accept(data.session);
+    }).catch((err) => {
+      if (!active || receivedEvent) return;
+      setSessionError(err);
+      setLoading(false);
     });
     return () => {
       active = false;
       sub.subscription.unsubscribe();
+      loader.setUser(null);
     };
-  }, []);
+  }, [loader, finishRecovery]);
 
   // Whenever the session changes, (re)load the user's access profile.
   useEffect(() => {
     if (session) {
       loadAccess();
-    } else {
-      setAccess(null);
     }
   }, [session, loadAccess]);
 
@@ -76,16 +102,29 @@ export function AuthProvider({ children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles', filter: `user_id=eq.${userId}` }, refreshSoon)
       // An override added or removed has to repaint the sidebar at once, the same as a role change.
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_screen_overrides', filter: `user_id=eq.${userId}` }, refreshSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'roles' }, refreshSoon)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'role_permissions' }, refreshSoon)
       .subscribe();
+
+    // Deletes / a disconnected realtime socket must not leave access stale indefinitely.
+    const refreshOnFocus = () => { if (document.visibilityState === 'visible') refreshSoon(); };
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+    window.addEventListener('app:access-changed', refreshSoon);
+    const poll = setInterval(refreshOnFocus, 60_000);
 
     return () => {
       if (timer) clearTimeout(timer);
+      clearInterval(poll);
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+      window.removeEventListener('app:access-changed', refreshSoon);
       supabase.removeChannel(channel);
     };
   }, [session?.user?.id, session?.access_token, loadAccess]);
 
   const signIn = useCallback(
-    (email, password) => supabase.auth.signInWithPassword({ email, password }),
+    (email, password) => supabase.auth.signInWithPassword({ email: email.trim(), password }),
     []
   );
   const signOut = useCallback(() => supabase.auth.signOut(), []);
@@ -107,7 +146,12 @@ export function AuthProvider({ children }) {
     // Mirrors app.max_role_rank(); the database still enforces it — this only shapes the UI.
     rank: access?.rank ?? 0,
     loading,
-    accessLoading,
+    accessLoading: accessState.loading,
+    accessError: accessState.userId === session?.user?.id ? accessState.error : null,
+    sessionError,
+    passwordRecovery: Boolean(session?.user?.id && recoveryId === session.user.id),
+    recoveryRequested,
+    finishRecovery,
     signIn,
     signOut,
     reloadAccess: loadAccess,

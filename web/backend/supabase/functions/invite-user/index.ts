@@ -1,5 +1,5 @@
 // Supabase Edge Function: invite-user
-// Creates a login (service-role only) after verifying the caller may manage users.
+// Creates a login through the same atomic, super-admin-only RPC as Administration.
 // Optional in-app alternative to `backend/scripts/create_user.py`.
 //
 // Deploy (needs the Supabase CLI):
@@ -7,7 +7,7 @@
 // The frontend can then call it with the signed-in user's JWT:
 //   await supabase.functions.invoke('invite-user', { body: { email, password } })
 //
-// SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected by the platform.
+// SUPABASE_URL and SUPABASE_ANON_KEY are injected by the platform. No service-role bypass.
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const cors = {
@@ -18,44 +18,32 @@ const cors = {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
 
   try {
     const url = Deno.env.get('SUPABASE_URL')!;
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const admin = createClient(url, serviceKey);
-
-    // Identify the caller from their JWT.
     const jwt = (req.headers.get('Authorization') ?? '').replace('Bearer ', '');
-    const { data: caller } = await admin.auth.getUser(jwt);
+    if (!jwt) return json({ error: 'Not authenticated' }, 401);
+    const callerClient = createClient(url, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: `Bearer ${jwt}` } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: caller } = await callerClient.auth.getUser(jwt);
     if (!caller?.user) return json({ error: 'Not authenticated' }, 401);
-
-    // Authorize: SUPER ADMIN ONLY.
-    //
-    // This used to accept any rbac.manage holder at any scope and then mint a confirmed login for
-    // an arbitrary address, with no employee-scope check — bypassing grant_app_access and its
-    // email guard entirely. The app's normal path is public.grant_app_access (scoped, atomic,
-    // guarded); this function remains only as a break-glass tool.
-    const { data: prof } = await admin
-      .from('profiles').select('is_super_admin').eq('user_id', caller.user.id).maybeSingle();
-    if (!prof?.is_super_admin) {
-      return json({ error: 'Only a super admin may create logins here; use Give app access.' }, 403);
-    }
 
     const { email, password, employee_id } = await req.json();
     if (!email) return json({ error: 'email is required' }, 400);
 
-    const { data: created, error } = await admin.auth.admin.createUser({
-      email,
-      password: password ?? crypto.randomUUID().slice(0, 12) + 'A1!',
-      email_confirm: true,
+    // The RPC checks the verified caller's super-admin flag OR role assignment. Linking failure
+    // rolls back the login too; the old second request silently ignored linking errors.
+    const { data: userId, error } = await callerClient.rpc('admin_create_user_with_employee', {
+      _email: email,
+      _password: password ?? crypto.randomUUID().slice(0, 12) + 'A1!',
+      _employee: employee_id ?? null,
+      _super_admin: false,
     });
-    if (error) return json({ error: error.message }, 400);
-
-    // Optional: link to an employee.
-    if (employee_id) {
-      await admin.rpc('link_user_to_employee', { _user: created.user.id, _employee: employee_id });
-    }
-    return json({ user_id: created.user.id, email });
+    if (error) return json({ error: error.message }, error.message.includes('only a super admin') ? 403 : 400);
+    return json({ user_id: userId, email });
   } catch (e) {
     return json({ error: String(e) }, 500);
   }
