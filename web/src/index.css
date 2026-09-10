@@ -5351,6 +5351,116 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   gap: .4rem;
 }
 
+.task-message-composer {
+  padding: .55rem;
+  border: 1px solid color-mix(in srgb, var(--surface-border-strong) 78%, transparent);
+  border-radius: .85rem;
+  background: color-mix(in srgb, var(--surface-subtle) 58%, var(--surface-elevated));
+}
+
+.task-message-input-row {
+  display: flex;
+  align-items: flex-end;
+  gap: .28rem;
+  min-width: 0;
+  padding: .22rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .72rem;
+  background: var(--surface-elevated);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.task-message-input-row:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--surface-border));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.task-message-attach,
+.task-message-send {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 0;
+  border-radius: .58rem;
+  cursor: pointer;
+  transition: color .18s ease, background-color .18s ease, opacity .18s ease;
+}
+
+.task-message-attach {
+  color: var(--surface-text-soft);
+}
+
+.task-message-attach:hover {
+  background: var(--surface-subtle);
+  color: var(--accent-strong);
+}
+
+.task-message-send {
+  background: var(--accent);
+  color: #fff;
+}
+
+.task-message-send:hover:not(:disabled) { background: var(--accent-strong); }
+.task-message-send:disabled,
+.task-message-attach:disabled { opacity: .45; cursor: not-allowed; }
+
+.task-message-input {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.35rem;
+  max-height: 8rem;
+  padding: .48rem .35rem;
+  border: 0;
+  outline: 0;
+  resize: none;
+  background: transparent;
+  color: var(--surface-text);
+  font-size: .84rem;
+  line-height: 1.4;
+}
+
+.task-message-input::placeholder { color: var(--surface-text-soft); }
+
+.task-message-file {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: .45rem;
+  margin-bottom: .45rem;
+  padding: .45rem .55rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--surface-border));
+  border-radius: .65rem;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface-elevated));
+  color: var(--surface-text);
+  font-size: .74rem;
+}
+
+.task-message-file > svg { color: var(--accent-strong); }
+.task-message-file > span { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.task-message-file > small { color: var(--surface-text-soft); font-size: .66rem; }
+.task-message-file > button { padding: .2rem; border-radius: .35rem; color: var(--surface-text-soft); cursor: pointer; }
+.task-message-file > button:hover { background: color-mix(in srgb, #e11d48 10%, transparent); color: #e11d48; }
+
+.task-message-hint {
+  margin: .38rem .25rem 0;
+  color: var(--surface-text-soft);
+  font-size: .66rem;
+  line-height: 1.35;
+}
+
+.task-comment-link {
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  text-underline-offset: 2px;
+}
+
+.task-comment-link:hover { text-decoration-color: currentColor; }
+
 .task-management-page .task-todo-card {
   padding: .9rem;
   border-color: color-mix(in srgb, var(--surface-border-strong) 70%, transparent);

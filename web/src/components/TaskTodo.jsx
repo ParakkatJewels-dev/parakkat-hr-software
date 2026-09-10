@@ -303,9 +303,9 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
             {steps.total > 0 && (
               <span
                 className={`task-todo-meta-item ${steps.allDone ? 'text-[#0c9765] dark:text-[#10b981]' : ''}`}
-                title={`${steps.done} of ${steps.total} steps done`}
+                title={`${steps.done} of ${steps.total} subtasks done`}
               >
-                <ListTodo size={11} /> Checklist <strong>{steps.done}/{steps.total}</strong>
+                <ListTodo size={11} /> Subtasks <strong>{steps.done}/{steps.total}</strong>
               </span>
             )}
             {task.due_date && (
@@ -323,7 +323,7 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
             <button
               onClick={onAdvance} disabled={busy || advanceBlocked}
               title={advanceBlocked
-                ? `${steps.total - steps.done} step${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
+                ? `${steps.total - steps.done} subtask${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
                 : undefined}
               className={btnClass(task.status === 'In Progress' ? 'success' : 'ghost', 'sm')}
             >

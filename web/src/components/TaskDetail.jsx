@@ -6,14 +6,14 @@
 //
 // The thread and the files are only fetched when somebody opens one — see the `enabled` on both
 // hooks. Fifty cards must not mean a hundred queries.
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   MessageSquare, Paperclip, Send, Trash2, Link2, FileText, Download, Loader2, Plus, X,
   CornerDownRight, ListTodo, Square, CheckSquare,
 } from 'lucide-react';
 import { useTaskComments, useAddTaskComment, useDeleteTaskComment } from '../data/taskComments';
 import {
-  useTaskAttachments, useAddTaskLink, useAddTaskFile, useTaskFileUrl, useRemoveTaskAttachment,
+  useTaskAttachments, useAddTaskFile, useTaskFileUrl, useRemoveTaskAttachment,
   ACCEPTED_TASK_FILES, MAX_TASK_FILE_BYTES,
 } from '../data/taskAttachments';
 import { useAuth } from '../auth/AuthContext';
@@ -31,6 +31,7 @@ import {
 import { checklistProgress, isItemDone, sortItems, tickedBy } from '../lib/checklist';
 import { isAssignedTo } from '../lib/taskBoard';
 import { usePermissions } from '../auth/usePermissions';
+import { messageLinkParts } from '../lib/messageLinks';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
@@ -68,8 +69,14 @@ export default function TaskDetail({ task, open }) {
         canTick={mine}
         canEdit={canEditList}
       />
-      <Attachments taskId={task.id} rows={attachments.data ?? []} loading={attachments.isLoading} myUserId={user?.id} />
-      <Thread taskId={task.id} rows={comments.data ?? []} loading={comments.isLoading} myUserId={user?.id} />
+      <Thread
+        taskId={task.id}
+        rows={comments.data ?? []}
+        loading={comments.isLoading}
+        attachmentRows={attachments.data ?? []}
+        attachmentsLoading={attachments.isLoading}
+        myUserId={user?.id}
+      />
     </div>
   );
 }
@@ -79,10 +86,12 @@ export default function TaskDetail({ task, open }) {
 /**
  * The steps inside a task, and who ticked each one.
  *
- * This is what sub-tasks were being used for and did badly: a sub-task is a whole task, with an
- * assignee, a status, a due date and a place in a tree, when all anybody wanted was a line to cross
- * off. The trade is deliberate — a line here cannot hold a comment or a file, which is why the one
- * genuinely nested task in production was left as a task rather than flattened into one of these.
+ * Called subtasks on screen, and stored in task_checklist_items — the table name is older than the
+ * word. They replace what the parent/child task tree was being used for and did badly: a nested
+ * TASK carries an assignee, a status, a due date and a place in a tree, when all anybody wanted was
+ * a line to cross off. The trade is deliberate — a line here cannot hold a comment or a file, which
+ * is why the one genuinely nested task in production was left as a task rather than flattened into
+ * one of these.
  *
  * Ticking the last line closes the task, from the database (app.tg_task_checklist_rollup), not from
  * here. lib/checklist.js mirrors that rule for the screen; the trigger is what actually decides.
@@ -115,7 +124,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
     <div className="task-checklist space-y-2">
       <div className="flex items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
-          <ListTodo size={11} /> Checklist
+          <ListTodo size={11} /> Subtasks
         </p>
         {total > 0 && (
           <span className="text-2xs font-mono text-neutral-500 dark:text-neutral-400">
@@ -139,7 +148,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
 
       {loading && (
         <p className="flex items-center gap-1.5 text-2xs text-neutral-400">
-          <Loader2 size={11} className="animate-spin" /> Loading steps…
+          <Loader2 size={11} className="animate-spin" /> Loading subtasks…
         </p>
       )}
 
@@ -154,7 +163,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
               onClick={() => toggle.mutate({ taskId, itemId: item.id, done: !isDone })}
               aria-pressed={isDone}
               aria-label={`${isDone ? 'Untick' : 'Tick'} "${item.title}"`}
-              title={canTick ? undefined : 'Only the people assigned to this task can tick its steps'}
+              title={canTick ? undefined : 'Only the people assigned to this task can tick its subtasks'}
               className={`mt-0.5 shrink-0 transition-colors ${
                 canTick ? 'cursor-pointer hover:text-[#0ea971]' : 'cursor-not-allowed opacity-60'
               } ${isDone ? 'text-[#0ea971]' : 'text-neutral-400 dark:text-neutral-500'}`}
@@ -182,7 +191,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
               <button
                 type="button"
                 onClick={() => remove.mutate({ taskId, itemId: item.id })}
-                aria-label={`Remove step "${item.title}"`}
+                aria-label={`Remove subtask "${item.title}"`}
                 className="mt-0.5 shrink-0 text-neutral-300 dark:text-neutral-600 hover:text-rose-500 transition-colors cursor-pointer"
               >
                 <X size={13} />
@@ -204,7 +213,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => { if (!title.trim()) setAdding(false); }}
             onKeyDown={(e) => { if (e.key === 'Escape') { setTitle(''); setAdding(false); } }}
-            placeholder="What is the step?"
+            placeholder="What is the subtask?"
             maxLength={200}
             className={INPUT + ' text-xs'}
           />
@@ -218,7 +227,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
           onClick={() => setAdding(true)}
           className="flex items-center gap-1 text-2xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-[#0ea971] transition-colors cursor-pointer"
         >
-          <Plus size={11} /> Add step
+          <Plus size={11} /> Add subtask
         </button>
       ))}
     </div>
@@ -227,17 +236,10 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
 
 /* -------------------------------------------------------------------- files -- */
 
-function Attachments({ taskId, rows, loading, myUserId }) {
-  const [adding, setAdding] = useState(null);   // 'link' | null
-  const [url, setUrl] = useState('');
-  const [label, setLabel] = useState('');
-  const addLink = useAddTaskLink();
-  const addFile = useAddTaskFile();
+function Attachments({ rows, loading, myUserId }) {
   const remove = useRemoveTaskAttachment();
   const signed = useTaskFileUrl();
-  const error = humanDbError(addLink.error || addFile.error || remove.error, 'task_attachments');
-  // Opening the link form on a phone put it below the fold, so the button looked inert.
-  const linkFormRef = useRevealOnOpen(adding === 'link');
+  const error = humanDbError(remove.error || signed.error, 'task_attachments');
 
   const openFile = async (row) => {
     try {
@@ -248,58 +250,18 @@ function Attachments({ taskId, rows, loading, myUserId }) {
 
   return (
     <section className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         <h4 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 flex items-center gap-1.5">
-          <Paperclip size={11} /> Attachments {rows.length > 0 && <span className="font-mono opacity-70">{rows.length}</span>}
+          <Paperclip size={11} /> Shared {rows.length > 0 && <span className="font-mono opacity-70">{rows.length}</span>}
         </h4>
-        <div className="flex items-center gap-1.5">
-          <button type="button" onClick={() => setAdding(adding === 'link' ? null : 'link')} className={btnClass('ghost','sm')}>
-            <Link2 size={12} /> Link
-          </button>
-          <label className={`${btnClass('ghost','sm')} ${addFile.isPending ? 'opacity-60' : ''}`}>
-            {addFile.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} File
-            <input
-              type="file" className="hidden" accept={ACCEPTED_TASK_FILES}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = '';   // so picking the same file twice still fires
-                if (file) addFile.mutate({ taskId, file });
-              }}
-            />
-          </label>
-        </div>
       </div>
-
-      {/* Two inputs and two buttons on one line needed 12rem for the address alone, so at 360px the
-          row broke into a ragged stack with Add stranded beside a text field. Stacked on a phone,
-          one row from `sm` up. */}
-      {adding === 'link' && (
-        <form
-          ref={linkFormRef}
-          className="space-y-2"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            try { await addLink.mutateAsync({ taskId, url, label }); setUrl(''); setLabel(''); setAdding(null); }
-            catch { /* shown below */ }
-          }}
-        >
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="Paste a link…" aria-label="Link address" className={INPUT} />
-          <div className="flex flex-col sm:flex-row gap-2">
-            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Call it… (optional)" aria-label="Link name" className={INPUT + ' sm:flex-1'} />
-            <div className="flex gap-2">
-              <button type="submit" disabled={!url.trim() || addLink.isPending} className={btnClass('primary','sm') + ' flex-1 sm:flex-none'}>Add</button>
-              <button type="button" onClick={() => setAdding(null)} className={btnClass('ghost','sm') + ' flex-1 sm:flex-none'}>Cancel</button>
-            </div>
-          </div>
-        </form>
-      )}
 
       {error && <p role="alert" className="text-2xs text-red-600 dark:text-red-300">{error}</p>}
 
       {loading ? (
         <Loader2 size={14} className="animate-spin text-[#0ea971]" />
       ) : rows.length === 0 ? (
-        <p className="text-2xs text-neutral-400">Nothing attached. A photo of the problem, or a link to the spec.</p>
+        <p className="text-2xs text-neutral-400">No files shared yet.</p>
       ) : (
         <ul className="space-y-1">
           {rows.map((row) => (
@@ -340,7 +302,6 @@ function Attachments({ taskId, rows, loading, myUserId }) {
           ))}
         </ul>
       )}
-      <p className="text-2xs text-neutral-400">Up to {Math.round(MAX_TASK_FILE_BYTES / 1048576)} MB a file.</p>
     </section>
   );
 }
@@ -356,14 +317,21 @@ function Attachments({ taskId, rows, loading, myUserId }) {
  * box with that person's name, because the alternative — a deeper indent each time — walks the
  * newest and most relevant remark off the right edge of a 360px screen.
  */
-function Thread({ taskId, rows, loading, myUserId }) {
+function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myUserId }) {
   const [body, setBody] = useState('');
+  const [pendingFile, setPendingFile] = useState(null);
+  const [fileError, setFileError] = useState(null);
   // Which comment the box is currently answering, and which threads have their replies open.
   const [replyTo, setReplyTo] = useState(null);
   const [expanded, setExpanded] = useState(() => new Set());
   const add = useAddTaskComment();
+  const addFile = useAddTaskFile();
   const remove = useDeleteTaskComment();
-  const error = humanDbError(add.error || remove.error, 'task_comments');
+  const messageRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const error = fileError?.message
+    || (addFile.error ? humanDbError(addFile.error, 'task_attachments') : null)
+    || humanDbError(add.error || remove.error, 'task_comments');
   // Keyed on which comment is being answered: switching targets is a new open, or clicking
   // Reply on a second comment moves the chip and leaves the caret behind.
   const composerRef = useRevealOnOpen(Boolean(replyTo), { block: 'center', key: replyTo?.id ?? null });
@@ -388,20 +356,42 @@ function Thread({ taskId, rows, loading, myUserId }) {
     setExpanded((prev) => new Set(prev).add(parentId));
   };
 
+  const chooseFile = (file) => {
+    setFileError(null);
+    if (!file) return;
+    if (file.size > MAX_TASK_FILE_BYTES) {
+      setPendingFile(null);
+      setFileError(new Error(`That file is ${readableSize(file.size)}. The limit is ${Math.round(MAX_TASK_FILE_BYTES / 1048576)} MB.`));
+      return;
+    }
+    setPendingFile(file);
+  };
+
   const post = async (e) => {
-    e.preventDefault();
-    if (!body.trim()) return;
+    e?.preventDefault?.();
+    const text = body.trim();
+    if (!text && !pendingFile) return;
     try {
-      await add.mutateAsync({ taskId, body, parentId: replyTo?.id ?? null });
+      // Upload first. If the remark fails afterwards the file is already safely attached and is
+      // cleared from the composer, so pressing Send again cannot upload a duplicate.
+      if (pendingFile) {
+        await addFile.mutateAsync({ taskId, file: pendingFile });
+        setPendingFile(null);
+      }
+      if (text) await add.mutateAsync({ taskId, body: text, parentId: replyTo?.id ?? null });
       setBody('');
       setReplyTo(null);
+      setFileError(null);
+      if (messageRef.current) messageRef.current.style.height = 'auto';
     } catch { /* shown below */ }
   };
+
+  const busy = add.isPending || addFile.isPending;
 
   return (
     <section className="space-y-2">
       <h4 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 flex items-center gap-1.5">
-        <MessageSquare size={11} /> Comments {rows.length > 0 && <span className="font-mono opacity-70">{rows.length}</span>}
+        <MessageSquare size={11} /> Task conversation {rows.length > 0 && <span className="font-mono opacity-70">{rows.length}</span>}
       </h4>
 
       {loading ? (
@@ -448,6 +438,10 @@ function Thread({ taskId, rows, loading, myUserId }) {
         </ul>
       )}
 
+      {(attachmentsLoading || attachmentRows.length > 0) && (
+        <Attachments rows={attachmentRows} loading={attachmentsLoading} myUserId={myUserId} />
+      )}
+
       {error && <p role="alert" className="text-2xs text-red-600 dark:text-red-300">{error}</p>}
 
       <div ref={composerRef} className="space-y-1.5">
@@ -470,17 +464,77 @@ function Thread({ taskId, rows, loading, myUserId }) {
           </div>
         )}
 
-        <form onSubmit={post} className="flex items-start gap-2">
-          <textarea
-            rows={1} value={body} onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) post(e); }}
-            placeholder={replyTo ? 'Write a reply…' : 'Add a comment…'}
-            aria-label={replyTo ? 'Write a reply' : 'Add a comment'}
-            className={INPUT + ' resize-none flex-1'}
-          />
-          <button type="submit" disabled={!body.trim() || add.isPending} className={btnClass('primary','sm')} title="Post (Cmd+Enter)" aria-label="Post comment">
-            {add.isPending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
-          </button>
+        <form onSubmit={post} className="task-message-composer">
+          {pendingFile && (
+            <div className="task-message-file" role="status">
+              <FileText size={14} />
+              <span title={pendingFile.name}>{pendingFile.name}</span>
+              <small>{readableSize(pendingFile.size)}</small>
+              <button
+                type="button"
+                onClick={() => setPendingFile(null)}
+                aria-label={`Remove ${pendingFile.name}`}
+              >
+                <X size={13} />
+              </button>
+            </div>
+          )}
+
+          <div className="task-message-input-row">
+            <button
+              type="button"
+              className="task-message-attach"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={busy}
+              title={`Attach a file (up to ${Math.round(MAX_TASK_FILE_BYTES / 1048576)} MB)`}
+              aria-label="Attach a file"
+            >
+              <Paperclip size={17} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept={ACCEPTED_TASK_FILES}
+              disabled={busy}
+              aria-label="Choose a file to attach"
+              onChange={(e) => {
+                chooseFile(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+            <textarea
+              ref={messageRef}
+              rows={1}
+              value={body}
+              onChange={(e) => {
+                setBody(e.target.value);
+                e.target.style.height = 'auto';
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
+              }}
+              onKeyDown={(e) => {
+                // The conversation behaves like messaging: Enter sends and Shift+Enter makes a line.
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault();
+                  post();
+                }
+              }}
+              placeholder={replyTo ? 'Write a reply…' : 'Write a message or paste a link…'}
+              aria-label={replyTo ? 'Write a reply' : 'Add a comment'}
+              className="task-message-input"
+              maxLength={4000}
+            />
+            <button
+              type="submit"
+              disabled={busy || (!body.trim() && !pendingFile)}
+              className="task-message-send"
+              title="Send"
+              aria-label="Send message"
+            >
+              {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+            </button>
+          </div>
+          <p className="task-message-hint">Enter to send · Shift+Enter for a new line · links become clickable automatically</p>
         </form>
       </div>
     </section>
@@ -501,7 +555,21 @@ function CommentRow({ comment, mine, compact = false, onReply, onDelete }) {
           </span>
         </div>
         <p className="text-xs text-neutral-600 dark:text-neutral-300 whitespace-pre-wrap break-words leading-snug mt-0.5">
-          {comment.body}
+          {messageLinkParts(comment.body).map((part, index) => (
+            part.type === 'link' ? (
+              <a
+                key={`${part.href}-${index}`}
+                href={part.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="task-comment-link"
+              >
+                {part.text}
+              </a>
+            ) : (
+              <React.Fragment key={`text-${index}`}>{part.text}</React.Fragment>
+            )
+          ))}
         </p>
         {/* Actions sit under the text rather than beside the name: on a phone a row of name, time
             and two controls has nowhere left for the name. */}

@@ -748,7 +748,7 @@ function TaskCard({ task, actions }) {
               onChange={(e) => actions.setStatus(task.id, e.target.value)}
               aria-label={`Status of ${task.title}`}
               title={steps.total > 0 && !steps.allDone
-                ? `${steps.total - steps.done} step${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
+                ? `${steps.total - steps.done} subtask${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
                 : undefined}
               className={`status-pill task-status-pill focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${statusClass(task.status)}`}
             >
@@ -802,7 +802,7 @@ function TaskCard({ task, actions }) {
       {steps.total > 0 && (
         <div className="task-card-progress">
           <div>
-            <span><ListTodo size={13} /> Checklist</span>
+            <span><ListTodo size={13} /> Subtasks</span>
             <strong>{steps.done} of {steps.total} complete</strong>
           </div>
           <div
@@ -811,7 +811,7 @@ function TaskCard({ task, actions }) {
             aria-valuenow={steps.percent}
             aria-valuemin={0}
             aria-valuemax={100}
-            aria-label={`${steps.percent}% of ${task.title}'s checklist is complete`}
+            aria-label={`${steps.percent}% of ${task.title}'s subtasks are complete`}
           >
             <span style={{ width: `${steps.percent}%` }} />
           </div>
@@ -1080,14 +1080,17 @@ function TaskComposer({
               made of" are the same thought and the dates are an afterthought to both. */}
           <div className="space-y-1">
             <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">
-              Checklist <span className="font-normal text-neutral-400">(optional)</span>
+              Subtasks
+              {steps.length > 0 && (
+                <span className="ml-1.5 font-mono text-2xs font-normal text-neutral-400">{steps.length}</span>
+              )}
             </label>
 
             {editing ? (
               // Editing an existing list stays on the task, where ticking happens. Two editors for
               // one list is two places for it to disagree with itself.
               <p className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-2xs text-neutral-500">
-                Open the task on the board to tick its steps off or change them.
+                Open the task on the board to tick its subtasks off or change them.
               </p>
             ) : (
               <>
@@ -1100,7 +1103,7 @@ function TaskComposer({
                         <button
                           type="button"
                           onClick={() => setSteps((cur) => cur.filter((_, i) => i !== index))}
-                          aria-label={`Remove step "${step}"`}
+                          aria-label={`Remove subtask "${step}"`}
                           className="shrink-0 mt-0.5 text-neutral-300 dark:text-neutral-600 hover:text-rose-500 transition-colors cursor-pointer"
                         >
                           <X size={12} />
@@ -1110,32 +1113,39 @@ function TaskComposer({
                   </ul>
                 )}
 
-                <div className="flex items-center gap-1.5">
+                {/* The + sits INSIDE the field and arrives with the text. A button that is
+                    permanently there but greyed out reads as broken; one that appears the moment
+                    there is something to add reads as the thing to press next. Enter does the same,
+                    so the mouse is never the only way in. */}
+                <div className="relative">
                   <input
-                    className={INPUT}
+                    className={INPUT + ' pr-10'}
                     value={stepDraft}
                     onChange={(e) => setStepDraft(e.target.value)}
                     onKeyDown={(e) => {
-                      // Enter adds a step. Without this it submits the whole form, so writing a
-                      // five-step list the obvious way would file five one-step tasks.
+                      // Enter adds a subtask. Without this it submits the whole form, so writing a
+                      // five-line list the obvious way would file five one-line tasks.
                       if (e.key === 'Enter') { e.preventDefault(); addStep(); }
                     }}
-                    placeholder={steps.length > 0 ? 'Add another step…' : 'What are the steps? (optional)'}
+                    placeholder={steps.length > 0 ? 'Add another subtask…' : 'Type a subtask, then press +'}
                     maxLength={200}
                   />
-                  <button
-                    type="button"
-                    onClick={addStep}
-                    disabled={!stepDraft.trim() || steps.length >= 50}
-                    className={btnClass('ghost', 'md', true)}
-                    aria-label="Add this step"
-                  >
-                    <Plus size={14} />
-                  </button>
+                  {stepDraft.trim() && steps.length < 50 && (
+                    <button
+                      type="button"
+                      onClick={addStep}
+                      aria-label={`Add subtask "${stepDraft.trim()}"`}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-lg bg-[#0ea971] text-white hover:bg-[#0c9765] transition-colors cursor-pointer animate-fade-in"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  )}
                 </div>
 
                 <p className="text-2xs text-neutral-400 mt-1">
-                  {steps.length > 0
+                  {steps.length >= 50
+                    ? 'That is fifty subtasks — it is probably two tasks by now.'
+                    : steps.length > 0
                     ? 'Anyone assigned can tick these off. When the last one is ticked, the task closes itself.'
                     : 'Leave it empty for a task that is one thing, and mark it done yourself.'}
                 </p>
