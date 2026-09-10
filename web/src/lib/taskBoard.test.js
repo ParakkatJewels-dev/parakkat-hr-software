@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  isOverdue, filterTasks, taskStats, buildTaskTree, groupByPerson, composerKey,
+  isOverdue, filterTasks, taskStats, composerKey,
   searchTasks, searchTerms, sortTasks,
-  openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS, TASK_STATUSES, rootContaining,
+  openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS, TASK_STATUSES,
+  assigneeIds, isAssignedTo, assigneesOf,
 } from './taskBoard.js';
 
 // A task, with only the fields the board actually reads.
@@ -112,124 +113,21 @@ test('the counts follow mine-only, so the chips agree with the list below them',
   });
 });
 
-// ------------------------------------------------------------------- nesting ----
-
-test('sub-tasks nest under their parent', () => {
-  const { roots, childrenOf } = buildTaskTree([
-    task({ id: 'p' }),
-    task({ id: 'k1', parent_task_id: 'p' }),
-    task({ id: 'k2', parent_task_id: 'p' }),
-  ]);
-  assert.deepEqual(ids(roots), ['p']);
-  assert.deepEqual(ids(childrenOf.get('p')), ['k1', 'k2']);
-});
-
-test('a sub-task whose parent the filter removed is promoted, not dropped', () => {
-  const { roots } = buildTaskTree([task({ id: 'k', parent_task_id: 'gone-from-this-view' })]);
-  assert.deepEqual(ids(roots), ['k']);
-});
-
-test('a task that is its own parent still appears on the board', () => {
-  // Nothing in the UI can make this; `parent_task_id` has no constraint against it, and one
-  // hand-written UPDATE is enough. Before the loop check the task was not a root and was its own
-  // child, so the flow view — which renders roots — showed nothing at all.
-  const { roots, childrenOf } = buildTaskTree([task({ id: 't1', parent_task_id: 't1' })]);
-  assert.deepEqual(ids(roots), ['t1']);
-  assert.deepEqual(childrenOf.get('t1') ?? [], []);
-});
-
-test('two tasks pointing at each other both stay visible', () => {
-  const { roots } = buildTaskTree([
-    task({ id: 'a', parent_task_id: 'b' }),
-    task({ id: 'b', parent_task_id: 'a' }),
-  ]);
-  assert.deepEqual(ids(roots).sort(), ['a', 'b']);
-});
-
-test('a healthy sub-tree hanging off a loop keeps its nesting', () => {
-  const { roots, childrenOf } = buildTaskTree([
-    task({ id: 'a', parent_task_id: 'b' }),
-    task({ id: 'b', parent_task_id: 'a' }),
-    task({ id: 'child', parent_task_id: 'a' }),
-  ]);
-  assert.deepEqual(ids(roots).sort(), ['a', 'b']);
-  assert.deepEqual(ids(childrenOf.get('a')), ['child']);
-});
-
-test('rendering the tree terminates — every task is reached exactly once', () => {
-  const rows = [
-    task({ id: 'a', parent_task_id: 'b' }),
-    task({ id: 'b', parent_task_id: 'a' }),
-    task({ id: 'c', parent_task_id: 'a' }),
-    task({ id: 'd', parent_task_id: 'c' }),
-    task({ id: 'lone' }),
-  ];
-  const { roots, childrenOf } = buildTaskTree(rows);
-  const seen = [];
-  const walk = (t, depth = 0) => {
-    assert.ok(depth < 50, 'walked too deep — the tree has a cycle in it');
-    seen.push(t.id);
-    for (const k of childrenOf.get(t.id) ?? []) walk(k, depth + 1);
-  };
-  roots.forEach((r) => walk(r));
-  assert.deepEqual(seen.sort(), ['a', 'b', 'c', 'd', 'lone']);
-});
-
-// ------------------------------------------------------------------ grouping ----
-
-test('tasks group by assignee, ordered by name', () => {
-  const groups = groupByPerson([
-    task({ id: '1', employee_id: 'z', assignee: { id: 'z', full_name: 'Zara' } }),
-    task({ id: '2', employee_id: 'a', assignee: { id: 'a', full_name: 'Anand' } }),
-    task({ id: '3', employee_id: 'z', assignee: { id: 'z', full_name: 'Zara' } }),
-  ]);
-  assert.deepEqual(groups.map((g) => g.assignee.full_name), ['Anand', 'Zara']);
-  assert.deepEqual(ids(groups[1].tasks), ['1', '3']);
-});
-
-test('two people the viewer cannot read stay two groups, with two keys', () => {
-  // `assignee:employees(...)` is an embedded read: a viewer who may see the task but not that
-  // employee's row gets the task with a null join. Keying on assignee?.id gave every such group
-  // the same React key, and React rendered one group where there were several.
-  const groups = groupByPerson([
-    task({ id: '1', employee_id: 'emp-A', assignee: null }),
-    task({ id: '2', employee_id: 'emp-B', assignee: null }),
-  ]);
-  assert.equal(groups.length, 2);
-  assert.equal(new Set(groups.map((g) => g.key)).size, 2);
-});
-
-test('every group carries a key, so nothing is rendered keyless', () => {
-  const groups = groupByPerson([
-    task({ id: '1', employee_id: 'x', assignee: { id: 'x', full_name: 'X' } }),
-    task({ id: '2', employee_id: 'y', assignee: null }),
-  ]);
-  assert.ok(groups.every((g) => g.key));
-  assert.equal(new Set(groups.map((g) => g.key)).size, 2);
-});
-
 // ------------------------------------------------------------------ composer ----
 
-test('pointing the composer at a different task gives it a different identity', () => {
-  // Fed to `key`, so React remounts the panel and its assignee follows the parent it was opened
-  // from. Without it the panel kept the previous assignee while the header named the new parent.
+test('pointing the composer at a different person gives it a different identity', () => {
+  // Fed to `key`, so React remounts the panel rather than keeping a half-typed draft aimed at
+  // somebody else — useState ignores its initial value on every render after the first.
   assert.notEqual(
-    composerKey({ parentId: 'p1', defaultAssignee: 'emp-A' }),
-    composerKey({ parentId: 'p2', defaultAssignee: 'emp-B' })
-  );
-});
-
-test('a new top-level task is a different panel from a sub-task', () => {
-  assert.notEqual(
-    composerKey({ parentId: null, defaultAssignee: 'me' }),
-    composerKey({ parentId: 'p1', defaultAssignee: 'me' })
+    composerKey({ defaultAssignee: 'emp-A' }),
+    composerKey({ defaultAssignee: 'emp-B' })
   );
 });
 
 test('re-opening the same target keeps the same panel, so a draft is not thrown away', () => {
   assert.equal(
-    composerKey({ parentId: 'p1', defaultAssignee: 'emp-A' }),
-    composerKey({ parentId: 'p1', defaultAssignee: 'emp-A' })
+    composerKey({ defaultAssignee: 'emp-A' }),
+    composerKey({ defaultAssignee: 'emp-A' })
   );
 });
 
@@ -420,23 +318,12 @@ test('sorting does not mutate the list it is given', () => {
   assert.deepEqual(input.map((t) => t.id), before);
 });
 
-test('a sorted list still nests correctly', () => {
-  // Sorting runs before the tree is built, so children arrive under their parent already ordered.
-  const { roots, childrenOf } = buildTaskTree(sortTasks([
-    task({ id: 'p', priority: 'High' }),
-    task({ id: 'k-low', parent_task_id: 'p', priority: 'Low' }),
-    task({ id: 'k-urgent', parent_task_id: 'p', priority: 'Urgent' }),
-  ], TODAY));
-  assert.deepEqual(roots.map((t) => t.id), ['p']);
-  assert.deepEqual(childrenOf.get('p').map((t) => t.id), ['k-urgent', 'k-low']);
-});
-
 test('editing a task is a different panel from creating one', () => {
   // Otherwise pressing the pencil while the New-task panel is open would leave the typed draft in
   // place and quietly turn it into an edit of somebody else's task.
   assert.notEqual(
     composerKey({ task: { id: 'p1' } }),
-    composerKey({ parentId: 'p1', defaultAssignee: 'emp-A' })
+    composerKey({ defaultAssignee: 'emp-A' })
   );
 });
 
@@ -486,59 +373,120 @@ test('the window is stated in a form the UI can put on screen', () => {
   assert.ok(CLOSED_TASK_WINDOW_DAYS >= 180, 'shorter than the other lists would be a surprise');
 });
 
-test('a parent that aged out does not take its open child with it', () => {
-  // The window can return a child whose parent is closed and old. The tree already promotes an
-  // orphan to a root rather than dropping it — this is that rule, stated against the window.
-  const { roots } = buildTaskTree([task({ id: 'child', parent_task_id: 'parent-closed-last-year' })]);
-  assert.deepEqual(roots.map((t) => t.id), ['child']);
+// ------------------------------------------------------------- who is on it ----
+//
+// Since 0114 a task can carry several people. `employee_id` is still the PRIMARY — the one whose
+// branch and department the row is stamped with, and therefore which managers see it — but every
+// question the board asks about ownership is now set membership.
+
+const withPeople = (ids, over = {}) => task({
+  employee_id: ids[0],
+  assignees: ids.map((id) => ({ employee_id: id, employee: { id, full_name: `Name ${id}` } })),
+  ...over,
 });
 
-
-// --------------------------------------------------------- paging a tree ----
-
-test('a root is its own page anchor', () => {
-  const { roots, childrenOf } = buildTaskTree([task({ id: 'p' }), task({ id: 'k', parent_task_id: 'p' })]);
-  assert.equal(rootContaining('p', roots, childrenOf), 'p');
+test('a task lists everybody on it, not just the primary', () => {
+  assert.deepEqual(assigneeIds(withPeople(['a', 'b', 'c'])), ['a', 'b', 'c']);
 });
 
-test('a sub-task anchors to the root above it, so paging cannot split a family', () => {
-  // A notification deep-linking to a sub-task has to land on the page carrying its PARENT. Anchor
-  // on the sub-task itself and it is on whichever page its own id sorts to — which is no page,
-  // because only roots are paged.
-  const { roots, childrenOf } = buildTaskTree([task({ id: 'p' }), task({ id: 'k', parent_task_id: 'p' })]);
-  assert.equal(rootContaining('k', roots, childrenOf), 'p');
+test('a task from before 0114 falls back to its single assignee', () => {
+  // The junction read can also come back empty for a viewer who cannot see those employee rows —
+  // the 0024 hole. Reading that as "belongs to nobody" would drop the task off its owner's list.
+  assert.deepEqual(assigneeIds(task({ employee_id: 'solo', assignees: [] })), ['solo']);
+  assert.deepEqual(assigneeIds(task({ employee_id: 'solo' })), ['solo']);
 });
 
-test('it reaches all the way down a deep tree', () => {
-  const { roots, childrenOf } = buildTaskTree([
-    task({ id: 'p' }),
-    task({ id: 'a', parent_task_id: 'p' }),
-    task({ id: 'b', parent_task_id: 'a' }),
-    task({ id: 'c', parent_task_id: 'b' }),
-  ]);
-  assert.equal(rootContaining('c', roots, childrenOf), 'p');
+test('a task with no assignee at all belongs to nobody, rather than to undefined', () => {
+  assert.deepEqual(assigneeIds({ }), []);
+  assert.equal(isAssignedTo({ }, 'a'), false);
 });
 
-test('a task that is not on this board anchors nowhere', () => {
-  const { roots, childrenOf } = buildTaskTree([task({ id: 'p' })]);
-  assert.equal(rootContaining('missing', roots, childrenOf), null);
-  assert.equal(rootContaining(null, roots, childrenOf), null);
+test('everyone on the task is assigned to it, primary or not', () => {
+  const t = withPeople(['a', 'b']);
+  assert.equal(isAssignedTo(t, 'a'), true);
+  assert.equal(isAssignedTo(t, 'b'), true);
+  assert.equal(isAssignedTo(t, 'c'), false);
 });
 
-test('the right root is chosen when there are several', () => {
-  const { roots, childrenOf } = buildTaskTree([
-    task({ id: 'p1' }), task({ id: 'k1', parent_task_id: 'p1' }),
-    task({ id: 'p2' }), task({ id: 'k2', parent_task_id: 'p2' }),
-  ]);
-  assert.equal(rootContaining('k2', roots, childrenOf), 'p2');
+test('nobody is assigned to a task by having no employee record', () => {
+  assert.equal(isAssignedTo(withPeople(['a']), null), false);
+  assert.equal(isAssignedTo(withPeople(['a']), undefined), false);
 });
 
-test('a looped tree does not hang the walk', () => {
-  // buildTaskTree already cuts loops, so both are roots — but the walk must terminate even if a
-  // future change lets one through, because this runs during render.
-  const { roots, childrenOf } = buildTaskTree([
-    task({ id: 'a', parent_task_id: 'b' }),
-    task({ id: 'b', parent_task_id: 'a' }),
-  ]);
-  assert.equal(rootContaining('a', roots, childrenOf), 'a');
+test('the primary leads the rendered list, whatever order the rows arrived in', () => {
+  const t = task({
+    employee_id: 'boss',
+    assignees: [
+      { employee_id: 'helper', employee: { id: 'helper', full_name: 'Helper' } },
+      { employee_id: 'boss', employee: { id: 'boss', full_name: 'Boss' } },
+    ],
+  });
+  const rows = assigneesOf(t);
+  assert.deepEqual(rows.map((r) => r.id), ['boss', 'helper']);
+  assert.equal(rows[0].isPrimary, true);
+});
+
+test('a person listed twice is rendered once — a duplicate key renders one row for two people', () => {
+  const t = task({
+    employee_id: 'a',
+    assignees: [
+      { employee_id: 'a', employee: { id: 'a', full_name: 'A' } },
+      { employee_id: 'a', employee: { id: 'a', full_name: 'A' } },
+    ],
+  });
+  assert.equal(assigneesOf(t).length, 1);
+});
+
+test('mine-only keeps a task somebody else is primary on', () => {
+  // The whole point of multi-assignee on a phone: work you were added to is your work.
+  const rows = filterTasks([withPeople(['boss', 'me'])], { mineOnly: true, myEmployeeId: 'me', statusFilter: 'All' });
+  assert.equal(rows.length, 1);
+});
+
+test('the counts agree with that list', () => {
+  const stats = taskStats([withPeople(['boss', 'me']), withPeople(['boss'])], { mineOnly: true, myEmployeeId: 'me' });
+  assert.equal(stats.total, 1);
+});
+
+// ------------------------------------------------------------ person filter ----
+//
+// What the By Person view used to answer, as a narrowing of the one board.
+
+test('the person filter keeps only that person\'s work', () => {
+  const rows = filterTasks(
+    [withPeople(['a']), withPeople(['b']), withPeople(['b', 'a'])],
+    { personId: 'a', statusFilter: 'All' }
+  );
+  assert.equal(rows.length, 2, 'a task they are second on is still theirs');
+});
+
+test('no person filter is Everyone, not nobody', () => {
+  const rows = filterTasks([withPeople(['a']), withPeople(['b'])], { personId: '', statusFilter: 'All' });
+  assert.equal(rows.length, 2);
+});
+
+test('the person filter and mine-only both apply, and can be contradictory', () => {
+  const rows = filterTasks(
+    [withPeople(['a']), withPeople(['me'])],
+    { personId: 'a', mineOnly: true, myEmployeeId: 'me', statusFilter: 'All' }
+  );
+  assert.equal(rows.length, 0, 'asking for their work among yours is legitimately empty');
+});
+
+test('the counts follow the person filter too, so the chips describe what is on screen', () => {
+  const stats = taskStats([withPeople(['a']), withPeople(['b'])], { personId: 'a' });
+  assert.equal(stats.total, 1);
+});
+
+test('searching a name finds a task that person is second on', () => {
+  const t = task({
+    employee_id: 'boss',
+    assignee: { full_name: 'Boss Person' },
+    assignees: [
+      { employee_id: 'boss', employee: { id: 'boss', full_name: 'Boss Person' } },
+      { employee_id: 'anand', employee: { id: 'anand', full_name: 'Anand K', employee_code: 'E77' } },
+    ],
+  });
+  assert.equal(searchTasks([t], 'anand').length, 1);
+  assert.equal(searchTasks([t], 'E77').length, 1, 'their code finds it too');
 });

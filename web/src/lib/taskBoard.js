@@ -13,6 +13,53 @@ export const TASK_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
 const CLOSED = new Set(['Done', 'Cancelled']);
 
 /**
+ * Everyone carrying this task.
+ *
+ * A task used to have exactly one assignee — `employee_id`, NOT NULL — and every question about
+ * ownership was a comparison against it. Since 0114 the real answer lives in `task_assignees`, and
+ * `employee_id` is only the PRIMARY: the one whose org path the row wears, because that is what the
+ * ancestry columns and therefore every manager's scope are stamped from.
+ *
+ * The fallback matters. `assignees` arrives from an embedded read, and an embedded read comes back
+ * empty for a viewer who cannot see those employee rows — the same hole 0024 was written about. An
+ * empty array there would mean "this task belongs to nobody", which would drop it off its own
+ * assignee's list. Falling back to the primary keeps the pre-0114 answer, which is never wrong,
+ * only sometimes incomplete.
+ */
+export function assigneeIds(task) {
+  const rows = task?.assignees;
+  if (Array.isArray(rows) && rows.length > 0) {
+    return rows.map((r) => r.employee_id ?? r.employee?.id).filter(Boolean);
+  }
+  return task?.employee_id ? [task.employee_id] : [];
+}
+
+/** Is this person carrying this task? Primary or otherwise — the board draws no distinction. */
+export function isAssignedTo(task, employeeId) {
+  return Boolean(employeeId) && assigneeIds(task).includes(employeeId);
+}
+
+/** The people on a task, as rows to render — name and code, primary first. */
+export function assigneesOf(task) {
+  const rows = Array.isArray(task?.assignees) ? task.assignees : [];
+  const seen = new Set();
+  const out = [];
+  for (const r of rows) {
+    const id = r.employee_id ?? r.employee?.id;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    out.push({ id, employee: r.employee ?? null, isPrimary: id === task?.employee_id });
+  }
+  // The primary leads: they are who the task is scoped to, so their branch is the one that decides
+  // which managers see it, and a reader scanning avatars should meet that person first.
+  out.sort((a, b) => (a.isPrimary === b.isPrimary ? 0 : a.isPrimary ? -1 : 1));
+  if (out.length === 0 && task?.employee_id) {
+    return [{ id: task.employee_id, employee: task.assignee ?? null, isPrimary: true }];
+  }
+  return out;
+}
+
+/**
  * Is this task past its due date?
  *
  * `today` is a parameter so this is testable at any instant, and it defaults to the IST date rather
@@ -35,11 +82,16 @@ export function isOverdue(task, today = istToday()) {
  * place. Status and priority are included so "blocked" and "urgent" behave like the chips do.
  */
 function haystack(t) {
+  // Every assignee, not only the primary. "who is Anand carrying" has to find a task Anand is the
+  // third name on, or search quietly answers a different question than the one asked.
+  const others = (Array.isArray(t.assignees) ? t.assignees : [])
+    .flatMap((r) => [r.employee?.full_name, r.employee?.employee_code]);
   return [
     t.title, t.description, t.status, t.priority, t.due_date,
     t.assignee?.full_name, t.assignee?.employee_code,
     t.assignee?.branch?.code, t.assignee?.department?.name,
     t.assigner?.full_name, t.assigner?.employee_code,
+    ...others,
   ].filter(Boolean).join(' \u0000 ').toLowerCase();
 }
 
@@ -103,13 +155,20 @@ export function sortTasks(tasks, today = istToday()) {
  * `myEmployeeId` may be null — an account not linked to an employee owns no tasks, so "mine" is
  * legitimately empty rather than everything.
  */
-export function filterTasks(tasks, { mineOnly = false, myEmployeeId = null, statusFilter = 'Active', query = '', today = istToday() } = {}) {
+export function filterTasks(tasks, { mineOnly = false, myEmployeeId = null, personId = null, statusFilter = 'Active', query = '', today = istToday() } = {}) {
   // Ownership first, then the free text — both are plain row predicates, so the order does not
   // change the answer; it is written this way to make the guarantee obvious. What matters is that
   // the query only ever REMOVES rows from a list RLS and mine-only have already settled. Search
   // that reaches the database instead would be a different, and much easier, thing to get wrong.
+  //
+  // `personId` is the board's "Everyone / <name>" filter — what the By Person view used to answer,
+  // as a narrowing of one list rather than a second way of drawing it.
   const scoped = searchTasks(
-    (tasks ?? []).filter((t) => !mineOnly || t.employee_id === myEmployeeId),
+    (tasks ?? []).filter((t) => {
+      if (mineOnly && !isAssignedTo(t, myEmployeeId)) return false;
+      if (personId && !isAssignedTo(t, personId)) return false;
+      return true;
+    }),
     query
   );
   return scoped.filter((t) => {
@@ -121,12 +180,16 @@ export function filterTasks(tasks, { mineOnly = false, myEmployeeId = null, stat
 }
 
 /** The headline counts. Deliberately NOT filtered by status — they are what the status chips act on. */
-export function taskStats(tasks, { mineOnly = false, myEmployeeId = null, query = '', today = istToday() } = {}) {
-  // The counts describe the corpus the chips act ON — so they follow mine-only and the search box,
-  // but not the status chip itself, which is what they are there to select. Leaving the search out
-  // would put "Total 47" next to two results.
+export function taskStats(tasks, { mineOnly = false, myEmployeeId = null, personId = null, query = '', today = istToday() } = {}) {
+  // The counts describe the corpus the chips act ON — so they follow mine-only, the person filter
+  // and the search box, but not the status chip itself, which is what they are there to select.
+  // Leaving any of the three out would put "Total 47" next to two results.
   const scope = searchTasks(
-    mineOnly ? (tasks ?? []).filter((t) => t.employee_id === myEmployeeId) : (tasks ?? []),
+    (tasks ?? []).filter((t) => {
+      if (mineOnly && !isAssignedTo(t, myEmployeeId)) return false;
+      if (personId && !isAssignedTo(t, personId)) return false;
+      return true;
+    }),
     query
   );
   return {
@@ -138,91 +201,17 @@ export function taskStats(tasks, { mineOnly = false, myEmployeeId = null, query 
   };
 }
 
-/**
- * Which tasks sit inside a parent loop.
+/*
+ * buildTaskTree, groupByPerson, loopMembers and rootContaining lived here until 0114.
  *
- * A loop is not reachable through this UI today — a sub-task's parent is chosen once, at creation,
- * from a task that already exists. It is reachable through the database, and `parent_task_id` has
- * no constraint stopping it, so one hand-written UPDATE (or a future "move sub-task" action) is
- * enough. The cost of not checking is not a warning: a looped task has a parent, so it is never a
- * root, and the flow view only renders roots — the task and everything under it disappear from the
- * board with nothing to say they exist. Members of the loop are cut loose and rendered as roots.
+ * They existed to serve two views: Flow drew tasks as a parent/child tree, By Person grouped them
+ * by assignee. Both are gone. The tree earned nothing — seven tasks in production, one of them
+ * nested — and it was the FIRST screen a manager saw, so the least useful view was also the most
+ * seen one. By Person is now a filter on the single board (`personId` in filterTasks), which
+ * answers the same question without being a second way of drawing the same rows.
  *
- * Walks each parent chain once, memoising the verdict, so this stays linear in the number of tasks.
+ * A task's steps are checklist items now, not sub-tasks, so nothing nests and nothing can loop.
  */
-function loopMembers(tasks, ids) {
-  const parentOf = new Map(tasks.map((t) => [t.id, t.parent_task_id ?? null]));
-  const cyclic = new Set();
-  const settled = new Set();
-
-  for (const t of tasks) {
-    if (settled.has(t.id)) continue;
-    const path = [];
-    const onPath = new Set();
-    let cur = t.id;
-    // Follow parents until the chain leaves the visible set, reaches something already judged, or
-    // comes back to a node we are standing on.
-    while (cur != null && ids.has(cur) && !settled.has(cur) && !onPath.has(cur)) {
-      onPath.add(cur);
-      path.push(cur);
-      cur = parentOf.get(cur) ?? null;
-    }
-    // Closed a loop: everything from where it closes onward is in it. Nodes before that point
-    // merely hang off the loop — they still nest correctly under a parent that is now a root.
-    const closesLoop = cur != null && onPath.has(cur);
-    const loopStart = closesLoop ? path.indexOf(cur) : path.length;
-    path.forEach((id, i) => {
-      if (i >= loopStart) cyclic.add(id);
-      settled.add(id);
-    });
-  }
-  return cyclic;
-}
-
-/**
- * parent → children, over the FILTERED set: a sub-task whose parent is filtered out is promoted to
- * a root so it is still visible rather than silently dropped along with its parent.
- */
-export function buildTaskTree(filtered) {
-  const list = filtered ?? [];
-  const ids = new Set(list.map((t) => t.id));
-  const cyclic = loopMembers(list, ids);
-  const childrenOf = new Map();
-  const roots = [];
-
-  for (const t of list) {
-    const parent = t.parent_task_id && ids.has(t.parent_task_id) && !cyclic.has(t.id) ? t.parent_task_id : null;
-    if (parent) {
-      if (!childrenOf.has(parent)) childrenOf.set(parent, []);
-      childrenOf.get(parent).push(t);
-    } else {
-      roots.push(t);
-    }
-  }
-  return { roots, childrenOf };
-}
-
-/**
- * One group per assignee, ordered by name.
- *
- * Each group carries its own `key`, because the assignee OBJECT can be null while the assignee
- * still exists: `assignee:employees(...)` is an embedded read, so a viewer who can read the task
- * but not that employee's row gets the task with a null join (exactly the hole migration 0024 was
- * written about). Keying the rendered group on `assignee?.id` then hands React the same key for
- * every such person and it renders one group where there are several. `employee_id` is NOT NULL in
- * the schema, so it is always there to key on.
- */
-export function groupByPerson(filtered) {
-  const groups = new Map();
-  for (const t of filtered ?? []) {
-    const key = t.assignee?.id ?? t.employee_id ?? 'unassigned';
-    if (!groups.has(key)) groups.set(key, { key, assignee: t.assignee ?? null, tasks: [] });
-    groups.get(key).tasks.push(t);
-  }
-  return [...groups.values()].sort((a, b) =>
-    (a.assignee?.full_name || '').localeCompare(b.assignee?.full_name || '')
-  );
-}
 
 /**
  * Identity for the composer panel, so React remounts it when it is pointed somewhere new.
@@ -237,7 +226,7 @@ export function groupByPerson(filtered) {
 export function composerKey(composer) {
   if (!composer) return null;
   if (composer.task) return `edit:${composer.task.id}`;
-  return `new:${composer.parentId ?? 'root'}:${composer.defaultAssignee ?? ''}`;
+  return `new:${composer.defaultAssignee ?? ''}`;
 }
 
 /**
@@ -271,31 +260,4 @@ export const CLOSED_TASK_WINDOW_DAYS = 365;
  */
 export function openOrRecentlyClosedFilter(days = CLOSED_TASK_WINDOW_DAYS) {
   return `status.not.in.(Done,Cancelled),created_at.gte.${windowStartIso(days)}`;
-}
-
-/**
- * Which ROOT's subtree a task sits in.
- *
- * The board pages by root, so that a parent and its sub-tasks are never split across a page
- * boundary. That makes "jump to the page holding this task" a question about the root above it,
- * not about the task: a notification deep-linking to a sub-task must land on the page carrying its
- * parent, or the row it promised is on some other page.
- *
- * Returns the id itself when it is already a root, and null when it is nowhere in this tree.
- */
-export function rootContaining(taskId, roots, childrenOf) {
-  if (!taskId) return null;
-  const rootIds = new Set((roots ?? []).map((t) => t.id));
-  if (rootIds.has(taskId)) return taskId;
-
-  const reaches = (fromId, depth = 0) => {
-    if (depth > 100) return false;   // a cycle cannot happen here (buildTaskTree cuts them), but a
-    if (fromId === taskId) return true;  // recursive walk should never be the thing that hangs a page
-    return (childrenOf?.get(fromId) ?? []).some((child) => reaches(child.id, depth + 1));
-  };
-
-  for (const root of roots ?? []) {
-    if (reaches(root.id)) return root.id;
-  }
-  return null;
 }

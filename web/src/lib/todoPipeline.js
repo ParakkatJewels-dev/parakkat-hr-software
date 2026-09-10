@@ -7,7 +7,7 @@
 //
 // Pure, so it can be tested. The screen imports Supabase through its hooks and cannot be.
 
-import { isOverdue } from './taskBoard.js';
+import { isOverdue, isAssignedTo } from './taskBoard.js';
 
 /**
  * The stages work actually moves through, in order.
@@ -52,9 +52,13 @@ export function advanceLabel(status) {
  * `mine` is the employee id. A task counts as theirs when it is assigned to them, whoever put it
  * there — the personal list is "my plate", not "things I set myself", because a job your head gave
  * you is on your plate too and leaving it out would make the count a lie.
+ *
+ * Since 0114 that test is set membership, not equality. A task with three people on it is on all
+ * three of their lists; `employee_id` alone would have shown it to one of them and hidden it from
+ * the other two, who would then never see work they had been put on.
  */
 export function myBoard(tasks = [], mine, { today } = {}) {
-  const rows = (tasks ?? []).filter((t) => t && t.employee_id === mine);
+  const rows = (tasks ?? []).filter((t) => t && isAssignedTo(t, mine));
   const open = rows.filter((t) => t.status !== 'Done' && t.status !== 'Cancelled');
   const closed = rows.filter((t) => t.status === 'Done' || t.status === 'Cancelled');
 
@@ -102,7 +106,7 @@ const byNewestClose = (a, b) =>
  * items reads 0% of 0 rather than 100%, which would be a strange way to say "you did nothing".
  */
 export function progress(tasks = [], mine, { today } = {}) {
-  const rows = (tasks ?? []).filter((t) => t && t.employee_id === mine);
+  const rows = (tasks ?? []).filter((t) => t && isAssignedTo(t, mine));
   const counted = rows.filter((t) => t.status !== 'Cancelled');
   const byStage = {};
   for (const stage of PIPELINE) byStage[stage] = 0;
@@ -129,6 +133,11 @@ export function progress(tasks = [], mine, { today } = {}) {
  *
  * Drives whether Delete is offered: 0113 lets you remove work you set yourself and not work
  * somebody gave you, and offering a button the database will refuse is worse than not offering it.
+ *
+ * Deliberately still `employee_id`, not the assignee set that myBoard uses. tasks_delete asks
+ * app.is_own_task(employee_id, parent_task_id) AND assigned_by = you — 0114 left that policy
+ * alone, so being the second name on somebody's task does not make it yours to delete. Widening
+ * this to the assignee set would offer a button the database refuses.
  */
 export function isSelfSet(task, mine) {
   return Boolean(task) && task.employee_id === mine && task.assigned_by === mine;

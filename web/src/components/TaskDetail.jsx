@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import {
   MessageSquare, Paperclip, Send, Trash2, Link2, FileText, Download, Loader2, Plus, X,
-  CornerDownRight,
+  CornerDownRight, ListTodo, Square, CheckSquare,
 } from 'lucide-react';
 import { useTaskComments, useAddTaskComment, useDeleteTaskComment } from '../data/taskComments';
 import {
@@ -25,6 +25,12 @@ import {
   buildThread, mentionFor, replyToggleLabel, threadingAvailable,
 } from '../lib/commentThread';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
+import {
+  useChecklist, useAddChecklistItem, useToggleChecklistItem, useDeleteChecklistItem,
+} from '../data/taskChecklist';
+import { checklistProgress, isItemDone, sortItems, tickedBy } from '../lib/checklist';
+import { isAssignedTo } from '../lib/taskBoard';
+import { usePermissions } from '../auth/usePermissions';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
@@ -35,16 +41,186 @@ const readableSize = (bytes) =>
   : `${(bytes / 1048576).toFixed(1)} MB`;
 
 export default function TaskDetail({ task, open }) {
-  const { user } = useAuth();
+  const { user, employee } = useAuth();
+  const { canAny } = usePermissions();
+  const checklist = useChecklist(task.id, { enabled: open });
   const comments = useTaskComments(task.id, { enabled: open });
   const attachments = useTaskAttachments(task.id, { enabled: open });
 
   if (!open) return null;
 
+  // Two different questions, and 0114's policies answer them differently.
+  //   * Ticking writes YOUR NAME onto a line as the person who did the work, so it is for the
+  //     people actually on the task and nobody else — task_checklist_update asks only
+  //     app.is_task_assignee.
+  //   * Writing the list is editing the task, which a manager may do.
+  // Offered generously here on purpose: the database is the authority, and a button that is
+  // occasionally refused with a clear message beats one that is missing when it should be there.
+  const mine = isAssignedTo(task, employee?.id);
+  const canEditList = mine || canAny('task.manage') || canAny('task.update');
+
   return (
     <div className="mt-3 pt-3 border-t border-neutral-150 dark:border-neutral-850/60 space-y-4">
+      <Checklist
+        taskId={task.id}
+        rows={checklist.data ?? []}
+        loading={checklist.isLoading}
+        canTick={mine}
+        canEdit={canEditList}
+      />
       <Attachments taskId={task.id} rows={attachments.data ?? []} loading={attachments.isLoading} myUserId={user?.id} />
       <Thread taskId={task.id} rows={comments.data ?? []} loading={comments.isLoading} myUserId={user?.id} />
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- checklist -- */
+
+/**
+ * The steps inside a task, and who ticked each one.
+ *
+ * This is what sub-tasks were being used for and did badly: a sub-task is a whole task, with an
+ * assignee, a status, a due date and a place in a tree, when all anybody wanted was a line to cross
+ * off. The trade is deliberate — a line here cannot hold a comment or a file, which is why the one
+ * genuinely nested task in production was left as a task rather than flattened into one of these.
+ *
+ * Ticking the last line closes the task, from the database (app.tg_task_checklist_rollup), not from
+ * here. lib/checklist.js mirrors that rule for the screen; the trigger is what actually decides.
+ */
+function Checklist({ taskId, rows, loading, canTick, canEdit }) {
+  const [adding, setAdding] = useState(false);
+  const [title, setTitle] = useState('');
+  const add = useAddChecklistItem();
+  const toggle = useToggleChecklistItem();
+  const remove = useDeleteChecklistItem();
+
+  const items = sortItems(rows);
+  const { total, done, percent } = checklistProgress(items);
+  const error = add.error || toggle.error || remove.error;
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!title.trim()) return;
+    add.mutate(
+      { taskId, title, items },
+      { onSuccess: () => { setTitle(''); setAdding(false); } }
+    );
+  };
+
+  // A task with no steps and nobody able to add one has no checklist to speak of. Rendering an
+  // empty heading on every such task would put a permanent blank section on most of the board.
+  if (total === 0 && !canEdit && !loading) return null;
+
+  return (
+    <div className="task-checklist space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          <ListTodo size={11} /> Checklist
+        </p>
+        {total > 0 && (
+          <span className="text-2xs font-mono text-neutral-500 dark:text-neutral-400">
+            {done} of {total}
+          </span>
+        )}
+      </div>
+
+      {total > 0 && (
+        <div
+          className="h-1 rounded-full bg-neutral-150 dark:bg-neutral-850 overflow-hidden"
+          role="progressbar"
+          aria-valuenow={percent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${percent}% of this task's steps are done`}
+        >
+          <div className="h-full bg-[#0ea971] transition-[width] duration-300" style={{ width: `${percent}%` }} />
+        </div>
+      )}
+
+      {loading && (
+        <p className="flex items-center gap-1.5 text-2xs text-neutral-400">
+          <Loader2 size={11} className="animate-spin" /> Loading steps…
+        </p>
+      )}
+
+      {items.map((item) => {
+        const isDone = isItemDone(item);
+        const by = tickedBy(item);
+        return (
+          <div key={item.id} className="checklist-row flex items-start gap-2">
+            <button
+              type="button"
+              disabled={!canTick || toggle.isPending}
+              onClick={() => toggle.mutate({ taskId, itemId: item.id, done: !isDone })}
+              aria-pressed={isDone}
+              aria-label={`${isDone ? 'Untick' : 'Tick'} "${item.title}"`}
+              title={canTick ? undefined : 'Only the people assigned to this task can tick its steps'}
+              className={`mt-0.5 shrink-0 transition-colors ${
+                canTick ? 'cursor-pointer hover:text-[#0ea971]' : 'cursor-not-allowed opacity-60'
+              } ${isDone ? 'text-[#0ea971]' : 'text-neutral-400 dark:text-neutral-500'}`}
+            >
+              {isDone ? <CheckSquare size={15} /> : <Square size={15} />}
+            </button>
+
+            <div className="min-w-0 flex-1">
+              <p className={`text-xs leading-snug ${
+                isDone
+                  ? 'text-neutral-400 dark:text-neutral-500 line-through'
+                  : 'text-neutral-800 dark:text-neutral-200'
+              }`}>
+                {item.title}
+              </p>
+              {/* The whole point of the feature: not that it is done, but who did it. */}
+              {by && (
+                <p className="text-2xs text-neutral-400 dark:text-neutral-500 mt-0.5">
+                  {by.name} · {relativeTime(by.at)}
+                </p>
+              )}
+            </div>
+
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => remove.mutate({ taskId, itemId: item.id })}
+                aria-label={`Remove step "${item.title}"`}
+                className="mt-0.5 shrink-0 text-neutral-300 dark:text-neutral-600 hover:text-rose-500 transition-colors cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+        );
+      })}
+
+      {error && (
+        <p className="text-2xs text-rose-600 dark:text-rose-400">{humanDbError(error)}</p>
+      )}
+
+      {canEdit && (adding ? (
+        <form onSubmit={submit} className="flex items-center gap-2">
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={() => { if (!title.trim()) setAdding(false); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') { setTitle(''); setAdding(false); } }}
+            placeholder="What is the step?"
+            maxLength={200}
+            className={INPUT + ' text-xs'}
+          />
+          <button type="submit" disabled={!title.trim() || add.isPending} className={btnClass('primary', 'sm')}>
+            {add.isPending ? <Loader2 size={12} className="animate-spin" /> : 'Add'}
+          </button>
+        </form>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="flex items-center gap-1 text-2xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-[#0ea971] transition-colors cursor-pointer"
+        >
+          <Plus size={11} /> Add step
+        </button>
+      ))}
     </div>
   );
 }

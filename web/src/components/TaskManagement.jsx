@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
-  ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, CornerDownRight, Flag,
-  CalendarClock, User, GitBranch, Users, ChevronRight, Search, PenLine, ShieldAlert, HandHelping,
+  ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, Flag,
+  CalendarClock, User, ChevronRight, Search, PenLine, ShieldAlert, HandHelping,
   MessageSquare, Paperclip, CheckSquare, ListTodo,
 } from 'lucide-react';
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask, CLOSED_TASK_WINDOW_DAYS } from '../data/tasks';
+import {
+  useTasks, useCreateTask, useUpdateTask, useDeleteTask, useAddAssignee, useRemoveAssignee,
+  CLOSED_TASK_WINDOW_DAYS,
+} from '../data/tasks';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import FormSection from './ui/FormSection';
@@ -22,9 +25,9 @@ import { pendingCount, outgoingRequests } from '../lib/helpRequests';
 // tested. This file imports Supabase through its data hooks, which the test runner cannot load.
 import {
   TASK_STATUSES, TASK_PRIORITIES,
-  isOverdue, filterTasks, sortTasks, taskStats, buildTaskTree, groupByPerson, composerKey,
-  rootContaining,
+  isOverdue, filterTasks, sortTasks, taskStats, composerKey, assigneesOf, assigneeIds,
 } from '../lib/taskBoard';
+import { checklistProgress } from '../lib/checklist';
 import Pagination, { usePagination } from './ui/Pagination';
 import IconInput from './ui/IconInput';
 import Avatar from './ui/Avatar';
@@ -92,6 +95,8 @@ export default function TaskManagement() {
   const edit = useUpdateTask();     // the edit panel — its own instance so the two errors do not
                                     // land on top of each other in different parts of the screen
   const del = useDeleteTask();
+  const addAssignee = useAddAssignee();
+  const removeAssignee = useRemoveAssignee();
 
   // A task is assigned to someone (the assignee is picked in the composer), so — unlike leave —
   // the creator need NOT be linked to an employee themselves. Only the permission matters.
@@ -126,10 +131,17 @@ export default function TaskManagement() {
   };
 
   // In the URL, so a refresh comes back to the view you were reading.
-  const [view, setView] = useUrlTab('flow', ['flow', 'people', 'todo', 'requests', 'routine']);
+  //
+  // 'flow' and 'people' were retired in 0114. tabFromPath falls back to the default for an id it
+  // does not recognise, so an old link or a bookmarked ?tab=flow lands on the board rather than
+  // rendering nothing — which is the whole reason that fallback exists.
+  const [view, setView] = useUrlTab('board', ['board', 'todo', 'requests', 'routine']);
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
-  const [composer, setComposer] = useState(null); // { parentId, defaultAssignee } | { task } | null
+  // What the By Person view used to answer — "who is carrying what" — as a narrowing of the one
+  // board rather than a second way of drawing the same rows. '' is Everyone.
+  const [personId, setPersonId] = useState('');
+  const [composer, setComposer] = useState(null); // { defaultAssignee } | { task } | null
   const [toDelete, setToDelete] = useState(null); // the task awaiting confirmation
   const [query, setQuery] = useState('');
   // Sent here by a notification. Unlike Leave and Expenses, this board does NOT default to "All" —
@@ -145,12 +157,12 @@ export default function TaskManagement() {
   // 0113 makes filing work on your own board need no permission at all. A plain employee lands
   // here rather than on a Flow board that only ever shows their own rows anyway.
   const effectiveView =
-    view === 'requests' ? (canUseRequests ? 'requests' : 'flow')
+    view === 'requests' ? (canUseRequests ? 'requests' : 'board')
     : view === 'routine' ? 'routine'
     : view === 'todo' ? 'todo'
-    : canViewTeamTasks ? view
+    : canViewTeamTasks ? 'board'
     : 'todo';
-  const isBoard = effectiveView === 'flow' || effectiveView === 'people';
+  const isBoard = effectiveView === 'board';
 
   // Only what is waiting on YOU. A request you raised is waiting on somebody else, and badging it
   // would read as work you owe. See pendingCount.
@@ -179,18 +191,42 @@ export default function TaskManagement() {
   const today = istToday();
 
   const myEmployeeId = employee?.id ?? null;
-  // Sorted before the tree is built, so sub-tasks come out ordered under their parent too.
   const filtered = useMemo(
     () => sortTasks(
-      filterTasks(tasks, { mineOnly: effectiveMineOnly, myEmployeeId, statusFilter, query: deferredQuery, today }),
+      filterTasks(tasks, { mineOnly: effectiveMineOnly, myEmployeeId, personId, statusFilter, query: deferredQuery, today }),
       today
     ),
-    [tasks, effectiveMineOnly, myEmployeeId, statusFilter, deferredQuery, today]
+    [tasks, effectiveMineOnly, myEmployeeId, personId, statusFilter, deferredQuery, today]
   );
   const stats = useMemo(
-    () => taskStats(tasks, { mineOnly: effectiveMineOnly, myEmployeeId, query: deferredQuery, today }),
-    [tasks, effectiveMineOnly, myEmployeeId, deferredQuery, today]
+    () => taskStats(tasks, { mineOnly: effectiveMineOnly, myEmployeeId, personId, query: deferredQuery, today }),
+    [tasks, effectiveMineOnly, myEmployeeId, personId, deferredQuery, today]
   );
+
+  /**
+   * The names in the "Everyone" dropdown: people who actually appear on the visible tasks.
+   *
+   * Not the whole directory. A filter offering fifty names that return nothing is worse than no
+   * filter — this only ever lists somebody you could actually select your way to.
+   */
+  const peopleOnBoard = useMemo(() => {
+    const seen = new Map();
+    for (const t of tasks) {
+      for (const row of assigneesOf(t)) {
+        if (!row.id || seen.has(row.id)) continue;
+        seen.set(row.id, row.employee?.full_name || (row.id === myEmployeeId ? 'Me' : ASSIGNEE_HIDDEN));
+      }
+    }
+    return [...seen.entries()]
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [tasks, myEmployeeId]);
+
+  // A filter pinned to somebody who has dropped off the board entirely (their last task closed and
+  // aged out) would show an empty list with no obvious way back. Clear it rather than strand them.
+  useEffect(() => {
+    if (personId && !peopleOnBoard.some((p) => p.id === personId)) setPersonId('');
+  }, [personId, peopleOnBoard]);
   // A notification linked to a task the current filter hides — a completed one, most often, since
   // this board opens on Active. Widen once rather than showing an empty board under a link that
   // promised to take you somewhere.
@@ -204,23 +240,15 @@ export default function TaskManagement() {
   // worse than not linking to a row is linking to it and then showing a list without it.
   const focusMissing = focusIsMissing(focusId, tasks, { loaded: !isLoading });
 
-  const { roots, childrenOf } = useMemo(() => buildTaskTree(filtered), [filtered]);
-  const byPerson = useMemo(() => groupByPerson(filtered), [filtered]);
-
   /**
    * The board was the only list in the app that rendered everything it had.
    *
-   * Leave, Expenses and Helpdesk have paged at 25 since they were written; this drew every task as
-   * a full card AND walked a recursive tree, so a few hundred open tasks meant a slow first paint
-   * and a scroll with no end. It pages by ROOT, never mid-family: a parent and its sub-tasks stay
-   * on one page, which is why the focus anchor is the root above the task rather than the task.
+   * Leave, Expenses and Helpdesk have paged at 25 since they were written. This used to page by
+   * ROOT so that a parent and its sub-tasks were never split across a page; with the tree gone
+   * there are no families to keep together, so it pages by task and the focus anchor is simply the
+   * task a notification pointed at.
    */
-  const focusAnchor = useMemo(
-    () => rootContaining(focusId, roots, childrenOf),
-    [focusId, roots, childrenOf]
-  );
-  const rootPager = usePagination(roots, 25, focusAnchor);
-  const peoplePager = usePagination(byPerson, 10, null);
+  const pager = usePagination(filtered, 25, focusId);
 
   /**
    * Who this person may file a task against.
@@ -259,12 +287,36 @@ export default function TaskManagement() {
 
   // Counts for the page on screen only, in two queries rather than two per card.
   const visibleIds = useMemo(
-    () => (effectiveView === 'people' ? byPerson : []).flatMap((g) => g.tasks.map((t) => t.id))
-      .concat(effectiveView === 'flow' ? filtered.map((t) => t.id) : []),
-    [effectiveView, byPerson, filtered]
+    () => (isBoard ? pager.slice.map((t) => t.id) : []),
+    [isBoard, pager.slice]
   );
   const { data: commentCounts = {} } = useTaskCommentCounts(visibleIds);
   const { data: attachmentCounts = {} } = useTaskAttachmentCounts(visibleIds);
+
+  /**
+   * Bring a task's assignee list in line with what the composer was left showing.
+   *
+   * An edit patches the task row, but the people on it live in their own table, so the two have to
+   * be reconciled by hand. Removals go first: if somebody is being swapped for somebody else, doing
+   * the add first would briefly leave the task with both, and the notification the new person gets
+   * would be the only trace of an intermediate state that never really existed.
+   *
+   * The primary is skipped in both directions — `edit` has already moved tasks.employee_id, and the
+   * junction row for whoever now holds it is added here if it is missing.
+   */
+  const syncAssignees = async (task, wanted) => {
+    const had = assigneeIds(task);
+    const keep = new Set(wanted);
+
+    for (const id of had) {
+      if (keep.has(id)) continue;
+      await removeAssignee.mutateAsync({ taskId: task.id, employeeId: id, primaryId: wanted[0] });
+    }
+    for (const id of wanted) {
+      if (had.includes(id)) continue;
+      await addAssignee.mutateAsync({ taskId: task.id, employeeId: id, addedBy: employee?.id ?? null });
+    }
+  };
 
   const actions = {
     today,
@@ -274,7 +326,6 @@ export default function TaskManagement() {
     commentCounts,
     attachmentCounts,
     setStatus: (id, status) => update.mutate({ id, status }),
-    addSubtask: (task) => setComposer({ parentId: task.id, defaultAssignee: task.employee_id }),
     // A task was write-once: a typo in the title, a date that moved, or the wrong person could only
     // be fixed by deleting it and filing it again — losing its sub-tasks and its history with it.
     // `task.manage` has advertised "Reassign / delete" since 0017 with no way to reassign.
@@ -306,7 +357,7 @@ export default function TaskManagement() {
         </div>
         {canCreate && (
           <button
-            onClick={() => setComposer({ parentId: null, defaultAssignee: employee?.id })}
+            onClick={() => setComposer({ defaultAssignee: employee?.id })}
             className={btnClass('primary')}
           >
             <Plus size={14} /> <span>New Task</span>
@@ -370,6 +421,23 @@ export default function TaskManagement() {
 
       {/* controls */}
       <div className="task-controls mobile-toolbar flex flex-wrap items-center justify-between gap-3">
+        {/* What By Person used to be. Only offered when there is more than one person to choose
+            between — a filter with a single name in it is furniture, not a control. */}
+        {isBoard && canViewTeamTasks && peopleOnBoard.length > 1 && (
+          <label className="task-status-select">
+            <span>Person</span>
+            <select
+              value={personId}
+              onChange={(e) => setPersonId(e.target.value)}
+              aria-label="Filter tasks by person"
+            >
+              <option value="">Everyone</option>
+              {peopleOnBoard.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
         {isBoard && (
           <label className="task-status-select">
             <span>Status</span>
@@ -420,10 +488,7 @@ export default function TaskManagement() {
               with no way to reach it. Scroll instead of clip. */}
           <div className="task-view-switch view-switch flex rounded-lg border border-neutral-200 dark:border-neutral-850">
             {canViewTeamTasks && (
-              <>
-                <ViewBtn active={effectiveView === 'flow'} onClick={() => setView('flow')} icon={GitBranch} label="Flow" />
-                <ViewBtn active={effectiveView === 'people'} onClick={() => setView('people')} icon={Users} label="By Person" />
-              </>
+              <ViewBtn active={effectiveView === 'board'} onClick={() => setView('board')} icon={ListChecks} label="Board" />
             )}
             {canUseRequests && (
               <ViewBtn
@@ -485,9 +550,7 @@ export default function TaskManagement() {
           // Reassigning is a manage action, not an update one: tasks_update lets an assignee move
           // their own task's status, and they must not be able to hand it to somebody else.
           canReassign={composer.task ? (rowCan.manage(composer.task) && !isRequestedByMe(composer.task)) : true}
-          parentId={composer.parentId}
           defaultAssignee={composer.defaultAssignee}
-          parentTask={composer.parentId ? tasks.find((t) => t.id === composer.parentId) : null}
           busy={composer.task ? (edit.isPending || editRequested.isPending) : create.isPending}
           error={humanDbError(
             composer.task ? (isRequestedByMe(composer.task) ? editRequested.error : edit.error) : create.error,
@@ -507,7 +570,9 @@ export default function TaskManagement() {
                   clearDue: !payload.due_date,
                 });
               } else if (composer.task) {
-                await edit.mutateAsync({ id: composer.task.id, ...payload });
+                const { assigneeIds: wanted = [], ...fields } = payload;
+                await edit.mutateAsync({ id: composer.task.id, ...fields });
+                await syncAssignees(composer.task, wanted);
               } else {
                 await create.mutateAsync(payload);
               }
@@ -559,41 +624,13 @@ export default function TaskManagement() {
             </p>
           )}
         </div>
-      ) : effectiveView === 'flow' ? (
+      ) : (
         <div className="space-y-3">
           <StaleWarning error={error} />
-          {rootPager.slice.map((t) => (
-            <TaskTree key={t.id} task={t} childrenOf={childrenOf} depth={0} actions={actions} />
+          {pager.slice.map((t) => (
+            <TaskCard key={t.id} task={t} actions={actions} />
           ))}
-          <Pagination {...rootPager} noun="top-level tasks" />
-        </div>
-      ) : (
-        <div className="space-y-5">
-          <StaleWarning error={error} />
-          {peoplePager.slice.map((g) => (
-            // Keyed on the group, not on `g.assignee?.id ?? 'x'`: the assignee OBJECT is null for
-            // anyone whose employees row this viewer cannot read, and every such person was handed
-            // the same key 'x' — React then rendered one group where there were several.
-            <div key={g.key} className="space-y-2.5">
-              <div className="task-person-header flex items-center gap-2 px-1">
-                {/* One Avatar definition for the whole app (ui/Avatar.jsx). The tile here used to be
-                    hand-rolled — and briefly, in an earlier pass, carried btnClass('primary'), which
-                    dressed a non-interactive div as the page's primary BUTTON directly under the
-                    real one. The group's person is `assignee`; `employee` is not a field on it. */}
-                <Avatar name={g.assignee?.full_name} size="md" />
-                <span className={`task-person-name font-bold text-sm ${g.assignee ? 'text-neutral-800 dark:text-slate-100' : 'text-neutral-500 italic'}`}>
-                  {g.assignee?.full_name || ASSIGNEE_HIDDEN}
-                </span>
-                <span className="task-person-meta text-2xs font-mono text-neutral-400">
-                  {g.assignee?.employee_code}{g.assignee?.branch?.code ? ` · ${g.assignee.branch.code}` : ''} · {g.tasks.length} task{g.tasks.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-              {g.tasks.map((t) => (
-                <TaskCard key={t.id} task={t} actions={actions} subCount={(childrenOf.get(t.id) || []).length} />
-              ))}
-            </div>
-          ))}
-          <Pagination {...peoplePager} noun="people" />
+          <Pagination {...pager} noun="tasks" />
         </div>
       )}
 
@@ -614,13 +651,7 @@ export default function TaskManagement() {
           }}
         >
           <p><span className="font-semibold">{toDelete.title}</span> will be removed for everyone. This cannot be undone.</p>
-          {(childrenOf.get(toDelete.id) || []).length > 0 && (
-            <p>
-              Its {(childrenOf.get(toDelete.id) || []).length} sub-task
-              {(childrenOf.get(toDelete.id) || []).length !== 1 ? 's' : ''} will not be deleted — they
-              stay on the board as tasks of their own.
-            </p>
-          )}
+          <p>Its checklist goes with it, and everybody on the task loses it from their list.</p>
         </ConfirmDialog>
       )}
     </div>
@@ -645,52 +676,40 @@ function StaleWarning({ error }) {
   );
 }
 
-// Recursive delegation tree — a task with its sub-tasks nested beneath it.
-function TaskTree({ task, childrenOf, depth, actions }) {
-  const kids = childrenOf.get(task.id) || [];
-  return (
-    <div
-      data-task-depth={depth}
-      className={depth > 0
-        ? `task-tree-branch ${depth > 1 ? 'task-tree-branch-deep' : ''} ml-4 sm:ml-7 border-l border-neutral-200 dark:border-neutral-850 pl-3 sm:pl-4`
-        : ''}
-    >
-      <TaskCard task={task} actions={actions} subCount={kids.length} nested={depth > 0} />
-      {kids.length > 0 && (
-        <div className="mt-2.5 space-y-2.5">
-          {kids.map((k) => (
-            <TaskTree key={k.id} task={k} childrenOf={childrenOf} depth={depth + 1} actions={actions} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TaskCard({ task, actions, subCount = 0, nested = false }) {
+function TaskCard({ task, actions }) {
   const pm = priorityMeta(task.priority);
   const overdue = isOverdue(task, actions.today);
   const detailOpen = actions.openDetail === task.id;
   const comments = actions.commentCounts?.[task.id];
   const files = actions.attachmentCounts?.[task.id];
+  const people = assigneesOf(task);
+  // The board's read is the cheap one — two columns per item, not every title — so this is a count
+  // and nothing more. The list itself loads when somebody opens the card.
+  const steps = checklistProgress(task.checklist ?? []);
   return (
-    <div {...actions.rowProps(task.id)} className={`task-card premium-card ${nested ? 'task-card-nested bg-neutral-50/60 dark:bg-neutral-950/30' : ''}`}>
+    <div {...actions.rowProps(task.id)} className="task-card premium-card">
       <div className="task-card-row mobile-list-row flex items-start justify-between gap-3">
         <div className="task-card-main min-w-0 space-y-1.5">
           <div className="task-card-heading flex items-center gap-2 flex-wrap">
             {/* The dot belongs to the title, so it is grouped with it. Left as a sibling of a
                 two-line title it was pushed onto a row of its own and read as a stray bullet. */}
             <div className="task-card-title flex items-start gap-2 min-w-0 flex-[1_1_100%] sm:flex-[1_1_0%]">
-              {nested && <CornerDownRight size={13} className="text-neutral-400 shrink-0 mt-0.5" />}
               <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${pm.dot}`} title={`${task.priority} priority`} aria-label={`${task.priority} priority`} />
               {/* Was `truncate`: on a 360px screen that clipped a real title at 338px of the 449
                   it needed, and the rest was unreadable. Two lines, then ellipsis. */}
               <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 min-w-0 line-clamp-2">{task.title}</span>
             </div>
             <span className={`text-2xs font-bold uppercase font-mono ${pm.text}`}>{task.priority}</span>
-            {subCount > 0 && (
-              <span className="text-2xs font-mono px-1.5 py-0.5 rounded bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border border-neutral-200 dark:border-neutral-800 flex items-center gap-1">
-                <GitBranch size={9} /> {subCount}
+            {steps.total > 0 && (
+              <span
+                className={`text-2xs font-mono px-1.5 py-0.5 rounded border flex items-center gap-1 ${
+                  steps.allDone
+                    ? 'bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981] border-[#0ea971]/25'
+                    : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-500 border-neutral-200 dark:border-neutral-800'
+                }`}
+                title={`${steps.done} of ${steps.total} steps done`}
+              >
+                <ListTodo size={9} /> {steps.done}/{steps.total}
               </span>
             )}
             {/* Opening the detail is the same gesture whichever of the two you came for, so one
@@ -714,14 +733,26 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
             <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{task.description}</p>
           )}
           <div className="task-card-meta flex items-center gap-3 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400 pt-0.5">
+            {/* Everyone on it. One name reads as before; more than one names the first and counts
+                the rest, because three full names wrap a 360px card onto its own line. */}
             <span className="inline-flex items-center gap-1.5">
-              {task.assignee?.full_name
-                ? <Avatar name={task.assignee.full_name} size="xs" />
+              {people.length > 0 && people[0].employee?.full_name
+                ? <Avatar name={people[0].employee.full_name} size="xs" />
                 : <User size={11} className="text-neutral-400" />}
-              <span className={`font-semibold ${task.assignee ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-500 italic'}`}>
-                {task.assignee?.full_name || ASSIGNEE_HIDDEN}
+              <span className={`font-semibold ${people[0]?.employee ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-500 italic'}`}>
+                {people[0]?.employee?.full_name || task.assignee?.full_name || ASSIGNEE_HIDDEN}
               </span>
-              {task.assignee?.branch?.code && <span className="font-mono">· {task.assignee.branch.code}</span>}
+              {people.length > 1 && (
+                <span
+                  className="font-mono px-1 rounded bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+                  title={people.map((r) => r.employee?.full_name ?? ASSIGNEE_HIDDEN).join(', ')}
+                >
+                  +{people.length - 1}
+                </span>
+              )}
+              {people.length === 1 && task.assignee?.branch?.code && (
+                <span className="font-mono">· {task.assignee.branch.code}</span>
+              )}
             </span>
             {task.assigner && task.assigner.id !== task.assignee?.id && (
               <span className="inline-flex items-center gap-1 font-mono">
@@ -742,12 +773,22 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
               value={task.status}
               onChange={(e) => actions.setStatus(task.id, e.target.value)}
               aria-label={`Status of ${task.title}`}
+              title={steps.total > 0 && !steps.allDone
+                ? `${steps.total - steps.done} step${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
+                : undefined}
               // `status-pill` keeps the status colour in dark mode: index.css repaints every
               // <select> with !important, which flattened all five statuses to the same grey — and
               // only for the people who can change one. See the rule there.
               className={`status-pill text-2xs font-bold uppercase tracking-wide font-mono rounded-md px-2 py-1 border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0ea971]/50 ${statusClass(task.status)}`}
             >
-              {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+              {/* Done is not offered while steps are outstanding. The checklist is what completes
+                  a task now (app.tg_task_checklist_rollup), so a hand-set Done would show "Done"
+                  beside "1/3" and then be undone by the next tick — the status and the list saying
+                  different things is exactly what the rollup exists to prevent. Cancelled stays
+                  available: stopping is a decision, not a completion. */}
+              {TASK_STATUSES
+                .filter((st) => st === task.status || st !== 'Done' || steps.total === 0 || steps.allDone)
+                .map((st) => <option key={st} value={st}>{st}</option>)}
             </select>
           ) : (
             <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border ${statusClass(task.status)}`}>
@@ -759,12 +800,6 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
               <button onClick={() => actions.edit(task)} title="Edit task" aria-label={`Edit ${task.title}`}
                 className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white cursor-pointer">
                 <PenLine size={13} />
-              </button>
-            )}
-            {actions.canCreate(task) && (
-              <button onClick={() => actions.addSubtask(task)} title="Add sub-task" aria-label={`Add a sub-task under ${task.title}`}
-                className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 hover:text-neutral-900 dark:hover:bg-neutral-800 dark:hover:text-white cursor-pointer">
-                <Plus size={13} />
               </button>
             )}
             {actions.canManage(task) && (
@@ -786,15 +821,39 @@ function TaskCard({ task, actions, subCount = 0, nested = false }) {
 
 function TaskComposer({
   employees, canAssignTo, currentEmployeeId, task, canReassign = true,
-  parentId, defaultAssignee, parentTask, busy, error, onClose, onSubmit,
+  defaultAssignee, busy, error, onClose, onSubmit,
 }) {
   const editing = Boolean(task);
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
   const [priority, setPriority] = useState(task?.priority ?? 'Medium');
   const [dueDate, setDueDate] = useState(task?.due_date ?? '');
-  const [assigneeId, setAssigneeId] = useState(task?.employee_id ?? defaultAssignee ?? currentEmployeeId ?? '');
   const [q, setQ] = useState('');
+
+  /**
+   * Everybody on this task, in order, and the FIRST one is the primary.
+   *
+   * One array rather than "the assignee" plus "the others", because the difference between them is
+   * not something the person filling this in should have to think about. It matters underneath:
+   * position 0 becomes tasks.employee_id, which is what trg_tasks_ancestry stamps the branch and
+   * department from, and therefore which managers can see the task at all. So the order is
+   * meaningful and the UI says which one is carrying that weight — it just does not ask twice.
+   */
+  const [chosenIds, setChosenIds] = useState(() => {
+    const existing = editing ? assigneeIds(task) : [];
+    if (existing.length > 0) return existing;
+    const seed = task?.employee_id ?? defaultAssignee ?? currentEmployeeId ?? '';
+    return seed ? [seed] : [];
+  });
+  const assigneeId = chosenIds[0] ?? '';
+
+  const addPerson = (id) => {
+    setChosenIds((cur) => (cur.includes(id) ? cur : [...cur, id]));
+    setQ('');
+  };
+  // Removing position 0 promotes the next person rather than leaving the task unscoped: employee_id
+  // is NOT NULL, so there has to be a primary at all times.
+  const removePerson = (id) => setChosenIds((cur) => cur.filter((x) => x !== id));
 
   // Two lists, because the difference between them is worth saying out loud: `matches` is who the
   // text found, `results` is who of those this person may actually be given a task. Silently
@@ -827,27 +886,28 @@ function TaskComposer({
     // An edit patches the task in place. `assigned_by` is deliberately left alone — it records who
     // delegated the work, not who last touched the row — and `status` is not sent, so the update
     // hook leaves completed_at where it is (it only rewrites it when a status is in the patch).
-    onSubmit(editing ? fields : { ...fields, assigned_by: currentEmployeeId || null, parent_task_id: parentId || null });
+    //
+    // assigneeIds rides alongside in both modes: on create the hook writes the junction rows, on
+    // edit the caller diffs them against what the task already has.
+    onSubmit(
+      editing
+        ? { ...fields, assigneeIds: chosenIds }
+        : { ...fields, assigneeIds: chosenIds, assigned_by: currentEmployeeId || null, parent_task_id: null }
+    );
   };
 
   return (
     <FormSection
-      title={editing ? 'Edit task' : parentId ? 'New sub-task' : 'New task'}
-      subtitle={editing ? 'Change the details, the deadline or who is carrying it.' : parentId ? undefined : 'Assign work to someone in your scope.'}
-      icon={editing ? PenLine : parentId ? CornerDownRight : Plus}
+      title={editing ? 'Edit task' : 'New task'}
+      subtitle={editing ? 'Change the details, the deadline or who is on it.' : 'Assign work to people in your scope.'}
+      icon={editing ? PenLine : Plus}
       onClose={onClose}
       onSubmit={submit}
-      submitLabel={editing ? 'Save changes' : parentId ? 'Add sub-task' : 'Create task'}
+      submitLabel={editing ? 'Save changes' : 'Create task'}
       busy={busy}
       disabled={!title.trim() || !assigneeId}
       error={error}
     >
-        {parentTask && (
-          <div className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-2 flex items-center gap-1.5">
-            <GitBranch size={12} className="text-[#0ea971] shrink-0" /> Under: <span className="font-semibold text-neutral-700 dark:text-neutral-300 truncate">{parentTask.title}</span>
-          </div>
-        )}
-
         <div className="space-y-3">
           <div className="space-y-1">
             <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Title</label>
@@ -860,7 +920,10 @@ function TaskComposer({
           </div>
 
           <div className="space-y-1">
-            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Assign to</label>
+            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">
+              Assign to
+            </label>
+
             {assigneeUnknown ? (
               <p className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-xs text-neutral-500 italic">
                 {ASSIGNEE_HIDDEN} — it stays with them.
@@ -871,20 +934,51 @@ function TaskComposer({
               <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-xs">
                 <span className="font-semibold text-neutral-800 dark:text-neutral-200">{chosen?.full_name}</span>
                 <span className="font-mono text-2xs text-neutral-500"> · {chosen?.employee_code}</span>
-                <span className="block text-2xs text-neutral-400 mt-0.5">You can edit this task but not reassign it.</span>
-              </div>
-            ) : chosen ? (
-              <div className="flex items-center justify-between rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-xs">
-                <span className="font-semibold text-neutral-800 dark:text-neutral-200">
-                  {chosen.full_name}
-                  <span className="font-mono text-2xs text-neutral-500"> · {chosen.employee_code}{chosen.branch?.code ? ` · ${chosen.branch.code}` : ''}</span>
-                  {chosen.id === currentEmployeeId && <span className="ml-1 text-[#0c9765] dark:text-[#10b981]">(me)</span>}
-                </span>
-                <button type="button" onClick={() => { setAssigneeId(''); setQ(''); }} className="text-neutral-400 hover:text-red-500"><X size={14} /></button>
+                <span className="block text-2xs text-neutral-400 mt-0.5">You can edit this task but not change who is on it.</span>
               </div>
             ) : (
               <>
-                <input className={INPUT} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search employee by name or code…" />
+                {chosenIds.length > 0 && (
+                  <div className="task-assignee-chips flex flex-wrap gap-1.5 mb-2">
+                    {chosenIds.map((id, index) => {
+                      const person = employees.find((e) => e.id === id);
+                      return (
+                        <span
+                          key={id}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-2xs ${
+                            index === 0
+                              ? 'border-[#0ea971]/30 bg-[#0ea971]/10 text-[#0c9765] dark:text-[#10b981]'
+                              : 'border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 text-neutral-700 dark:text-neutral-300'
+                          }`}
+                        >
+                          <span className="font-semibold">{person?.full_name ?? ASSIGNEE_HIDDEN}</span>
+                          {person?.employee_code && (
+                            <span className="font-mono opacity-70">{person.employee_code}</span>
+                          )}
+                          {id === currentEmployeeId && <span className="opacity-80">(me)</span>}
+                          {/* Position 0 wears the task's branch and department, which is what
+                              decides who else can see it. Worth one word rather than a surprise. */}
+                          {index === 0 && <span className="font-bold uppercase tracking-wide opacity-70">main</span>}
+                          <button
+                            type="button"
+                            onClick={() => removePerson(id)}
+                            aria-label={`Remove ${person?.full_name ?? 'this person'} from the task`}
+                            className="text-current opacity-50 hover:opacity-100 cursor-pointer"
+                          >
+                            <X size={11} />
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                <input
+                  className={INPUT}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={chosenIds.length > 0 ? 'Add someone else…' : 'Search employee by name or code…'}
+                />
                 {q.trim() && results.length === 0 && (
                   <p className="mt-1 text-2xs text-neutral-500 flex items-start gap-1.5">
                     <ShieldAlert size={12} className="mt-0.5 shrink-0 text-amber-500" />
@@ -895,8 +989,8 @@ function TaskComposer({
                 )}
                 {results.length > 0 && (
                   <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-                    {results.map((e) => (
-                      <button key={e.id} type="button" onClick={() => setAssigneeId(e.id)}
+                    {results.filter((e) => !chosenIds.includes(e.id)).map((e) => (
+                      <button key={e.id} type="button" onClick={() => addPerson(e.id)}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer">
                         <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
                         <span className="font-mono text-2xs text-neutral-500">{e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}</span>
@@ -904,10 +998,14 @@ function TaskComposer({
                     ))}
                   </div>
                 )}
-                {currentEmployeeId && (!canAssignTo || employees.some((e) => e.id === currentEmployeeId && canAssignTo(e))) && (
-                  <button type="button" onClick={() => setAssigneeId(currentEmployeeId)} className="text-xs text-[#0c9765] dark:text-[#10b981] hover:underline cursor-pointer mt-1">
-                    Assign to myself
+                {currentEmployeeId && !chosenIds.includes(currentEmployeeId)
+                  && (!canAssignTo || employees.some((e) => e.id === currentEmployeeId && canAssignTo(e))) && (
+                  <button type="button" onClick={() => addPerson(currentEmployeeId)} className="text-xs text-[#0c9765] dark:text-[#10b981] hover:underline cursor-pointer mt-1">
+                    Add myself
                   </button>
+                )}
+                {chosenIds.length === 0 && (
+                  <p className="mt-1 text-2xs text-neutral-500">Pick at least one person. The first one is the main assignee.</p>
                 )}
               </>
             )}

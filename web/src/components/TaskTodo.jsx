@@ -22,6 +22,7 @@ import { useAuth } from '../auth/AuthContext';
 import { humanDbError } from '../lib/dbErrors';
 import { istToday } from '../lib/dates';
 import { isOverdue, TASK_PRIORITIES } from '../lib/taskBoard';
+import { checklistProgress } from '../lib/checklist';
 import {
   PIPELINE, myBoard, progress, nextStage, advanceLabel, isSelfSet,
 } from '../lib/todoPipeline';
@@ -243,6 +244,12 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
   const Icon = ADVANCE_ICON[task.status];
   const done = task.status === 'Done';
   const cancelled = task.status === 'Cancelled';
+  // A task with steps is finished by ticking them, not by a button here — the rollup would undo a
+  // hand-set Done on the very next tick, so the row points at the checklist instead of competing
+  // with it. Open the task on the board to tick them.
+  const steps = checklistProgress(task.checklist ?? []);
+  const stepsOutstanding = steps.total > 0 && !steps.allDone;
+  const advanceBlocked = stepsOutstanding && nextStage(task.status) === 'Done';
 
   return (
     <li className="task-todo-card premium-card">
@@ -260,6 +267,14 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
           </div>
           <div className="flex items-center gap-2.5 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400">
             <span className="inline-flex items-center gap-1 font-mono"><Flag size={10} /> {task.priority}</span>
+            {steps.total > 0 && (
+              <span
+                className={`inline-flex items-center gap-1 font-mono ${steps.allDone ? 'text-[#0c9765] dark:text-[#10b981]' : ''}`}
+                title={`${steps.done} of ${steps.total} steps done`}
+              >
+                <ListTodo size={10} /> {steps.done}/{steps.total}
+              </span>
+            )}
             {task.due_date && (
               <span className={`inline-flex items-center gap-1 font-mono ${overdue && !done ? 'text-rose-600 dark:text-rose-400 font-bold' : ''}`}>
                 <CalendarClock size={10} /> {task.due_date}{overdue && !done ? ' · overdue' : ''}
@@ -273,7 +288,10 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
         <div className="task-todo-actions flex flex-col items-end gap-1.5 shrink-0">
           {label && onAdvance && (
             <button
-              onClick={onAdvance} disabled={busy}
+              onClick={onAdvance} disabled={busy || advanceBlocked}
+              title={advanceBlocked
+                ? `${steps.total - steps.done} step${steps.total - steps.done === 1 ? '' : 's'} left — tick them to finish this task`
+                : undefined}
               className={btnClass(task.status === 'In Progress' ? 'success' : 'ghost', 'sm')}
             >
               {Icon && <Icon size={12} />} {label}

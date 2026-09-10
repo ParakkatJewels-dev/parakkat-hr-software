@@ -107,3 +107,50 @@ test('a missing or empty list is an empty board, not a crash', () => {
   assert.deepEqual(sortForMe(), []);
   assert.equal(progress(undefined, ME).total, 0);
 });
+
+// ----------------------------------------------------- a task with several people ----
+//
+// 0114: "my plate" became set membership. A task with three people on it belongs on all three of
+// their lists — before this, one of them saw it and the other two never learned they were on it.
+
+const shared = (ids, over = {}) => t({
+  employee_id: ids[0],
+  assignees: ids.map((id) => ({ employee_id: id, employee: { id, full_name: id } })),
+  ...over,
+});
+
+test('a task somebody else is primary on is still on my list', () => {
+  const board = myBoard([shared(['boss', ME], { title: 'shared' })], ME, { today: TODAY });
+  assert.equal(board.open.length, 1);
+});
+
+test('a task I am not on stays off my list, however many people are on it', () => {
+  const board = myBoard([shared(['boss', 'other'], { title: 'theirs' })], ME, { today: TODAY });
+  assert.equal(board.open.length, 0);
+});
+
+test('my progress counts the shared work I am actually on', () => {
+  const p = progress(
+    [shared(['boss', ME], { title: 'a', status: 'Done' }), shared(['boss'], { title: 'b' })],
+    ME,
+    { today: TODAY }
+  );
+  assert.equal(p.total, 1);
+  assert.equal(p.done, 1);
+  assert.equal(p.percent, 100);
+});
+
+test('a single-assignee task from before 0114 is still mine', () => {
+  const board = myBoard([t({ title: 'old', employee_id: ME })], ME, { today: TODAY });
+  assert.equal(board.open.length, 1);
+});
+
+test('being added to a task does not make it mine to delete', () => {
+  // tasks_delete still asks app.is_own_task(employee_id, ...) AND assigned_by = you. Widening this
+  // to the assignee set would offer a Delete the database refuses.
+  const theirs = shared(['boss', ME], { title: 'shared', assigned_by: 'boss' });
+  assert.equal(isSelfSet(theirs, ME), false);
+
+  const mine = shared([ME], { title: 'mine', assigned_by: ME });
+  assert.equal(isSelfSet(mine, ME), true);
+});
