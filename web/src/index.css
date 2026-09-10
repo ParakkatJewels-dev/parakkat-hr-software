@@ -5014,6 +5014,42 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   box-shadow: inset 3px 0 0 #e11d48, 0 1px 2px rgba(16, 32, 26, .04);
 }
 
+.task-list-summary {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .25rem .2rem;
+  color: var(--surface-text-soft);
+  font-size: .76rem;
+}
+
+.task-list-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: .16rem;
+}
+
+.task-list-summary-label {
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.task-list-summary strong {
+  color: var(--surface-text);
+  font-size: .88rem;
+  font-weight: 750;
+}
+
+.task-list-summary > span:last-child {
+  flex: none;
+  font-weight: 700;
+}
+
+.task-list-pagination { margin-top: 1rem; }
+
 .task-card-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -5023,12 +5059,32 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 .task-card-copy { min-width: 0; }
 
+.task-card-content {
+  padding: .9rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--surface-border));
+  border-radius: .85rem;
+  background: color-mix(in srgb, var(--surface-elevated) 94%, var(--accent));
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 72%, transparent);
+}
+
+.task-card-content-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .34rem;
+  margin-bottom: .42rem;
+  color: var(--accent-strong);
+  font-size: .7rem;
+  font-weight: 850;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
 .task-card-labels {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: .4rem;
-  margin-bottom: .42rem;
+  margin-top: .72rem;
 }
 
 .task-priority-pill,
@@ -5058,19 +5114,25 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .task-management-page .task-card-title-text {
   margin: 0;
   color: var(--surface-text);
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1.35;
+  font-size: 1.14rem;
+  font-weight: 850;
+  line-height: 1.38;
   overflow-wrap: anywhere;
 }
 
 .task-card-description {
-  max-width: 75ch;
-  margin-top: .35rem;
-  color: var(--surface-text-soft);
-  font-size: .8rem;
-  line-height: 1.5;
+  max-width: 85ch;
+  margin-top: .52rem;
+  color: color-mix(in srgb, var(--surface-text) 82%, var(--surface-text-soft));
+  font-size: .9rem;
+  line-height: 1.62;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.task-card-description-empty {
+  color: var(--surface-text-soft);
+  font-style: italic;
 }
 
 .task-card-status {
@@ -5306,9 +5368,24 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .task-todo-title {
   flex: 1 1 15rem;
   color: var(--surface-text);
-  font-size: .9rem;
-  line-height: 1.4;
+  font-size: 1rem;
+  line-height: 1.42;
   overflow-wrap: anywhere;
+}
+
+.task-todo-description {
+  max-width: 85ch;
+  margin-top: .42rem;
+  color: color-mix(in srgb, var(--surface-text) 80%, var(--surface-text-soft));
+  font-size: .84rem;
+  line-height: 1.58;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.task-todo-description-closed {
+  color: var(--surface-text-soft);
+  text-decoration: line-through;
 }
 
 .task-todo-status {
@@ -5369,8 +5446,24 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 @media (max-width: 640px) {
+  main .task-management-page .task-list-summary {
+    align-items: start;
+  }
+
   main .task-management-page .task-card {
     padding: .8rem;
+  }
+
+  main .task-management-page .task-card-content {
+    padding: .78rem .82rem;
+  }
+
+  main .task-management-page .task-card-title-text {
+    font-size: 1.04rem;
+  }
+
+  main .task-management-page .task-card-description {
+    font-size: .86rem;
   }
 
   main .task-management-page .task-card-top {

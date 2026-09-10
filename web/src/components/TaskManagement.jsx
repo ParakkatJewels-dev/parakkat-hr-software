@@ -74,6 +74,7 @@ const ASSIGNEE_HIDDEN = 'Assignee not visible';
 // reach a task is worse than one that says where it stops looking.
 const WINDOW_MONTHS = Math.round(CLOSED_TASK_WINDOW_DAYS / 30);
 const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelled ones are kept for ${WINDOW_MONTHS} months.`;
+const TASKS_PER_PAGE = 10;
 
 const priorityMeta = (p) =>
   p === 'Urgent'
@@ -256,9 +257,10 @@ export default function TaskManagement() {
    * Leave, Expenses and Helpdesk have paged at 25 since they were written. This used to page by
    * ROOT so that a parent and its sub-tasks were never split across a page; with the tree gone
    * there are no families to keep together, so it pages by task and the focus anchor is simply the
-   * task a notification pointed at.
+   * task a notification pointed at. Ten is intentional here: these cards show the complete task
+   * instruction, not a one-line table row, so 25 makes each page unnecessarily long on a phone.
    */
-  const pager = usePagination(filtered, 25, focusId);
+  const pager = usePagination(filtered, TASKS_PER_PAGE, focusId);
 
   /**
    * Who this person may file a task against.
@@ -638,10 +640,21 @@ export default function TaskManagement() {
       ) : (
         <div className="space-y-3">
           <StaleWarning error={error} />
+          <div className="task-list-summary" aria-live="polite">
+            <div>
+              <span className="task-list-summary-label">Task list</span>
+              <strong>
+                Showing {pager.from}–{pager.to} of {pager.count} task{pager.count === 1 ? '' : 's'}
+              </strong>
+            </div>
+            {pager.totalPages > 1 && (
+              <span>Page {pager.page} of {pager.totalPages}</span>
+            )}
+          </div>
           {pager.slice.map((t) => (
             <TaskCard key={t.id} task={t} actions={actions} />
           ))}
-          <Pagination {...pager} noun="tasks" />
+          <Pagination {...pager} noun="tasks" sizes={[10, 25, 50, 100]} className="task-list-pagination" />
         </div>
       )}
 
@@ -707,7 +720,14 @@ function TaskCard({ task, actions }) {
       className={`task-card premium-card ${overdue ? 'task-card-overdue' : ''}`}
     >
       <div className="task-card-top">
-        <div className="task-card-copy">
+        <div className="task-card-copy task-card-content">
+          <span className="task-card-content-label"><ListTodo size={14} /> Task</span>
+          <h3 className="task-card-title-text">{task.title}</h3>
+          {task.description ? (
+            <p className="task-card-description">{task.description}</p>
+          ) : (
+            <p className="task-card-description task-card-description-empty">No additional details provided.</p>
+          )}
           <div className="task-card-labels">
             <span className={`task-priority-pill ${pm.text}`}>
               <Flag size={12} /> {task.priority} priority
@@ -718,10 +738,6 @@ function TaskCard({ task, actions }) {
               </span>
             )}
           </div>
-          <h3 className="task-card-title-text">{task.title}</h3>
-          {task.description && (
-            <p className="task-card-description line-clamp-2">{task.description}</p>
-          )}
         </div>
 
         <div className="task-card-status">

@@ -178,6 +178,15 @@ export default function TaskTodo({ tasks = [], loading }) {
         </div>
       ) : (
         <>
+          <div className="task-list-summary" aria-live="polite">
+            <div>
+              <span className="task-list-summary-label">Active tasks</span>
+              <strong>
+                Showing {openPager.from}–{openPager.to} of {openPager.count} task{openPager.count === 1 ? '' : 's'}
+              </strong>
+            </div>
+            {openPager.totalPages > 1 && <span>Page {openPager.page} of {openPager.totalPages}</span>}
+          </div>
           <ul className="space-y-2">
             {openPager.slice.map((task) => (
               <TodoRow
@@ -195,7 +204,7 @@ export default function TaskTodo({ tasks = [], loading }) {
               />
             ))}
           </ul>
-          <Pagination {...openPager} noun="items" />
+          <Pagination {...openPager} noun="tasks" sizes={[10, 25, 50, 100]} />
         </>
       )}
 
@@ -213,6 +222,15 @@ export default function TaskTodo({ tasks = [], loading }) {
           </button>
           {showClosed && (
             <>
+              <div className="task-list-summary" aria-live="polite">
+                <div>
+                  <span className="task-list-summary-label">Finished tasks</span>
+                  <strong>
+                    Showing {closedPager.from}–{closedPager.to} of {closedPager.count} task{closedPager.count === 1 ? '' : 's'}
+                  </strong>
+                </div>
+                {closedPager.totalPages > 1 && <span>Page {closedPager.page} of {closedPager.totalPages}</span>}
+              </div>
               <ul className="space-y-2">
                 {closedPager.slice.map((task) => (
                   <TodoRow
@@ -222,7 +240,7 @@ export default function TaskTodo({ tasks = [], loading }) {
                   />
                 ))}
               </ul>
-              <Pagination {...closedPager} noun="items" />
+              <Pagination {...closedPager} noun="tasks" sizes={[10, 25, 50, 100]} />
             </>
           )}
         </section>
@@ -266,7 +284,7 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
       <div className="task-todo-row flex items-start gap-3">
         <div className="task-todo-main min-w-0 flex-1 space-y-1">
           <div className="task-todo-heading flex items-start gap-2 flex-wrap">
-            <span className={`task-todo-title font-bold text-sm min-w-0 line-clamp-2 ${
+            <span className={`task-todo-title font-bold text-sm min-w-0 ${
               done || cancelled ? 'text-neutral-400 line-through' : 'text-neutral-850 dark:text-slate-100'
             }`}>
               {task.title}
@@ -275,6 +293,11 @@ function TodoRow({ task, today, mine, busy, onAdvance, onBlock, onReopen, onDele
               {task.status}
             </span>
           </div>
+          {task.description && (
+            <p className={`task-todo-description ${done || cancelled ? 'task-todo-description-closed' : ''}`}>
+              {task.description}
+            </p>
+          )}
           <div className="task-todo-meta flex items-center gap-2.5 flex-wrap text-2xs text-neutral-500 dark:text-neutral-400">
             <span className="task-todo-meta-item"><Flag size={11} /> Priority <strong>{task.priority}</strong></span>
             {steps.total > 0 && (
