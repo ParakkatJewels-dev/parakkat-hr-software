@@ -4,8 +4,18 @@ import {
   isOverdue, filterTasks, taskStats, composerKey,
   searchTasks, searchTerms, sortTasks,
   openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS, TASK_STATUSES,
-  assigneeIds, isAssignedTo, assigneesOf,
+  assigneeIds, isAssignedTo, assigneesOf, nextTaskStatus,
 } from './taskBoard.js';
+
+test('the task status box starts progress, completes, blocks, then restarts progress', () => {
+  assert.equal(nextTaskStatus('To Do'), 'In Progress');
+  assert.equal(nextTaskStatus('In Progress'), 'Done');
+  assert.equal(nextTaskStatus('Done'), 'Blocked');
+  assert.equal(nextTaskStatus('Blocked'), 'In Progress');
+  assert.equal(nextTaskStatus('Cancelled'), null);
+  assert.equal(nextTaskStatus('unknown'), null);
+  assert.equal(nextTaskStatus(undefined), null);
+});
 
 // A task, with only the fields the board actually reads.
 const task = (over = {}) => ({

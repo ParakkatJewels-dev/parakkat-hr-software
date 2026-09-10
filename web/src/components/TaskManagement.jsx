@@ -26,7 +26,7 @@ import {
   TASK_PRIORITIES,
   filterTasks, sortTasks, taskStats, composerKey, assigneesOf, assigneeIds,
 } from '../lib/taskBoard';
-import TaskListRow, { TaskListColumns } from './TaskListRow';
+import TaskListRow, { TaskListColumns, TaskStatusGuide } from './TaskListRow';
 import './tasks.css';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useFocusRow } from '../lib/useFocusRow';
@@ -40,7 +40,7 @@ import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#5263c7] transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
 
 /**
  * What to call an assignee whose employees row this viewer cannot read.
@@ -338,6 +338,7 @@ export default function TaskManagement() {
         {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests" badge={waitingOnMe} />}
         <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" />
       </nav>
+      {(isBoard || effectiveView === 'todo') && <TaskStatusGuide />}
       {isBoard && <>
         <div className="work-overview" aria-label="Task summary">
           <Stat label="All tasks" value={stats.total} active={statusFilter === 'All'} onClick={() => { setStatusFilter('All'); pager.setPage(1); }} />
@@ -450,7 +451,7 @@ export default function TaskManagement() {
       ) : effectiveView === 'routine' ? (
         <TaskRoutine employees={employees} />
       ) : isLoading ? (
-        <div className="flex justify-center py-16 text-[#5263c7]"><Loader2 size={24} className="animate-spin" /></div>
+        <div className="flex justify-center py-16 text-[var(--work-accent)]"><Loader2 size={24} className="animate-spin" /></div>
       ) : error && tasks.length === 0 ? (
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
@@ -710,7 +711,7 @@ function TaskComposer({
                           key={id}
                           className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-2xs ${
                             index === 0
-                              ? 'border-[#5263c7]/30 bg-[#5263c7]/10 text-[#4251ad] dark:text-[#a5b4fc]'
+                              ? 'border-[var(--work-accent)]/30 bg-[var(--work-selected)] text-[var(--work-accent)]'
                               : 'border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 text-neutral-700 dark:text-neutral-300'
                           }`}
                         >
@@ -763,7 +764,7 @@ function TaskComposer({
                 )}
                 {currentEmployeeId && !chosenIds.includes(currentEmployeeId)
                   && (!canAssignTo || employees.some((e) => e.id === currentEmployeeId && canAssignTo(e))) && (
-                  <button type="button" onClick={() => addPerson(currentEmployeeId)} className="text-xs text-[#4251ad] dark:text-[#a5b4fc] hover:underline cursor-pointer mt-1">
+                  <button type="button" onClick={() => addPerson(currentEmployeeId)} className="text-xs text-[var(--work-accent)] hover:underline cursor-pointer mt-1">
                     Add myself
                   </button>
                 )}
@@ -833,7 +834,7 @@ function TaskComposer({
                       type="button"
                       onClick={addStep}
                       aria-label={`Add subtask "${stepDraft.trim()}"`}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-lg bg-[#5263c7] text-white hover:bg-[#4251ad] transition-colors cursor-pointer animate-fade-in"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 grid place-items-center rounded-lg bg-[var(--work-primary)] text-[var(--work-primary-text)] hover:bg-[var(--work-primary-hover)] transition-colors cursor-pointer animate-fade-in"
                     >
                       <Plus size={14} />
                     </button>

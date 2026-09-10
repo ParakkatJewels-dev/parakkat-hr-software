@@ -34,7 +34,7 @@ import { usePermissions } from '../auth/usePermissions';
 import { messageLinkParts } from '../lib/messageLinks';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#5263c7] transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
 
 const readableSize = (bytes) =>
   !bytes ? '' : bytes < 1024 ? `${bytes} B`
@@ -142,7 +142,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
           aria-valuemax={100}
           aria-label={`${percent}% of this task's steps are done`}
         >
-          <div className="h-full bg-[#5263c7] transition-[width] duration-300" style={{ width: `${percent}%` }} />
+          <div className="h-full bg-[var(--work-accent)] transition-[width] duration-300" style={{ width: `${percent}%` }} />
         </div>
       )}
 
@@ -165,8 +165,8 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
               aria-label={`${isDone ? 'Untick' : 'Tick'} "${item.title}"`}
               title={canTick ? undefined : 'Only the people assigned to this task can tick its subtasks'}
               className={`mt-0.5 shrink-0 transition-colors ${
-                canTick ? 'cursor-pointer hover:text-[#5263c7]' : 'cursor-not-allowed opacity-60'
-              } ${isDone ? 'text-[#5263c7]' : 'text-neutral-400 dark:text-neutral-500'}`}
+                canTick ? 'cursor-pointer hover:text-[var(--work-accent)]' : 'cursor-not-allowed opacity-60'
+              } ${isDone ? 'text-[var(--work-accent)]' : 'text-neutral-400 dark:text-neutral-500'}`}
             >
               {isDone ? <CheckSquare size={15} /> : <Square size={15} />}
             </button>
@@ -225,7 +225,7 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="flex items-center gap-1 text-2xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-[#5263c7] transition-colors cursor-pointer"
+          className="flex items-center gap-1 text-2xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-[var(--work-accent)] transition-colors cursor-pointer"
         >
           <Plus size={11} /> Add subtask
         </button>
@@ -259,7 +259,7 @@ function Attachments({ rows, loading, myUserId }) {
       {error && <p role="alert" className="text-2xs text-red-600 dark:text-red-300">{error}</p>}
 
       {loading ? (
-        <Loader2 size={14} className="animate-spin text-[#5263c7]" />
+        <Loader2 size={14} className="animate-spin text-[var(--work-accent)]" />
       ) : rows.length === 0 ? (
         <p className="text-2xs text-neutral-400">No files shared yet.</p>
       ) : (
@@ -267,7 +267,7 @@ function Attachments({ rows, loading, myUserId }) {
           {rows.map((row) => (
             <li key={row.id} className="flex items-center justify-between gap-2 text-xs rounded-lg px-2 py-1.5 bg-neutral-50 dark:bg-neutral-950/40 border border-neutral-150 dark:border-neutral-850">
               <span className="flex items-center gap-2 min-w-0">
-                {row.kind === 'link' ? <Link2 size={12} className="text-[#5263c7] shrink-0" /> : <FileText size={12} className="text-[#5263c7] shrink-0" />}
+                {row.kind === 'link' ? <Link2 size={12} className="text-[var(--work-accent)] shrink-0" /> : <FileText size={12} className="text-[var(--work-accent)] shrink-0" />}
                 {row.kind === 'link' ? (
                   <a href={row.url} target="_blank" rel="noopener noreferrer" className="truncate text-neutral-800 dark:text-neutral-200 hover:underline">
                     {row.label || row.url}
@@ -399,7 +399,7 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
       </h4>
 
       {loading ? (
-        <Loader2 size={14} className="animate-spin text-[#5263c7]" />
+        <Loader2 size={14} className="animate-spin text-[var(--work-accent)]" />
       ) : thread.length === 0 ? (
         <p className="text-2xs text-neutral-400">Nothing said yet. If it is blocked, this is where to say why.</p>
       ) : (
@@ -451,7 +451,7 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
       <div ref={composerRef} className="space-y-1.5">
         {replyTo && (
           <div className="flex items-center gap-2 text-2xs text-neutral-500 dark:text-neutral-400 rounded-lg bg-neutral-50 dark:bg-neutral-950/40 border border-neutral-150 dark:border-neutral-850 px-2.5 py-1.5">
-            <CornerDownRight size={11} className="text-[#5263c7] shrink-0" />
+            <CornerDownRight size={11} className="text-[var(--work-accent)] shrink-0" />
             <span className="min-w-0 truncate">
               Replying to <span className="font-semibold text-neutral-700 dark:text-neutral-300">
                 {replyTo.to?.author?.full_name ?? 'someone'}

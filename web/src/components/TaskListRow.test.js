@@ -60,7 +60,7 @@ test('completed subtasks count correctly and allow task completion', () => {
 test('read-only rows do not offer edits, deletion or a status select', () => {
   const html = render({}, { openDetail: task.id, canUpdate: () => false, canEdit: () => false, canManage: () => false });
   assert.doesNotMatch(html, /<select|Edit task|>Delete</);
-  assert.match(html, /disabled="" aria-label="Complete/);
+  assert.match(html, /disabled="" aria-label="In Progress\. Mark/);
 });
 
 test('multiple assignees and activity counts remain accessible', () => {
@@ -97,7 +97,7 @@ function findElement(element, predicate) {
   return null;
 }
 
-test('quick completion updates status, while incomplete subtasks open the detail instead', () => {
+test('the status box cycles in order while unfinished subtasks still guard Done', () => {
   const changes = [], opened = [];
   const handlers = {
     ...actions,
@@ -108,11 +108,85 @@ test('quick completion updates status, while incomplete subtasks open the detail
     const tree = TaskListRow({ task: row, actions: handlers });
     findElement(tree, (element) => element.props.className === 'work-complete').props.onClick();
   };
+  clickComplete({ ...task, status: 'To Do' });
   clickComplete(task);
   clickComplete({ ...task, status: 'Done' });
+  clickComplete({ ...task, status: 'Blocked' });
   clickComplete({ ...task, checklist: [{ id: 'unfinished', completed_at: null, completed_by: null }] });
-  assert.deepEqual(changes, [[task.id, 'Done'], [task.id, 'In Progress']]);
+  assert.deepEqual(changes, [[task.id, 'In Progress'], [task.id, 'Done'], [task.id, 'Blocked'], [task.id, 'In Progress']]);
   assert.deepEqual(opened, [task.id]);
+});
+
+test('a task with unfinished subtasks can start progress without being marked Done', () => {
+  const changes = [];
+  const tree = TaskListRow({
+    task: { ...task, status: 'To Do', checklist: [{ id: 'unfinished', completed_at: null }] },
+    actions: { ...actions, setStatus: (...args) => changes.push(args) },
+  });
+  findElement(tree, element => element.props.className === 'work-complete').props.onClick();
+  assert.deepEqual(changes, [[task.id, 'In Progress']]);
+});
+
+test('dropdown and status box continue from the same saved status in either direction', () => {
+  let current = { ...task, status: 'To Do' };
+  const handlers = { ...actions, setStatus: (id, status) => { assert.equal(id, current.id); current = { ...current, status }; } };
+  const tree = () => TaskListRow({ task: current, actions: handlers });
+  const select = () => findElement(tree(), element => element.type === 'select');
+  const box = () => findElement(tree(), element => element.props.className === 'work-complete');
+  select().props.onChange({ target: { value: 'Done' } });
+  assert.match(box().props['aria-label'], /Done\. Mark .* as Blocked/);
+  box().props.onClick();
+  assert.equal(select().props.value, 'Blocked');
+  box().props.onClick();
+  assert.equal(select().props.value, 'In Progress');
+  select().props.onChange({ target: { value: 'To Do' } });
+  box().props.onClick();
+  assert.equal(select().props.value, 'In Progress');
+});
+
+test('both status controls block writes while pending or read-only', () => {
+  for (const overrides of [{ busy: true }, { canUpdate: () => false }]) {
+    const tree = TaskListRow({ task, actions: { ...actions, ...overrides, setStatus: () => assert.fail('Must not write') } });
+    const box = findElement(tree, element => element.props.className === 'work-complete');
+    assert.equal(box.props.disabled, true);
+    box.props.onClick();
+    const select = findElement(tree, element => element.type === 'select');
+    if (select) {
+      assert.equal(select.props.disabled, true);
+      select.props.onChange({ target: { value: 'Blocked' } });
+    }
+  }
+});
+
+test('cancelled tasks do not cycle but can be explicitly reopened in the dropdown', () => {
+  const changes = [];
+  const tree = TaskListRow({ task: { ...task, status: 'Cancelled' }, actions: { ...actions, setStatus: (...args) => changes.push(args) } });
+  const box = findElement(tree, element => element.props.className === 'work-complete');
+  assert.equal(box.props.disabled, true);
+  box.props.onClick();
+  assert.deepEqual(changes, []);
+  findElement(tree, element => element.type === 'select').props.onChange({ target: { value: 'In Progress' } });
+  assert.deepEqual(changes, [[task.id, 'In Progress']]);
+});
+
+test('completion guard is shared with the dropdown and never closes already-open subtasks', () => {
+  const tree = TaskListRow({
+    task: { ...task, checklist: [{ id: 'unfinished' }] },
+    actions: { ...actions, openDetail: task.id, setStatus: () => assert.fail('Must not complete'), toggleDetail: () => assert.fail('Must stay open') },
+  });
+  findElement(tree, element => element.props.className === 'work-complete').props.onClick();
+  findElement(tree, element => element.type === 'select').props.onChange({ target: { value: 'Done' } });
+});
+
+test('each status exposes a label and consistent styling hooks on the row and dropdown', () => {
+  for (const status of ['To Do', 'In Progress', 'Done', 'Blocked', 'Cancelled']) {
+    const html = render({ status });
+    const token = status.toLowerCase().replaceAll(' ', '-');
+    assert.equal((html.match(new RegExp(`data-status="${token}"`, 'g')) ?? []).length, 2);
+    assert.match(html, new RegExp(`aria-label="${status}\\.`));
+    assert.match(html, new RegExp(`<option selected="">${status}</option>`));
+    assert.match(html, /work-status-icon/);
+  }
 });
 
 test('page-size changes reset to the first page', () => {

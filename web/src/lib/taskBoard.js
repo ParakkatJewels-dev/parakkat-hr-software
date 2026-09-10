@@ -9,6 +9,11 @@ import { istToday, windowStartIso } from './dates.js';   // .js so the node test
 export const TASK_STATUSES = ['To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled'];
 export const TASK_PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
 
+/** The quick-status box advances work; cancelled tasks can only be reopened explicitly. */
+export function nextTaskStatus(status) {
+  return ({ 'To Do': 'In Progress', 'In Progress': 'Done', Done: 'Blocked', Blocked: 'In Progress' })[status] ?? null;
+}
+
 /** Statuses that mean the work is finished with — neither can be overdue, neither is "Active". */
 const CLOSED = new Set(['Done', 'Cancelled']);
 

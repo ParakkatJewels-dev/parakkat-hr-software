@@ -38,12 +38,50 @@
   background: var(--chat-surface);
   box-shadow: 0 4px 24px #00000005;
 }
-/* Fill the space above the app's mobile navigation, including its safe-area allowance. */
-.app-main:has(.messages-shell) > .route-stage { height: 100%; }
-.app-main .messages-shell { height: 100%; }
-.app-main .messages-panes { height: 100%; min-height: 0; max-height: none; }
-@media (min-width: 1024px) {
-  .app-main:has(.messages-shell) { padding-inline: var(--space-shell, 24px); }
+/* ---- The chat owns the content area --------------------------------------------------------
+   Every other screen in this app is a stack of cards inside a padded, scrolling <main>, and that
+   is right for them. A chat is not a stack of cards. It is one surface that has to be exactly as
+   tall as the space it is given, because the composer is pinned to the bottom of it and the thread
+   scrolls between the header and that composer.
+
+   Floated inside .app-main's padding it lost a rounded card's worth of edge on all four sides and
+   still came up short of the viewport, so the thread scrolled inside a panel that was itself
+   shorter than the room available.
+
+   On this screen alone, .app-main stops being a padded scroller and becomes a frame: no padding,
+   no scrolling of its own, panes corner to corner. The panes' border, radius and shadow come off
+   with it — there is nothing left for them to be inset from, and a rounded corner against a flush
+   sidebar reads as a mistake rather than a card. */
+.app-main:has(.messages-shell) {
+  padding: 0;
+  /* The panes scroll. If this scrolls too, the composer can be pushed out of view by the thread. */
+  overflow: hidden;
+}
+/* The spacer that guarantees the last card clears the mobile nav on other screens. There are no
+   cards here, and inside a frame with no scroll it would only steal height from the composer. */
+.app-main:has(.messages-shell)::after { content: none; }
+
+.app-main:has(.messages-shell) > .route-stage { height: 100%; min-height: 0; }
+/* max-width and the auto margins go too: the 1600px cap is for reading columns of cards, and here
+   it would leave a band of empty page beside the thread on a wide monitor. */
+.app-main .messages-shell { height: 100%; width: 100%; max-width: none; margin-inline: 0; }
+.app-main .messages-panes {
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* The one inset worth keeping, and it belongs at 640px rather than at the layout breakpoint.
+   The bottom nav is `display: none` at top level and is only turned on inside @media (max-width:
+   640px) — so between 641px and 1023px there is no capsule to clear, and reserving a band for it
+   there would put back exactly the dead space this file just removed. 640px is also where
+   --mobile-nav-height itself is defined, which makes the fallback below a belt rather than the
+   only thing holding the composer up. */
+@media (max-width: 640px) {
+  .app-main:has(.messages-shell) { padding-bottom: var(--mobile-nav-height, 4.25rem); }
 }
 .messages-shell button { cursor: pointer; }
 .messages-shell button:disabled { cursor: not-allowed; opacity: .45; }

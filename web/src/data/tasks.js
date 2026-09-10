@@ -164,10 +164,12 @@ export function useUpdateTask() {
       if (error) throw error;
       if (!data?.length) throw new Error('This task could not be updated. Your access may have changed, or the task was deleted.');
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks'] });
-      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
-    },
+    // Keep both status controls disabled until their shared row has refreshed. Otherwise a second
+    // click can advance from the old status while the successful write is still being refetched.
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['tasks'] }),
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] }),
+    ]),
   });
 }
 
