@@ -1,6 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { shouldShowPager, pageSizeOptions, pageWindow } from './pagination.js';
+import { shouldShowPager, pageSizeOptions, pageWindow, paginationWindow } from './pagination.js';
+
+test('pagination clamps immediately after deleting the last row or filtering to zero matches', () => {
+  assert.deepEqual(paginationWindow(0, 27, 25), { page: 1, pageSize: 25, totalPages: 1, count: 0, from: 0, to: 0 });
+  assert.equal(paginationWindow(650, 27, 25).page, 26);
+  assert.equal(paginationWindow(675, 27, 25).from, 651);
+  assert.equal(paginationWindow(675, 27, 25).to, 675);
+  assert.equal(paginationWindow(675, -2, 0).pageSize, 25);
+  assert.equal(paginationWindow(675, -2, 0).page, 1);
+});
 
 test('the pager appears exactly when there is a second page', () => {
   assert.equal(shouldShowPager(10, 25), false, 'ten rows on a page of 25 is one page');

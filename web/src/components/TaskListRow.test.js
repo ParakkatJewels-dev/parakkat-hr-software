@@ -80,7 +80,9 @@ test('task pagination can retain the page-size selector when every task fits', (
     page: 1, totalPages: 1, pageSize: 25, count: 11, from: 1, to: 11,
     setPage: () => {}, setPageSize: () => {}, noun: 'tasks', sizes: [10, 25, 50, 100],
   };
-  assert.equal(renderToStaticMarkup(React.createElement(Pagination, props)), '');
+  assert.match(renderToStaticMarkup(React.createElement(Pagination, props)), /Rows per page/,
+    'a smaller offered size stays reachable after increasing page size');
+  assert.equal(renderToStaticMarkup(React.createElement(Pagination, { ...props, count: 5, to: 5 })), '');
   const html = renderToStaticMarkup(React.createElement(Pagination, { ...props, keepVisible: true }));
   assert.match(html, /Rows per page/);
   assert.match(html, /<option value="10"[^>]*>10<\/option>/);

@@ -3,13 +3,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { windowStartIso } from '../lib/dates';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useLeaves({ enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['leaves'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('leaves')
         .select(
           // disambiguate: leaves has two FKs to employees (employee_id + approver_id)
@@ -21,11 +21,7 @@ export function useLeaves({ enabled = true } = {}) {
         // Bounded: the whole table was fetched on every dashboard. Screens show recent activity;
         // historical analysis goes through the Reports RPCs.
         .gte('start_date', windowStartIso(180))
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false }).order('id')),
   });
 }
 
@@ -41,8 +37,7 @@ export function useLeavesForPeriod(from, to, { enabled = true } = {}) {
   return useQuery({
     enabled: enabled && Boolean(from) && Boolean(to),
     queryKey: ['leaves-period', from, to],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('leaves')
         .select(
           `id, employee_id, entity_id, zone_id, branch_id, department_id,
@@ -52,11 +47,7 @@ export function useLeavesForPeriod(from, to, { enabled = true } = {}) {
         // Touching the range, not contained by it: a leave that straddles the month boundary
         // belongs to both months' reports.
         .lte('start_date', to)
-        .gte('end_date', from)
-        .limit(5000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .gte('end_date', from).order('id')),
   });
 }
 

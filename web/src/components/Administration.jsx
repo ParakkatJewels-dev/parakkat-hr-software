@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShieldCheck, Clipboard, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Search, Eye } from 'lucide-react';
+import { ShieldCheck, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Eye } from 'lucide-react';
 import { useAuditLog } from '../data/audit';
 import { relativeTime } from '../lib/dates';
 import { useVisibleOrg, useScopeCoverage } from '../data/org';
@@ -1287,7 +1287,7 @@ function AuditLogs() {
       {error && <div role="alert"><ErrorLine msg={error.message} /></div>}
 
       <div className="premium-card px-4">
-        {isLoading ? <div role="status" className="flex justify-center gap-2 py-10 text-brand-ink"><Loader2 size={20} className="animate-spin" /> Loading audit entries…</div> : shown.length === 0 ? (
+        {isLoading ? <div role="status" className="flex justify-center gap-2 py-10 text-brand-ink"><Loader2 size={20} className="animate-spin" /> Loading audit entries…</div> : error ? null : shown.length === 0 ? (
           <p className="text-base text-neutral-500 py-10 text-center">{options.search ? `Nothing matches “${options.search}”.` : 'No audit entries visible to you yet.'}</p>
         ) : (
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-850/60">
@@ -1301,7 +1301,7 @@ function AuditLogs() {
                     aria-hidden="true"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-base text-neutral-700 dark:text-neutral-300">
+                    <p className="text-base break-words text-neutral-700 dark:text-neutral-300">
                       <span className="font-bold text-neutral-900 dark:text-white">{actor}</span>{' '}
                       {verb}{' '}
                       <span className="font-semibold text-neutral-800 dark:text-neutral-200">{prettyTable(log.table_name)}</span>

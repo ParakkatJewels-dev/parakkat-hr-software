@@ -93,7 +93,7 @@ export default function Expense() {
 
   // Paged: this list grows with the business and was rendering every row.
   const { focusId, rowProps } = useFocusRow();
-  const pager = usePagination(visibleExpenses, 25, focusId);
+  const pager = usePagination(visibleExpenses, 25, focusId, `${statusFilter}:${mineOnly}`);
 
   return (
     <div className="page-shell space-y-6 animate-fade-in">

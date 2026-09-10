@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useAssetPhotos, useEmployeeAssets } from '../data/assets';
 import PageHeader from './ui/PageHeader';
+import Pagination, { usePagination } from './ui/Pagination';
 
 const categoryIcon = (asset) => {
   if (asset?.category === 'Software') return KeyRound;
@@ -39,7 +40,8 @@ const assetSubtitle = (asset) =>
 export default function MyAssets() {
   const { employee } = useAuth();
   const { data: assets = [], isLoading, error } = useEmployeeAssets(employee?.id);
-  const { data: photoUrls = {} } = useAssetPhotos(assets);
+  const pager = usePagination(assets, 10);
+  const { data: photoUrls = {} } = useAssetPhotos(pager.slice);
   const stats = useMemo(() => {
     const categories = new Set(assets.map((asset) => asset.category).filter(Boolean));
     return [
@@ -90,7 +92,7 @@ export default function MyAssets() {
           </section>
 
           <ul className="my-assets-list">
-            {assets.map((asset) => {
+            {pager.slice.map((asset) => {
               const Icon = categoryIcon(asset);
               return (
                 <li key={asset.id} className="my-asset-card">
@@ -110,6 +112,7 @@ export default function MyAssets() {
               );
             })}
           </ul>
+          <Pagination {...pager} noun="assigned assets" sizes={[10, 25, 50]} />
         </>
       )}
     </div>

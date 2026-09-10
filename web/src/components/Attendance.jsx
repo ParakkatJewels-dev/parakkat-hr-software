@@ -289,7 +289,7 @@ function TodayView({ workDate, setWorkDate }) {
 
   // 242 people is 242 rows a day, so the table pages. Declared after `filtered` and before any
   // early return, so the hook order is identical on every render.
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, 25, null, `${query}:${attendanceFilter}:${company}:${branch}:${dept}`);
 
   const activeFilters =
     (query ? 1 : 0) + (company !== 'All companies' ? 1 : 0) +

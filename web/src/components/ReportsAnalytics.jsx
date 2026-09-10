@@ -29,7 +29,7 @@ const th = 'py-2 px-2 text-xs font-bold uppercase tracking-wider text-neutral-45
 const td = 'py-1.5 px-2 text-xs font-mono text-neutral-600 dark:text-neutral-300';
 const tdName = 'py-1.5 px-2 text-base font-bold text-neutral-800 dark:text-warm-gray-100';
 
-function ReportTable({ headers, rows, footer, resetKey }) {
+export function ReportTable({ headers, rows, footer, resetKey }) {
   const pager = usePagination(rows, 25, null, resetKey);
   if (rows.length === 0) {
     return <p className="py-8 text-center text-xs text-neutral-500">No data for this period in your scope.</p>;

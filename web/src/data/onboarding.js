@@ -1,18 +1,15 @@
 // Onboarding boards scoped by onboarding.manage.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useOnboarding() {
   return useQuery({
     queryKey: ['onboarding'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('onboarding')
         .select('id, name, job_title, join_date, progress, tasks, entity:entities(code), branch:branches(code)')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false }).order('id')),
   });
 }
 

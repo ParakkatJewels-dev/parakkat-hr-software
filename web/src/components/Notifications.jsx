@@ -19,6 +19,7 @@ import {
   useOpenNotification,
   useMarkAllNotificationsRead,
 } from '../data/notifications';
+import Pagination, { usePagination } from './ui/Pagination';
 
 /** Midnight-based buckets: "today" has to mean the calendar day, not the last 24 hours. */
 function bucketOf(iso) {
@@ -42,16 +43,17 @@ export default function Notifications({ onNavigate }) {
   const markAllRead = useMarkAllNotificationsRead();
 
   const unread = notifications.filter((n) => !n.read_at);
+  const pager = usePagination(notifications, 25);
 
   const groups = useMemo(() => {
     const m = new Map();
-    for (const n of notifications) {
+    for (const n of pager.slice) {
       const b = bucketOf(n.created_at);
       if (!m.has(b)) m.set(b, []);
       m.get(b).push(n);
     }
     return ORDER.filter((b) => m.has(b)).map((b) => [b, m.get(b)]);
-  }, [notifications]);
+  }, [pager.slice]);
 
   return (
     <div className="page-shell space-y-4 animate-fade-in">
@@ -59,7 +61,7 @@ export default function Notifications({ onNavigate }) {
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">Notifications</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {unread.length > 0 ? `${unread.length} unread` : 'Everything here has been read.'}
+            {unread.length > 0 ? `${unread.length} unread` : 'Everything here has been read.'} · Latest 40 notifications
           </p>
         </div>
         {unread.length > 0 && (
@@ -98,6 +100,7 @@ export default function Notifications({ onNavigate }) {
           </section>
         ))
       )}
+      <Pagination {...pager} noun="recent notifications" />
     </div>
   );
 }

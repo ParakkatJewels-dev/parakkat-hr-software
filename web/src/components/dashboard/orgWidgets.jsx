@@ -389,7 +389,13 @@ export function UserAccessPanel({ onNavigate }) {
 
 /** Latest privileged actions from the audit log. */
 export function AuditFeed({ onNavigate }) {
-  const { data: rows = [] } = useAuditLog();
+  // fetchAuditPage returns { rows, count } for the paged Administration screen, not a bare array.
+  // Destructuring it as `data: rows = []` bound the whole envelope: the `= []` default never fired
+  // because `data` was defined, `rows.length === 0` compared undefined to 0 and let the guard pass,
+  // and the render died on `rows.slice is not a function`. Administration.jsx has always read it as
+  // `data?.rows`; this is the same read.
+  const { data } = useAuditLog();
+  const rows = data?.rows ?? [];
 
   return (
     <Widget title="Audit Trail" icon={ScrollText} action="Administration" onAction={() => onNavigate?.('administration')}>

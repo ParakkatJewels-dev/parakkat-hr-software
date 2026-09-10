@@ -7,7 +7,7 @@
 //
 // usePagination slices an already-filtered collection. The control also accepts server-side
 // counts and page callbacks (for example the audit log) without loading the whole history.
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { pageContaining } from '../../lib/focusRow';
 import { shouldShowPager, pageSizeOptions, pageWindow, paginationWindow } from '../../lib/pagination';
@@ -21,6 +21,7 @@ import { shouldShowPager, pageSizeOptions, pageWindow, paginationWindow } from '
 export function usePagination(items, initialSize = 25, focusId = null, resetKey = '') {
   const [position, setPosition] = useState({ key: resetKey, page: 1 });
   const [size, setSize] = useState(initialSize);
+  const handledFocus = useRef(null);
   const window = paginationWindow(items.length, position.key === resetKey ? position.page : 1, size);
   const { page, pageSize, count } = window;
   const setPage = useCallback((next) => {
@@ -43,9 +44,12 @@ export function usePagination(items, initialSize = 25, focusId = null, resetKey 
   // app navigates you to a list, scrolls to a row that is not rendered, and does nothing visible —
   // which reads as a broken link rather than as a row sitting on page 3.
   useEffect(() => {
+    if (!focusId) { handledFocus.current = null; return; }
+    const key = JSON.stringify([focusId, pageSize, resetKey]);
+    if (handledFocus.current === key) return;
     const target = pageContaining(items, focusId, pageSize);
-    if (target) setPage(target);
-  }, [focusId, items, pageSize, setPage]);
+    if (target) { handledFocus.current = key; setPage(target); }
+  }, [focusId, items, pageSize, setPage, resetKey]);
 
   // Filtering down to fewer pages while sitting on page 9 leaves you staring at an empty table.
   // Clamping rather than resetting to 1 keeps your place when the list only shifts slightly.

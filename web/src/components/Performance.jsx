@@ -69,7 +69,7 @@ export default function Performance() {
 
   // Paged: this list grows with the business and was rendering every row.
   // Above the early return — a hook must run in the same order on every render.
-  const pager = usePagination(shown);
+  const pager = usePagination(shown, 25, null, view);
 
   if (isLoading) {
     return <div className="page-shell space-y-5"><SkeletonRows rows={5} /></div>;

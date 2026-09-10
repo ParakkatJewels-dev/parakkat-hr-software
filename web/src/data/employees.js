@@ -4,6 +4,7 @@
 // trigger from the chosen branch/department.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 const EMPLOYEE_LIST_SELECT = `
   id, full_name, employee_code, status, email, phone, join_date, user_id,
@@ -31,16 +32,10 @@ export function useEmployees({ enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['employees'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('employees')
         .select(EMPLOYEE_LIST_SELECT)
-        .order('full_name', { ascending: true })
-        // Explicit, so the ceiling is visible here rather than PostgREST's silent 1000-row default.
-        .limit(5000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('full_name', { ascending: true }).order('id')),
   });
 }
 

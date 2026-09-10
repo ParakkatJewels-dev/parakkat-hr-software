@@ -13,12 +13,12 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown,
+  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
   useStartDirect, useCreateGroup, useAddMembers, useRemoveMember, useRenameGroup,
-  useUploadMedia, useMediaUrl,
+  useUploadMedia, useMediaUrl, useEmployeeConversations,
 } from '../data/messages';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
@@ -73,6 +73,24 @@ export default function Messages() {
   const [query, setQuery] = useState('');
   const [chatFilter, setChatFilter] = useState('all');
 
+  /*
+   * Whose inbox am I reading?
+   *
+   * The same idea as the role switch in the top bar, pointed at a different question: that one asks
+   * which of YOUR roles you are working as, this asks whose conversations you are looking at. null
+   * is your own, which is what everybody except a super admin ever has.
+   *
+   * Deliberately NOT persisted, unlike the role switch. Coming back tomorrow to find yourself still
+   * reading a colleague's inbox — and possibly not noticing — is a different and worse thing than
+   * coming back to a remembered role. Monitoring should be something you chose this minute.
+   *
+   * Not a privilege switch either. Picking somebody does not grant anything; app.can_read_
+   * conversation's super-admin arm is what returns the rows, and for anybody else this control does
+   * not render and the queries behind it come back empty.
+   */
+  const [watchingId, setWatchingId] = useState(null);
+  const [watchPickerOpen, setWatchPickerOpen] = useState(false);
+
   // A notification about a message carries the conversation id, so following one opens the room it
   // was about rather than the list it happens to be in.
   const { focusId } = useFocusRow();
@@ -80,11 +98,25 @@ export default function Messages() {
     if (focusId && conversations.some((c) => c.id === focusId)) setOpenId(focusId);
   }, [focusId, conversations]);
 
-  const open = conversations.find((c) => c.id === openId) ?? null;
+  // Only ever fetched when somebody is actually being watched — `enabled` keeps this off the
+  // request path for the 165 people who will never use it.
+  // `enabled` on both: a super admin is one account out of 165, so neither the directory read nor
+  // the watched inbox should be on everybody else's request path.
+  const { data: employeesForWatching = [] } = useEmployees({ enabled: isSuperAdmin });
+  const watched = useEmployeeConversations(watchingId, { enabled: Boolean(watchingId) });
+  const monitoring = Boolean(watchingId) && watchingId !== me;
 
+  const shown = monitoring
+    ? sortConversations(watched.data ?? [])
+    : conversations;
+
+  const open = shown.find((c) => c.id === openId) ?? null;
+
+  // Filtered from the watched person's side when watching, so a search for a name matches the
+  // people THEY talk to rather than the people the administrator talks to.
   const visible = useMemo(
-    () => filterConversations(conversations, { query, filter: chatFilter, me }),
-    [conversations, query, chatFilter, me]
+    () => filterConversations(shown, { query, filter: chatFilter, me: monitoring ? watchingId : me }),
+    [shown, query, chatFilter, me, monitoring, watchingId]
   );
 
   /*
@@ -139,8 +171,30 @@ export default function Messages() {
         <aside className={`messages-list ${open ? 'messages-list-collapsed' : ''}`} aria-label="Chats">
           <header className="messages-list-header">
             <h1>Chats</h1>
-            <button type="button" className="messages-icon-button" onClick={() => setComposing(true)} aria-label="Start a new conversation" title="New chat"><PenLine size={21} /></button>
+            {/* Composing is meaningless while reading somebody else's inbox — you would be starting
+                a conversation of your own from a screen that is showing theirs. */}
+            {!monitoring && (
+              <button type="button" className="messages-icon-button" onClick={() => setComposing(true)} aria-label="Start a new conversation" title="New chat"><PenLine size={21} /></button>
+            )}
           </header>
+
+          {isSuperAdmin && (
+            <WatchPicker
+              employees={employeesForWatching}
+              watchingId={watchingId}
+              open={watchPickerOpen}
+              onToggle={() => setWatchPickerOpen((v) => !v)}
+              onPick={(id) => {
+                // The open conversation belongs to whoever was being read a moment ago, so it goes
+                // with them. Leaving it up would show one person's thread above another's list.
+                setWatchingId(id);
+                setOpenId(null);
+                setQuery('');
+                setChatFilter('all');
+                setWatchPickerOpen(false);
+              }}
+            />
+          )}
           <label className="messages-search">
             <Search size={18} aria-hidden="true" />
             <input type="search" value={query} onChange={(event) => setQuery(event.target.value)}
@@ -183,7 +237,7 @@ export default function Messages() {
               <ConversationRow
                 key={c.id}
                 conversation={c}
-                me={me}
+                me={monitoring ? watchingId : me}
                 active={c.id === openId}
                 onOpen={() => setOpenId(c.id)}
               />
@@ -194,7 +248,13 @@ export default function Messages() {
         {/* The thread. */}
         <section className={`messages-thread ${open ? 'messages-thread-open' : ''}`} aria-label="Conversation">
           {open ? (
-            <Thread key={open.id} conversation={open} me={me} onBack={() => setOpenId(null)} />
+            <Thread
+              key={open.id}
+              conversation={open}
+              me={monitoring ? watchingId : me}
+              readOnly={monitoring}
+              onBack={() => setOpenId(null)}
+            />
           ) : (
             <div className="messages-welcome">
               <span className="messages-welcome-icon"><MessageSquare size={42} /></span>
@@ -212,6 +272,88 @@ export default function Messages() {
           onClose={() => setComposing(false)}
           onOpened={(id) => { setComposing(false); setOpenId(id); }}
         />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Whose inbox is on screen.
+ *
+ * Shaped after the role switch in the top bar, because it answers the same KIND of question and
+ * should not need to be learned twice: a quiet row that names the current view and opens a list.
+ *
+ * It only exists for a super admin, and picking somebody grants nothing — the rows come back
+ * because app.can_read_conversation says so, and for anybody else this component never renders and
+ * the query behind it returns empty. The banner while watching is not decoration: the whole screen
+ * is otherwise identical to your own inbox, and reading a colleague's messages while believing they
+ * are yours is the one mistake this control makes possible.
+ */
+function WatchPicker({ employees, watchingId, open, onToggle, onPick }) {
+  const [q, setQ] = useState('');
+  const watching = employees.find((e) => e.id === watchingId) ?? null;
+
+  const results = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const pool = employees;
+    if (!needle) return pool.slice(0, 25);
+    return pool.filter(
+      (e) => (e.full_name || '').toLowerCase().includes(needle)
+        || (e.employee_code || '').toLowerCase().includes(needle)
+    ).slice(0, 40);
+  }, [employees, q]);
+
+  return (
+    <div className="messages-watch">
+      <button
+        type="button"
+        className="messages-watch-trigger"
+        onClick={onToggle}
+        aria-expanded={open}
+        data-watching={watching ? 'true' : 'false'}
+      >
+        {watching ? <Eye size={14} /> : <MessageSquare size={14} />}
+        <span>
+          <small>Viewing</small>
+          <strong>{watching ? watching.full_name : 'My chats'}</strong>
+        </span>
+        <ChevronsUpDown size={14} aria-hidden="true" />
+      </button>
+
+      {open && (
+        <>
+          <button type="button" className="messages-menu-dismiss" aria-label="Close" onClick={onToggle} />
+          <div className="messages-watch-menu">
+            <input
+              autoFocus
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search people…"
+              aria-label="Search people to view"
+            />
+            <div>
+              <button type="button" onClick={() => onPick(null)} aria-current={!watchingId ? 'true' : undefined}>
+                <MessageSquare size={14} /> My chats
+              </button>
+              {results.map((e) => (
+                <button
+                  key={e.id}
+                  type="button"
+                  onClick={() => onPick(e.id)}
+                  aria-current={e.id === watchingId ? 'true' : undefined}
+                >
+                  <Eye size={14} />
+                  <span>
+                    {e.full_name}
+                    {e.employee_code ? <small>{e.employee_code}</small> : null}
+                  </span>
+                </button>
+              ))}
+              {results.length === 0 && <p>Nobody matches that.</p>}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -264,7 +406,7 @@ function ConversationRow({ conversation, me, active, onOpen }) {
 
 /* ---------------------------------------------------------------- the thread -- */
 
-function Thread({ conversation, me, onBack }) {
+function Thread({ conversation, me, onBack, readOnly = false }) {
   const { data: messages = [], isLoading, error } = useMessages(conversation.id);
   const markRead = useMarkRead();
   const [managing, setManaging] = useState(false);
@@ -279,7 +421,7 @@ function Thread({ conversation, me, onBack }) {
   const byId = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages]);
   const unread = conversation.unread_count;
   useEffect(() => {
-    if (unread > 0) markRead.mutate({ conversationId: conversation.id });
+    if (!readOnly && unread > 0) markRead.mutate({ conversationId: conversation.id });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id, unread]);
 
@@ -342,8 +484,17 @@ function Thread({ conversation, me, onBack }) {
         </div>
         {awayFromBottom && <button type="button" className="messages-jump-latest" onClick={jumpToLatest} aria-label="Jump to latest messages"><ArrowDown size={20} /></button>}
       </div>
+      {/* messages_insert asks app.is_conversation_member, so an administrator reading somebody
+          else's conversation is refused by the database anyway. Offering a box that will reject
+          what is typed into it is worse than saying so. */}
+      {readOnly ? (
+        <p className="messages-chat-notice messages-readonly-bar" role="status">
+          <Eye size={16} aria-hidden="true" /> Viewing someone else’s conversation. Only the people in it can reply.
+        </p>
+      ) : (
       <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
         onSent={() => { setReplyId(null); jumpToLatest(); }} />
+      )}
     </div>
   );
 }

@@ -111,6 +111,116 @@
 .messages-search:focus-within { box-shadow: 0 0 0 2px var(--accent-ink); }
 .messages-search input:focus-visible { outline: none; }
 .messages-search input::placeholder { color: var(--chat-muted); }
+/* ---- viewing somebody else's inbox --------------------------------------------------------
+   Shaped like the role switch in the top bar so it does not have to be learned twice. Quiet when
+   you are reading your own chats; unmistakable when you are not, because every other pixel on this
+   screen looks identical either way. */
+.messages-watch { position: relative; margin: 0 16px 10px; }
+.messages-watch-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 6px 12px;
+  border: 1px solid var(--chat-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--chat-text);
+  text-align: left;
+}
+.messages-watch-trigger:hover { background: var(--chat-hover); }
+.messages-watch-trigger > span { flex: 1; min-width: 0; }
+.messages-watch-trigger small {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: var(--chat-muted);
+}
+.messages-watch-trigger strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+}
+.messages-watch-trigger > svg { flex-shrink: 0; color: var(--chat-muted); }
+/* Watching is a state you should never be in by accident, so it is the one thing on this screen
+   that is allowed to shout. */
+.messages-watch-trigger[data-watching="true"] {
+  border-color: #b45309;
+  background: #b453090f;
+}
+.messages-watch-trigger[data-watching="true"] > svg:first-child,
+.messages-watch-trigger[data-watching="true"] small { color: #b45309; }
+.dark .messages-watch-trigger[data-watching="true"] { border-color: #f59e0b; background: #f59e0b14; }
+.dark .messages-watch-trigger[data-watching="true"] > svg:first-child,
+.dark .messages-watch-trigger[data-watching="true"] small { color: #fbbf24; }
+
+.messages-watch-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 6px;
+  border: 1px solid var(--chat-border);
+  border-radius: 13px;
+  background: var(--chat-surface);
+  box-shadow: 0 5px 25px #0002;
+}
+.messages-watch-menu > input {
+  width: 100%;
+  min-height: 40px;
+  margin-bottom: 4px;
+  padding: 0 10px;
+  border: 1px solid var(--chat-border);
+  border-radius: 9px;
+  background: var(--chat-hover);
+  color: var(--chat-text);
+  font-size: 13px;
+  outline: none;
+}
+.messages-watch-menu > div { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; }
+.messages-watch-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--chat-text);
+  text-align: left;
+  font-size: 13px;
+}
+.messages-watch-menu button:hover { background: var(--chat-hover); }
+.messages-watch-menu button[aria-current="true"] { background: var(--chat-active); font-weight: 650; }
+.messages-watch-menu button > svg { flex-shrink: 0; color: var(--chat-muted); }
+.messages-watch-menu button > span { min-width: 0; flex: 1; }
+.messages-watch-menu button small {
+  display: block;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--chat-muted);
+}
+.messages-watch-menu p { padding: 14px; text-align: center; font-size: 12px; color: var(--chat-muted); }
+
+/* Sits where the composer would be, so the eye lands where the hand expects a text box. */
+.messages-readonly-bar {
+  gap: 9px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--chat-border);
+  background: var(--chat-chrome);
+  color: var(--chat-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
 .messages-list-filters { display: flex; gap: 7px; padding: 0 16px 14px; border-bottom: 1px solid var(--chat-border); }
 .messages-list-filters button { padding: 7px 15px; min-height: 36px; border: 1px solid var(--chat-border); border-radius: 30px; background: transparent; font-size: 13px; color: var(--chat-muted); }
 .messages-list-filters button[aria-pressed="true"] { border-color: var(--chat-accent); background: var(--chat-accent); color: var(--chat-accent-text); font-weight: 600; }

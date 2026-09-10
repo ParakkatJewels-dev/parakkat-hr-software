@@ -85,7 +85,8 @@ function Note({ error, success }) {
 function SuggestionRow({ mapping, onLink, isPending }) {
   const [search, setSearch] = useState('');
   const [showSearch, setShowSearch] = useState(false);
-  const { data: results = [] } = useEmployeeSearch(search);
+  const { data: results = [], isFetching, error: searchError } = useEmployeeSearch(search);
+  const resultsPager = usePagination(results, 5, null, search);
 
   const suggestions = Array.isArray(mapping.match_suggestions) ? mapping.match_suggestions : [];
 
@@ -142,11 +143,11 @@ function SuggestionRow({ mapping, onLink, isPending }) {
                   autoFocus
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search employee…"
+                  placeholder="Search name or employee code…"
                   className="w-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 pl-7 pr-2 py-1 rounded-lg text-xs"
                 />
               </div>
-              {results.slice(0, 5).map((emp) => (
+              {resultsPager.slice.map((emp) => (
                 <button
                   key={emp.id}
                   onClick={() => onLink({ empCode: mapping.emp_code, employeeId: emp.id })}
@@ -157,6 +158,10 @@ function SuggestionRow({ mapping, onLink, isPending }) {
                   <span className="text-neutral-400 font-mono ml-1">{emp.employee_code}</span>
                 </button>
               ))}
+              {isFetching && <p role="status" className="text-xs text-neutral-500">Searching…</p>}
+              {searchError && <p role="alert" className="text-xs text-red-600">{searchError.message}</p>}
+              {!isFetching && !searchError && search.trim().length >= 2 && !results.length && <p className="text-xs text-neutral-500">No matching employees.</p>}
+              <div className="paged-collection"><Pagination {...resultsPager} noun="matching employees" sizes={[5, 10, 25]} disabled={isPending || isFetching} /></div>
             </div>
           )}
 

@@ -84,7 +84,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
     return true;
   }), [rows, show, status]);
 
-  const pager = usePagination(filtered, 31);
+  const pager = usePagination(filtered, 31, null, `${employeeId}:${status}:${show}`);
 
   // Who to look at. At 242 people a dropdown is unusable, so it is a search.
   const matches = useMemo(() => {
@@ -92,8 +92,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
     if (!t) return [];
     return employees.filter((e) =>
       (e.full_name || '').toLowerCase().includes(t) || (e.employee_code || '').toLowerCase().includes(t)
-    ).slice(0, 8);
+    );
   }, [employees, q]);
+  const peoplePager = usePagination(matches, 8, null, q);
 
   const exportCsv = () => {
     const head = ['Date', 'Day', 'Status', 'In', 'Out', 'Worked (h)', 'On site (h)', 'Inside (h)', 'Breaks', 'Break (min)',
@@ -168,8 +169,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
               className="w-full text-sm rounded-lg pl-8 pr-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             />
             {matches.length > 0 && (
-              <ul className="absolute z-20 mt-1 w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-charcoal-900 shadow-2xl overflow-hidden">
-                {matches.map((e) => (
+              <div className="mt-2 w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-charcoal-900 paged-collection overflow-hidden">
+              <ul>
+                {peoplePager.slice.map((e) => (
                   <li key={e.id}>
                     <button
                       onClick={() => { setEmployeeId(e.id); setQ(''); }}
@@ -181,6 +183,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
                   </li>
                 ))}
               </ul>
+              <Pagination {...peoplePager} noun="matching people" sizes={[8, 25, 50]} />
+              </div>
             )}
           </div>
         </div>

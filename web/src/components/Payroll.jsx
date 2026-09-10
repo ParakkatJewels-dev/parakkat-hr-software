@@ -27,6 +27,7 @@ import { todayIso } from '../data/attendance';
 import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
+import ListSearch from './ui/ListSearch';
 import ConfirmDialog from './ui/ConfirmDialog';
 import IconInput from './ui/IconInput';
 import {
@@ -140,23 +141,29 @@ function PayslipsTab() {
   const { employee } = useAuth();
   const { viewingAsEmployee, canBeyondSelf } = usePermissions();
   const mineOnly = viewingAsEmployee || !canBeyondSelf('payslip.read');
-  const { data: payslips = [], isLoading, error } = usePayslips(mineOnly ? employee?.id : undefined);
+  const [period, setPeriod] = useState(todayIso().slice(0, 7));
+  const [search, setSearch] = useState('');
+  const { data: payslips = [], isLoading, error } = usePayslips(mineOnly ? employee?.id : undefined, {
+    period, enabled: !mineOnly || Boolean(employee?.id),
+  });
   const [openId, setOpenId] = useState(null);
 
   // A payroll run produces one payslip per person — 242 rows. Hook sits above the early
   // returns so it runs in the same order on every render.
-  const pager = usePagination(payslips);
-
-  if (isLoading) {
-    return <SkeletonRows rows={5} />;
-  }
-  if (error) return <div className="premium-card"><Err e={error} /></div>;
-  if (payslips.length === 0) {
-    return <div className="premium-card p-8 text-center text-xs text-neutral-500">No payslips yet.</div>;
-  }
+  const matching = payslips.filter((p) => `${p.employee?.full_name ?? ''} ${p.employee?.employee_code ?? ''} ${p.employee?.branch?.code ?? ''} ${p.status}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const pager = usePagination(matching, 25, null, `${period}:${search}:${mineOnly}`);
 
   return (
     <div className="space-y-2">
+      <div className="premium-card flex flex-col sm:flex-row gap-3 sm:items-end">
+        <label className="text-xs font-semibold text-neutral-500">Payroll month
+          <input type="month" required aria-label="Payslip month" value={period} onChange={(e) => { if (e.target.value) setPeriod(e.target.value); }} className={INPUT + ' block mt-1'} />
+        </label>
+        <div className="flex-1 min-w-0"><ListSearch value={search} onChange={setSearch} label="Search payslips" placeholder="Search employee, code, branch or status…" /></div>
+      </div>
+      <Err e={error} />
+      {isLoading && <SkeletonRows rows={5} />}
+      {!isLoading && !error && matching.length === 0 && <p className="premium-card p-8 text-center text-sm text-neutral-500">{search ? 'No matching payslips.' : `No payslips for ${period}. Choose another month to view older payslips.`}</p>}
       {pager.slice.map((p) => (
         <div key={p.id} className="premium-card">
           <button
@@ -245,7 +252,7 @@ function RunTab() {
   const { can } = usePermissions();
   const canManageRun = (r) => can('payroll.manage', { entityId: r.entity_id });
   const { data: org } = useVisibleOrg();
-  const { data: runs = [] } = usePayrollRuns();
+  const { data: runs = [], isLoading: runsLoading, error: runsError } = usePayrollRuns();
   const runPayroll = useRunPayroll();
   const publish = usePublishPayroll();
   const deleteRun = useDeletePayrollRun();
@@ -255,6 +262,9 @@ function RunTab() {
   const [period, setPeriod] = useState(todayIso().slice(0, 7));
   const [result, setResult] = useState(null);
   const [draftToDelete, setDraftToDelete] = useState(null);
+  const [historySearch, setHistorySearch] = useState('');
+  const matchingRuns = runs.filter((r) => `${r.period} ${r.entity?.code ?? ''} ${r.entity?.name ?? ''} ${r.status}`.toLowerCase().includes(historySearch.trim().toLowerCase()));
+  const runPager = usePagination(matchingRuns, 10, null, historySearch);
 
   const go = async () => {
     setResult(null);
@@ -317,11 +327,13 @@ function RunTab() {
         <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-3">
           Previous runs
         </h3>
-        {runs.length === 0 ? (
-          <p className="py-6 text-center text-xs text-neutral-500">No payroll has been run yet.</p>
+        <ListSearch value={historySearch} onChange={setHistorySearch} label="Search payroll runs" placeholder="Search company, month or status…" />
+        <Err e={runsError} />
+        {runsLoading ? <SkeletonRows rows={3} /> : runsError ? null : matchingRuns.length === 0 ? (
+          <p className="py-6 text-center text-xs text-neutral-500">{historySearch ? 'No matching payroll runs.' : 'No payroll has been run yet.'}</p>
         ) : (
           <div className="space-y-2">
-            {runs.map((r) => (
+            {runPager.slice.map((r) => (
               <div
                 key={r.id}
                 className="mobile-list-row flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5"
@@ -362,6 +374,7 @@ function RunTab() {
             ))}
           </div>
         )}
+        <Pagination {...runPager} noun="payroll runs" sizes={[10, 25, 50]} disabled={publish.isPending || deleteRun.isPending} />
         <Err e={publish.error} />
       </section>
 
@@ -402,7 +415,7 @@ function RunTab() {
 // ---------------------------------------------------------------- salary structures
 function SalaryTab() {
   const { data: employees = [] } = useEmployees();
-  const { data: structures = [] } = useSalaryStructures();
+  const { data: structures = [], isLoading: structuresLoading, error: structuresError } = useSalaryStructures();
   const save = useSaveSalaryStructure();
   const [formError, setFormError] = useState(null);
   const [form, setForm] = useState({
@@ -442,6 +455,9 @@ function SalaryTab() {
     }
     return m;
   }, [structures]);
+  const [salarySearch, setSalarySearch] = useState('');
+  const matchingSalaries = [...latest.values()].filter((s) => `${s.employee?.full_name ?? ''} ${s.employee?.employee_code ?? ''}`.toLowerCase().includes(salarySearch.trim().toLowerCase()));
+  const salaryPager = usePagination(matchingSalaries, 25, null, salarySearch);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -611,9 +627,11 @@ function SalaryTab() {
         <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-3">
           Current salaries ({latest.size} of {employees.length} employees)
         </h3>
-        {latest.size === 0 ? (
+        <ListSearch value={salarySearch} onChange={setSalarySearch} label="Search current salaries" placeholder="Search employee name or code…" />
+        <Err e={structuresError} />
+        {structuresLoading ? <SkeletonRows rows={3} /> : structuresError ? null : matchingSalaries.length === 0 ? (
           <p className="py-6 text-center text-xs text-neutral-500">
-            No salaries set. Employees without a salary structure are skipped by payroll.
+            {salarySearch ? 'No matching salaries.' : 'No salaries set. Employees without a salary structure are skipped by payroll.'}
           </p>
         ) : (
           <div className="table-scroll">
@@ -628,7 +646,7 @@ function SalaryTab() {
                 </tr>
               </thead>
               <tbody>
-                {[...latest.values()].map((s) => {
+                {salaryPager.slice.map((s) => {
                   const grossComponents = grossComponentsFromNotes(s.notes, s.basic, s.gross)
                     .filter((row) => row.name || String(row.amount ?? '').trim());
                   return (
@@ -661,6 +679,7 @@ function SalaryTab() {
             </table>
           </div>
         )}
+        <Pagination {...salaryPager} noun="salary records" />
       </section>
     </div>
   );

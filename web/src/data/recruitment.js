@@ -1,32 +1,25 @@
 // Recruitment: jobs + candidates. Scoped by recruitment.manage over the job's entity/branch/dept.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useJobs() {
   return useQuery({
     queryKey: ['jobs'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('jobs')
         .select('id, title, type, location, status, openings, created_at, entity_id, entity:entities(code), branch:branches(code), department:departments(name)')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false }).order('id')),
   });
 }
 
 export function useCandidates() {
   return useQuery({
     queryKey: ['candidates'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('candidates')
         .select('id, name, email, stage, match_score, created_at, job:jobs(title, entity_id, entity:entities(code))')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false }).order('id')),
   });
 }
 

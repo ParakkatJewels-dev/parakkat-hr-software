@@ -1,4 +1,4 @@
-.users-directory { display: grid; gap: 1.25rem; min-width: 0; }
+.users-directory { --brand: var(--accent); --brand-ink: var(--accent-ink); display: grid; gap: 1.25rem; min-width: 0; }
 .users-overview { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
 .users-metric { padding: 1.1rem 1.2rem; background: var(--surface-card, #fff); border: 1px solid var(--border, #e5e5e5); border-radius: 1rem; }
 .users-metric > div { display: flex; align-items: center; justify-content: space-between; gap: .75rem; font-size: .78rem; font-weight: 600; color: var(--text-muted, #737373); }
@@ -11,9 +11,12 @@
 .users-workspace-heading p { max-width: 38rem; font-size: .8rem; line-height: 1.6; color: var(--text-muted, #737373); margin-top: .25rem; }
 .users-create-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; flex-shrink: 0; }
 .users-filter-panel { padding: 0 1.25rem 1rem; display: grid; gap: .8rem; }
+.users-search-row { display: grid; min-width: 0; }
+.users-filter-toggle { display: none; }
 .users-search { display: flex; align-items: center; gap: .7rem; min-width: 0; border: 1px solid var(--border, #e5e5e5); border-radius: .75rem; padding: .7rem .85rem; background: var(--surface, #fafafa); color: var(--text-muted, #737373); }
 .users-search:focus-within, .users-filter select:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .users-search input { flex: 1; min-width: 0; width: 100%; outline: none; background: transparent; font-size: .85rem; color: var(--text-primary, #171717); }
+.users-directory .users-search input { border: 0 !important; box-shadow: none !important; padding: 0 !important; }
 .users-search button, .users-filter-summary button { cursor: pointer; color: var(--brand-ink); }
 .users-filters { display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr 1fr; gap: .7rem; }
 .users-filter { display: grid; gap: .3rem; min-width: 0; }
@@ -22,7 +25,7 @@
 .users-filter-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; font-size: .74rem; color: var(--text-muted, #737373); }
 .users-filter-summary > span, .users-filter-summary button { display: inline-flex; align-items: center; gap: .4rem; }
 .users-filter-summary button { font-weight: 650; }
-.users-page-jump { display: inline-flex; align-items: center; gap: .5rem; margin-left: auto; }
+.users-page-jump { display: inline-flex; align-items: center; gap: .5rem; margin-left: auto; white-space: nowrap; }
 .users-page-jump input { width: 3.4rem; border: 1px solid var(--border, #e5e5e5); border-radius: .45rem; padding: .3rem .35rem; background: var(--surface-card, #fff); color: var(--text-primary, #171717); }
 .users-pagination.pagination-shell { border: 0; border-top: 1px solid var(--border, #e5e5e5); border-radius: 0; box-shadow: none; background: transparent; padding: .85rem 1.25rem; margin: 0; }
 .users-pagination-bottom { border-radius: 0 0 1.1rem 1.1rem !important; }
@@ -70,12 +73,15 @@
   .users-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
   .users-metric { padding: .9rem; }
   .users-metric strong { font-size: 1.55rem; }
-  .users-metric small { font-size: .65rem; }
+  .users-metric small { display: none; }
   .users-workspace-heading, .users-filter-panel { padding: 1rem; }
   .users-workspace-heading p { font-size: .75rem; }
   .users-create-actions { width: 100%; }
   .users-create-actions > button { flex: 1; justify-content: center; }
-  .users-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .users-search-row { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
+  .users-filter-toggle { display: inline-flex; align-items: center; justify-content: center; gap: .35rem; padding: .65rem; border: 1px solid var(--border, #e5e5e5); border-radius: .75rem; font-size: .75rem; color: var(--brand-ink); cursor: pointer; }
+  .users-filters { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .users-filters.is-open { display: grid; }
   .users-filter:last-child { grid-column: 1 / -1; }
   .users-filter select, .users-search input { font-size: 1rem; }
   .users-column-head { display: none; }

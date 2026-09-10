@@ -70,7 +70,7 @@ export default function Onboarding() {
 
         <div className="people-workspace grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-1">
-            <div className="premium-card people-side-panel space-y-4">
+            <div className="premium-card people-side-panel paged-collection space-y-4">
               <div className="people-panel-head">
                 <span><UserCheck size={15} /> Incoming hires</span>
                 <em>{shown.length} of {list.length} records</em>

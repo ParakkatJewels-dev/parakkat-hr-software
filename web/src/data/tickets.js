@@ -3,12 +3,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { windowStartIso } from '../lib/dates';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useTickets() {
   return useQuery({
     queryKey: ['tickets'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('tickets')
         .select(
           // The ancestry columns are selected so the status control can be gated per row, the way
@@ -18,11 +18,7 @@ export function useTickets() {
            employee:employees!tickets_employee_id_fkey(full_name, employee_code, branch:branches(code))`
         )
         .gte('created_at', windowStartIso(180))
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false }).order('id')),
   });
 }
 

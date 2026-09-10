@@ -218,7 +218,7 @@ export default function Directory() {
   const [viewMode, setViewMode] = useState(() =>
     typeof window !== 'undefined' && window.matchMedia('(max-width: 640px)').matches ? 'grid' : 'list'
   );
-  const [currentPage, setCurrentPage] = useState(1);
+  const [requestedPage, setCurrentPage] = useState(1);
 
   /**
    * Whose profile is open, held in the URL rather than in component state.
@@ -348,6 +348,10 @@ export default function Directory() {
   const toggleSort = (asc, desc) => setSortBy((s) => (s === asc ? desc : asc));
 
   const totalPages = Math.ceil(sorted.length / itemsPerPage) || 1;
+  const currentPage = Math.min(requestedPage, totalPages);
+  useEffect(() => {
+    if (requestedPage !== currentPage) setCurrentPage(currentPage);
+  }, [requestedPage, currentPage]);
   const paginated = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return sorted.slice(start, start + itemsPerPage);
@@ -1036,7 +1040,7 @@ export default function Directory() {
       )}
 
       {/* Pagination component */}
-      {filtered.length > itemsPerPage && (
+      {filtered.length > 12 && (
         <nav className="premium-card pagination-shell" aria-label="People pagination">
           <div className="pagination-summary">
             <span className="pagination-range">
@@ -1081,7 +1085,7 @@ export default function Directory() {
               onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
               aria-label="Rows per page"
             >
-              {[15, 30, 60, 120].map((n) => <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>)}
+              {[12, 15, 30, 60, 120].map((n) => <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>)}
             </select>
           </label>
         </nav>

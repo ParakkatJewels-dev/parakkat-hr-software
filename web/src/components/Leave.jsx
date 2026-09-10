@@ -181,7 +181,7 @@ export default function Leave() {
   // Paged: this list grows with the business and was rendering every row.
   // A notification can point at one request; land on its page and mark it. See focusRow.js.
   const { focusId, rowProps } = useFocusRow();
-  const pager = usePagination(visibleLeaves, 25, focusId);
+  const pager = usePagination(visibleLeaves, 25, focusId, `${statusFilter}:${mineOnly}`);
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">

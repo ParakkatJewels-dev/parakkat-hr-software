@@ -225,7 +225,7 @@ export default function TaskManagement() {
    * task a notification pointed at. Ten is intentional here: these cards show the complete task
    * instruction, not a one-line table row, so 25 makes each page unnecessarily long on a phone.
    */
-  const pager = usePagination(filtered, TASKS_PER_PAGE, focusId);
+  const pager = usePagination(filtered, TASKS_PER_PAGE, focusId, `${statusFilter}:${mineOnly}:${personId}:${query}:${sortOrder}`);
 
   /**
    * Who this person may file a task against.

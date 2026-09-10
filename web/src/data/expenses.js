@@ -2,13 +2,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { windowStartIso } from '../lib/dates';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useExpenses({ enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['expenses'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('expenses')
         .select(
           // The ancestry columns are here so the screen can ask, per row, whether THIS claim is one
@@ -20,11 +20,7 @@ export function useExpenses({ enabled = true } = {}) {
            employee:employees!expenses_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
         .gte('expense_date', windowStartIso(180))
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false }).order('id')),
   });
 }
 
@@ -33,8 +29,7 @@ export function useExpensesForPeriod(from, to, { enabled = true } = {}) {
   return useQuery({
     enabled: enabled && Boolean(from) && Boolean(to),
     queryKey: ['expenses-period', from, to],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('expenses')
         .select(
           `id, category, amount, expense_date, description, status, created_at,
@@ -42,11 +37,7 @@ export function useExpensesForPeriod(from, to, { enabled = true } = {}) {
            employee:employees!expenses_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
         .gte('expense_date', from)
-        .lte('expense_date', to)
-        .limit(5000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .lte('expense_date', to).order('id')),
   });
 }
 

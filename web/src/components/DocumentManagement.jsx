@@ -174,7 +174,7 @@ export default function DocumentManagement() {
     );
   }, [scoped, search]);
 
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, 25, null, `${scope}:${search}`);
 
   const searching = search.trim().length > 0;
   const countLabel = !searching

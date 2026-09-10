@@ -1,10 +1,7 @@
-// Quote PostgREST values so punctuation cannot create another filter expression.
+import { textContainsFilter } from './querySearch.js';
+
 export function auditSearchFilter(search) {
-  const text = String(search ?? '').trim().slice(0, 200);
-  if (!text) return '';
-  const pattern = `%${text.replace(/[\\%_]/g, '\\$&')}%`;
-  const quoted = `"${pattern.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
-  return ['actor_email', 'action', 'table_name'].map((column) => `${column}.ilike.${quoted}`).join(',');
+  return textContainsFilter(['actor_email', 'action', 'table_name'], search);
 }
 
 export async function fetchAuditPage(client, { page = 1, pageSize = 25, search = '' } = {}) {

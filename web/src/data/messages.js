@@ -98,7 +98,7 @@ export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
     queryFn: async () => {
       const mine = await supabase
         .from('conversation_members')
-        .select('conversation_id, conversation:conversations(id, kind, title, created_at, last_message_at)')
+        .select('conversation_id')
         .eq('employee_id', employeeId)
         .limit(500);
       if (mine.error) {
@@ -106,10 +106,27 @@ export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
         throw mine.error;
       }
 
-      const rows = (mine.data ?? []).filter((r) => r.conversation);
-      if (rows.length === 0) return [];
+      const ids = [...new Set((mine.data ?? []).map((r) => r.conversation_id))];
+      if (ids.length === 0) return [];
 
-      const ids = rows.map((r) => r.conversation_id);
+      /*
+       * conversation_overview, not the conversations table.
+       *
+       * The list this feeds is the SAME component the normal inbox uses, and that component draws a
+       * preview line — the last thing said. Reading the bare table gives a row with no preview, so
+       * every monitored conversation rendered as "No messages yet" whether or not it had any, which
+       * is a lie told confidently. The view carries the last message; RLS still decides which rows
+       * come back, so this is a shape, not a grant.
+       */
+      const summaries = await supabase
+        .from('conversation_overview')
+        .select('*')
+        .in('id', ids)
+        .limit(500);
+      if (summaries.error) {
+        if (isMissingSchema(summaries.error)) return [];
+        throw summaries.error;
+      }
       const everyone = await supabase
         .from('conversation_members')
         .select(MEMBER_FIELDS)
@@ -123,8 +140,8 @@ export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
         byConversation.get(m.conversation_id).push(m);
       }
 
-      return rows
-        .map((r) => ({ ...r.conversation, members: byConversation.get(r.conversation_id) ?? [] }))
+      return (summaries.data ?? [])
+        .map((c) => ({ ...c, members: byConversation.get(c.id) ?? [] }))
         // Most recently active first, the same order the inbox uses.
         .sort((a, b) => String(b.last_message_at ?? '').localeCompare(String(a.last_message_at ?? '')));
     },

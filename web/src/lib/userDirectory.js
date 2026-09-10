@@ -12,10 +12,11 @@ export function buildUserDirectory(users, employees, org = {}, roles = []) {
     const grants = user.roles ?? [];
     const employee = people.get(user.employee_id);
     const global = user.is_super_admin || grants.some((r) => r.role_key === 'super_admin' && r.scope_type === 'global');
+    const allCompanies = global || grants.some((r) => r.scope_type === 'global');
     const companyIds = new Set();
     // Company means the linked employee's placement. For standalone logins, derive it from grants.
     if (employee?.entity_id) companyIds.add(employee.entity_id);
-    else if (global) companies.forEach((_, id) => companyIds.add(id));
+    else if (allCompanies) companies.forEach((_, id) => companyIds.add(id));
     else for (const grant of grants) {
       const id = grant.scope_type === 'entity' ? grant.scope_id
         : grant.scope_type === 'branch' ? branches.get(grant.scope_id)?.entity_id
@@ -27,9 +28,9 @@ export function buildUserDirectory(users, employees, org = {}, roles = []) {
     const companyCodes = [...companyIds].map((id) => companies.get(id)?.code || employee?.entity?.code || '—');
     const branch = branches.get(employee?.branch_id) ?? employee?.branch;
     const displayName = user.employee_name || employee?.full_name || user.email || 'Unnamed account';
-    const roleLabels = grants.map((r) => roleNames.get(r.role_key) || r.role_key.replace(/_/g, ' '));
+    const roleLabels = [...new Set(grants.map((r) => roleNames.get(r.role_key) || r.role_key.replace(/_/g, ' ')))];
     const row = { ...user, roles: grants, employee, displayName, companyIds: [...companyIds], companyNames,
-      companyCodes, companyLabel: !employee && global ? 'All companies' : companyNames.join(', ') || (user.employee_id ? 'Placement unavailable' : 'No company linked'),
+      companyCodes, companyLabel: !employee && allCompanies ? 'All companies' : companyNames.join(', ') || (user.employee_id ? 'Placement unavailable' : 'No company linked'),
       branchLabel: branch?.name || branch?.code || '', branchId: employee?.branch_id || '',
       global, hasRole: Boolean(global || grants.length), roleLabels };
     row.searchText = normal([displayName, user.email, user.employee_code, employee?.employee_code,

@@ -5,16 +5,28 @@
 // own payslips and salary structure, payroll.manage holders see their scope.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 /**
  * @param {string} [employeeId]  Narrow to one person. The screen passes this whenever the viewer is
  *   working as an employee: RLS answers to the ACCOUNT, so an HR manager's payslip list is the
  *   whole company's — names, and net pay — and the screen it renders on is titled "My Payslips".
  */
-export function usePayslips(employeeId) {
+export function usePayslips(employeeId, { period = '', enabled = true } = {}) {
   return useQuery({
-    queryKey: ['payslips', employeeId ?? 'all'],
+    enabled,
+    queryKey: period ? ['payslips', employeeId ?? 'all', period] : ['payslips', employeeId ?? 'all'],
     queryFn: async () => {
+      // A manager reviews one month at a time, loading every employee in that month even if
+      // the API imposes a response cap. Dashboard/self-history callers retain their window.
+      if (period) return fetchCollection(() => {
+        let query = supabase.from('payslips').select(`id, period, gross, deductions, net, status,
+          paid_days, lop_days, employer_cost, run_id, employee_id,
+          employee:employees(id, full_name, employee_code, branch:branches(code))`)
+          .eq('period', period).order('id');
+        if (employeeId) query = query.eq('employee_id', employeeId);
+        return query;
+      });
       let q = supabase
         .from('payslips')
         .select(
@@ -57,8 +69,7 @@ export function usePayslipLines(payslipId) {
 export function usePayrollRuns() {
   return useQuery({
     queryKey: ['payroll-runs'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('payroll_runs')
         .select(
           // entity_id as well as the embed: payroll_runs_write checks the id, and the embed comes
@@ -66,11 +77,7 @@ export function usePayrollRuns() {
           'id, period, status, employees, total_gross, total_net, published_at, created_at, '
           + 'entity_id, entity:entities(code, name)'
         )
-        .order('period', { ascending: false })
-        .limit(36);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('period', { ascending: false }).order('id')),
   });
 }
 
@@ -134,19 +141,16 @@ export function useSalaryStructures(employeeId, { enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['salary-structures', employeeId ?? 'all'],
-    queryFn: async () => {
+    queryFn: () => fetchCollection(() => {
       let q = supabase
         .from('salary_structures')
         .select(
           'id, employee_id, effective_from, basic, gross, notes, employee:employees(full_name, employee_code)'
         )
-        .order('effective_from', { ascending: false })
-        .limit(2000);
+        .order('effective_from', { ascending: false }).order('id');
       if (employeeId) q = q.eq('employee_id', employeeId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data ?? [];
-    },
+      return q;
+    }),
   });
 }
 

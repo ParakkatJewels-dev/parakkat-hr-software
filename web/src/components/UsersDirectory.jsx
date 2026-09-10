@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useId, useMemo, useState } from 'react';
 import { Users, Building2, ShieldCheck, Link2, Search, X, ChevronDown, SlidersHorizontal } from 'lucide-react';
 import Pagination, { usePagination } from './ui/Pagination';
 import { buildUserDirectory, filterUserDirectory } from '../lib/userDirectory';
@@ -8,6 +8,8 @@ const EMPTY_FILTERS = { search: '', company: '', branch: '', role: '', status: '
 
 export default function UsersDirectory({ users, employees, org, roles, actions, busy = false, children }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterId = useId();
   const rows = useMemo(() => buildUserDirectory(users, employees, org, roles), [users, employees, org, roles]);
   const shown = useMemo(() => filterUserDirectory(rows, filters), [rows, filters]);
   const pager = usePagination(shown, 25, null, JSON.stringify(filters));
@@ -18,7 +20,7 @@ export default function UsersDirectory({ users, employees, org, roles, actions, 
   const metrics = [
     { label: 'User accounts', value: rows.length, icon: Users, note: 'Within your access' },
     { label: 'Companies', value: companies.length, icon: Building2, note: 'Managed in one place' },
-    { label: 'Needs a role', value: rows.filter((u) => !u.hasRole).length, icon: ShieldCheck, note: 'Signed in, no role assigned' },
+    { label: 'Needs a role', value: rows.filter((u) => !u.hasRole).length, icon: ShieldCheck, note: 'No role assigned yet' },
     { label: 'Not linked', value: rows.filter((u) => !u.employee_id).length, icon: Link2, note: 'No employee record attached' },
   ];
   return (
@@ -38,13 +40,17 @@ export default function UsersDirectory({ users, employees, org, roles, actions, 
           <div className="users-create-actions">{actions}</div>
         </div>
         <div className="users-filter-panel">
+          <div className="users-search-row">
           <label className="users-search">
             <Search size={17} aria-hidden="true" />
             <input value={filters.search} disabled={busy} onChange={(e) => update('search', e.target.value)}
               aria-label="Search user accounts" placeholder="Search name, email, employee code or company…" />
             {filters.search && <button type="button" disabled={busy} onClick={() => update('search', '')} aria-label="Clear account search"><X size={15} /></button>}
           </label>
-          <div className="users-filters">
+          <button className="users-filter-toggle" type="button" disabled={busy} aria-expanded={filtersOpen} aria-controls={filterId}
+            onClick={() => setFiltersOpen((open) => !open)}><SlidersHorizontal size={17} /> Filters</button>
+          </div>
+          <div id={filterId} className={`users-filters ${filtersOpen ? 'is-open' : ''}`}>
             <Filter label="Company" value={filters.company} disabled={busy} onChange={(value) => update('company', value)}>
               <option value="">All companies</option>
               {companies.map((e) => <option value={e.id} key={e.id}>{e.code ? `${e.code} · ` : ''}{e.name}</option>)}
@@ -72,8 +78,11 @@ export default function UsersDirectory({ users, employees, org, roles, actions, 
             {pager.totalPages > 1 && <label className="users-page-jump">Go to page
               <input type="number" min="1" max={pager.totalPages} key={`${pager.page}:${pager.totalPages}`} defaultValue={pager.page}
                 aria-label="Go to account page" disabled={busy}
-                onBlur={(e) => { if (e.target.value) pager.setPage(e.target.value); }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); pager.setPage(e.currentTarget.value); } }} />
+                onBlur={(e) => {
+                  const page = Math.max(1, Math.min(pager.totalPages, Math.floor(Number(e.currentTarget.value)) || 1));
+                  e.currentTarget.value = String(page); pager.setPage(page);
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} />
             </label>}
           </div>
         </div>

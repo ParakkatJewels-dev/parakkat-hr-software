@@ -5,6 +5,8 @@
 // who. The sync worker ranks candidates by name similarity; this is where a human confirms.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
+import { textContainsFilter } from '../lib/querySearch';
 
 export function useDevices() {
   return useQuery({
@@ -139,17 +141,12 @@ export function useEmployeeSearch(term) {
   return useQuery({
     enabled: (term ?? '').trim().length >= 2,
     queryKey: ['employee-search', term],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('employees')
         .select('id, full_name, employee_code, branch:branches(id, name)')
-        .ilike('full_name', `%${term.trim()}%`)
+        .or(textContainsFilter(['full_name', 'employee_code'], term))
         .eq('status', 'Active')
-        .order('full_name')
-        .limit(25);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('full_name').order('id')),
   });
 }
 

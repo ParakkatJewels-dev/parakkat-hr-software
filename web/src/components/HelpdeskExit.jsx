@@ -94,6 +94,7 @@ export default function HelpdeskExit() {
   // Paged: this list grows with the business and was rendering every row.
   const { focusId, rowProps } = useFocusRow();
   const pager = usePagination(tickets, 25, focusId);
+  const exitPager = usePagination(visibleExits, 10, null, exitsMineOnly);
 
   return (
     <div className="page-shell space-y-6 animate-slide-up text-xs">
@@ -242,7 +243,7 @@ export default function HelpdeskExit() {
               <p className="text-neutral-500 py-6 text-center">No exit records visible to you.</p>
             ) : (
             <div className="space-y-3.5 max-h-[420px] overflow-y-auto pr-1">
-              {visibleExits.map((ext) => (
+              {exitPager.slice.map((ext) => (
                 <div key={ext.id} className="p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl space-y-3">
                   <div className="mobile-list-row flex justify-between items-start">
                     <div>
@@ -263,6 +264,7 @@ export default function HelpdeskExit() {
               ))}
             </div>
             )}
+            <div className="paged-collection"><Pagination {...exitPager} noun="exit records" sizes={[10, 25, 50]} /></div>
           </div>
         </div>
         )}

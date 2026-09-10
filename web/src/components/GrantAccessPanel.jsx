@@ -17,6 +17,8 @@ import { useGrantAppAccess, useManagedUsers } from '../data/admin';
 // Presets and the grant ceiling live in lib/ so they can be tested without pulling Supabase in
 // through useAuth. Re-exported here because call sites have always imported them from this file.
 import { ROLE_PRESETS, grantableRoles } from '../lib/roleGrants';
+import Pagination, { usePagination } from './ui/Pagination';
+import ListSearch from './ui/ListSearch';
 
 export { ROLE_PRESETS, grantableRoles };
 
@@ -53,6 +55,13 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const matchingEmployees = useMemo(() => {
+    const term = employeeSearch.trim().toLowerCase();
+    return term ? employees.filter((e) => [e.full_name, e.employee_code, e.entity?.code, e.branch?.code]
+      .join(' ').toLowerCase().includes(term)) : [];
+  }, [employees, employeeSearch]);
+  const employeePager = usePagination(matchingEmployees, 8, null, employeeSearch);
 
   const employee = employees.find((e) => e.id === employeeId) ?? null;
   const preset = roleOptions.find((r) => r.key === roleKey) ?? roleOptions[0] ?? ROLE_PRESETS[0];
@@ -273,14 +282,23 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                     <span className="ml-2 font-mono text-2xs text-neutral-400">{fixedEmployee.employee_code}</span>
                   </div>
                 ) : (
-                  <select value={employeeId} onChange={(e) => pickEmployee(e.target.value)} className={inputCls + ' cursor-pointer'}>
-                    <option value="">Choose an employee…</option>
-                    {employees.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.full_name} {e.employee_code ? `(${e.employee_code})` : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="space-y-2 paged-collection">
+                    {employee ? <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2">
+                      <div className="min-w-0 text-sm"><strong className="block truncate">{employee.full_name}</strong><span className="text-xs text-neutral-500">{employee.employee_code} · {employee.entity?.code}</span></div>
+                      <button type="button" disabled={grantAccess.isPending} className="text-xs font-semibold text-brand-ink" onClick={() => { pickEmployee(''); setEmployeeSearch(''); }}>Change</button>
+                    </div> : <>
+                      <ListSearch value={employeeSearch} onChange={setEmployeeSearch} label="Find employee for app access" placeholder="Search name, code, company or branch…" />
+                      {!employeeSearch.trim() && <p className="text-xs text-neutral-500">Search {employees.length.toLocaleString()} employees within your access.</p>}
+                      {employeeSearch.trim() && !matchingEmployees.length && <p className="text-xs text-neutral-500">No matching employees.</p>}
+                      <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                        {employeePager.slice.map((e) => <button type="button" key={e.id} disabled={grantAccess.isPending}
+                          onClick={() => pickEmployee(e.id)} className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900">
+                          <span className="text-sm font-semibold truncate">{e.full_name}</span><span className="text-xs text-neutral-500 shrink-0">{e.employee_code} · {e.entity?.code}</span>
+                        </button>)}
+                      </div>
+                      <Pagination {...employeePager} noun="matching employees" sizes={[8, 25, 50]} disabled={grantAccess.isPending} />
+                    </>}
+                  </div>
                 )}
                 {employee && !employeeGrantAllowed && (
                   <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1.5">

@@ -108,7 +108,7 @@ export default function AssetManagement() {
     });
   }, [assets, search, category, status]);
 
-  const pager = usePagination(filtered);
+  const pager = usePagination(filtered, 25, null, `${search}:${category}:${status}`);
   // Signed per page, not per register: 400 assets would otherwise be 400 signing requests to
   // show 25 rows. The open editing row is included so its current photo can be shown in the form.
   const { data: photoUrls = {} } = useAssetPhotos(
