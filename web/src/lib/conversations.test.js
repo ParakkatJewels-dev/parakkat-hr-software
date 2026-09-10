@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   directKey, others, conversationName, previewOf, sortConversations, unreadTotal,
-  groupByDay, showsSender, isMine, hasUnread, mediaPath,
+  groupByDay, showsSender, isMine, hasUnread, mediaPath, filterConversations, replyPreviewOf,
 } from './conversations.js';
 
 const ME = 'emp-me';
@@ -10,6 +10,36 @@ const member = (id, name) => ({ employee_id: id, employee: name ? { id, full_nam
 const conv = (over = {}) => ({
   id: 'c1', kind: 'direct', title: null, members: [], unread_count: 0,
   last_message_at: '2026-09-10T10:00:00Z', ...over,
+});
+
+test('chat filters preserve order and combine search with unread or group selection', () => {
+  const chats = [
+    conv({ id: 'direct', members: [member(ME, 'You'), member('other', 'Anjali')], unread_count: 2, last_body: 'Review tomorrow' }),
+    conv({ id: 'group', kind: 'group', title: 'Design team', last_body: 'Review ready' }),
+    conv({ id: 'old', kind: 'group', title: 'Operations', unread_count: 3, last_body: 'Meeting tomorrow' }),
+  ];
+  assert.deepEqual(filterConversations(chats), chats);
+  assert.deepEqual(filterConversations(chats, { filter: 'unread' }).map(c => c.id), ['direct', 'old']);
+  assert.deepEqual(filterConversations(chats, { filter: 'groups', query: ' REVIEW ' }).map(c => c.id), ['group']);
+  assert.deepEqual(filterConversations(chats, { query: 'anjali', me: ME }).map(c => c.id), ['direct']);
+  assert.equal(filterConversations(chats, { query: 'absent' }).length, 0);
+  assert.deepEqual(filterConversations(), []);
+});
+
+test('search does not expose a deleted message body', () => {
+  const chat = conv({ kind: 'group', title: 'Team', last_body: 'private deleted content', last_deleted: true });
+  assert.deepEqual(filterConversations([chat], { query: 'private deleted' }), []);
+  assert.deepEqual(filterConversations([chat], { query: 'team' }), [chat]);
+});
+
+test('reply previews use text or media labels without revealing deleted content', () => {
+  assert.equal(replyPreviewOf({ body: '  Please check this  ', kind: 'text' }), 'Please check this');
+  for (const [kind, label] of Object.entries({ image: 'Photo', video: 'Video', voice: 'Voice note', file: 'File' })) {
+    assert.equal(replyPreviewOf({ kind }), label);
+  }
+  assert.equal(replyPreviewOf({ kind: 'image', body: 'Old caption', deleted_at: '2026-09-10' }), 'Message deleted');
+  assert.equal(replyPreviewOf(undefined), 'Original message unavailable');
+  assert.equal(replyPreviewOf({ body: '' }), 'Message');
 });
 
 // ------------------------------------------------------------- the pair key ----
@@ -160,6 +190,17 @@ test('a message with no timestamp is skipped rather than making a day called und
 test('an empty thread has no days', () => {
   assert.deepEqual(groupByDay([]), []);
   assert.deepEqual(groupByDay(undefined), []);
+});
+
+test('day dividers agree with the IST clock across midnight and skip invalid timestamps', () => {
+  const days = groupByDay([
+    msg({ id: 'before', created_at: '2026-09-09T18:29:00Z' }),
+    msg({ id: 'after', created_at: '2026-09-09T18:30:00Z' }),
+    msg({ id: 'invalid', created_at: 'not-a-date' }),
+    msg({ id: 'morning', created_at: '2026-09-10T03:00:00Z' }),
+  ]);
+  assert.deepEqual(days.map(day => day.day), ['2026-09-09', '2026-09-10']);
+  assert.deepEqual(days[1].messages.map(message => message.id), ['after', 'morning']);
 });
 
 // -------------------------------------------------------------- who is talking ----

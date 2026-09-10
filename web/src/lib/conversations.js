@@ -87,11 +87,18 @@ export function unreadTotal(list = []) {
  * is the ISO date so the caller decides how to word it — "Today" needs to know what today is, and
  * that is not something a pure function should reach for.
  */
+const messageDay = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
 export function groupByDay(messages = []) {
   const out = [];
   for (const m of messages ?? []) {
     if (!m?.created_at) continue;
-    const day = String(m.created_at).slice(0, 10);
+    const date = new Date(m.created_at);
+    if (Number.isNaN(date.getTime())) continue;
+    // Match the clock and Today/Yesterday labels, including the hours after midnight in IST.
+    const day = messageDay.format(date);
     const last = out[out.length - 1];
     if (last && last.day === day) last.messages.push(m);
     else out.push({ day, messages: [m] });
@@ -124,6 +131,24 @@ export const isMine = (message, myEmployeeId) =>
  * conversations and loads the messages of none of them.
  */
 export const hasUnread = (conversation) => (Number(conversation?.unread_count) || 0) > 0;
+
+/** The chat-list chips and search always narrow the same already-authorized conversation set. */
+export function filterConversations(list = [], { query = '', filter = 'all', me = null } = {}) {
+  const needle = query.trim().toLowerCase();
+  return list.filter((conversation) =>
+    (filter !== 'unread' || hasUnread(conversation))
+    && (filter !== 'groups' || conversation.kind === 'group')
+    && (!needle || conversationName(conversation, me).toLowerCase().includes(needle)
+      || (!conversation.last_deleted && String(conversation.last_body ?? '').toLowerCase().includes(needle)))
+  );
+}
+
+/** Never reveal the body of a soft-deleted message inside a reply quote. */
+export function replyPreviewOf(message) {
+  if (!message) return 'Original message unavailable';
+  if (message.deleted_at) return 'Message deleted';
+  return message.body?.trim() || ({ image: 'Photo', video: 'Video', voice: 'Voice note', file: 'File' }[message.kind]) || 'Message';
+}
 
 /**
  * Where a media object lives.

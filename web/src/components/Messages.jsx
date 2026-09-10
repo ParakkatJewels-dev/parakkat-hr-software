@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play,
+  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
@@ -24,7 +24,7 @@ import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import {
   conversationName, previewOf, sortConversations, groupByDay, showsSender, isMine, hasUnread,
-  others,
+  others, filterConversations, replyPreviewOf,
 } from '../lib/conversations';
 import { humanDbError } from '../lib/dbErrors';
 import { relativeTime, istToday } from '../lib/dates';
@@ -33,9 +33,11 @@ import Avatar from './ui/Avatar';
 import IconInput from './ui/IconInput';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { useFocusRow } from '../lib/useFocusRow';
+import { messageLinkParts } from '../lib/messageLinks';
+import './messages.css';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#0ea971] transition-colors';
+  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[#737373] transition-colors';
 
 const readableSize = (bytes) =>
   !bytes ? '' : bytes < 1024 ? `${bytes} B`
@@ -44,7 +46,7 @@ const readableSize = (bytes) =>
 
 const clockOf = (iso) => {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
   } catch { return ''; }
 };
 
@@ -69,6 +71,7 @@ export default function Messages() {
   const [openId, setOpenId] = useState(null);
   const [composing, setComposing] = useState(false);   // the new-conversation panel
   const [query, setQuery] = useState('');
+  const [chatFilter, setChatFilter] = useState('all');
 
   // A notification about a message carries the conversation id, so following one opens the room it
   // was about rather than the list it happens to be in.
@@ -79,14 +82,10 @@ export default function Messages() {
 
   const open = conversations.find((c) => c.id === openId) ?? null;
 
-  const visible = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    if (!needle) return conversations;
-    return conversations.filter((c) =>
-      conversationName(c, me).toLowerCase().includes(needle)
-      || String(c.last_body ?? '').toLowerCase().includes(needle)
-    );
-  }, [conversations, query, me]);
+  const visible = useMemo(
+    () => filterConversations(conversations, { query, filter: chatFilter, me }),
+    [conversations, query, chatFilter, me]
+  );
 
   /*
    * An account that is not a person cannot be in a conversation.
@@ -103,7 +102,7 @@ export default function Messages() {
   if (!me) {
     return (
       <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-        <MessageSquare size={28} className="text-neutral-400 dark:text-[#0c9765] mb-3" />
+        <MessageSquare size={28} className="text-neutral-400 dark:text-[#525252] mb-3" />
         <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">
           This account cannot send messages
         </h2>
@@ -120,7 +119,7 @@ export default function Messages() {
   if (data?.pending) {
     return (
       <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
-        <MessageSquare size={28} className="text-neutral-400 dark:text-[#0c9765] mb-3" />
+        <MessageSquare size={28} className="text-neutral-400 dark:text-[#525252] mb-3" />
         <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">Messages are not switched on yet</h2>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
           The database migration for messaging (0115) has not been run against this project. Nothing
@@ -131,39 +130,27 @@ export default function Messages() {
   }
 
   return (
-    <div className="page-shell messages-shell animate-fade-in">
-      {/* vh -> dvh, which is the whole of the fix here.
-          100vh does not shrink when a phone's address bar and on-screen keyboard appear, so the
-          composer ended up underneath the keyboard at exactly the moment somebody was typing into
-          it. 100dvh tracks the viewport that is actually visible.
-          The 13rem is still a hand-measured allowance for the header and section chrome above this
-          screen, and still a magic number — it is just now subtracted from the right thing. Worth
-          replacing with a container query or a measured ref if this screen grows another header. */}
-      <div className="messages-panes flex gap-4 min-h-0 h-[calc(100dvh-13rem)] max-h-[calc(100dvh-13rem)] sm:min-h-[24rem]">
+    <div className="messages-shell animate-fade-in">
+      {/* Each pane scrolls independently; the composer stays outside the message scroller. */}
+      <div className="messages-panes">
         {/* The list. On a phone it IS the screen until a conversation is opened. */}
-        <aside className={`messages-list flex flex-col gap-3 w-full lg:w-80 lg:shrink-0 ${open ? 'hidden lg:flex' : 'flex'}`}>
-          <div className="flex items-center gap-2">
-            <IconInput
-              icon={Search}
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              aria-label="Search conversations"
-              placeholder="Search conversations…"
-              className="flex-1 min-w-0"
-              inputClassName={INPUT}
-            />
-            <button
-              type="button"
-              onClick={() => setComposing(true)}
-              aria-label="Start a new conversation"
-              className="shrink-0 h-11 w-11 grid place-items-center rounded-xl bg-[#0a7d54] text-white hover:bg-[#0c9765] active:bg-[#095f41] transition-colors cursor-pointer"
-            >
-              <Plus size={20} />
-            </button>
+        <aside className={`messages-list ${open ? 'messages-list-collapsed' : ''}`} aria-label="Chats">
+          <header className="messages-list-header">
+            <h1>Chats</h1>
+            <button type="button" className="messages-icon-button" onClick={() => setComposing(true)} aria-label="Start a new conversation" title="New chat"><PenLine size={21} /></button>
+          </header>
+          <label className="messages-search">
+            <Search size={18} aria-hidden="true" />
+            <input type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+              aria-label="Search conversations" placeholder="Search or start a new chat" />
+          </label>
+          <div className="messages-list-filters" aria-label="Filter chats">
+            {[['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups']].map(([value, label]) => (
+              <button type="button" key={value} aria-pressed={chatFilter === value} onClick={() => setChatFilter(value)}>{label}</button>
+            ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5">
+          <div className="messages-conversation-list">
             {isLoading && (
               <p className="flex items-center gap-2 text-xs text-neutral-400 px-1 py-3">
                 <Loader2 size={13} className="animate-spin" /> Loading conversations…
@@ -177,13 +164,13 @@ export default function Messages() {
             {!isLoading && visible.length === 0 && (
               <div className="px-1 py-6 text-center">
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {query ? 'No conversation matches that.' : 'No conversations yet.'}
+                  {query ? 'No chats match your search.' : chatFilter === 'unread' ? 'You’re all caught up.' : chatFilter === 'groups' ? 'No group chats yet.' : 'No conversations yet.'}
                 </p>
                 {!query && (
                   <button
                     type="button"
                     onClick={() => setComposing(true)}
-                    className="mt-3 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-[#0a7d54] text-white text-xs font-bold hover:bg-[#0c9765] active:bg-[#095f41] transition-colors cursor-pointer"
+                    className="mt-3 inline-flex items-center gap-1.5 h-11 px-4 rounded-xl bg-[#171717] text-white text-xs font-bold hover:bg-[#525252] active:bg-[#000000] transition-colors cursor-pointer"
                   >
                     <Plus size={16} /> Start one
                   </button>
@@ -203,13 +190,15 @@ export default function Messages() {
         </aside>
 
         {/* The thread. */}
-        <section className={`messages-thread flex-1 min-w-0 ${open ? 'flex' : 'hidden lg:flex'} flex-col`}>
+        <section className={`messages-thread ${open ? 'messages-thread-open' : ''}`} aria-label="Conversation">
           {open ? (
-            <Thread conversation={open} me={me} onBack={() => setOpenId(null)} />
+            <Thread key={open.id} conversation={open} me={me} onBack={() => setOpenId(null)} />
           ) : (
-            <div className="hidden lg:flex flex-1 flex-col items-center justify-center text-center">
-              <MessageSquare size={26} className="text-neutral-300 dark:text-neutral-700 mb-2" />
-              <p className="text-xs text-neutral-500 dark:text-neutral-400">Pick a conversation, or start a new one.</p>
+            <div className="messages-welcome">
+              <span className="messages-welcome-icon"><MessageSquare size={42} /></span>
+              <h2>Your team, one conversation away</h2>
+              <p>Choose a chat to share messages, photos, files and voice notes.</p>
+              <button type="button" className="messages-new-chat" onClick={() => setComposing(true)}><Plus size={16} />New conversation</button>
             </div>
           )}
         </section>
@@ -238,32 +227,28 @@ function ConversationRow({ conversation, me, active, onOpen }) {
       type="button"
       onClick={onOpen}
       aria-current={active ? 'page' : undefined}
-      className={`conversation-row w-full text-left flex items-center gap-2.5 rounded-xl px-2.5 py-2 border transition-colors cursor-pointer ${
-        active
-          ? 'border-[#0ea971]/30 bg-[#0ea971]/10'
-          : 'border-transparent hover:bg-neutral-100 dark:hover:bg-neutral-900'
-      }`}
+      className={`conversation-row ${active ? 'conversation-row-active' : ''} ${unread ? 'conversation-row-unread' : ''}`}
     >
       {isGroup
-        ? <span className="shrink-0 h-8 w-8 rounded-full grid place-items-center bg-neutral-150 dark:bg-neutral-850 text-neutral-500"><Users size={14} /></span>
-        : <Avatar name={name} size="md" />}
+        ? <span className="messages-avatar messages-avatar-group"><Users size={14} /></span>
+        : <Avatar name={name} size="md" className="messages-avatar" />}
 
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center justify-between gap-2">
-          <span className={`truncate text-sm ${unread ? 'font-extrabold text-neutral-900 dark:text-white' : 'font-semibold text-neutral-800 dark:text-neutral-200'}`}>
+      <span className="conversation-row-copy">
+        <span className="conversation-row-top">
+          <span className="conversation-row-name">
             {name}
           </span>
-          <span className="shrink-0 text-2xs font-mono text-neutral-400">
+          <span className="conversation-row-time">
             {conversation.last_message_at ? relativeTime(conversation.last_message_at) : ''}
           </span>
         </span>
-        <span className="flex items-center justify-between gap-2 mt-0.5">
-          <span className={`truncate text-2xs ${unread ? 'text-neutral-700 dark:text-neutral-300 font-semibold' : 'text-neutral-500 dark:text-neutral-400'}`}>
+        <span className="conversation-row-bottom">
+          <span className="conversation-row-preview">
             {previewOf(conversation, me)}
           </span>
           {unread && (
             <span
-              className="shrink-0 min-w-[1.25rem] text-center text-2xs font-mono font-bold px-1.5 py-0.5 rounded-full bg-[#0a7d54] text-white"
+              className="conversation-unread-count"
               aria-label={`${conversation.unread_count} unread`}
             >
               {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
@@ -278,228 +263,136 @@ function ConversationRow({ conversation, me, active, onOpen }) {
 /* ---------------------------------------------------------------- the thread -- */
 
 function Thread({ conversation, me, onBack }) {
-  const { data: messages = [], isLoading } = useMessages(conversation.id);
+  const { data: messages = [], isLoading, error } = useMessages(conversation.id);
   const markRead = useMarkRead();
   const [managing, setManaging] = useState(false);
-  const bottomRef = useRef(null);
-
+  const [replyId, setReplyId] = useState(null);
+  const [awayFromBottom, setAwayFromBottom] = useState(false);
+  const viewportRef = useRef(null);
+  const timelineRef = useRef(null);
+  const followLatestRef = useRef(true);
   const name = conversationName(conversation, me);
   const isGroup = conversation.kind === 'group';
   const days = useMemo(() => groupByDay(messages), [messages]);
-
-  // Opening it, and every message that lands while it is open, counts as read.
+  const byId = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages]);
   const unread = conversation.unread_count;
   useEffect(() => {
     if (unread > 0) markRead.mutate({ conversationId: conversation.id });
-    // markRead is a stable mutation object; including it would re-fire this on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversation.id, unread]);
 
-  // Stick to the bottom, which is where a conversation is read from.
+  const jumpToLatest = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    followLatestRef.current = true;
+    setAwayFromBottom(false);
+  }, []);
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, conversation.id]);
+    if (followLatestRef.current) jumpToLatest();
+  }, [messages.length, jumpToLatest]);
+  // Media can finish loading after the message row. Follow it only while reading the latest chat.
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      if (followLatestRef.current) jumpToLatest();
+    });
+    if (timelineRef.current) observer.observe(timelineRef.current);
+    if (viewportRef.current) observer.observe(viewportRef.current);
+    return () => observer.disconnect();
+  }, [jumpToLatest]);
 
   return (
-    <div className="flex flex-col h-full min-h-0 rounded-2xl border border-neutral-200 dark:border-neutral-850 bg-white dark:bg-charcoal-900/40 overflow-hidden">
-      <header className="shrink-0 flex items-center gap-2.5 px-3 py-2.5 border-b border-neutral-200 dark:border-neutral-850">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to conversations"
-          className="lg:hidden h-11 w-11 -ml-2 grid place-items-center rounded-xl text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 active:bg-neutral-150 dark:active:bg-neutral-850 transition-colors cursor-pointer"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        {isGroup
-          ? <span className="shrink-0 h-8 w-8 rounded-full grid place-items-center bg-neutral-150 dark:bg-neutral-850 text-neutral-500"><Users size={14} /></span>
-          : <Avatar name={name} size="md" />}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-bold text-neutral-900 dark:text-white">{name}</p>
-          <p className="truncate text-2xs text-neutral-500 dark:text-neutral-400">
-            {isGroup
-              ? `${conversation.members?.length ?? 0} people`
-              : others(conversation, me)[0]?.employee?.employee_code || ''}
-          </p>
+    <div className="messages-chat">
+      <header className="messages-chat-header">
+        <button type="button" onClick={onBack} aria-label="Back to conversations" className="messages-icon-button messages-back"><ArrowLeft size={21} /></button>
+        {isGroup ? <span className="messages-avatar messages-avatar-group"><Users size={21} /></span>
+          : <Avatar name={name} size="md" className="messages-avatar" />}
+        <div className="messages-chat-heading">
+          <h2>{name}</h2>
+          <p>{isGroup ? `${conversation.members?.length ?? 0} members · ${others(conversation, me).map((member) => member.employee?.full_name).filter(Boolean).join(', ')}` : 'Direct message'}</p>
         </div>
-        {isGroup && (
-          <button
-            type="button"
-            onClick={() => setManaging((v) => !v)}
-            aria-label="Group settings"
-            aria-expanded={managing}
-            className="h-11 w-11 grid place-items-center rounded-xl text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-900 active:bg-neutral-150 dark:active:bg-neutral-850 transition-colors cursor-pointer"
-          >
-            <UserPlus size={20} />
-          </button>
-        )}
+        {isGroup && <button type="button" onClick={() => setManaging((value) => !value)} aria-label="Group settings"
+          aria-expanded={managing} className="messages-icon-button"><UserPlus size={21} /></button>}
       </header>
-
-      {managing && isGroup && (
-        <GroupPanel conversation={conversation} me={me} onClose={() => setManaging(false)} />
-      )}
-
-      <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3">
-        {isLoading && (
-          <p className="flex items-center justify-center gap-2 text-xs text-neutral-400 py-6">
-            <Loader2 size={13} className="animate-spin" /> Loading…
-          </p>
-        )}
-        {!isLoading && messages.length === 0 && (
-          <p className="text-center text-xs text-neutral-500 dark:text-neutral-400 py-8">
-            Nothing here yet. Say something.
-          </p>
-        )}
-        {days.map(({ day, messages: rows }) => (
-          <div key={day} className="space-y-1.5">
-            <p className="sticky top-0 z-10 text-center">
-              <span className="inline-block text-2xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-900 rounded-full px-2.5 py-0.5">
-                {dayLabel(day)}
-              </span>
-            </p>
-            {rows.map((m, i) => (
-              <MessageBubble
-                key={m.id}
-                message={m}
-                me={me}
-                withSender={showsSender(m, rows[i - 1] ?? null, { kind: conversation.kind })}
-                // The clock belongs to the END of a burst, so it marks where one stopped rather
-                // than counting its parts. `showsSender` on the NEXT message answers exactly that
-                // question — a new speaker or a long gap — so the two stay in step by construction.
-                endsRun={
-                  i === rows.length - 1
-                  || rows[i + 1].sender_id !== m.sender_id
-                  || showsSender(rows[i + 1], m, { kind: 'group' })
-                }
-              />
+      {managing && isGroup && <GroupPanel conversation={conversation} me={me} onClose={() => setManaging(false)} />}
+      <div className="messages-chat-history">
+        <div className="messages-chat-scroll" ref={viewportRef} role="region" aria-label="Message history" tabIndex={0}
+          onScroll={(event) => {
+            const node = event.currentTarget;
+            const near = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+            followLatestRef.current = near;
+            setAwayFromBottom(!near);
+          }}>
+          <div className="messages-timeline" ref={timelineRef}>
+            {isLoading && <p className="messages-chat-notice" role="status"><Loader2 size={16} className="animate-spin" />Loading messages…</p>}
+            {error && <p className="messages-chat-error" role="alert">{humanDbError(error)}</p>}
+            {!isLoading && !error && !messages.length && <div className="messages-chat-empty"><MessageSquare size={28} /><strong>Say hello</strong><p>Send a message to start the conversation.</p></div>}
+            {days.map(({ day, messages: rows }) => (
+              <div key={day} className="messages-day">
+                <p className="messages-date"><span>{dayLabel(day)}</span></p>
+                {rows.map((message, index) => <MessageBubble key={message.id} message={message} me={me}
+                  quote={byId.get(message.reply_to)} onReply={() => setReplyId(message.id)}
+                  withSender={showsSender(message, rows[index - 1] ?? null, { kind: conversation.kind })}
+                  endsRun={index === rows.length - 1 || rows[index + 1].sender_id !== message.sender_id || showsSender(rows[index + 1], message, { kind: 'group' })} />)}
+              </div>
             ))}
           </div>
-        ))}
-        <div ref={bottomRef} />
+        </div>
+        {awayFromBottom && <button type="button" className="messages-jump-latest" onClick={jumpToLatest} aria-label="Jump to latest messages"><ArrowDown size={20} /></button>}
       </div>
-
-      <Composer conversationId={conversation.id} />
+      <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
+        onSent={() => { setReplyId(null); jumpToLatest(); }} />
     </div>
   );
 }
 
 /* --------------------------------------------------------------- one message -- */
 
-/**
- * One message.
- *
- * Three things here were wrong in the first pass and are worth naming, because each was invisible
- * on the machine it was written on:
- *
- *   * DELETE WAS HOVER-ONLY (`opacity-0 group-hover:opacity-100`). There is no hover on a phone, and
- *     a phone is what almost everybody here uses — so nobody could remove their own message. Tapping
- *     your own bubble now reveals the action. A tap works with a mouse too, so this replaces the
- *     hover behaviour rather than sitting beside it.
- *
- *   * THE GREEN FAILED CONTRAST. #0ea971 with white text measures 3.03:1, under the 4.5:1 needed for
- *     body text. #0a7d54 measures 5.18:1 and still reads as the same green at a glance. The accent
- *     is unchanged everywhere it is used for borders, icons and chips — only text-bearing fills
- *     had to move.
- *
- *   * A TIMESTAMP UNDER EVERY BUBBLE. Six messages in a minute produced six clock readings and a
- *     column of grey noise down the thread. The time now sits at the end of the bubble and only on
- *     the last message of a run, so it marks where a burst ended instead of counting its parts.
- */
-function MessageBubble({ message, me, withSender, endsRun }) {
+function MessageBubble({ message, me, withSender, endsRun, quote, onReply }) {
   const mine = isMine(message, me);
   const [showActions, setShowActions] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const remove = useDeleteMessage();
-
-  if (message.deleted_at) {
-    return (
-      <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-        <p className="text-2xs italic text-neutral-400 dark:text-neutral-600 px-3 py-1.5 rounded-2xl border border-dashed border-neutral-200 dark:border-neutral-850">
-          Message deleted
-        </p>
-      </div>
-    );
-  }
-
   const isMedia = message.kind !== 'text';
 
   return (
-    <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[85%] sm:max-w-[70%] min-w-0 flex flex-col ${mine ? 'items-end' : 'items-start'}`}>
-        {withSender && !mine && (
-          <span className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 px-1 pb-0.5">
-            {message.sender?.full_name ?? 'Unknown'}
-          </span>
-        )}
-
-        {/* Your own bubble is the control that reveals its own actions. Not a button element: it
-            wraps selectable text, and a <button> would fight text selection on desktop. */}
-        <div
-          role={mine ? 'button' : undefined}
-          tabIndex={mine ? 0 : undefined}
-          aria-expanded={mine ? showActions : undefined}
-          aria-label={mine ? 'Your message — activate for options' : undefined}
-          onClick={mine ? () => setShowActions((v) => !v) : undefined}
-          onKeyDown={mine ? (e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowActions((v) => !v); }
-          } : undefined}
-          className={`rounded-2xl text-sm break-words transition-colors ${isMedia ? 'p-1.5' : 'px-3 py-2'} ${
-            mine
-              ? 'bg-[#0a7d54] text-white rounded-br-md cursor-pointer active:bg-[#095f41]'
-              : 'bg-neutral-100 dark:bg-neutral-850 text-neutral-800 dark:text-neutral-100 rounded-bl-md'
-          }`}
-        >
-          {isMedia && <MediaBubble message={message} mine={mine} />}
-
-          {/* The clock rides on the last line of the bubble rather than under it. `float` keeps it
-              on the same line as short text and lets long text wrap around it, which is what stops
-              a two-word message becoming two rows tall. */}
-          {(message.body || !isMedia) && (
-            <p className={`whitespace-pre-wrap ${isMedia ? 'px-1.5 pt-1.5 pb-0.5' : ''}`}>
-              {message.body}
-              {endsRun && (
-                <span className={`float-right ml-2 mt-1 text-[10px] font-mono tabular-nums ${
-                  mine ? 'text-white/70' : 'text-neutral-400 dark:text-neutral-500'
-                }`}>
-                  {clockOf(message.created_at)}
-                </span>
-              )}
-            </p>
-          )}
-        </div>
-
-        {mine && showActions && (
-          <div className="flex items-center gap-1 pt-1 animate-fade-in">
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className="inline-flex items-center gap-1 h-11 px-2.5 -my-1.5 text-2xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-rose-500 active:text-rose-600 transition-colors cursor-pointer"
-            >
-              <Trash2 size={12} /> Delete
-            </button>
-            <span className="text-[10px] font-mono text-neutral-400">{clockOf(message.created_at)}</span>
+    <div className="message-bubble-row" data-own={mine} data-ends-run={endsRun}>
+      <div className="message-bubble-wrap">
+        {message.deleted_at ? <p className="message-deleted"><Trash2 size={12} />Message deleted</p> : <>
+          <div className={`message-bubble ${isMedia ? 'message-bubble-media' : ''}`}>
+            {withSender && !mine && <p className="message-sender">{message.sender?.full_name || 'Unknown'}</p>}
+            {message.reply_to && <blockquote className="message-quote">
+              <strong>{quote ? (isMine(quote, me) ? 'You' : quote.sender?.full_name || 'Unknown') : 'Earlier message'}</strong>
+              <span>{replyPreviewOf(quote)}</span>
+            </blockquote>}
+            {isMedia && <MediaBubble message={message} mine={mine} />}
+            {(message.body || !isMedia) && <p className="message-text">{messageLinkParts(message.body).map((part, index) => part.type === 'link'
+              ? <a key={index} href={part.href} target="_blank" rel="noopener noreferrer">{part.text}</a>
+              : <React.Fragment key={index}>{part.text}</React.Fragment>)}</p>}
+            <div className="message-meta">
+              {message.edited_at && <span>edited</span>}
+              <time dateTime={message.created_at}>{clockOf(message.created_at)}</time>
+              <button type="button" className="message-options" aria-label="Message options" aria-expanded={showActions}
+                onClick={() => setShowActions((value) => !value)}><ChevronDown size={14} /></button>
+            </div>
           </div>
-        )}
+          {showActions && <div className="message-actions">
+            <button type="button" onClick={() => { onReply(); setShowActions(false); }}><Reply size={14} />Reply</button>
+            {mine && <button type="button" onClick={() => setConfirming(true)}><Trash2 size={13} />Delete</button>}
+          </div>}
+        </>}
       </div>
-
-      {confirming && (
-        <ConfirmDialog
-          title="Delete this message?"
-          confirmLabel="Delete"
-          busy={remove.isPending}
-          error={remove.error?.message}
-          onCancel={() => { remove.reset(); setConfirming(false); }}
-          onConfirm={async () => {
-            try {
-              await remove.mutateAsync({ messageId: message.id, conversationId: message.conversation_id });
-              setConfirming(false);
-              setShowActions(false);
-            } catch { /* shown in the dialog */ }
-          }}
-        >
-          <p>Everyone in the conversation will see that a message was deleted, but not what it said.</p>
-        </ConfirmDialog>
-      )}
+      {confirming && <ConfirmDialog title="Delete this message?" confirmLabel="Delete" busy={remove.isPending}
+        error={remove.error?.message} onCancel={() => { if (!remove.isPending) { remove.reset(); setConfirming(false); } }}
+        onConfirm={async () => {
+          try {
+            await remove.mutateAsync({ messageId: message.id, conversationId: message.conversation_id });
+            setConfirming(false);
+            setShowActions(false);
+          } catch { /* shown in the dialog */ }
+        }}>
+        <p>Everyone in the conversation will see that a message was deleted, but not what it said.</p>
+      </ConfirmDialog>}
     </div>
   );
 }
@@ -544,8 +437,8 @@ function MediaBubble({ message, mine }) {
 
   if (message.kind === 'voice') {
     return (
-      <span className="flex items-center gap-2 min-w-[12rem]">
-        <Play size={13} className={mine ? 'text-white/90' : 'text-[#0ea971]'} />
+      <span className="messages-audio">
+        <Play size={13} className={mine ? 'text-white/90' : 'text-[#737373]'} />
         <audio src={url} controls preload="metadata" className="h-8 max-w-full" />
       </span>
     );
@@ -560,7 +453,7 @@ function MediaBubble({ message, mine }) {
     >
       <FileText size={14} className="shrink-0" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-semibold">
+        <span className="messages-file-name">
           {message.storage_path?.split('/').pop()?.replace(/^\d+-\w+-/, '') ?? 'File'}
         </span>
         {message.byte_size && (
@@ -586,20 +479,28 @@ const KIND_FOR = (file) => {
 
 const MAX_BYTES = 25 * 1024 * 1024;   // matches the bucket's limit in 0115
 
-function Composer({ conversationId }) {
+const CHAT_EMOJI = ['😀', '😊', '👍', '🙏', '✅', '🎉', '👏', '💡', '📌', '👀', '❤️', '🚀'];
+
+function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
   const [body, setBody] = useState('');
-  const [pending, setPending] = useState(null);   // { file, kind, durationMs } awaiting send
+  const [pending, setPending] = useState(null);
   const [localError, setLocalError] = useState(null);
   const [attachOpen, setAttachOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const [sending, setSending] = useState(false);
   const send = useSendMessage();
   const upload = useUploadMedia();
   const fileRef = useRef(null);
   const imageRef = useRef(null);
-
-  const busy = send.isPending || upload.isPending;
+  const textRef = useRef(null);
+  const postingRef = useRef(false);
+  const busy = sending || send.isPending || upload.isPending;
   const error = localError || send.error || upload.error;
-  // Something to send: typed words, or a file waiting to go with them.
   const canSend = Boolean(body.trim()) || Boolean(pending);
+
+  useEffect(() => {
+    if (replyTo?.id) textRef.current?.focus();
+  }, [replyTo?.id]);
 
   const pick = (file) => {
     setLocalError(null);
@@ -611,141 +512,98 @@ function Composer({ conversationId }) {
     setPending({ file, kind: KIND_FOR(file), durationMs: null });
   };
 
-  const submit = async (e) => {
-    e?.preventDefault();
-    if (busy) return;
-    setLocalError(null);
+  const insertEmoji = (emoji) => {
+    const input = textRef.current;
+    const start = input?.selectionStart ?? body.length;
+    const end = input?.selectionEnd ?? start;
+    const next = body.slice(0, start) + emoji + body.slice(end);
+    if (next.length > 4000) return;
+    setBody(next);
+    setEmojiOpen(false);
+    requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + emoji.length, start + emoji.length); });
+  };
 
+  const submit = async (event) => {
+    event?.preventDefault();
+    if (postingRef.current || !canSend) return;
+    postingRef.current = true;
+    setSending(true);
+    setLocalError(null);
+    setAttachOpen(false);
+    setEmojiOpen(false);
     try {
       if (pending) {
-        const media = await upload.mutateAsync({
-          conversationId, file: pending.file, durationMs: pending.durationMs,
-        });
-        await send.mutateAsync({ conversationId, body, kind: pending.kind, media });
+        // Retain an uploaded object on a failed send, so retrying doesn't create duplicate files.
+        const media = pending.media ?? await upload.mutateAsync({ conversationId, file: pending.file, durationMs: pending.durationMs });
+        setPending((current) => current ? { ...current, media } : current);
+        await send.mutateAsync({ conversationId, body, kind: pending.kind, media, replyTo: replyTo?.id ?? null });
         setPending(null);
       } else {
-        if (!body.trim()) return;
-        await send.mutateAsync({ conversationId, body });
+        await send.mutateAsync({ conversationId, body, replyTo: replyTo?.id ?? null });
       }
       setBody('');
-    } catch { /* surfaced below */ }
+      if (textRef.current) textRef.current.style.height = 'auto';
+      onSent();
+    } catch { /* keep the draft and display the error */ }
+    finally { postingRef.current = false; setSending(false); }
   };
 
   return (
-    <form onSubmit={submit} className="shrink-0 border-t border-neutral-200 dark:border-neutral-850 p-2.5 space-y-2">
-      {pending && (
-        <div className="flex items-center gap-2 rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 px-2.5 py-1.5">
-          <Paperclip size={12} className="shrink-0 text-[#0ea971]" />
-          <span className="min-w-0 flex-1 truncate text-2xs font-semibold text-neutral-700 dark:text-neutral-300">
-            {pending.file.name}
-          </span>
-          <span className="shrink-0 text-2xs font-mono text-neutral-400">{readableSize(pending.file.size)}</span>
-          <button
-            type="button"
-            onClick={() => setPending(null)}
-            aria-label="Remove attachment"
-            className="shrink-0 text-neutral-400 hover:text-rose-500 cursor-pointer"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      )}
-
-      {error && (
-        <p className="flex items-start gap-1.5 text-2xs text-rose-600 dark:text-rose-400">
-          <AlertTriangle size={11} className="mt-0.5 shrink-0" /> {humanDbError(error)}
-        </p>
-      )}
-
-      <div className="flex items-end gap-1.5">
-        <input
-          ref={imageRef} type="file" accept="image/*,video/*" className="hidden"
-          onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }}
-        />
-        <input
-          ref={fileRef} type="file" className="hidden"
-          onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }}
-        />
-
-        {/* One attach button, not three.
-            Three 30px icon buttons plus an input plus send left roughly 150px to type in on a 360px
-            phone, and every one of those buttons was under the 48dp Android minimum anyway. Folding
-            photo / video / file behind a single 44px "+" gives the input back its width and gives
-            each choice a full-width row with a readable label instead of a guessable glyph. */}
-        <div className="relative shrink-0">
-          <button
-            type="button"
-            onClick={() => setAttachOpen((v) => !v)}
-            disabled={busy}
-            aria-label="Attach a photo, video or file"
-            aria-expanded={attachOpen}
-            className="h-11 w-11 grid place-items-center rounded-xl text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850 active:bg-neutral-150 dark:active:bg-neutral-800 disabled:opacity-45 transition-colors cursor-pointer"
-          >
-            <Plus size={20} className={`transition-transform duration-200 ${attachOpen ? 'rotate-45' : ''}`} />
-          </button>
-
-          {attachOpen && (
-            <>
-              {/* Tap anywhere else to dismiss. A menu on a phone that only closes by pressing the
-                  same small button again is a menu people get stuck in. */}
-              <button
-                type="button"
-                aria-label="Close attachment menu"
-                onClick={() => setAttachOpen(false)}
-                className="fixed inset-0 z-30 cursor-default"
-              />
-              <div className="absolute bottom-full left-0 mb-2 z-40 w-48 rounded-xl border border-neutral-200 dark:border-neutral-850 bg-white dark:bg-neutral-950 shadow-xl overflow-hidden animate-fade-in">
-                {[
-                  { icon: ImageIcon, label: 'Photo or video', onClick: () => imageRef.current?.click() },
-                  { icon: Paperclip, label: 'File', onClick: () => fileRef.current?.click() },
-                ].map(({ icon: Icon, label, onClick }) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => { setAttachOpen(false); onClick(); }}
-                    className="w-full h-12 px-3 flex items-center gap-2.5 text-xs font-semibold text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-900 active:bg-neutral-150 dark:active:bg-neutral-850 transition-colors cursor-pointer"
-                  >
-                    <Icon size={16} className="text-[#0c9765] dark:text-[#10b981]" /> {label}
-                  </button>
+    <form onSubmit={submit} className="messages-composer" aria-label="Write a message"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') { setAttachOpen(false); setEmojiOpen(false); }
+      }}>
+      {replyTo && <div className="messages-reply-preview">
+        <Reply size={18} />
+        <div><strong>Replying to {isMine(replyTo, me) ? 'yourself' : replyTo.sender?.full_name || 'Unknown'}</strong><p>{replyPreviewOf(replyTo)}</p></div>
+        <button type="button" className="messages-icon-button" disabled={busy} onClick={onCancelReply} aria-label="Cancel reply"><X size={18} /></button>
+      </div>}
+      {pending && <div className="messages-pending-file">
+        <Paperclip size={20} />
+        <div><strong>{pending.file.name}</strong><small>{readableSize(pending.file.size)} · Ready to send</small></div>
+        <button type="button" className="messages-icon-button" disabled={busy} onClick={() => setPending(null)} aria-label="Remove attachment"><X size={18} /></button>
+      </div>}
+      {error && <p className="messages-chat-error" role="alert"><AlertTriangle size={13} />{humanDbError(error)}</p>}
+      {emojiOpen && <div className="messages-emoji-picker" role="group" aria-label="Choose an emoji">
+        {CHAT_EMOJI.map((emoji) => <button type="button" key={emoji} onClick={() => insertEmoji(emoji)} aria-label={`Insert ${emoji}`}>{emoji}</button>)}
+      </div>}
+      <div className="messages-compose-row">
+        <input ref={imageRef} type="file" accept="image/*,video/*" hidden disabled={busy}
+          onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ''; }} />
+        <input ref={fileRef} type="file" hidden disabled={busy}
+          onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ''; }} />
+        <div className="messages-input-shell">
+          <button type="button" className="messages-icon-button" disabled={busy} aria-label="Choose emoji" aria-expanded={emojiOpen}
+            onClick={() => { setEmojiOpen((value) => !value); setAttachOpen(false); }}><Smile size={21} /></button>
+          <textarea ref={textRef} rows={1} value={body} disabled={busy} maxLength={4000}
+            aria-label="Message" placeholder={pending ? 'Add a caption…' : 'Type a message'}
+            onChange={(event) => {
+              setBody(event.target.value);
+              event.target.style.height = 'auto';
+              event.target.style.height = `${Math.min(event.target.scrollHeight, 128)}px`;
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); }
+            }} />
+          <div className="messages-attach-control">
+            <button type="button" className="messages-icon-button" disabled={busy} aria-label="Attach a photo, video or file" aria-expanded={attachOpen}
+              onClick={() => { setAttachOpen((value) => !value); setEmojiOpen(false); }}><Paperclip size={21} /></button>
+            {attachOpen && <>
+              <button type="button" aria-label="Close attachment menu" onClick={() => setAttachOpen(false)} className="messages-menu-dismiss" />
+              <div className="messages-attachment-menu">
+                {[{ icon: ImageIcon, label: 'Photo or video', ref: imageRef }, { icon: FileText, label: 'Document or audio', ref: fileRef }].map(({ icon: Icon, label, ref }) => (
+                  <button key={label} type="button" onClick={() => { setAttachOpen(false); ref.current?.click(); }}><Icon size={19} />{label}</button>
                 ))}
               </div>
-            </>
-          )}
+            </>}
+          </div>
         </div>
-
-        <textarea
-          rows={1}
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onKeyDown={(e) => {
-            // Enter sends, Shift+Enter makes a new line — what every chat does, and what people's
-            // hands already expect.
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
-          }}
-          placeholder={pending ? 'Add a caption…' : 'Write a message…'}
-          className={INPUT + ' resize-none max-h-32 flex-1 min-w-0 py-2.5'}
-          maxLength={4000}
-        />
-
-        {/* Mic OR send, never both. There is nothing to send until there is something to send, and
-            the swap is what buys the input its width back on a narrow screen. */}
-        {canSend ? (
-          <button
-            type="submit"
-            disabled={busy}
-            aria-label="Send"
-            className="shrink-0 h-11 w-11 grid place-items-center rounded-xl bg-[#0a7d54] text-white hover:bg-[#0c9765] active:bg-[#095f41] disabled:opacity-45 transition-colors cursor-pointer"
-          >
-            {busy ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-          </button>
-        ) : (
-          <VoiceButton
-            disabled={busy || Boolean(pending)}
-            onRecorded={(file, durationMs) => setPending({ file, kind: 'voice', durationMs })}
-            onError={(err) => setLocalError(err)}
-          />
-        )}
+        {canSend ? <button type="submit" className="messages-send" disabled={busy} aria-label="Send">
+          {busy ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+        </button> : <VoiceButton disabled={busy || Boolean(pending)}
+          onRecorded={(file, durationMs) => setPending({ file, kind: 'voice', durationMs })} onError={setLocalError} />}
       </div>
+      <p className="messages-composer-hint">{busy ? 'Sending…' : 'Enter to send · Shift+Enter for a new line'}</p>
     </form>
   );
 }
@@ -848,7 +706,7 @@ function VoiceButton({ disabled, onRecorded, onError }) {
     <button
       type="button" onClick={start} disabled={disabled}
       aria-label="Record a voice note" title="Voice note"
-      className="shrink-0 h-11 w-11 grid place-items-center rounded-xl text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-850 active:bg-neutral-150 dark:active:bg-neutral-800 disabled:opacity-45 transition-colors cursor-pointer"
+      className="messages-voice"
     >
       <Mic size={20} />
     </button>
@@ -893,7 +751,7 @@ function NewConversation({ me, onClose, onOpened }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="w-full sm:max-w-md bg-white dark:bg-neutral-950 rounded-t-2xl sm:rounded-2xl border border-neutral-200 dark:border-neutral-850 p-4 space-y-3 max-h-[85vh] flex flex-col">
@@ -915,7 +773,7 @@ function NewConversation({ me, onClose, onOpened }) {
               aria-current={mode === value ? 'page' : undefined}
               className={`flex-1 text-xs font-semibold py-1.5 cursor-pointer transition-colors ${
                 mode === value
-                  ? 'bg-[#0ea971]/15 text-[#0a7d54] dark:bg-[#0a7d54] dark:text-white'
+                  ? 'bg-[#737373]/15 text-[#171717] dark:bg-[#171717] dark:text-white'
                   : 'bg-neutral-50 dark:bg-neutral-900 text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
               }`}
             >
@@ -963,7 +821,7 @@ function NewConversation({ me, onClose, onOpened }) {
                 onClick={() => choose(e.id)}
                 disabled={busy}
                 className={`w-full text-left flex items-center gap-2.5 py-2 px-1 cursor-pointer transition-colors ${
-                  on ? 'bg-[#0ea971]/10' : 'hover:bg-neutral-50 dark:hover:bg-neutral-900'
+                  on ? 'bg-[#737373]/10' : 'hover:bg-neutral-50 dark:hover:bg-neutral-900'
                 }`}
               >
                 <Avatar name={e.full_name} size="sm" />
@@ -973,7 +831,7 @@ function NewConversation({ me, onClose, onOpened }) {
                     {e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}
                   </span>
                 </span>
-                {mode === 'group' && on && <span className="text-2xs font-bold text-[#0c9765] dark:text-[#10b981]">added</span>}
+                {mode === 'group' && on && <span className="text-2xs font-bold text-[#525252] dark:text-[#d4d4d4]">added</span>}
               </button>
             );
           })}
