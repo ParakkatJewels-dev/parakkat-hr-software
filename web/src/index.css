@@ -4363,6 +4363,17 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
    46rem). Width is released here; readable measure stays the responsibility of the thing being
    read. */
 .page-shell { width: 100%; margin-inline: 0; }
+
+/* The gutter, in one place.
+   Releasing the 1600px cap above let every screen use the full width, which also put the first card
+   flush against the sidebar and the last one against the window edge. --space-shell is the app's
+   existing horizontal rhythm (10px on a small phone up to 32px on a wide monitor), so this is the
+   same breathing room the rest of the app already uses rather than a number invented here.
+   Set on .app-main rather than on .page-shell because not every screen has a .page-shell — Tasks
+   and Messages bring their own — and a gutter that only some screens have is worse than none.
+   The ≤640px rule further down already states its own `padding` shorthand, which includes this
+   value; it stays authoritative there because it also carries the mobile nav's bottom clearance. */
+.app-main { padding-inline: var(--space-shell); }
 .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
 .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) {
   display: flex;
