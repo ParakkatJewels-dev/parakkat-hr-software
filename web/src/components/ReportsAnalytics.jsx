@@ -21,6 +21,7 @@ import { useQueuedExport } from '../data/syncStatus';
 import { usePermissions } from '../auth/usePermissions';
 import { downloadCsv } from '../lib/csv';
 import { useUrlTab } from '../lib/useUrlTab';
+import Pagination, { usePagination } from './ui/Pagination';
 
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
@@ -28,11 +29,13 @@ const th = 'py-2 px-2 text-xs font-bold uppercase tracking-wider text-neutral-45
 const td = 'py-1.5 px-2 text-xs font-mono text-neutral-600 dark:text-neutral-300';
 const tdName = 'py-1.5 px-2 text-base font-bold text-neutral-800 dark:text-warm-gray-100';
 
-function ReportTable({ headers, rows, footer }) {
+function ReportTable({ headers, rows, footer, resetKey }) {
+  const pager = usePagination(rows, 25, null, resetKey);
   if (rows.length === 0) {
     return <p className="py-8 text-center text-xs text-neutral-500">No data for this period in your scope.</p>;
   }
   return (
+    <div className="space-y-3">
     <div className="table-scroll">
       <table className="premium-table w-full text-left">
         <thead>
@@ -43,7 +46,7 @@ function ReportTable({ headers, rows, footer }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, ri) => (
+          {pager.slice.map((r, ri) => (
             <tr key={ri} className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0">
               {r.map((cell, ci) => (
                 <td key={ci} data-label={headers[ci]} className={ci === 0 ? tdName : `${td} text-right`}>{cell}</td>
@@ -61,6 +64,9 @@ function ReportTable({ headers, rows, footer }) {
           </tfoot>
         )}
       </table>
+    </div>
+    {footer && pager.totalPages > 1 && <p className="text-xs text-neutral-500">Totals include all {rows.length} matching rows, not just this page.</p>}
+    <Pagination {...pager} noun="report rows" />
     </div>
   );
 }
@@ -340,6 +346,7 @@ export default function ReportsAnalytics() {
             <p className="py-8 text-center text-xs text-neutral-500">Loading…</p>
           ) : (
             <ReportTable
+              resetKey={`${period}:${branchId}:${tab}`}
               headers={['Branch', 'Staff', 'Present', 'Half', 'Absent', 'Leave', 'LOP', 'Late', 'No Punch', 'OT']}
               rows={attFiltered.map((r) => [
                 `${r.branch_code} · ${r.branch_name}`, r.employees, r.present_days, r.half_days,
@@ -395,6 +402,7 @@ export default function ReportsAnalytics() {
             </div>
           </div>
           <ReportTable
+            resetKey={`${period}:${branchId}:${tab}`}
             headers={['Leave Type', 'Requests', 'Approved Days', 'Pending Requests']}
             rows={[
               ...leaveByType.map((r) => [r.type, r.requests, r.approvedDays, r.pending]),
@@ -436,6 +444,7 @@ export default function ReportsAnalytics() {
             />
           </div>
           <ReportTable
+            resetKey={`${period}:${branchId}:${tab}`}
             headers={['Category', 'Claims', 'Approved Amount', 'Pending Amount']}
             rows={expByCategory.map((r) => [r.category, r.claims, inr(r.approved), inr(r.pending)])}
             footer={expByCategory.length > 1 ? [
@@ -467,6 +476,7 @@ export default function ReportsAnalytics() {
             />
           </div>
           <ReportTable
+            resetKey={`${period}:${branchId}:${tab}`}
             headers={['Branch', 'Active', 'Joiners This Month', 'Exits This Month']}
             rows={headByBranch.map((r) => [r.code, r.active, r.joiners, r.exits])}
             footer={headByBranch.length > 1 ? [

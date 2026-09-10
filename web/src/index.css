@@ -1,5 +1,12 @@
 @import "tailwindcss";
 
+.paged-collection { min-width: 0; container: collection / inline-size; }
+@container collection (max-width: 34rem) {
+  .pagination-shell { grid-template-columns: minmax(0, 1fr) !important; gap: .75rem !important; }
+  .pagination-pages { justify-content: flex-start !important; flex-wrap: wrap; }
+  .pagination-size { justify-content: flex-start !important; }
+}
+
 /* ============================================================================
    Parakkat HR — Design System
    Compact · Structured · Responsive. Green "TeamHub"-inspired.

@@ -8,7 +8,7 @@ export function useJobs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('jobs')
-        .select('id, title, type, location, status, openings, created_at, entity:entities(code), branch:branches(code), department:departments(name)')
+        .select('id, title, type, location, status, openings, created_at, entity_id, entity:entities(code), branch:branches(code), department:departments(name)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -22,7 +22,7 @@ export function useCandidates() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('candidates')
-        .select('id, name, email, stage, match_score, created_at, job:jobs(title)')
+        .select('id, name, email, stage, match_score, created_at, job:jobs(title, entity_id, entity:entities(code))')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data ?? [];

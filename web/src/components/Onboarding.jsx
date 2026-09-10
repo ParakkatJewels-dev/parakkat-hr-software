@@ -2,12 +2,18 @@ import React, { useMemo, useState } from 'react';
 import { UserCheck, Clock, Calendar, Loader2, AlertTriangle, CheckCircle2, Users } from 'lucide-react';
 import { useOnboarding, useUpdateOnboarding } from '../data/onboarding';
 import PageHeader from './ui/PageHeader';
+import Pagination, { usePagination } from './ui/Pagination';
+import ListSearch from './ui/ListSearch';
 
 export default function Onboarding() {
   const { data: list = [], isLoading, error } = useOnboarding();
   const update = useUpdateOnboarding();
   const [selectedId, setSelectedId] = useState(null);
-  const selected = list.find((c) => c.id === selectedId) || list[0] || null;
+  const [search, setSearch] = useState('');
+  const shown = useMemo(() => list.filter((c) =>
+    [c.name, c.job_title, c.entity?.code, c.branch?.code].join(' ').toLowerCase().includes(search.trim().toLowerCase())), [list, search]);
+  const pager = usePagination(shown, 10, null, search);
+  const selected = pager.slice.find((c) => c.id === selectedId) || pager.slice[0] || null;
   const stats = useMemo(() => {
     const complete = list.filter((c) => c.progress === 100).length;
     const avg = list.length
@@ -67,10 +73,11 @@ export default function Onboarding() {
             <div className="premium-card people-side-panel space-y-4">
               <div className="people-panel-head">
                 <span><UserCheck size={15} /> Incoming hires</span>
-                <em>{list.length} records</em>
+                <em>{shown.length} of {list.length} records</em>
               </div>
+              <ListSearch value={search} onChange={setSearch} label="Search onboarding" placeholder="Name, role, company or branch…" />
               <div className="space-y-3">
-                {list.map((c) => (
+                {pager.slice.map((c) => (
                   <button key={c.id} type="button" onClick={() => setSelectedId(c.id)} className={`onboarding-hire-card ${selected?.id === c.id ? 'is-active' : ''}`}>
                     <div className="mobile-list-row flex justify-between items-start">
                       <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200">{c.name}</h4>
@@ -85,6 +92,8 @@ export default function Onboarding() {
                   </button>
                 ))}
               </div>
+              {shown.length === 0 && <p className="text-sm text-neutral-500">No hires match your search.</p>}
+              <Pagination {...pager} noun="hires" sizes={[10, 25, 50]} disabled={update.isPending} />
             </div>
           </div>
 
@@ -104,7 +113,7 @@ export default function Onboarding() {
                   {(selected.tasks || []).map((task, idx) => {
                     const done = task.status === 'Completed';
                     return (
-                      <button key={task.id} type="button" onClick={() => toggleTask(selected, task.id)} className="onboarding-task-row">
+                      <button key={task.id} type="button" disabled={update.isPending} onClick={() => toggleTask(selected, task.id)} className="onboarding-task-row disabled:opacity-60">
                         <div className={`absolute left-[-18px] top-1.5 w-6 h-6 rounded-full border flex items-center justify-center transition-all ${done ? 'bg-brand-action border-brand text-brand-on' : 'bg-white border-neutral-300 dark:bg-neutral-950 dark:border-neutral-800 group-hover:border-black dark:group-hover:border-brand'}`}>
                           <span className="text-2xs font-bold">{done ? <CheckCircle2 size={12} /> : idx + 1}</span>
                         </div>
@@ -121,6 +130,7 @@ export default function Onboarding() {
                   <Clock size={15} className="text-neutral-600 dark:text-neutral-400 mt-0.5 shrink-0" />
                   <p>Toggle steps to mark them complete. Progress updates automatically.</p>
                 </div>
+                {update.error && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{update.error.message}</p>}
               </div>
             ) : (
               <div className="premium-card p-16 text-center text-neutral-550">Select an incoming hire.</div>

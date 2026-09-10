@@ -19,6 +19,8 @@ import Pagination, { usePagination } from './ui/Pagination';
 import { canManageUser, assignmentScope, employeeScope, hasAssignment } from '../lib/adminUsers';
 import { RESET_REQUEST_MESSAGE } from '../lib/passwordRecovery';
 import { MIN_LENGTH } from '../lib/passwordRules';
+import UsersDirectory from './UsersDirectory';
+import { paginationWindow } from '../lib/pagination';
 
 const BTN = btnClass('primary');
 const BTN_GHOST = btnClass('ghost');
@@ -161,8 +163,6 @@ function UsersAccess() {
   // "What can this person actually reach?" — the question this screen could not answer, because it
   // is organised by role and the question is about a person. See UserAccessPanel.
   const [inspecting, setInspecting] = useState(null);
-  // 500+ staff means 500+ logins. This list had no way to find one.
-  const [q, setQ] = useState('');
 
   const entities = org?.entities ?? [];
   const ecode = (id) => entities.find((e) => e.id === id)?.code ?? '?';
@@ -181,20 +181,6 @@ function UsersAccess() {
       setAssignFor(null);
     } catch { /* surfaced inside the dropdown */ }
   };
-
-  const shown = useMemo(() => {
-    const t = q.trim().toLowerCase();
-    if (!t) return users;
-    return users.filter((u) =>
-      [u.employee_name, u.email, u.employee_code, ...(u.roles ?? []).map((r) => r.role_key)]
-        .filter(Boolean).some((v) => String(v).toLowerCase().includes(t))
-    );
-  }, [users, q]);
-
-  // One login per person eventually — 242 rows.
-  const pager = usePagination(shown);
-  const { setPage } = pager;
-  useEffect(() => { setPage(1); }, [q, setPage]);
 
   const scopeLabel = (t, id) => {
     if (t === 'global') return 'Global';
@@ -235,37 +221,6 @@ function UsersAccess() {
 
   return (
     <div className="space-y-4">
-      {/* One primary action, one escape hatch. The long explanation that used to live here was
-          mostly restating what the button does; the part that isn't obvious — that the area a
-          person manages comes from their employee record — is kept. */}
-      <div className="premium-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-start gap-2 text-sm text-neutral-500 dark:text-neutral-400">
-          <KeyRound size={14} className="shrink-0 mt-0.5 text-brand-ink" />
-          <span>
-            Creates a login and grants the role in one step. The area they manage — branch, department,
-            zone or company — comes from their employee record.
-          </span>
-        </div>
-        <div className="flex flex-col items-start sm:items-end gap-1.5 shrink-0">
-          <button onClick={() => setShowGrant(true)} className={BTN}>
-            <UserPlus size={12} /> Give app access
-          </button>
-          {/* admin_create_user opens with `if not app.is_super_admin() then raise`, and there is no
-              scope to check a login with no employee behind it against. For a delegated admin this
-              was a form that filled in, submitted, and came back "only a super admin may create
-              users" — the work was already done by then. */}
-          {isSuperAdmin && (
-            <button
-              onClick={() => setShowInvite(true)}
-              className="text-xs font-semibold text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 cursor-pointer"
-              title="For system accounts that do not belong to an employee"
-            >
-              Login without an employee
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Inline section — appears above the user list rather than as an overlay. */}
       {showGrant && <GrantAccessPanel onClose={() => setShowGrant(false)} />}
       {grantForUser && (
@@ -281,31 +236,13 @@ function UsersAccess() {
       {employeesError && <ErrorLine msg={`Could not load employee links: ${employeesError.message}`} />}
       {resetNotice && <p role="status" className="rounded-xl bg-brand/10 px-4 py-3 text-sm text-brand-ink">{resetNotice}</p>}
 
-      {users.length > 8 && (
-        <div className="mobile-toolbar flex items-center gap-3">
-          <div className="relative flex-1 min-w-0">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              aria-label="Search logins"
-              placeholder="Search by name, email, employee code or role…"
-              className="w-full text-base rounded-xl pl-9 pr-9 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors"
-            />
-            {q && (
-              <button onClick={() => setQ('')} aria-label="Clear search"
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer">
-                <X size={13} />
-              </button>
-            )}
-          </div>
-          <span className="text-xs text-neutral-450 tabular-nums shrink-0">
-            {shown.length === users.length ? `${users.length} logins` : `${shown.length} of ${users.length}`}
-          </span>
-        </div>
-      )}
-
-      {pager.slice.map((u) => {
+      <UsersDirectory users={users} employees={employees} org={orgList} roles={roles}
+        busy={assign.isPending || revoke.isPending || link.isPending || setSuper.isPending || deleteLogin.isPending || resetPassword.isPending}
+        actions={<>
+          {isSuperAdmin && <button onClick={() => setShowInvite(true)} className={BTN_GHOST} title="Create a standalone login"><Plus size={13} /> Create login</button>}
+          <button onClick={() => setShowGrant(true)} className={BTN}><UserPlus size={14} /> Give app access</button>
+        </>}>
+      {(u) => {
         const displayName = u.employee_name || u.email;
         const initials = (displayName || '?')
           .split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -323,7 +260,7 @@ function UsersAccess() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h3 className="text-lg font-bold text-neutral-900 dark:text-white truncate">
-                    {displayName}
+                    Roles & account controls
                   </h3>
                   {u.is_super_admin && (
                     <span className="text-2xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-brand/15 text-brand-ink dark:text-brand-ink">
@@ -477,20 +414,8 @@ function UsersAccess() {
             </div>
           </article>
         );
-      })}
-      <Pagination {...pager} noun="logins" />
-
-      {users.length > 0 && shown.length === 0 && (
-        <div className="premium-card p-8 text-center text-sm text-neutral-500">
-          No login matches “{q}”.
-        </div>
-      )}
-
-      {users.length === 0 && (
-        <div className="premium-card p-8 text-center text-xs text-neutral-500">
-          No logins yet. Use <b>Give app access</b> above to create the first one for an employee.
-        </div>
-      )}
+      }}
+      </UsersDirectory>
 
       {inspecting && (
         <UserAccessPanel
@@ -609,9 +534,9 @@ function CreateUserPanel({ employees, busy, error, result, onClose, onSubmit }) 
     const s = q.toLowerCase();
     if (!s) return [];
     return employees
-      .filter((e) => (e.full_name || '').toLowerCase().includes(s) || (e.employee_code || '').toLowerCase().includes(s))
-      .slice(0, 8);
+      .filter((e) => (e.full_name || '').toLowerCase().includes(s) || (e.employee_code || '').toLowerCase().includes(s));
   }, [employees, q]);
+  const pager = usePagination(results, 8, null, q);
   const chosen = employees.find((e) => e.id === employeeId);
 
   // Once the login is created, show the outcome and the exact credentials to hand over.
@@ -669,7 +594,7 @@ function CreateUserPanel({ employees, busy, error, result, onClose, onSubmit }) 
               <input className={INPUT} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or code…" />
               {results.length > 0 && (
                 <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-                  {results.map((e) => (
+                  {pager.slice.map((e) => (
                     <button key={e.id} type="button" onClick={() => setEmployeeId(e.id)}
                       className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer">
                       <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
@@ -678,6 +603,7 @@ function CreateUserPanel({ employees, busy, error, result, onClose, onSubmit }) 
                   ))}
                 </div>
               )}
+              <div className="paged-collection"><Pagination {...pager} noun="matching employees" sizes={[8, 25, 50]} disabled={busy} /></div>
             </>
           )}
         </Field>
@@ -962,9 +888,9 @@ function LinkEmployeePanel({ user, employees, busy, error, onClose, onSubmit }) 
     const s = q.toLowerCase();
     return employees
       .filter((e) => !e.user_id || e.user_id === user.user_id)
-      .filter((e) => !s || (e.full_name || '').toLowerCase().includes(s) || (e.employee_code || '').toLowerCase().includes(s))
-      .slice(0, 25);
+      .filter((e) => !s || (e.full_name || '').toLowerCase().includes(s) || (e.employee_code || '').toLowerCase().includes(s));
   }, [employees, q, user.user_id]);
+  const pager = usePagination(results, 10, null, q);
 
   return (
     <Panel title={`Link employee — ${user.email}`} onClose={onClose}>
@@ -974,7 +900,7 @@ function LinkEmployeePanel({ user, employees, busy, error, onClose, onSubmit }) 
         </p>
         <input autoFocus className={INPUT} placeholder="Search employee by name or code…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="max-h-64 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-          {results.map((e) => (
+          {pager.slice.map((e) => (
             <button
               key={e.id}
               onClick={() => onSubmit(e.id)}
@@ -987,6 +913,7 @@ function LinkEmployeePanel({ user, employees, busy, error, onClose, onSubmit }) 
           ))}
           {results.length === 0 && <p className="px-3 py-4 text-xs text-neutral-400 text-center">No matches.</p>}
         </div>
+        <div className="paged-collection"><Pagination {...pager} noun="matching employees" sizes={[10, 25, 50]} disabled={busy} /></div>
         {user.employee_id && (
           <button onClick={() => onSubmit(null)} disabled={busy} className="text-xs text-red-500 hover:underline cursor-pointer">
             Unlink current employee
@@ -1328,37 +1255,19 @@ const AUDIT_TONES = {
 const prettyTable = (t) => (t || 'record').replace(/_/g, ' ');
 
 function AuditLogs() {
-  const { data: logs = [], isLoading, error } = useAuditLog();
   const [q, setQ] = useState('');
-
-  const shown = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return logs;
-    return logs.filter((l) =>
-      `${l.actor_email ?? ''} ${l.action ?? ''} ${l.table_name ?? ''}`.toLowerCase().includes(s)
-    );
-  }, [logs, q]);
-
-  if (isLoading) {
-    return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
-  }
-  if (error) {
-    return (
-      <div className="premium-card flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
-        <AlertTriangle size={15} className="shrink-0 mt-0.5" />
-        <span>{error.message}. If it mentions <code>audit_log</code>, run migration <code>0011_audit.sql</code>.</span>
-      </div>
-    );
-  }
-  if (logs.length === 0) {
-    return (
-      <div className="premium-card p-8 text-center">
-        <Clipboard size={20} className="mx-auto text-neutral-300 dark:text-neutral-700" />
-        <p className="text-base text-neutral-500 mt-2">No audit entries visible to you yet.</p>
-        <p className="text-xs text-neutral-400 mt-1">Privileged actions are recorded here as they happen.</p>
-      </div>
-    );
-  }
+  const [options, setOptions] = useState({ page: 1, pageSize: 25, search: '' });
+  const { data, isLoading, isFetching, error } = useAuditLog(options);
+  const shown = data?.rows ?? [];
+  const pager = paginationWindow(data?.count ?? 0, options.page, options.pageSize);
+  useEffect(() => {
+    const timer = setTimeout(() => setOptions((old) => old.search === q.trim()
+      ? old : { ...old, page: 1, search: q.trim() }), 250);
+    return () => clearTimeout(timer);
+  }, [q]);
+  useEffect(() => {
+    if (data && !isFetching && options.page !== pager.page) setOptions((old) => ({ ...old, page: pager.page }));
+  }, [data, isFetching, options.page, pager.page]);
 
   return (
     <div className="space-y-3">
@@ -1371,13 +1280,15 @@ function AuditLogs() {
           aria-label="Filter the audit log"
         />
         <span className="text-xs text-neutral-400 tabular-nums shrink-0">
-          {shown.length === logs.length ? `${logs.length} entries` : `${shown.length} of ${logs.length}`}
+          {isFetching ? 'Loading…' : `${pager.count.toLocaleString()} matching entries`}
         </span>
       </div>
+      <p className="text-xs text-neutral-500">Search all audit entries visible to you, including older history.</p>
+      {error && <div role="alert"><ErrorLine msg={error.message} /></div>}
 
       <div className="premium-card px-4">
-        {shown.length === 0 ? (
-          <p className="text-base text-neutral-500 py-10 text-center">Nothing matches “{q}”.</p>
+        {isLoading ? <div role="status" className="flex justify-center gap-2 py-10 text-brand-ink"><Loader2 size={20} className="animate-spin" /> Loading audit entries…</div> : shown.length === 0 ? (
+          <p className="text-base text-neutral-500 py-10 text-center">{options.search ? `Nothing matches “${options.search}”.` : 'No audit entries visible to you yet.'}</p>
         ) : (
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-850/60">
             {shown.map((log) => {
@@ -1412,6 +1323,9 @@ function AuditLogs() {
           </ul>
         )}
       </div>
+      <Pagination {...pager} noun="audit entries" sizes={[25, 50, 100]} keepVisible disabled={isFetching || q.trim() !== options.search}
+        setPage={(next) => setOptions((old) => ({ ...old, page: typeof next === 'function' ? next(old.page) : next }))}
+        setPageSize={(pageSize) => setOptions((old) => ({ ...old, page: 1, pageSize }))} />
     </div>
   );
 }

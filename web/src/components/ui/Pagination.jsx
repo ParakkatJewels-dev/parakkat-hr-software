@@ -5,13 +5,12 @@
 // in this app outgrows a single page, and each one solving it differently is how a UI ends up
 // feeling like several products.
 //
-// Client-side by design, for now. Everything here already fetches its full (RLS-scoped) set, so
-// slicing in the browser is honest at this size. Past a few thousand rows the right answer is
-// range queries in Postgres — at which point `usePagination` is the seam to change.
-import React, { useState, useMemo, useEffect } from 'react';
+// usePagination slices an already-filtered collection. The control also accepts server-side
+// counts and page callbacks (for example the audit log) without loading the whole history.
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { pageContaining } from '../../lib/focusRow';
-import { shouldShowPager, pageSizeOptions, pageWindow } from '../../lib/pagination';
+import { shouldShowPager, pageSizeOptions, pageWindow, paginationWindow } from '../../lib/pagination';
 
 /**
  * @param items      the full, already-filtered array
@@ -19,12 +18,26 @@ import { shouldShowPager, pageSizeOptions, pageWindow } from '../../lib/paginati
  * @param focusId    a row to page to, when a notification deep-linked to it (see focusRow.js)
  * @returns { slice, page, setPage, totalPages, pageSize, setPageSize, count, from, to }
  */
-export function usePagination(items, initialSize = 25, focusId = null) {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(initialSize);
+export function usePagination(items, initialSize = 25, focusId = null, resetKey = '') {
+  const [position, setPosition] = useState({ key: resetKey, page: 1 });
+  const [size, setSize] = useState(initialSize);
+  const window = paginationWindow(items.length, position.key === resetKey ? position.page : 1, size);
+  const { page, pageSize, count } = window;
+  const setPage = useCallback((next) => {
+    setPosition((prev) => {
+      const current = paginationWindow(count, prev.key === resetKey ? prev.page : 1, size).page;
+      const value = paginationWindow(count, typeof next === 'function' ? next(current) : next, size).page;
+      return prev.key === resetKey && prev.page === value ? prev : { key: resetKey, page: value };
+    });
+  }, [count, size, resetKey]);
+  const setPageSize = useCallback((next) => {
+    setSize((prev) => paginationWindow(0, 1, typeof next === 'function' ? next(prev) : next).pageSize);
+    setPosition({ key: resetKey, page: 1 });
+  }, [resetKey]);
 
-  const count = items.length;
-  const totalPages = Math.max(1, Math.ceil(count / pageSize));
+  useEffect(() => {
+    if (position.key !== resetKey || position.page !== page) setPosition({ key: resetKey, page });
+  }, [position, resetKey, page]);
 
   // Sent here by a notification: land on the page that actually holds the row. Without this the
   // app navigates you to a list, scrolls to a row that is not rendered, and does nothing visible —
@@ -32,23 +45,17 @@ export function usePagination(items, initialSize = 25, focusId = null) {
   useEffect(() => {
     const target = pageContaining(items, focusId, pageSize);
     if (target) setPage(target);
-  }, [focusId, items, pageSize]);
+  }, [focusId, items, pageSize, setPage]);
 
   // Filtering down to fewer pages while sitting on page 9 leaves you staring at an empty table.
   // Clamping rather than resetting to 1 keeps your place when the list only shifts slightly.
-  useEffect(() => {
-    setPage((p) => Math.min(p, Math.max(1, Math.ceil(count / pageSize))));
-  }, [count, pageSize]);
-
   const slice = useMemo(
     () => items.slice((page - 1) * pageSize, page * pageSize),
     [items, page, pageSize]
   );
 
   return {
-    slice, page, setPage, totalPages, pageSize, setPageSize, count,
-    from: count === 0 ? 0 : (page - 1) * pageSize + 1,
-    to: Math.min(page * pageSize, count),
+    ...window, slice, setPage, setPageSize, initialPageSize: initialSize,
   };
 }
 
@@ -56,23 +63,21 @@ export function usePagination(items, initialSize = 25, focusId = null) {
  * Renders nothing when everything fits on one page — a pager under a five-row list is noise.
  * `noun` is used in the summary, e.g. "1–25 of 242 people".
  *
- * The "fits on one page" test is against `pageSize`, NOT the smallest offered size. Those were the
- * same number while every caller used the default 25, and stopped being the same the moment a
- * caller asked for ten to a page: the pager hid itself for any count up to 25, so a fifteen-row
- * list showed ten rows, no control, and no way to reach the other five. A list that silently ends
- * early is worse than one with no paging at all.
+ * Keep the control when a smaller offered size is available, so increasing the size never
+ * removes the user's way back. Always offer the caller's initial and currently selected sizes.
  */
 export default function Pagination({
   page, setPage, totalPages, pageSize, setPageSize, count, from, to,
   noun = 'rows', sizes = [25, 50, 100, 200], className = '', keepVisible = false,
+  initialPageSize, disabled = false,
 }) {
   // Task lists keep the size selector available, including after choosing a larger page size.
-  if (!keepVisible && !shouldShowPager(count, pageSize)) return null;
+  const options = pageSizeOptions(pageSize, [...sizes, initialPageSize]);
+  if (!keepVisible && !shouldShowPager(count, Math.min(...options))) return null;
 
   // The select shows the size actually in use. Without this a caller starting at 8 rendered a
   // dropdown whose value matched no option, which browsers draw as the first one — a control
   // saying 25 over a list of 8.
-  const options = pageSizeOptions(pageSize, sizes);
 
   return (
     <nav className={`premium-card pagination-shell ${className}`} aria-label={`${noun} pagination`}>
@@ -87,7 +92,7 @@ export default function Pagination({
       <div className="pagination-pages" aria-label="Pages">
         <button
           onClick={() => setPage((p) => Math.max(1, p - 1))}
-          disabled={page === 1}
+          disabled={disabled || page === 1}
           aria-label="Previous page"
           className="pagination-nav-button"
         >
@@ -101,6 +106,7 @@ export default function Pagination({
             <button
               key={n}
               onClick={() => setPage(n)}
+              disabled={disabled}
               aria-label={`Page ${n}`}
               aria-current={n === page ? 'page' : undefined}
               className="pagination-number"
@@ -112,7 +118,7 @@ export default function Pagination({
 
         <button
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          disabled={page === totalPages}
+          disabled={disabled || page === totalPages}
           aria-label="Next page"
           className="pagination-nav-button"
         >
@@ -124,6 +130,7 @@ export default function Pagination({
         <span>Per page</span>
         <select
           value={pageSize}
+          disabled={disabled}
           onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
           aria-label="Rows per page"
         >

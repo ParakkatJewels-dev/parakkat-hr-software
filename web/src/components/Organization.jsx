@@ -10,6 +10,7 @@ import { btnClass } from './ui/Btn';
 import { usePermissions } from '../auth/usePermissions';
 import { useEmployees } from '../data/employees';
 import PageHeader from './ui/PageHeader';
+import Pagination, { usePagination } from './ui/Pagination';
 
 // The parts of a company, in the order you actually set them up. All four are optional — only the
 // company itself is required (employees.entity_id is NOT NULL) — so each says what it is for and
@@ -395,7 +396,7 @@ export default function Organization() {
             <div className="min-w-0">
               {SECTIONS.filter((s) => s.key === activePart).map((s) => (
                 <StructureSection
-                  key={s.key}
+                  key={`${activeEntityId}:${s.key}`}
                   section={s}
                   rows={listsByKey[s.key]}
                   columns={COLUMNS[s.key]}
@@ -708,6 +709,7 @@ function StructureSection({ section, rows, columns, canEditRow, canAdd, fields, 
       .sort((a, b) => (a.is_active === false) - (b.is_active === false)
         || labelOf(a).localeCompare(labelOf(b)));
   }, [visible, q]);
+  const pager = usePagination(sorted, 25, null, `${section.key}:${q}:${showInactive}`);
 
   const save = async (form) => {
     await onSave(editing === 'new' ? 'insert' : 'update', form);
@@ -816,7 +818,7 @@ function StructureSection({ section, rows, columns, canEditRow, canAdd, fields, 
                   submitLabel={`Add ${section.singular}`}
                 />
               )}
-              {sorted.map((r) => (
+              {pager.slice.map((r) => (
                 editing === r.id ? (
                   <InlineRowForm
                     key={r.id}
@@ -884,6 +886,7 @@ function StructureSection({ section, rows, columns, canEditRow, canAdd, fields, 
           </table>
         </div>
       )}
+      <Pagination {...pager} noun={section.label.toLowerCase()} disabled={busy || Boolean(editing)} />
     </section>
   );
 }

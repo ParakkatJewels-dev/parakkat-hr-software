@@ -35,7 +35,7 @@ export const ESS_NAV = [
       { id: 'tasks', label: 'My Tasks', perm: 'task.read' },
       // No permission: everybody can talk to everybody. A directory that will not let one branch
       // message another is a directory people work around rather than use (0115).
-      { id: 'messages', label: 'Messages', perm: null },
+      { id: 'messages', label: 'Messages', perm: null, needsEmployee: true },
       { id: 'attendance', label: 'My Attendance', perm: 'attendance.read' },
       { id: 'performance', label: 'My Goals', perm: 'goal.read' },
     ],
@@ -103,7 +103,7 @@ export const OVERSIGHT_NAV = [
   {
     id: 'messages',
     label: 'Messages',
-    tabs: [{ id: 'messages', label: 'Messages', perm: null }],
+    tabs: [{ id: 'messages', label: 'Messages', perm: null, needsEmployee: true }],
   },
   {
     id: 'people',
@@ -160,6 +160,11 @@ export const OVERSIGHT_NAV = [
       // entity_admin and super_admin hold. Gating on rbac.manage handed the tab to four more
       // roles, all of whom then saw a permanently empty screen.
       { id: 'admin-audit', label: 'Audit Log', perm: 'audit.read' },
+      // superOnly, not a permission: reading other people's conversations is the one power that
+      // belongs to the account that owns the system and to nobody it can delegate to. Gating it on
+      // rbac.manage would hand it to every entity admin, and app.can_read_conversation would then
+      // return nothing for them — a tab that opens onto a permanently empty screen.
+      { id: 'admin-chats', label: 'Chat Monitor', perm: null, superOnly: true },
     ],
   },
 ];
@@ -176,10 +181,26 @@ export const OVERSIGHT_NAV = [
  * untouched and the database will serve the data to anything that asks. It is "not part of your
  * job", not "you may not have this".
  */
-export function canSeeTab(tab, { canAny, canBeyondSelf, hidden }) {
+export function canSeeTab(tab, { canAny, canBeyondSelf, hidden, isSuperAdmin = false, hasEmployee = true }) {
   // Accepts a Set (what predicatesFor builds) or a plain array (what a caller may hand over).
   const isHidden = hidden instanceof Set ? hidden.has(tab.id) : (hidden ?? []).includes(tab.id);
   if (isHidden) return false;
+  /*
+   * Some screens are about being a member of staff, not about holding a permission.
+   *
+   * Messaging is the one so far: a conversation's members are EMPLOYEES, so a login with no
+   * employee record has nobody to send as and no inbox to fill. That is a legitimate account —
+   * the super admin is deliberately a system login rather than a person — and offering it a
+   * screen whose only possible content is an explanation of why it is empty is worse than not
+   * offering it. A super admin reads conversations through the Chat Monitor instead.
+   *
+   * Defaults to true so every existing caller and every tab without the flag is unaffected.
+   */
+  if (tab.needsEmployee && !hasEmployee) return false;
+  // Checked before the permission arms, and it both grants and REFUSES: a superOnly tab is closed
+  // to everybody else however many permissions they hold, including a permissionless one that
+  // `!tab.perm` would otherwise wave through.
+  if (tab.superOnly) return Boolean(isSuperAdmin);
   if (!tab.perm) return true;
   return tab.scoped ? canBeyondSelf(tab.perm) : canAny(tab.perm);
 }
@@ -278,12 +299,14 @@ export function allScreenIds() {
  * match usePermissions' canAny / canBeyondSelf exactly, so the inspector and the sidebar cannot
  * disagree about what a permission set means.
  */
-export function predicatesFor(permissions, { isSuperAdmin = false, hiddenScreens = [] } = {}) {
+export function predicatesFor(permissions, { isSuperAdmin = false, hiddenScreens = [], hasEmployee = true } = {}) {
   const list = permissions ?? [];
   // A super admin is never narrowed — matching 0109's trigger and its get_my_access branch. The
   // account that can undo an override must not be the one locked out by it.
   const hidden = new Set(isSuperAdmin ? [] : hiddenScreens ?? []);
   return {
+    isSuperAdmin,
+    hasEmployee,
     canAny: (perm) => isSuperAdmin || list.some((p) => p.permission === perm),
     canBeyondSelf: (perm) =>
       isSuperAdmin || list.some((p) => p.permission === perm && p.scope_type !== 'self'),

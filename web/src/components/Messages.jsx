@@ -13,7 +13,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye,
+  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
@@ -63,7 +63,7 @@ function dayLabel(day) {
 }
 
 export default function Messages() {
-  const { employee } = useAuth();
+  const { employee, isSuperAdmin } = useAuth();
   const me = employee?.id ?? null;
   const { data, isLoading, error } = useConversations();
   const conversations = useMemo(() => sortConversations(data?.conversations ?? []), [data]);
@@ -88,28 +88,30 @@ export default function Messages() {
   );
 
   /*
-   * An account that is not a person cannot be in a conversation.
+   * A login that is not a person.
    *
-   * conversation_members.employee_id is NOT NULL and points at the employees table, so membership
-   * is defined in terms of employees and a login with no employee record — a system or setup
-   * account, typically the super admin — has nothing to be a member AS. Every write then fails on
-   * `created_by = app.current_employee_id()`, which is NULL, and RLS reports it the only way it
-   * can: "you don't have permission".
+   * Reachable only by URL now — navMap drops the Messages entry for an account with no employee
+   * record (needsEmployee) — but a bookmark or an old link still lands here, so it should say
+   * something useful rather than nothing.
    *
-   * That message is true and useless. It sends somebody looking for a broken policy when the real
-   * answer is that this account is not a member of staff. Said plainly, up front, before they try.
+   * It used to advise linking the account to an employee. For the super admin that is the wrong
+   * advice: being a system login rather than a member of staff is the point of it, and taking that
+   * advice would put the owner's name in every colleague's people-picker. So the super admin is
+   * pointed at the Chat Monitor, which is the screen that actually does what they came here for.
    */
   if (!me) {
     return (
       <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
         <MessageSquare size={28} className="text-brand-ink mb-3" />
         <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">
-          This account cannot send messages
+          This login has no inbox
         </h2>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-md">
-          Messages go between employees, and this login is not linked to an employee record — so
-          there is nobody for it to send as. Sign in with your staff account to use messaging, or
-          link this login to an employee in Administration → Users &amp; Access.
+          Conversations happen between employees, and this account is not one — which is correct for
+          an administrator login.
+          {isSuperAdmin
+            ? ' To read the company\u2019s conversations, use Administration \u2192 Chat Monitor.'
+            : ' Sign in with your staff account to use messaging.'}
         </p>
       </div>
     );
@@ -238,15 +240,6 @@ function ConversationRow({ conversation, me, active, onOpen }) {
           <span className="conversation-row-name">
             {name}
           </span>
-          {/* A super admin sees every conversation in the company here (0119). Without a mark, a
-              colleague's private chat is indistinguishable from your own, which is how somebody
-              ends up reading one they meant to skip — and how they end up typing into one they
-              cannot post in. */}
-          {conversation.is_member === false && (
-            <span className="conversation-row-watching" title="You are not in this conversation">
-              <Eye size={11} aria-hidden="true" /> Monitoring
-            </span>
-          )}
           <span className="conversation-row-time">
             {conversation.last_message_at ? relativeTime(conversation.last_message_at) : ''}
           </span>
@@ -349,18 +342,8 @@ function Thread({ conversation, me, onBack }) {
         </div>
         {awayFromBottom && <button type="button" className="messages-jump-latest" onClick={jumpToLatest} aria-label="Jump to latest messages"><ArrowDown size={20} /></button>}
       </div>
-      {/* Reading somebody's conversation is oversight; writing in it under their colleague's nose
-          is a different thing, and messages_insert refuses it. Offering a composer that the
-          database will reject is worse than not offering one — so this says why instead. */}
-      {conversation.is_member === false ? (
-        <p className="messages-chat-notice messages-chat-watching" role="status">
-          <Eye size={16} aria-hidden="true" />
-          You are monitoring this conversation. Only the people in it can reply.
-        </p>
-      ) : (
-        <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
-          onSent={() => { setReplyId(null); jumpToLatest(); }} />
-      )}
+      <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
+        onSent={() => { setReplyId(null); jumpToLatest(); }} />
     </div>
   );
 }

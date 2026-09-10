@@ -1,0 +1,253 @@
+/* Three columns on a desktop; one at a time on a phone.
+   The drill-down is the same on both — people, then conversations, then messages — so the phone
+   shows whichever step you are on rather than three unusable 110px columns side by side. */
+.chat-monitor {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+}
+.chat-monitor-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 0;
+  min-height: 0;
+  height: calc(100dvh - 17rem);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-card);
+  background: var(--surface-elevated);
+  overflow: hidden;
+}
+.chat-monitor-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.chat-monitor-column + .chat-monitor-column { border-left: 1px solid var(--surface-border); }
+
+.chat-monitor-column > header {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .75rem .9rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+.chat-monitor-column > header h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .8125rem !important;
+  font-weight: 700;
+  color: var(--surface-text);
+}
+.chat-monitor-column > header > span {
+  flex-shrink: 0;
+  font-family: ui-monospace, monospace;
+  font-size: .6875rem;
+  color: var(--surface-text-soft);
+}
+.chat-monitor-readonly {
+  padding: .1rem .45rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+}
+
+.chat-monitor-search {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin: .6rem .9rem;
+  padding: 0 .6rem;
+  min-height: 38px;
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken, rgba(0, 0, 0, .04));
+  color: var(--surface-text-soft);
+}
+.chat-monitor-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--surface-text);
+  font-size: .75rem;
+  outline: none;
+}
+
+.chat-monitor-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.chat-monitor-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  width: 100%;
+  /* 48px, so a row is a real target on a phone rather than a line of text to poke at. */
+  min-height: 48px;
+  padding: .5rem .9rem;
+  border: 0;
+  border-bottom: 1px solid var(--surface-border);
+  background: transparent;
+  color: var(--surface-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color .15s ease;
+}
+.chat-monitor-row:hover { background: var(--surface-hover, rgba(0, 0, 0, .04)); }
+.chat-monitor-row:active { background: var(--surface-active, rgba(0, 0, 0, .07)); }
+.chat-monitor-row[aria-current="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.chat-monitor-row > span { flex: 1; min-width: 0; }
+.chat-monitor-row strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: .8125rem;
+  font-weight: 600;
+}
+.chat-monitor-row small {
+  display: block;
+  margin-top: .1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, monospace;
+  font-size: .6875rem;
+  color: var(--surface-text-soft);
+}
+.chat-monitor-row > svg { flex-shrink: 0; color: var(--surface-text-soft); }
+.chat-monitor-groupicon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-sunken, rgba(0, 0, 0, .06));
+  color: var(--surface-text-soft);
+}
+
+.chat-monitor-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  font-size: .75rem;
+  color: var(--surface-text-soft);
+}
+.chat-monitor-error { color: #e11d48; }
+
+/* ---- the thread ---------------------------------------------------------- */
+
+.chat-monitor-history { padding: .75rem; }
+.chat-monitor-day { display: flex; justify-content: center; margin: .5rem 0 .9rem; }
+.chat-monitor-day span {
+  padding: .2rem .55rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: var(--surface-elevated);
+  font-size: .6875rem;
+  color: var(--surface-text-soft);
+}
+.chat-monitor-message { display: flex; margin-bottom: .5rem; }
+/* The SELECTED person sits right, everybody else left — the thread reads as their side against the
+   other, rather than being centred on an administrator who is in none of it. */
+.chat-monitor-message[data-side="subject"] { justify-content: flex-end; }
+.chat-monitor-bubble {
+  position: relative;
+  min-width: 0;
+  max-width: min(86%, 460px);
+  padding: .45rem .6rem .3rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface-elevated);
+}
+.chat-monitor-message[data-side="subject"] .chat-monitor-bubble {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-elevated));
+}
+.chat-monitor-sender {
+  margin: 0 0 .15rem;
+  font-size: .6875rem;
+  font-weight: 700;
+  color: var(--surface-text-soft);
+}
+.chat-monitor-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: .8125rem;
+  line-height: 1.55;
+  color: var(--surface-text);
+}
+.chat-monitor-deleted {
+  margin: 0;
+  font-size: .75rem;
+  font-style: italic;
+  color: var(--surface-text-soft);
+}
+.chat-monitor-time {
+  display: block;
+  margin-top: .15rem;
+  text-align: right;
+  font-family: ui-monospace, monospace;
+  font-size: .625rem;
+  color: var(--surface-text-soft);
+}
+.chat-monitor-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  margin-bottom: .2rem;
+  font-size: .75rem;
+  color: var(--surface-text-soft);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-monitor-photo { display: block; margin-bottom: .25rem; }
+.chat-monitor-photo img {
+  max-height: 200px;
+  width: auto;
+  border-radius: var(--radius-sm, 10px);
+}
+
+.chat-monitor-back { display: none; }
+
+/* ---- one column at a time on a phone ------------------------------------- */
+@media (max-width: 900px) {
+  .chat-monitor-columns {
+    grid-template-columns: minmax(0, 1fr);
+    height: calc(100dvh - 15rem);
+  }
+  .chat-monitor-column + .chat-monitor-column { border-left: 0; }
+  /* `data-step` on the grid says which of the three the person is on, so exactly one shows and the
+     back arrows walk the drill-down in reverse. */
+  .chat-monitor-columns[data-step="people"] .chat-monitor-conversations,
+  .chat-monitor-columns[data-step="people"] .chat-monitor-thread,
+  .chat-monitor-columns[data-step="conversations"] .chat-monitor-people,
+  .chat-monitor-columns[data-step="conversations"] .chat-monitor-thread,
+  .chat-monitor-columns[data-step="thread"] .chat-monitor-people,
+  .chat-monitor-columns[data-step="thread"] .chat-monitor-conversations { display: none; }
+  .chat-monitor-back {
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    margin-left: -.35rem;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--surface-text-soft);
+    cursor: pointer;
+  }
+  .chat-monitor-back:hover { background: var(--surface-hover, rgba(0, 0, 0, .05)); }
+}

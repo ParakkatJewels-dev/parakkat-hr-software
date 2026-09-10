@@ -314,3 +314,78 @@ test('an employee section carries the drawer heading it belongs under', () => {
   assert.equal(sections.find((s) => s.id === 'tasks').group, 'Work');
   assert.equal(sections.find((s) => s.id === 'payroll').group, 'Me');
 });
+
+// ---- the one tab a permission cannot buy ------------------------------------------------------
+
+test('Chat Monitor is closed to every role, however senior', () => {
+  // Reading colleagues' conversations is not delegable. entity_admin holds rbac.manage and audit
+  // .read and every other key in the building; it still must not open this.
+  for (const role of ['entity_admin', 'hr_manager', 'zonal_manager', 'branch_manager', 'dept_head', 'employee']) {
+    const screens = screensFor(role);
+    assert.ok(!screens.includes('admin-chats'), `${role} must not reach the chat monitor`);
+  }
+});
+
+test('a super admin does reach it', () => {
+  const god = predicatesFor([], { isSuperAdmin: true });
+  const screens = visibleSections('entity_admin', god).flatMap((s) => s.tabs.map((t) => t.id));
+  assert.ok(screens.includes('admin-chats'));
+});
+
+test('superOnly refuses even a tab that needs no permission', () => {
+  // `perm: null` means "everybody" for an ordinary tab, so the superOnly arm has to be checked
+  // first or this one would be open to the whole company.
+  const tab = { id: 'admin-chats', perm: null, superOnly: true };
+  assert.equal(canSeeTab(tab, predicatesFor([])), false);
+  assert.equal(canSeeTab(tab, predicatesFor([], { isSuperAdmin: true })), true);
+  // And a caller passing bare predicates, with no isSuperAdmin key at all, is refused rather than
+  // accidentally granted by `undefined`.
+  assert.equal(canSeeTab(tab, { canAny: () => true, canBeyondSelf: () => true }), false);
+});
+
+test('the route guard refuses it too, not just the menu', () => {
+  const tab = OVERSIGHT_NAV.find((s) => s.id === 'admin').tabs.find((t) => t.id === 'admin-chats');
+  assert.equal(canSeeTab(tab, predicatesFor(permsFor('entity_admin'))), false, 'typing the URL must not work');
+});
+
+test('predicatesFor reports whether this is a super admin', () => {
+  assert.equal(predicatesFor([]).isSuperAdmin, false);
+  assert.equal(predicatesFor([], { isSuperAdmin: true }).isSuperAdmin, true);
+});
+
+// ---- a login that is not a person -------------------------------------------------------------
+//
+// The super admin is deliberately a system account with no employee record. Messaging is between
+// employees, so there is nothing for it to send as — and a nav entry whose only content is an
+// explanation of why it is empty is worse than no nav entry.
+
+test('an account with no employee record is not offered Messages', () => {
+  const systemAccount = predicatesFor([], { isSuperAdmin: true, hasEmployee: false });
+  const screens = visibleSections('entity_admin', systemAccount).flatMap((s) => s.tabs.map((t) => t.id));
+  assert.ok(!screens.includes('messages'), 'no inbox without an employee to own it');
+  assert.ok(screens.includes('admin-chats'), 'but the monitor is still theirs');
+});
+
+test('an ordinary employee still gets Messages', () => {
+  assert.ok(screensFor('employee').includes('messages'));
+  assert.ok(screensFor('hr_manager').includes('messages'));
+});
+
+test('a linked super admin gets an inbox like anybody else', () => {
+  const linked = predicatesFor([], { isSuperAdmin: true, hasEmployee: true });
+  const screens = visibleSections('entity_admin', linked).flatMap((s) => s.tabs.map((t) => t.id));
+  assert.ok(screens.includes('messages'), 'the flag is about the employee record, not the role');
+});
+
+test('the route guard refuses Messages to an unlinked account, not just the menu', () => {
+  const tab = { id: 'messages', perm: null, needsEmployee: true };
+  assert.equal(canSeeTab(tab, predicatesFor([], { hasEmployee: false })), false);
+  assert.equal(canSeeTab(tab, predicatesFor([], { hasEmployee: true })), true);
+});
+
+test('needsEmployee defaults to satisfied, so no existing tab is affected', () => {
+  // predicatesFor and bare-object callers both default hasEmployee to true; a tab without the flag
+  // must be unaffected either way.
+  assert.equal(canSeeTab({ id: 'x', perm: null }, { canAny: () => true, canBeyondSelf: () => true }), true);
+  assert.equal(canSeeTab({ id: 'x', perm: null }, predicatesFor([])), true);
+});

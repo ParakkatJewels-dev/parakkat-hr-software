@@ -31,6 +31,7 @@ const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
 const Administration = lazy(() => import('./components/Administration'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
 const Messages = lazy(() => import('./components/Messages'));
+const ChatMonitor = lazy(() => import('./components/ChatMonitor'));
 const Team = lazy(() => import('./components/Team'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const UserProfile = lazy(() => import('./components/UserProfile'));
@@ -402,6 +403,11 @@ export default function App() {
   const navPredicates = {
     canAny,
     canBeyondSelf,
+    // Carried so navMap can gate the one tab that no permission can buy — see `superOnly`.
+    isSuperAdmin,
+    // And the one that a permission cannot help with either: messaging needs an employee record to
+    // send as, which a system login deliberately does not have.
+    hasEmployee: Boolean(employee?.id),
     hidden: new Set(isSuperAdmin ? [] : hiddenScreens ?? []),
   };
 
@@ -999,6 +1005,8 @@ export default function App() {
                 return <TaskManagement />;
               case 'messages':
                 return <Messages />;
+              case 'admin-chats':
+                return <ChatMonitor />;
               case 'team':
                 return <Team />;
               case 'payroll':

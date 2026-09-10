@@ -79,6 +79,58 @@ export function useConversations() {
   });
 }
 
+/**
+ * Every conversation one employee is in — the middle column of the monitor.
+ *
+ * Reads through app.can_read_conversation's super-admin arm, so it returns nothing for anybody
+ * else. That is deliberate: this hook carries no permission check of its own, exactly like the
+ * rest of this file, and the database is the only thing deciding. A department head calling it
+ * gets an empty list rather than an error, because as far as RLS is concerned those rows do not
+ * exist for them.
+ *
+ * Two queries again, not one per conversation: the rows this person is in, then everybody in those
+ * same conversations in a single `in` — which is what fills in "who they were talking to".
+ */
+export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(employeeId),
+    queryKey: ['admin-conversations', employeeId],
+    queryFn: async () => {
+      const mine = await supabase
+        .from('conversation_members')
+        .select('conversation_id, conversation:conversations(id, kind, title, created_at, last_message_at)')
+        .eq('employee_id', employeeId)
+        .limit(500);
+      if (mine.error) {
+        if (isMissingSchema(mine.error)) return [];
+        throw mine.error;
+      }
+
+      const rows = (mine.data ?? []).filter((r) => r.conversation);
+      if (rows.length === 0) return [];
+
+      const ids = rows.map((r) => r.conversation_id);
+      const everyone = await supabase
+        .from('conversation_members')
+        .select(MEMBER_FIELDS)
+        .in('conversation_id', ids)
+        .limit(2000);
+      if (everyone.error) throw everyone.error;
+
+      const byConversation = new Map();
+      for (const m of everyone.data ?? []) {
+        if (!byConversation.has(m.conversation_id)) byConversation.set(m.conversation_id, []);
+        byConversation.get(m.conversation_id).push(m);
+      }
+
+      return rows
+        .map((r) => ({ ...r.conversation, members: byConversation.get(r.conversation_id) ?? [] }))
+        // Most recently active first, the same order the inbox uses.
+        .sort((a, b) => String(b.last_message_at ?? '').localeCompare(String(a.last_message_at ?? '')));
+    },
+  });
+}
+
 /** One thread, oldest at the top. Only fetched once a conversation is open. */
 export function useMessages(conversationId, { enabled = true } = {}) {
   return useQuery({

@@ -4,13 +4,15 @@ import { useJobs, useCandidates, useAddJob, useSetCandidateStage } from '../data
 import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import PageHeader from './ui/PageHeader';
+import PagedCollection from './ui/PagedCollection';
+import ListSearch from './ui/ListSearch';
 
 const STAGES = ['Applied', 'Shortlisted', 'Interview', 'Offered'];
 const nextStage = (s) => STAGES[STAGES.indexOf(s) + 1] || s;
 
 export default function Recruitment() {
   const { data: jobs = [], isLoading: jobsLoading, error: jobsError } = useJobs();
-  const { data: candidates = [] } = useCandidates();
+  const { data: candidates = [], isLoading: candidatesLoading, error: candidatesError } = useCandidates();
   const { data: org } = useVisibleOrg();
   const { canAny } = usePermissions();
   const addJob = useAddJob();
@@ -19,6 +21,12 @@ export default function Recruitment() {
 
   const entities = org?.entities ?? [];
   const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState('');
+  const [company, setCompany] = useState('');
+  const matchingJobs = useMemo(() => jobs.filter((j) => (!company || j.entity_id === company)
+    && [j.title, j.location, j.entity?.code].join(' ').toLowerCase().includes(search.trim().toLowerCase())), [jobs, company, search]);
+  const matchingCandidates = useMemo(() => candidates.filter((c) => (!company || c.job?.entity_id === company)
+    && [c.name, c.email, c.job?.title, c.job?.entity?.code].join(' ').toLowerCase().includes(search.trim().toLowerCase())), [candidates, company, search]);
   const [job, setJob] = useState({ entity_id: '', title: '', type: 'Full-time', location: '' });
   const pipelineStats = useMemo(() => {
     const openJobs = jobs.filter((j) => j.status === 'Open').length;
@@ -69,24 +77,34 @@ export default function Recruitment() {
         ))}
       </section>
 
+      <div className="grid grid-cols-1 sm:grid-cols-[1fr_15rem] gap-3">
+        <ListSearch value={search} onChange={setSearch} label="Search hiring" placeholder="Search candidates, jobs or company…" />
+        <select aria-label="Hiring company" className={INPUT} value={company} onChange={(e) => setCompany(e.target.value)}>
+          <option value="">All companies</option>{entities.map((e) => <option key={e.id} value={e.id}>{e.code} · {e.name}</option>)}
+        </select>
+      </div>
+      {candidatesError && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{candidatesError.message}</p>}
+      {moveCand.error && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{moveCand.error.message}</p>}
+
       <div className="people-workspace grid grid-cols-1 xl:grid-cols-4 gap-5">
         <div className={`${showForm ? 'xl:col-span-3' : 'xl:col-span-4'}`}>
           <div className="premium-card people-board space-y-4">
             <div className="people-panel-head">
               <span><Users size={15} /> Candidate pipeline</span>
-              <em>{candidates.length} active profiles</em>
+              <em>{candidatesLoading ? 'Loading candidates…' : `${matchingCandidates.length} matching profiles`}</em>
             </div>
             <div className="people-kanban-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               {STAGES.map((stage) => {
-                const list = candidates.filter((c) => c.stage === stage);
+                const list = matchingCandidates.filter((c) => c.stage === stage);
                 return (
                   <div key={stage} className="people-kanban-column">
                     <div className="people-kanban-head">
                       <span>{stage}</span>
                       <b>{list.length}</b>
                     </div>
-                    <div className="space-y-2">
-                      {list.map((can) => (
+                    <PagedCollection items={list} pageSize={8} noun={`${stage.toLowerCase()} candidates`} resetKey={`${search}:${company}`} disabled={moveCand.isPending}>
+                    {(pageRows) => <div className="space-y-2">
+                      {pageRows.map((can) => (
                         <div key={can.id} className="people-candidate-card">
                           <div className="mobile-list-row flex justify-between items-start">
                             <div className="min-w-0">
@@ -100,9 +118,9 @@ export default function Recruitment() {
                           {canManage && (
                             <div className="people-card-actions">
                               {stage !== 'Offered' && (
-                                <button onClick={() => moveCand.mutate({ id: can.id, stage: nextStage(stage) })} title="Advance" aria-label="Advance"><ChevronRight size={12} /></button>
+                                <button disabled={moveCand.isPending} onClick={() => moveCand.mutate({ id: can.id, stage: nextStage(stage) })} title="Advance" aria-label="Advance"><ChevronRight size={12} /></button>
                               )}
-                              <button onClick={() => moveCand.mutate({ id: can.id, stage: 'Rejected' })} title="Reject" aria-label="Reject" className="is-danger"><X size={12} /></button>
+                              <button disabled={moveCand.isPending} onClick={() => moveCand.mutate({ id: can.id, stage: 'Rejected' })} title="Reject" aria-label="Reject" className="is-danger"><X size={12} /></button>
                             </div>
                           )}
                         </div>
@@ -110,7 +128,8 @@ export default function Recruitment() {
                       {list.length === 0 && (
                         <div className="people-empty-mini"><User size={20} /><span>No applicants</span></div>
                       )}
-                    </div>
+                    </div>}
+                    </PagedCollection>
                   </div>
                 );
               })}
@@ -148,11 +167,12 @@ export default function Recruitment() {
                 <div className="flex justify-center py-8 text-brand-ink"><Loader2 size={20} className="animate-spin" /></div>
               ) : jobsError ? (
                 <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{jobsError.message}</span></div>
-              ) : jobs.length === 0 ? (
-                <p className="people-empty-mini">No openings yet.</p>
+              ) : matchingJobs.length === 0 ? (
+                <p className="people-empty-mini">No matching openings.</p>
               ) : (
-                <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-                  {jobs.map((j) => (
+                <PagedCollection items={matchingJobs} pageSize={8} noun="openings" resetKey={`${search}:${company}`}>
+                {(pageRows) => <div className="space-y-3">
+                  {pageRows.map((j) => (
                     <div key={j.id} className="people-opening-card">
                       <div className="mobile-list-row flex justify-between items-start">
                         <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200 leading-snug">{j.title}</h4>
@@ -162,7 +182,8 @@ export default function Recruitment() {
                       <div className="text-2xs text-neutral-450 font-mono border-t border-neutral-100 dark:border-neutral-900/40 pt-2">{j.type} · {j.openings} opening(s)</div>
                     </div>
                   ))}
-                </div>
+                </div>}
+                </PagedCollection>
               )}
             </div>
           )}

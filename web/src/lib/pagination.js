@@ -52,3 +52,15 @@ export function pageWindow(current, total) {
   out.push(total);
   return out;
 }
+
+// Derive the visible window synchronously: a filter or deletion must not paint an empty old page.
+export function paginationWindow(count, requestedPage = 1, requestedSize = 25) {
+  const pageSize = Number.isFinite(Number(requestedSize)) && Number(requestedSize) > 0
+    ? Math.max(1, Math.floor(Number(requestedSize))) : 25;
+  const total = Math.max(0, Number(count) || 0);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(totalPages, Math.max(1, Math.floor(Number(requestedPage)) || 1));
+  return { page, pageSize, totalPages, count: total,
+    from: total ? (page - 1) * pageSize + 1 : 0,
+    to: Math.min(page * pageSize, total) };
+}
