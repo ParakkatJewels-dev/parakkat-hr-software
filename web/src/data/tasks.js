@@ -76,7 +76,7 @@ export function useTasks() {
 export function useCreateTask() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ assigneeIds = [], ...payload }) => {
+    mutationFn: async ({ assigneeIds = [], checklist = [], ...payload }) => {
       // ancestry is stamped by the DB trigger from employee_id — the PRIMARY assignee, which is
       // what decides the task's branch and department and therefore which managers can see it.
       const { data, error } = await supabase
@@ -104,9 +104,50 @@ export function useCreateTask() {
           `The task was created, but the people could not all be added to it (${linkError.message}). Open the task and add them.`
         );
       }
+
+      /*
+       * The steps, written on the same form as the task.
+       *
+       * Last, after the assignee rows. That order is a preference and not a requirement, which is
+       * worth stating because the reverse looks like it should matter and does not: an earlier
+       * version of this comment claimed writing the steps first would be refused for somebody
+       * filing work on their own board, and a test against the real policies showed it succeeds.
+       * task_checklist_items' insert policy asks app.can_write_task, and its task.update arm
+       * matches at SELF scope — every employee holds task.update on their own row (0096), so the
+       * junction row is not what earns them the right to write the list.
+       *
+       * Kept in this order anyway: it means every row that references the task exists before
+       * anything hangs off it, which is the arrangement that stays correct if can_write_task is
+       * ever narrowed to membership alone.
+       *
+       * Positions are handed out here rather than left to default, so the list reads back in the
+       * order it was typed instead of the order the rows happen to come off disk.
+       */
+      const steps = (checklist ?? [])
+        .map((title) => String(title ?? '').trim())
+        .filter(Boolean)
+        .slice(0, 50);
+
+      if (steps.length > 0) {
+        const { error: stepError } = await supabase.from('task_checklist_items').insert(
+          steps.map((title, index) => ({
+            task_id: data.id,
+            title: title.slice(0, 200),
+            position: index,
+            created_by: payload.assigned_by ?? null,
+          }))
+        );
+        // Same reasoning as the assignees above: the task exists, so say what actually happened.
+        if (stepError && !isMissingSchema(stepError)) {
+          throw new Error(
+            `The task was created, but its checklist could not be saved (${stepError.message}). Open the task and add the steps.`
+          );
+        }
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['task-checklist'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
     },
   });

@@ -88,6 +88,34 @@ export default function Messages() {
     );
   }, [conversations, query, me]);
 
+  /*
+   * An account that is not a person cannot be in a conversation.
+   *
+   * conversation_members.employee_id is NOT NULL and points at the employees table, so membership
+   * is defined in terms of employees and a login with no employee record — a system or setup
+   * account, typically the super admin — has nothing to be a member AS. Every write then fails on
+   * `created_by = app.current_employee_id()`, which is NULL, and RLS reports it the only way it
+   * can: "you don't have permission".
+   *
+   * That message is true and useless. It sends somebody looking for a broken policy when the real
+   * answer is that this account is not a member of staff. Said plainly, up front, before they try.
+   */
+  if (!me) {
+    return (
+      <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+        <MessageSquare size={28} className="text-neutral-400 dark:text-[#0c9765] mb-3" />
+        <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">
+          This account cannot send messages
+        </h2>
+        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-md">
+          Messages go between employees, and this login is not linked to an employee record — so
+          there is nobody for it to send as. Sign in with your staff account to use messaging, or
+          link this login to an employee in Administration → Users &amp; Access.
+        </p>
+      </div>
+    );
+  }
+
   // 0115 ships separately from this client. Saying so beats an empty list that looks like a bug.
   if (data?.pending) {
     return (

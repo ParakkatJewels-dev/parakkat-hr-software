@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
   ListChecks, Plus, X, Loader2, AlertTriangle, Trash2, Flag,
   CalendarClock, User, ChevronRight, Search, PenLine, ShieldAlert, HandHelping,
-  MessageSquare, Paperclip, CheckSquare, ListTodo,
+  MessageSquare, Paperclip, CheckSquare, ListTodo, Square,
 } from 'lucide-react';
 import {
   useTasks, useCreateTask, useUpdateTask, useDeleteTask, useAddAssignee, useRemoveAssignee,
@@ -866,6 +866,27 @@ function TaskComposer({
   const [dueDate, setDueDate] = useState(task?.due_date ?? '');
   const [q, setQ] = useState('');
 
+  /*
+   * The steps, written on the same form as the task.
+   *
+   * They used to be reachable only after the task existed — create it, find it on the board, expand
+   * it, then type the list — which is three navigations away from the moment somebody is actually
+   * thinking about what the work is made of. Nobody did it.
+   *
+   * Local state, saved with the task in one action. Editing an EXISTING task's list stays on the
+   * task itself, where ticking happens: two places to edit one list would be two places for it to
+   * disagree with itself.
+   */
+  const [steps, setSteps] = useState([]);
+  const [stepDraft, setStepDraft] = useState('');
+
+  const addStep = () => {
+    const clean = stepDraft.trim();
+    if (!clean) return;
+    setSteps((cur) => (cur.length >= 50 ? cur : [...cur, clean.slice(0, 200)]));
+    setStepDraft('');
+  };
+
   /**
    * Everybody on this task, in order, and the FIRST one is the primary.
    *
@@ -928,7 +949,15 @@ function TaskComposer({
     onSubmit(
       editing
         ? { ...fields, assigneeIds: chosenIds }
-        : { ...fields, assigneeIds: chosenIds, assigned_by: currentEmployeeId || null, parent_task_id: null }
+        : {
+            ...fields,
+            assigneeIds: chosenIds,
+            // A step half-typed and never added is still what the person meant to include, so it
+            // is taken along rather than silently dropped when they press Create instead of +.
+            checklist: stepDraft.trim() ? [...steps, stepDraft.trim()] : steps,
+            assigned_by: currentEmployeeId || null,
+            parent_task_id: null,
+          }
     );
   };
 
@@ -1043,6 +1072,73 @@ function TaskComposer({
                 {chosenIds.length === 0 && (
                   <p className="mt-1 text-2xs text-neutral-500">Pick at least one person. The first one is the main assignee.</p>
                 )}
+              </>
+            )}
+          </div>
+
+          {/* The steps. Between the people and the deadline, because "who does it" and "what is it
+              made of" are the same thought and the dates are an afterthought to both. */}
+          <div className="space-y-1">
+            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">
+              Checklist <span className="font-normal text-neutral-400">(optional)</span>
+            </label>
+
+            {editing ? (
+              // Editing an existing list stays on the task, where ticking happens. Two editors for
+              // one list is two places for it to disagree with itself.
+              <p className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-2xs text-neutral-500">
+                Open the task on the board to tick its steps off or change them.
+              </p>
+            ) : (
+              <>
+                {steps.length > 0 && (
+                  <ul className="space-y-1 mb-1.5">
+                    {steps.map((step, index) => (
+                      <li key={`${step}-${index}`} className="flex items-start gap-2 rounded-lg bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-2.5 py-1.5">
+                        <Square size={13} className="mt-0.5 shrink-0 text-neutral-400" />
+                        <span className="min-w-0 flex-1 text-xs text-neutral-800 dark:text-neutral-200 break-words">{step}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSteps((cur) => cur.filter((_, i) => i !== index))}
+                          aria-label={`Remove step "${step}"`}
+                          className="shrink-0 mt-0.5 text-neutral-300 dark:text-neutral-600 hover:text-rose-500 transition-colors cursor-pointer"
+                        >
+                          <X size={12} />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    className={INPUT}
+                    value={stepDraft}
+                    onChange={(e) => setStepDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter adds a step. Without this it submits the whole form, so writing a
+                      // five-step list the obvious way would file five one-step tasks.
+                      if (e.key === 'Enter') { e.preventDefault(); addStep(); }
+                    }}
+                    placeholder={steps.length > 0 ? 'Add another step…' : 'What are the steps? (optional)'}
+                    maxLength={200}
+                  />
+                  <button
+                    type="button"
+                    onClick={addStep}
+                    disabled={!stepDraft.trim() || steps.length >= 50}
+                    className={btnClass('ghost', 'md', true)}
+                    aria-label="Add this step"
+                  >
+                    <Plus size={14} />
+                  </button>
+                </div>
+
+                <p className="text-2xs text-neutral-400 mt-1">
+                  {steps.length > 0
+                    ? 'Anyone assigned can tick these off. When the last one is ticked, the task closes itself.'
+                    : 'Leave it empty for a task that is one thing, and mark it done yourself.'}
+                </p>
               </>
             )}
           </div>
