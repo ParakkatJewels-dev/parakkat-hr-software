@@ -8,6 +8,7 @@ import type ExcelJS from 'exceljs';
 import { resolveVisibleScope, branchesOfEntities, type AuthContext } from '../api/auth';
 import { buildRegisterWorkbook } from './registerReport';
 import { buildPayrollWorkbook } from './payrollExport';
+import { branchFilter } from '../api/validation';
 
 export type ExportKind = 'register' | 'payroll';
 
@@ -33,6 +34,9 @@ export async function scopeFor(
   permissions: string[],
   requested?: string
 ): Promise<ExportScope> {
+  if (requested !== undefined && !branchFilter.safeParse(requested).success) {
+    throw Object.assign(new Error('Expected comma-separated branch UUIDs.'), { status: 400 });
+  }
   // Scope is the union of grants across the SAME permissions the route admits — computing it for
   // a permission the caller might not hold would fail open to "everything".
   const scope = await resolveVisibleScope(auth, permissions);

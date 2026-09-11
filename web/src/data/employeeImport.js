@@ -94,6 +94,14 @@ export function extractPeople(rows, layout) {
     if (!full_name || /^total\b/i.test(full_name)) continue;
 
     const branchRaw = columns.branch !== undefined ? norm(row[columns.branch]) : '';
+    const dates = {};
+    for (const field of ['join_date', 'date_of_birth']) {
+      const raw = columns[field] === undefined ? null : row[columns[field]];
+      dates[field] = toIsoDate(raw);
+      if (norm(raw) && dates[field] === null) {
+        throw new Error(`Invalid ${prettyField(field)} on spreadsheet row ${r + 1}. Use a real date in DD/MM/YYYY or YYYY-MM-DD format.`);
+      }
+    }
     out.push({
       full_name,
       employee_code: columns.employee_code !== undefined ? norm(row[columns.employee_code]) : '',
@@ -102,7 +110,7 @@ export function extractPeople(rows, layout) {
       department: columns.department !== undefined ? norm(row[columns.department]) : '',
       email: columns.email !== undefined ? norm(row[columns.email]).toLowerCase() : '',
       phone: columns.phone !== undefined ? norm(row[columns.phone]) : '',
-      join_date: columns.join_date !== undefined ? toIsoDate(row[columns.join_date]) : null,
+      join_date: dates.join_date,
       pan: columns.pan !== undefined ? norm(row[columns.pan]).toUpperCase() : '',
       aadhaar: columns.aadhaar !== undefined ? norm(row[columns.aadhaar]).replace(/\D/g, '') : '',
       uan: columns.uan !== undefined ? norm(row[columns.uan]).replace(/\D/g, '') : '',
@@ -110,7 +118,7 @@ export function extractPeople(rows, layout) {
       bank_account: columns.bank_account !== undefined ? norm(row[columns.bank_account]).replace(/\s/g, '') : '',
       bank_ifsc: columns.bank_ifsc !== undefined ? norm(row[columns.bank_ifsc]).toUpperCase().replace(/\s/g, '') : '',
       bank_name: columns.bank_name !== undefined ? norm(row[columns.bank_name]) : '',
-      date_of_birth: columns.date_of_birth !== undefined ? toIsoDate(row[columns.date_of_birth]) : null,
+      date_of_birth: dates.date_of_birth,
       gender: columns.gender !== undefined ? normGender(row[columns.gender]) : '',
       _row: r + 1, // 1-based, for error messages that match what the user sees in Excel
     });
@@ -129,15 +137,22 @@ function normGender(v) {
 
 function toIsoDate(v) {
   if (!v) return null;
-  if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+  if (v instanceof Date) {
+    if (!Number.isFinite(v.getTime())) return null;
+    // Excel dates are calendar dates constructed at local midnight, not UTC instants.
+    return `${v.getFullYear()}-${String(v.getMonth() + 1).padStart(2, '0')}-${String(v.getDate()).padStart(2, '0')}`;
+  }
   const s = norm(v);
-  const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/); // dd/mm/yyyy, as used locally
+  const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2}|\d{4})$/); // dd/mm/yyyy, as used locally
+  let iso = s;
   if (dmy) {
     const [, d, m, y] = dmy;
     const yr = y.length === 2 ? `20${y}` : y;
-    return `${yr}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    iso = `${yr}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
   }
-  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const date = new Date(`${iso}T12:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === iso ? iso : null;
 }
 
 /**

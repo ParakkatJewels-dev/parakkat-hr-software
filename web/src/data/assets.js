@@ -7,6 +7,7 @@
 // assignment and let the trigger follow. Writing both from the client is how the two drift apart.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export const ASSET_CATEGORIES = ['Hardware', 'Software', 'Furniture', 'Vehicle', 'Other'];
 export const ASSET_STATUSES = ['Available', 'Allocated', 'Under Repair', 'Damaged', 'Lost', 'Retired'];
@@ -38,14 +39,10 @@ const ASSET_COLUMNS = `
 export function useAssets() {
   return useQuery({
     queryKey: ['assets'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('assets')
         .select(ASSET_COLUMNS)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false }).order('id')),
   });
 }
 

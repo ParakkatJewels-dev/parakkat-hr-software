@@ -7,21 +7,21 @@
 // Live delivery is not here either. lib/realtime.js already subscribes to Postgres changes and
 // invalidates the matching caches, and `messages` is registered there — a second realtime mechanism
 // for one screen would be a second thing to debug when the first one is what everything else uses.
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection, fetchInCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 import { isMissingSchema } from '../lib/pendingMigration';
 import { directKey, mediaPath } from '../lib/conversations';
+import { fetchMessagePage, flattenMessagePages } from '../lib/messageHistory';
 
 /**
- * A ceiling on one thread.
- *
- * Explicit, so it is visible here rather than PostgREST's silent 1000-row default. Loading the
- * newest 200 and reversing them client-side is what makes opening a two-year-old conversation as
- * fast as opening yesterday's; older messages are still there and reachable by widening this, which
- * is the point at which this screen wants real pagination rather than a bigger number.
+ * Number of messages fetched when opening a conversation or loading an earlier page.
  */
 export const MESSAGE_PAGE = 200;
+
+const MEMBER_KEY = (row) => `${row.conversation_id}:${row.employee_id}`;
 
 const MEMBER_FIELDS =
   'conversation_id, employee_id, role, joined_at, ' +
@@ -47,23 +47,18 @@ export function useConversations() {
   return useQuery({
     queryKey: ['conversations'],
     queryFn: async () => {
-      const { data: rows, error } = await supabase
-        .from('my_conversations')
-        .select('*')
-        .order('last_message_at', { ascending: false })
-        .limit(500);
-
-      if (error) {
+      let rows;
+      try {
+        rows = await fetchCollection(() => supabase.from('my_conversations').select('*')
+          .order('last_message_at', { ascending: false }).order('id'));
+      } catch (error) {
         if (isMissingSchema(error)) return { pending: true, conversations: [] };
         throw error;
       }
-      if ((rows ?? []).length === 0) return { pending: false, conversations: [] };
-
-      const { data: members, error: memberError } = await supabase
-        .from('conversation_members')
-        .select(MEMBER_FIELDS)
-        .in('conversation_id', rows.map((r) => r.id));
-      if (memberError) throw memberError;
+      if (!rows.length) return { pending: false, conversations: [] };
+      const members = await fetchInCollection((ids) => supabase.from('conversation_members')
+        .select(MEMBER_FIELDS).in('conversation_id', ids)
+        .order('conversation_id').order('employee_id'), rows.map((r) => r.id), { key: MEMBER_KEY });
 
       const byConversation = new Map();
       for (const m of members ?? []) {
@@ -96,17 +91,16 @@ export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
     enabled: enabled && Boolean(employeeId),
     queryKey: ['admin-conversations', employeeId],
     queryFn: async () => {
-      const mine = await supabase
-        .from('conversation_members')
-        .select('conversation_id')
-        .eq('employee_id', employeeId)
-        .limit(500);
-      if (mine.error) {
-        if (isMissingSchema(mine.error)) return [];
-        throw mine.error;
+      let mine;
+      try {
+        mine = await fetchCollection(() => supabase.from('conversation_members')
+          .select('conversation_id').eq('employee_id', employeeId).order('conversation_id'),
+          { key: (row) => row.conversation_id });
+      } catch (error) {
+        if (isMissingSchema(error)) return [];
+        throw error;
       }
-
-      const ids = [...new Set((mine.data ?? []).map((r) => r.conversation_id))];
+      const ids = mine.map((r) => r.conversation_id);
       if (ids.length === 0) return [];
 
       /*
@@ -118,29 +112,25 @@ export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
        * is a lie told confidently. The view carries the last message; RLS still decides which rows
        * come back, so this is a shape, not a grant.
        */
-      const summaries = await supabase
-        .from('conversation_overview')
-        .select('*')
-        .in('id', ids)
-        .limit(500);
-      if (summaries.error) {
-        if (isMissingSchema(summaries.error)) return [];
-        throw summaries.error;
+      let summaries;
+      try {
+        summaries = await fetchInCollection((batch) => supabase.from('conversation_overview')
+          .select('*').in('id', batch).order('id'), ids);
+      } catch (error) {
+        if (isMissingSchema(error)) return [];
+        throw error;
       }
-      const everyone = await supabase
-        .from('conversation_members')
-        .select(MEMBER_FIELDS)
-        .in('conversation_id', ids)
-        .limit(2000);
-      if (everyone.error) throw everyone.error;
+      const everyone = await fetchInCollection((batch) => supabase.from('conversation_members')
+        .select(MEMBER_FIELDS).in('conversation_id', batch)
+        .order('conversation_id').order('employee_id'), ids, { key: MEMBER_KEY });
 
       const byConversation = new Map();
-      for (const m of everyone.data ?? []) {
+      for (const m of everyone) {
         if (!byConversation.has(m.conversation_id)) byConversation.set(m.conversation_id, []);
         byConversation.get(m.conversation_id).push(m);
       }
 
-      return (summaries.data ?? [])
+      return summaries
         .map((c) => ({ ...c, members: byConversation.get(c.id) ?? [] }))
         // Most recently active first, the same order the inbox uses.
         .sort((a, b) => String(b.last_message_at ?? '').localeCompare(String(a.last_message_at ?? '')));
@@ -150,23 +140,20 @@ export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
 
 /** One thread, oldest at the top. Only fetched once a conversation is open. */
 export function useMessages(conversationId, { enabled = true } = {}) {
-  return useQuery({
+  const query = useInfiniteQuery({
     enabled: enabled && Boolean(conversationId),
-    queryKey: ['messages', conversationId],
-    queryFn: async () => {
-      // Newest first from the database so the LIMIT keeps the recent end of a long conversation,
-      // then reversed for reading. Ordering ascending and limiting would hand back the oldest 200
-      // messages and none of today's.
-      const { data, error } = await supabase
-        .from('messages')
-        .select(MESSAGE_FIELDS)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: false })
-        .limit(MESSAGE_PAGE);
-      if (error) throw error;
-      return (data ?? []).slice().reverse();
-    },
+    queryKey: ['messages', conversationId, 'pages'],
+    initialPageParam: null,
+    queryFn: ({ pageParam }) => fetchMessagePage(supabase, conversationId, MESSAGE_FIELDS, pageParam, MESSAGE_PAGE),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
   });
+  const data = useMemo(() => query.data ? flattenMessagePages(query.data.pages) : undefined, [query.data]);
+  return {
+    ...query, data,
+    hasOlder: Boolean(query.hasNextPage),
+    loadOlder: () => query.fetchNextPage({ cancelRefetch: false }),
+    isLoadingOlder: query.isFetchingNextPage,
+  };
 }
 
 function useConversationMutation(mutationFn) {

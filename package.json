@@ -7,7 +7,10 @@
     "build:web": "npm --prefix web run build",
     "cap:sync": "npm run build:web && cap sync",
     "android": "npm run build:web && cap sync android && cap open android",
-    "ios": "npm run build:web && cap sync ios && cap open ios"
+    "ios": "npm run build:web && cap sync ios && cap open ios",
+    "test": "npm --prefix web test && npm --prefix services/attendance test",
+    "test:database": "npm --prefix web/backend test && npm --prefix services/attendance run test:reports",
+    "verify": "npm test && npm run test:database && npm --prefix web run lint && npm run build:web && npm --prefix services/attendance run typecheck && npm --prefix services/attendance run build"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.2",

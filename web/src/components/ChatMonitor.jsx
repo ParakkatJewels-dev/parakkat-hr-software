@@ -12,7 +12,7 @@
 //
 // Access is app.can_read_conversation's super-admin arm (0119). Nothing in this file checks a
 // permission; for anybody else every query below simply returns nothing.
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import {
   Search, Loader2, Users, ChevronRight, ShieldAlert, ArrowLeft, FileText, Image as ImageIcon, Video, Mic,
 } from 'lucide-react';
@@ -22,10 +22,12 @@ import { conversationName, others, groupByDay } from '../lib/conversations';
 import { humanDbError } from '../lib/dbErrors';
 import { relativeTime, istToday } from '../lib/dates';
 import Avatar from './ui/Avatar';
+import Pagination, { usePagination } from './ui/Pagination';
+import { btnClass } from './ui/Btn';
 import './chatMonitor.css';
 
 const clockOf = (iso) => {
-  try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+  try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }); }
   catch { return ''; }
 };
 
@@ -35,7 +37,7 @@ function dayLabel(day) {
   const yesterday = new Date(`${today}T00:00:00Z`);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   if (day === yesterday.toISOString().slice(0, 10)) return 'Yesterday';
-  try { return new Date(`${day}T00:00:00Z`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }); }
+  try { return new Date(`${day}T00:00:00Z`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); }
   catch { return day; }
 }
 
@@ -47,6 +49,21 @@ export default function ChatMonitor() {
   const { data: employees = [], isLoading: loadingPeople } = useEmployees();
   const conversations = useEmployeeConversations(personId);
   const messages = useMessages(conversationId);
+  const historyRef = useRef(null);
+  const olderScrollRef = useRef(null);
+  useLayoutEffect(() => {
+    const previous = olderScrollRef.current;
+    const viewport = historyRef.current;
+    if (!previous || !viewport || previous.firstId === messages.data?.[0]?.id) return;
+    viewport.scrollTop = previous.top + viewport.scrollHeight - previous.height;
+    olderScrollRef.current = null;
+  }, [messages.data]);
+  const loadOlder = () => {
+    const viewport = historyRef.current;
+    if (!viewport || messages.isLoadingOlder) return;
+    olderScrollRef.current = { top: viewport.scrollTop, height: viewport.scrollHeight, firstId: messages.data?.[0]?.id };
+    messages.loadOlder();
+  };
 
   const person = employees.find((e) => e.id === personId) ?? null;
   const conversation = (conversations.data ?? []).find((c) => c.id === conversationId) ?? null;
@@ -60,6 +77,8 @@ export default function ChatMonitor() {
         || (e.branch?.code || '').toLowerCase().includes(needle)
     );
   }, [employees, query]);
+  const peoplePager = usePagination(people, 25, null, query);
+  const conversationPager = usePagination(conversations.data ?? [], 10, null, personId);
 
   // Picking a different person invalidates the conversation under it — without this the third
   // column keeps showing the previous person's chat while the second column lists somebody else's.
@@ -99,7 +118,7 @@ export default function ChatMonitor() {
           <div className="chat-monitor-scroll">
             {loadingPeople && <p className="chat-monitor-note"><Loader2 size={14} className="animate-spin" /> Loading…</p>}
             {!loadingPeople && people.length === 0 && <p className="chat-monitor-note">Nobody matches that.</p>}
-            {people.map((e) => (
+            {peoplePager.slice.map((e) => (
               <button
                 key={e.id}
                 type="button"
@@ -116,6 +135,7 @@ export default function ChatMonitor() {
               </button>
             ))}
           </div>
+          <div className="paged-collection"><Pagination {...peoplePager} noun="people" /></div>
         </section>
 
         {/* ---- 2. who that person talks to ---- */}
@@ -136,7 +156,7 @@ export default function ChatMonitor() {
             {person && conversations.data?.length === 0 && (
               <p className="chat-monitor-note">{person.full_name} has no conversations.</p>
             )}
-            {(conversations.data ?? []).map((c) => {
+            {conversationPager.slice.map((c) => {
               // Named from the SELECTED person's side, not the viewer's — the question this column
               // answers is "who does this employee talk to", so `me` is them.
               const name = conversationName(c, personId);
@@ -164,6 +184,7 @@ export default function ChatMonitor() {
               );
             })}
           </div>
+          <div className="paged-collection"><Pagination {...conversationPager} noun="conversations" sizes={[10, 25, 50]} /></div>
         </section>
 
         {/* ---- 3. what was said ---- */}
@@ -175,12 +196,16 @@ export default function ChatMonitor() {
             <h2>{conversation ? conversationName(conversation, personId) : 'Messages'}</h2>
             <span className="chat-monitor-readonly">Read only</span>
           </header>
-          <div className="chat-monitor-scroll chat-monitor-history">
+          <div className="chat-monitor-scroll chat-monitor-history" ref={historyRef}>
             {!conversation && <p className="chat-monitor-note">Pick a conversation.</p>}
             {conversation && messages.isLoading && <p className="chat-monitor-note"><Loader2 size={14} className="animate-spin" /> Loading…</p>}
             {conversation && messages.error && (
-              <p className="chat-monitor-note chat-monitor-error">{humanDbError(messages.error)}</p>
+              <p role="alert" className="chat-monitor-note chat-monitor-error">{humanDbError(messages.error)}</p>
             )}
+            {conversation && messages.hasOlder && <button type="button" onClick={loadOlder}
+              disabled={messages.isLoadingOlder} className={btnClass('ghost') + ' mx-auto my-2'}>
+              {messages.isLoadingOlder ? 'Loading older messages…' : 'Load older messages'}
+            </button>}
             {conversation && messages.data?.length === 0 && (
               <p className="chat-monitor-note">Nothing was ever said here.</p>
             )}

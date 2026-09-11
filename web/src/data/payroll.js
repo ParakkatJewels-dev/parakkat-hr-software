@@ -174,8 +174,9 @@ export function useSaveSalaryStructure() {
       const q = id
         ? supabase.from('salary_structures').update(row).eq('id', id)
         : supabase.from('salary_structures').upsert(row, { onConflict: 'employee_id,effective_from' });
-      const { error } = await q;
+      const { data, error } = await q.select('id').single();
       if (error) throw describeSalaryError(error);
+      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['salary-structures'] }),
   });

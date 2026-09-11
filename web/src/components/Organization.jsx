@@ -366,7 +366,7 @@ export default function Organization() {
               gives it the whole width — and the counts in the rail still answer "what exists?"
               without opening anything. */}
           <div className="people-workspace grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-5 items-start">
-            <nav aria-label="Parts of this company" className="premium-card people-part-rail lg:sticky lg:top-2">
+            <nav aria-label="Parts of this company" className="premium-card people-part-rail min-w-0 max-w-full lg:sticky lg:top-2">
               <ul className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
                 {SECTIONS.map((s) => {
                   const isOn = s.key === activePart;

@@ -8,7 +8,7 @@
 // usePagination slices an already-filtered collection. The control also accepts server-side
 // counts and page callbacks (for example the audit log) without loading the whole history.
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { pageContaining } from '../../lib/focusRow';
 import { shouldShowPager, pageSizeOptions, pageWindow, paginationWindow } from '../../lib/pagination';
 
@@ -85,7 +85,7 @@ export default function Pagination({
 
   return (
     <nav className={`premium-card pagination-shell ${className}`} aria-label={`${noun} pagination`}>
-      <div className="pagination-summary">
+      <div className="pagination-summary" aria-live="polite" aria-atomic="true">
         <span className="pagination-range">
           <b>{from}–{to}</b>
           <span>of {count} {noun}</span>
@@ -94,7 +94,12 @@ export default function Pagination({
       </div>
 
       <div className="pagination-pages" aria-label="Pages">
+        <button type="button" onClick={() => setPage(1)} disabled={disabled || page === 1}
+          aria-label="First page" title="First page" className="pagination-nav-button pagination-boundary-button">
+          <ChevronsLeft size={14} />
+        </button>
         <button
+          type="button"
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={disabled || page === 1}
           aria-label="Previous page"
@@ -108,6 +113,7 @@ export default function Pagination({
             <span key={`gap-${i}`} className="pagination-ellipsis" aria-hidden="true">…</span>
           ) : (
             <button
+              type="button"
               key={n}
               onClick={() => setPage(n)}
               disabled={disabled}
@@ -121,12 +127,17 @@ export default function Pagination({
         )}
 
         <button
+          type="button"
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={disabled || page === totalPages}
           aria-label="Next page"
           className="pagination-nav-button"
         >
           <ArrowRight size={12} />
+        </button>
+        <button type="button" onClick={() => setPage(totalPages)} disabled={disabled || page === totalPages}
+          aria-label="Last page" title="Last page" className="pagination-nav-button pagination-boundary-button">
+          <ChevronsRight size={14} />
         </button>
       </div>
 

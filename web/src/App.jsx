@@ -677,7 +677,11 @@ export default function App() {
 
   return (
     <div className="app-shell flex h-dvh w-full overflow-hidden bg-neutral-50 text-neutral-900 dark:bg-charcoal-900 dark:text-warm-gray-100 relative transition-colors duration-250">
-      <a href="#main-content" className="skip-link">Skip to content</a>
+      <a href="#main-content" className="skip-link" onClick={(event) => {
+        // HashRouter owns the fragment. A normal anchor would navigate to a nonexistent screen.
+        event.preventDefault();
+        document.getElementById('main-content')?.focus({ preventScroll: true });
+      }}>Skip to content</a>
 
       {/* Sidebar - Desktop */}
       <aside className={`hidden lg:flex h-dvh flex-col bg-white dark:bg-charcoal-900 border-r border-neutral-200 dark:border-neutral-800 shrink-0 select-none transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-64'

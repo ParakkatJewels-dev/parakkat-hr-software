@@ -2,13 +2,15 @@
 //
 // Generated server-side rather than in the browser because a 250 x 31 grid with per-cell fills is
 // slow and memory-hungry on a phone, and the Capacitor build runs on phones.
+import { asyncRoute } from '../asyncRoute';
 import { Router } from 'express';
 import { z } from 'zod';
+import { branchFilter } from '../validation';
 import { authenticate, requirePermission } from '../auth';
 import { scopeFor, EXPORT_PERMISSIONS, exportFilename } from '../../exports/generate';
 import { buildRegisterWorkbook, buildRegisterRows } from '../../exports/registerReport';
 import { buildPayrollWorkbook, buildPayrollRows } from '../../exports/payrollExport';
-import { columnCatalog } from '../../exports/columns';
+import { columnCatalog, resolveColumns } from '../../exports/columns';
 import { logger } from '../../lib/logger';
 
 export const exportsRouter = Router();
@@ -18,7 +20,7 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 const periodSchema = z.object({
   year: z.coerce.number().int().min(2000).max(2100),
   month: z.coerce.number().int().min(1).max(12),
-  branchIds: z.string().optional(),
+  branchIds: branchFilter.optional(),
   columns: z.string().optional(),
   format: z.enum(['xlsx', 'json']).optional(),
 });
@@ -35,7 +37,7 @@ function parsePeriod(query: unknown) {
 // monthly attendance register
 // ---------------------------------------------------------------------------
 
-exportsRouter.get('/api/exports/register', authenticate, requirePermission('report.read', 'attendance.read'), async (req, res) => {
+exportsRouter.get('/api/exports/register', authenticate, requirePermission('report.read', 'attendance.read'), asyncRoute(async (req, res) => {
   try {
     const { year, month, branchIds, format } = parsePeriod(req.query);
     const scope = await scopeFor(req.auth, EXPORT_PERMISSIONS.register, branchIds);
@@ -67,7 +69,7 @@ exportsRouter.get('/api/exports/register', authenticate, requirePermission('repo
       issues: (err as { issues?: unknown }).issues,
     });
   }
-});
+}));
 
 // ---------------------------------------------------------------------------
 // payroll export
@@ -77,11 +79,12 @@ exportsRouter.get('/api/exports/payroll/columns', authenticate, requirePermissio
   res.json({ columns: columnCatalog() });
 });
 
-exportsRouter.get('/api/exports/payroll', authenticate, requirePermission('report.read', 'payslip.read'), async (req, res) => {
+exportsRouter.get('/api/exports/payroll', authenticate, requirePermission('report.read', 'payslip.read'), asyncRoute(async (req, res) => {
   try {
     const { year, month, branchIds, columns, format } = parsePeriod(req.query);
     const scope = await scopeFor(req.auth, EXPORT_PERMISSIONS.payroll, branchIds);
     const columnKeys = columns?.split(',').map((s) => s.trim()).filter(Boolean);
+    resolveColumns(columnKeys);
 
     if (format === 'json') {
       const rows = await buildPayrollRows({ year, month, ...scope, columns: columnKeys });
@@ -105,4 +108,4 @@ exportsRouter.get('/api/exports/payroll', authenticate, requirePermission('repor
       issues: (err as { issues?: unknown }).issues,
     });
   }
-});
+}));

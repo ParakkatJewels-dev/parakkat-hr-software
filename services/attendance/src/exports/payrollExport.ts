@@ -44,10 +44,9 @@ export interface PayrollQuery {
 export async function buildPayrollRows(query: PayrollQuery): Promise<PayrollRow[]> {
   const { from, to } = monthBounds(query.year, query.month);
 
-  // Prisma throws on an `undefined` parameter, and an empty array would filter everything out
-  // rather than meaning "no filter". Normalise both to null, which the SQL reads as "all".
-  const branchIds = query.branchIds?.length ? query.branchIds : null;
-  const entityIds = query.entityIds?.length ? query.entityIds : null;
+  // Omitted scope means all; an explicitly empty scope must continue to mean nobody.
+  const branchIds = query.branchIds ?? null;
+  const entityIds = query.entityIds ?? null;
 
   const rows = await prisma.$queryRaw<
     Array<{
@@ -86,14 +85,17 @@ export async function buildPayrollRows(query: PayrollQuery): Promise<PayrollRow[
       dep.name                   as department_name,
       des.title                  as designation_name,
       count(a.id)                                                            as calendar_days,
-      coalesce(sum(case when a.status in ('Present','Half Day')
-                        then a.day_fraction else 0 end), 0)::float8          as days_present,
+      coalesce(sum(case when a.status in ('Present','Half Day','Missing Punch') then a.day_fraction
+                        when a.status = 'On Leave' and not a.is_lop
+                        then greatest(0, a.day_fraction - coalesce(l.day_fraction, a.day_fraction))
+                        else 0 end), 0)::float8                             as days_present,
       coalesce(sum(case when a.status = 'Absent' then 1 else 0 end), 0)::float8 as days_absent,
       coalesce(sum(case when a.status = 'Weekly Off' then 1 else 0 end), 0)::float8 as weekly_offs,
       coalesce(sum(case when a.status = 'Holiday' then 1 else 0 end), 0)::float8   as holidays,
       coalesce(sum(case when a.status = 'On Leave' and not a.is_lop
-                        then a.day_fraction else 0 end), 0)::float8          as paid_leave_days,
-      coalesce(sum(case when a.is_lop then 1 else 0 end), 0)::float8         as lop_days,
+                        then least(a.day_fraction, coalesce(l.day_fraction, a.day_fraction))
+                        else 0 end), 0)::float8                             as paid_leave_days,
+      coalesce(sum(case when a.is_lop then coalesce(l.day_fraction, 1) else 0 end), 0)::float8 as lop_days,
       coalesce(sum(a.day_fraction), 0)::float8                               as payable_days,
       coalesce(sum(a.ot_minutes), 0)::float8                                 as ot_minutes,
       coalesce(sum(a.worked_minutes), 0)::float8                             as worked_minutes,
@@ -105,12 +107,16 @@ export async function buildPayrollRows(query: PayrollQuery): Promise<PayrollRow[
     from public.employees e
     left join public.attendance a
            on a.employee_id = e.id and a.work_date between ${from}::date and ${to}::date
-    left join public.biotime_employees be on be.employee_id = e.id
+    left join public.leaves l on l.id = a.leave_id
+    left join (
+      select employee_id, string_agg(emp_code, ', ' order by emp_code) as emp_code
+      from public.biotime_employees group by employee_id
+    ) be on be.employee_id = e.id
     left join public.entities     ent on ent.id = e.entity_id
     left join public.branches     br  on br.id  = e.branch_id
     left join public.departments  dep on dep.id = e.department_id
     left join public.designations des on des.id = e.designation_id
-    where e.status = 'Active'
+    where (e.status = 'Active' or a.id is not null)
       and (${branchIds}::uuid[] is null or e.branch_id = any(${branchIds}::uuid[]))
       and (${entityIds}::uuid[] is null or e.entity_id = any(${entityIds}::uuid[]))
     group by e.id, e.employee_code, be.emp_code, e.full_name,
@@ -199,9 +205,10 @@ export async function buildPayrollWorkbook(query: PayrollQuery): Promise<ExcelJS
 
   // Totals for the numeric columns — the first thing anyone checking a payroll file looks for.
   const totalRow = sheet.getRow(rows.length + 4);
+  const totalLabelColumn = columns.findIndex((column) => column.type !== 'number');
   columns.forEach((col, i) => {
     const cell = totalRow.getCell(i + 1);
-    if (i === 0) {
+    if (i === totalLabelColumn) {
       cell.value = 'TOTAL';
     } else if (col.type === 'number' && col.key !== 'calendar_days') {
       const sum = rows.reduce((acc, r) => acc + Number(col.value(r) ?? 0), 0);

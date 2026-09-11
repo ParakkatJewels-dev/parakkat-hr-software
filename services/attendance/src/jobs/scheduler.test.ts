@@ -5,8 +5,19 @@
 //
 //   npx tsx --test src/jobs/scheduler.test.ts
 import { test } from 'node:test';
+import cron from 'node-cron';
 import assert from 'node:assert/strict';
 import { exclusive, JOB_DEADLINE_MS } from './scheduler';
+
+test('the patched UUID dependency can create and run an explicitly stopped cron task', () => {
+  let ran = 0;
+  const task = cron.schedule('*/2 * * * *', () => { ran++; }, { scheduled: false });
+  try {
+    // No timer or worker starts: exercise the public task object returned by node-cron 3.
+    (task as unknown as { now: () => void }).now();
+    assert.equal(ran, 1);
+  } finally { task.stop(); }
+});
 
 test('a second tick is skipped while the first is still running', async () => {
   let started = 0;

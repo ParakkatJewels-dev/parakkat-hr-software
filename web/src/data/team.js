@@ -9,6 +9,7 @@
 // construction, so correcting a department here changes nothing on any biometric reader.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 /** The departments this user may actually build a team for. Derived server-side from their grants. */
 export function useMyDepartments({ enabled = true } = {}) {
@@ -28,17 +29,12 @@ export function useDepartmentMembers(departmentId) {
   return useQuery({
     enabled: Boolean(departmentId),
     queryKey: ['department-members', departmentId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('employees')
         .select('id, full_name, employee_code, status, designation:designations(title), branch:branches(code)')
         .eq('department_id', departmentId)
         .eq('status', 'Active')
-        .order('full_name')
-        .limit(2000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('full_name').order('id')),
   });
 }
 
@@ -71,8 +67,7 @@ export function useDepartmentMoves(departmentId) {
   return useQuery({
     enabled: Boolean(departmentId),
     queryKey: ['department-moves', departmentId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('department_moves')
         .select(`id, moved_at, employee_id, from_department_id, to_department_id,
                  employee:employees!department_moves_employee_id_fkey(full_name, employee_code),
@@ -80,13 +75,7 @@ export function useDepartmentMoves(departmentId) {
                  to_department:departments!department_moves_to_department_id_fkey(name)`)
         .or(`to_department_id.eq.${departmentId},from_department_id.eq.${departmentId}`)
         .order('moved_at', { ascending: false })
-        // This is the list to reconcile against once Easy Time Pro is corrected at source, so it
-        // has to be the whole record. At 50 the older half of a re-organisation silently vanished
-        // — and paging over a truncated fetch just pages through the truncation.
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('id')),
   });
 }
 

@@ -6,6 +6,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 import { summarise } from '../lib/attendanceSummary';
 
 // Re-exported so the screen keeps importing its data and its arithmetic from one place.
@@ -40,19 +41,14 @@ export function useEmployeeAttendance(employeeId, from, to) {
     // enabled below, but the key still carries the id so switching person refetches cleanly
     queryKey: ['attendance', 'employee', employeeId, from, to],
     enabled: Boolean(employeeId && from && to),
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('attendance')
         .select(SELECT)
         .eq('employee_id', employeeId)
         .gte('work_date', from)
         .lte('work_date', to)
         .order('work_date', { ascending: false })
-        // A year of one person is ~365 rows; the ceiling is here so it can never silently truncate.
-        .limit(1000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('id')),
   });
 }
 

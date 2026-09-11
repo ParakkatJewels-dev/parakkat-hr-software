@@ -5,6 +5,7 @@
 // rules as a device punch, rather than a second code path that can disagree with the first.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 // The ancestry is selected because reg_update checks all five columns, so the Approve/Reject
 // buttons can be drawn per row instead of from one blanket canAny.
@@ -17,15 +18,16 @@ const SELECT = `
   approver:employees!attendance_regularizations_approver_id_fkey(id, full_name)
 `;
 
-export function useRegularizations(status, employeeId) {
+export function useRegularizations(status, employeeId, { enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['regularizations', status ?? 'all', employeeId ?? 'everyone'],
-    queryFn: async () => {
+    queryFn: () => fetchCollection(() => {
       let query = supabase
         .from('attendance_regularizations')
         .select(SELECT)
         .order('created_at', { ascending: false })
-        .limit(500);
+        .order('id');
 
       if (status) query = query.eq('status', status);
       // Narrowing to one person is a SEPARATE axis from the status filter. Attendance.jsx used to
@@ -34,10 +36,8 @@ export function useRegularizations(status, employeeId) {
       // return, names and reasons included, under a heading reading "Recent requests".
       if (employeeId) query = query.eq('employee_id', employeeId);
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
-    },
+      return query;
+    }),
   });
 }
 
@@ -45,16 +45,11 @@ export function useMyRegularizations(employeeId) {
   return useQuery({
     enabled: Boolean(employeeId),
     queryKey: ['regularizations', 'mine', employeeId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('attendance_regularizations')
         .select(SELECT)
         .eq('employee_id', employeeId)
-        .order('work_date', { ascending: false })
-        .limit(100);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('work_date', { ascending: false }).order('id')),
   });
 }
 
@@ -87,15 +82,18 @@ export function useDecideRegularization() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, decision, note }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('attendance_regularizations')
         .update({
           status: decision,
           decision_note: note ?? null,
           decided_at: new Date().toISOString(),
         })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('status', 'Pending')
+        .select('id').single();
       if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['regularizations'] });

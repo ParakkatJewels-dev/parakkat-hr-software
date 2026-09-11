@@ -1,6 +1,25 @@
 @import "tailwindcss";
 
 .paged-collection { min-width: 0; container: collection / inline-size; }
+.directory-overview-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  min-height: 2.75rem;
+  padding: .625rem .75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-sm);
+  color: var(--surface-text-soft);
+  font-size: .8125rem;
+  list-style: none;
+  cursor: pointer;
+}
+.directory-overview-toggle::-webkit-details-marker { display: none; }
+.directory-overview-toggle strong { margin-left: .5rem; color: var(--surface-text); }
+.directory-overview-disclosure[open] > .directory-overview-toggle { margin-bottom: .75rem; }
+.directory-overview-disclosure[open] > .directory-overview-toggle svg { transform: rotate(180deg); }
+@media (min-width: 641px) { .directory-overview-toggle { display: none; } }
 @container collection (max-width: 34rem) {
   .pagination-shell { grid-template-columns: minmax(0, 1fr) !important; gap: .75rem !important; }
   .pagination-pages { justify-content: flex-start !important; flex-wrap: wrap; }
@@ -2184,6 +2203,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     border-radius: var(--radius-sm);
     background: transparent;
     padding: 0;
+  }
+
+  .pagination-boundary-button {
+    display: none;
   }
 
   .pagination-nav-button,
@@ -6917,7 +6940,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .pagination-pages {
     display: grid;
-    grid-template-columns: 2.7rem minmax(0, 1fr) 2.7rem;
+    grid-template-columns: 2.75rem 2.75rem minmax(0, 1fr) 2.75rem 2.75rem;
     width: 100%;
     gap: .3rem;
     padding: 0;
@@ -6933,9 +6956,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   main .pagination-number {
     min-width: 0;
     width: 100%;
-    min-height: 2.35rem;
-    height: 2.35rem;
+    min-height: 2.75rem;
+    height: 2.75rem;
     border-radius: var(--radius-sm);
+  }
+
+  main .pagination-boundary-button {
+    display: inline-flex;
   }
 
   main .pagination-number[aria-current="page"] {
@@ -8048,7 +8075,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   main .people-part-rail ul {
     flex-wrap: nowrap !important;
-    overflow-x: auto;
+    overflow-x: auto !important;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }

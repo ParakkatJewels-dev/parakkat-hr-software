@@ -10,6 +10,7 @@
 // is not on the task gets no checkbox here and would be refused by the database if they forged one.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 import { nextPosition } from '../lib/checklist';
 
@@ -22,17 +23,13 @@ export function useChecklist(taskId, { enabled = true } = {}) {
   return useQuery({
     enabled: enabled && Boolean(taskId),
     queryKey: ['task-checklist', taskId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('task_checklist_items')
         .select(ITEM_FIELDS)
         .eq('task_id', taskId)
         .order('position', { ascending: true })
         .order('created_at', { ascending: true })
-        .limit(200);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('id')),
   });
 }
 

@@ -6,6 +6,7 @@
 // See migration 0101.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 const SELECT = `
   id, status, title, description, priority, due_date, created_at, decided_at, decision_note, task_id,
@@ -35,15 +36,13 @@ export function useHelpRequests({ enabled = true } = {}) {
       //
       // The same shape as the task board's own window (CLOSED_TASK_WINDOW_DAYS in taskBoard.js).
       const since = new Date(Date.now() - 365 * 86_400_000).toISOString();
-      const { data, error } = await supabase
+      return fetchCollection(() => supabase
         .from('help_requests')
         .select(SELECT)
         // Anything still Pending stays visible however old it is; only settled requests age out.
         .or(`status.eq.Pending,created_at.gte.${since}`)
         .order('created_at', { ascending: false })
-        .limit(2000);
-      if (error) throw error;
-      return data ?? [];
+        .order('id'));
     },
   });
 }
@@ -69,16 +68,12 @@ export function useDepartmentPeople(departmentId, query) {
 export function useDepartments() {
   return useQuery({
     queryKey: ['org', 'departments'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('departments')
         .select('id, name, code, entity_id, branch_id')
         .eq('is_active', true)
         .order('name')
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('id')),
   });
 }
 

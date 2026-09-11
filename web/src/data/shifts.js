@@ -1,6 +1,7 @@
 // Shifts and effective-dated shift assignments.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useShifts() {
   return useQuery({
@@ -68,7 +69,7 @@ export function useDeleteShift() {
 export function useShiftAssignments(employeeId) {
   return useQuery({
     queryKey: ['shift-assignments', employeeId ?? 'all'],
-    queryFn: async () => {
+    queryFn: () => fetchCollection(() => {
       let query = supabase
         .from('employee_shift_assignments')
         .select(
@@ -77,59 +78,38 @@ export function useShiftAssignments(employeeId) {
            shift:shifts(id, code, name)`
         )
         .order('effective_from', { ascending: false })
-        .limit(500);
+        .order('id');
 
       if (employeeId) query = query.eq('employee_id', employeeId);
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
-    },
+      return query;
+    }),
   });
 }
 
 /**
  * Assign a shift from a date. The database rejects overlapping ranges for one employee
- * (esa_no_overlap), so the caller must close the previous assignment first — this does that in
- * the same flow rather than leaving the user to work out why their save failed.
+ * (esa_no_overlap). Closing the previous assignment and inserting its replacement happen in
+ * one database transaction, so a failed replacement cannot erase the original assignment.
  */
 export function useAssignShift() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ employeeId, shiftId, effectiveFrom, effectiveTo = null, note = null }) => {
-      const { data: open, error: findError } = await supabase
-        .from('employee_shift_assignments')
-        .select('id, effective_from, effective_to')
-        .eq('employee_id', employeeId)
-        .is('effective_to', null);
-      if (findError) throw findError;
-
-      const dayBefore = new Date(`${effectiveFrom}T00:00:00Z`);
-      dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
-      const closeOn = dayBefore.toISOString().slice(0, 10);
-
-      for (const row of open ?? []) {
-        if (row.effective_from >= effectiveFrom) {
-          // The existing row starts on or after the new one — it is superseded outright.
-          const { error } = await supabase.from('employee_shift_assignments').delete().eq('id', row.id);
-          if (error) throw error;
-        } else {
-          const { error } = await supabase
-            .from('employee_shift_assignments')
-            .update({ effective_to: closeOn })
-            .eq('id', row.id);
-          if (error) throw error;
-        }
-      }
-
-      const { error } = await supabase.from('employee_shift_assignments').insert({
-        employee_id: employeeId,
-        shift_id: shiftId,
-        effective_from: effectiveFrom,
-        effective_to: effectiveTo,
-        note,
+      const { data, error } = await supabase.rpc('assign_employee_shift', {
+        _employee_id: employeeId,
+        _shift_id: shiftId,
+        _effective_from: effectiveFrom,
+        _effective_to: effectiveTo,
+        _note: note,
       });
-      if (error) throw error;
+      if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883') {
+          throw new Error('Shift assignment needs a database update. Apply migration 0121 and try again.');
+        }
+        throw error;
+      }
+      return data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['shift-assignments'] });

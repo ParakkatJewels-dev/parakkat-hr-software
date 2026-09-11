@@ -18,6 +18,7 @@
     "seed": "tsx src/scripts/seed.ts",
     "doctor": "tsx src/scripts/doctor.ts",
     "test": "tsx --test --experimental-test-module-mocks \"src/**/*.test.ts\"",
+    "test:reports": "tsx src/scripts/verifyReports.ts",
     "probe:rules": "tsx src/scripts/probeRules.ts",
     "shift:from-device": "tsx src/scripts/shiftFromDevice.ts",
     "fetch:all": "tsx src/scripts/fetchAll.ts",
@@ -46,6 +47,18 @@
     "prisma": "^6.2.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
+  },
+  "overrides": {
+    "@prisma/config": {
+      "deepmerge-ts": "^8.0.2"
+    },
+    "exceljs": {
+      "uuid": "^11.1.1"
+    },
+    "node-cron": {
+      "uuid": "^11.1.1"
+    },
+    "qs": "^6.16.0"
   },
   "engines": {
     "node": ">=20"

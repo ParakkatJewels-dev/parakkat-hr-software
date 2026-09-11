@@ -17,6 +17,7 @@ import { useTickets } from '../../data/tickets';
 import { useMyRegularizations } from '../../data/regularizations';
 import { useTasks, useUpdateTask } from '../../data/tasks';
 import { usePayslips } from '../../data/payroll';
+import { isAssignedTo } from '../../lib/taskBoard';
 import { Widget, EmptyNote, StatPill, StatusBadge, fmtDay, inr } from './shared';
 
 /** Is this row (with an `employee` join) the signed-in person's own record? */
@@ -35,10 +36,10 @@ export function EmployeeTodayHero({ onNavigate }) {
   const { data: rows = [], isLoading } = useDayAttendance(today);
   const { data: balances = [] } = useLeaveBalances(employee?.id, Number(today.slice(0, 4)));
   const { data: tasks = [] } = useTasks();
-  const { data: payslips = [] } = usePayslips();
+  const { data: payslips = [] } = usePayslips(employee?.id, { enabled: Boolean(employee?.id) });
 
   const row = rows.find((r) => r.employee?.id === employee?.id);
-  const openTasks = tasks.filter((t) => t.employee_id === employee?.id && t.status !== 'Done' && t.status !== 'Cancelled').length;
+  const openTasks = tasks.filter((t) => isAssignedTo(t, employee?.id) && t.status !== 'Done' && t.status !== 'Cancelled').length;
   const availableLeave = balances.reduce((n, b) => n + Number(b.available || 0), 0);
   const latestPayslip = payslips.filter((p) => isMine(p, employee))[0];
   const dateLabel = new Date().toLocaleDateString('en-IN', {
@@ -310,7 +311,7 @@ export function MyTasks({ onNavigate }) {
   const today = todayIso();
 
   const mine = tasks
-    .filter((t) => t.employee_id === employee?.id && t.status !== 'Done' && t.status !== 'Cancelled')
+    .filter((t) => isAssignedTo(t, employee?.id) && t.status !== 'Done' && t.status !== 'Cancelled')
     .sort((a, b) => (a.due_date || '9999') < (b.due_date || '9999') ? -1 : 1)
     .slice(0, 5);
 
@@ -366,7 +367,7 @@ export function MyTasks({ onNavigate }) {
 /** Latest payslip summary. */
 export function MyPayslip({ onNavigate }) {
   const { employee } = useAuth();
-  const { data: payslips = [] } = usePayslips();
+  const { data: payslips = [] } = usePayslips(employee?.id, { enabled: Boolean(employee?.id) });
   const mine = payslips.filter((p) => isMine(p, employee));
   const latest = mine[0];
 

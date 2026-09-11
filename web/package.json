@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "test": "node --test \"src/**/*.test.js\"",
     "preview": "vite preview",
-    "import:employees": "python backend/scripts/import_employees.py"
+    "import:employees": "python backend/scripts/import_employees.py",
+    "qa:browser": "node qa/server.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -28,7 +29,7 @@
     "react-router-dom": "^7.1.0",
     "recharts": "^3.9.2",
     "tailwindcss": "^4.3.3",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

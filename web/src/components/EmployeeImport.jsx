@@ -47,14 +47,15 @@ export default function EmployeeImport({ onDone }) {
   const readFile = useCallback(async (f) => {
     setParseError(''); setResult(null);
     try {
-      const XLSX = await import('xlsx');
+      const { readEmployeeSheet } = await import('../lib/employeeSpreadsheet');
       const buf = await f.arrayBuffer();
-      const wb = XLSX.read(buf, { cellDates: true });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
       // header:1 gives raw arrays, which is what the layout sniffer needs — these files have
       // banner rows above the header, so letting the library guess field names does not work.
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: '' });
-      if (!rows.length) throw new Error('That sheet is empty.');
+      const rows = readEmployeeSheet(buf);
+      const detected = detectLayout(rows);
+      // Validate while errors can still be shown beside the upload control. Letting invalid
+      // calendar values reach the render-time preview would take down the entire app boundary.
+      if (detected?.usable) extractPeople(rows, detected);
       setRawRows(rows); setFile(f);
     } catch (e) {
       setParseError(e.message || 'Could not read that file.');

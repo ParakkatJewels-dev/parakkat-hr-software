@@ -108,7 +108,8 @@ Run exactly **one** instance. Two would both run the cron schedule and double ev
 | `npm run recompute -- --from … --to … --employee <uuid>` | Re-derive one person |
 | `npm run recompute -- --queue` | Drain pending corrections |
 | `npm run seed` | Realistic fake punches so the frontend works without BioTime |
-| `npm run test` | Engine rule tests (no database needed) |
+| `npm run test` | Rules, HTTP/authentication, scheduler and 503-employee calculation tests (isolated mocks; no database needed) |
+| `npm run test:reports` | SQL and XLSX output checks for 503 employees in a disposable local PostgreSQL cluster |
 
 ## How the sync stays correct
 
@@ -155,7 +156,7 @@ every historical punch under that code and queues those dates for recompute.
 
 `processDay` is a pure function: no database, no clock, no I/O. That is what makes recomputing a
 historical date produce the same answer today as it did last month, and what lets the rules be
-tested without infrastructure (`npm run test`, 21 cases).
+tested without infrastructure (`npm run test`).
 
 Given a date's punches, the assigned shift, the holiday calendar and any approved leave or
 regularization, it derives check-in (first punch), check-out (last punch), worked minutes,
@@ -198,6 +199,20 @@ processes them. Available columns come from `GET /api/exports/payroll/columns`; 
 [src/exports/columns.ts](src/exports/columns.ts) and adding a derived column means adding one
 entry there.
 
+Both reports retain employees who have attendance in the selected month even after they become
+inactive. Multiple device enrolments produce one payroll row with all their codes. Half-day paid
+leave and LOP are counted by their leave fractions, and overtime minutes are summed before rounding
+to hours so the register and payroll agree.
+
+An approved half-day of unpaid leave also caps the engine's payable credit at half a day, including
+flexible shifts and reconstructed missing punches. The measured hours and attendance flags remain
+available for review.
+
+`npm run test:reports` requires `initdb` and `pg_ctl` on PATH. It creates a private cluster on a free
+localhost port, inserts synthetic records, runs the actual report SQL, and saves/reopens both XLSX
+formats to check their cells and totals. It ignores the configured database and removes the cluster
+on completion. It does not start workers or contact BioTime.
+
 ## API
 
 Every route requires a valid Supabase access token and declares a permission.
@@ -209,8 +224,17 @@ Every route requires a valid Supabase access token and declares a permission.
 | `POST /api/sync/transactions`, `/employees`, `/catchup` | `device.manage` |
 | `POST /api/backfill` | `device.manage` |
 | `POST /api/recompute`, `/api/recompute/queue` | `attendance.manage` |
-| `GET /api/mapping`, `POST /api/mapping/link`, `/suggest` | `device.manage` |
+| `GET /api/mapping`, `POST /api/mapping/link`, `/suggest` | organisation-wide `device.manage` |
 | `GET /api/exports/register`, `/payroll` | `report.read` / `attendance.read` |
+
+Device roster requests accept `page` (starting at 1), `pageSize` (1–100, default 50), and an optional
+link `status`. A paged request returns `{ rows, page, pageSize, total, pageCount }`. Omitting `page`
+keeps the existing array response for older clients (up to 1,000 enrolments).
+
+Security overrides keep Prisma 6, ExcelJS 4 and node-cron 3 while using patched `deepmerge-ts`,
+`uuid` and `qs` releases. The callers use the unchanged `deepmerge` and UUID v4 APIs. Validate these
+overrides with `npm audit`, `npm run prisma:generate`, `npm test` and `npm run test:reports` after
+dependency changes.
 
 `/health` returns **503** when the database is unreachable *or* the punch sync has not succeeded
 for 30 minutes. The second condition is the one that matters operationally: the process can be

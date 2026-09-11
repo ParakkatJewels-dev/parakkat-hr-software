@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useCallback, useDeferredValue } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Search, User, ArrowLeft, ArrowRight, X, AlertTriangle,
+  Search, User, ArrowLeft, X, AlertTriangle,
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
   Users, Building2, MapPin, Briefcase, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
   Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
   HeartPulse, FileText, Eye, Award, Calculator,
+  ChevronDown,
 } from 'lucide-react';
 import { useEmployees, useEmployee, useCreateEmployee, useUpdateEmployee } from '../data/employees';
 import { useSalaryStructures, useSaveSalaryStructure } from '../data/payroll';
@@ -24,6 +25,9 @@ import { useGrantAppAccess } from '../data/admin';
 import { SkeletonRows } from './ui/Skeleton';
 import FilterSelect from './ui/FilterSelect';
 import { btnClass } from './ui/Btn';
+import Pagination from './ui/Pagination';
+import { istToday } from '../lib/dates';
+import { useMediaQuery } from '../lib/useMediaQuery';
 import IconInput from './ui/IconInput';
 import {
   blankGrossComponent,
@@ -55,8 +59,7 @@ const statusClass = (status) =>
     : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-500/10';
 
 const monthStartIso = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  return `${istToday().slice(0, 7)}-01`;
 };
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
@@ -74,13 +77,15 @@ const employeeCompleteness = (emp) => {
   return pct(fields.filter(Boolean).length, fields.length);
 };
 
-function PeopleOverview({ employees, filtered, activeFilterCount }) {
+export function PeopleOverview({ employees, filtered, activeFilterCount }) {
   const active = employees.filter((e) => e.status === 'Active').length;
   const probation = employees.filter((e) => e.status === 'Probation').length;
   const onLeave = employees.filter((e) => e.status === 'On Leave').length;
-  const joinedMtd = employees.filter((e) => e.join_date && e.join_date >= monthStartIso()).length;
+  const today = istToday();
+  const joinedMtd = employees.filter((e) => e.join_date && e.join_date >= monthStartIso() && e.join_date <= today).length;
   const noEmail = employees.filter((e) => !e.email).length;
   const noPlacement = employees.filter((e) => !e.branch_id && !e.department_id).length;
+  const needsAttention = employees.filter((e) => !e.email || (!e.branch_id && !e.department_id)).length;
   const activeRate = pct(active, employees.length);
   const visibleRate = pct(filtered.length, employees.length);
   const topBranches = Object.entries(
@@ -135,7 +140,7 @@ function PeopleOverview({ employees, filtered, activeFilterCount }) {
       <div className="directory-overview-quality">
         <div>
           <span className="directory-eyebrow">Data quality</span>
-          <strong>{noEmail + noPlacement === 0 ? 'Clean enough to work' : `${noEmail + noPlacement} records need attention`}</strong>
+          <strong>{needsAttention === 0 ? 'All records have contact and placement details' : `${needsAttention} ${needsAttention === 1 ? 'record needs' : 'records need'} attention`}</strong>
         </div>
         <div className="directory-quality-grid">
           <span><Mail size={12} /> {noEmail} missing email</span>
@@ -147,6 +152,7 @@ function PeopleOverview({ employees, filtered, activeFilterCount }) {
 }
 
 export default function Directory() {
+  const showOverviewByDefault = useMediaQuery('(min-width: 641px)');
   const { data: employees = [], isLoading, error } = useEmployees();
   const { data: org } = useVisibleOrg();
   const { canAny, can, canAcrossBranches, isSuperAdmin } = usePermissions();
@@ -394,7 +400,7 @@ export default function Directory() {
   if (isLoading) {
     return (
       <div className="page-shell space-y-5">
-        <Header count={0} />
+        <Header status="Loading employees…" />
         <SkeletonRows rows={8} />
       </div>
     );
@@ -403,7 +409,7 @@ export default function Directory() {
   if (error) {
     return (
       <div className="page-shell space-y-4 animate-fade-in">
-        <Header count={0} />
+        <Header status="Employee totals are unavailable while the roster cannot be loaded." />
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />
           <div>
@@ -725,7 +731,13 @@ export default function Directory() {
         </div>
       </div>
 
-      <PeopleOverview employees={employees} filtered={filtered} activeFilterCount={activeFilterCount} />
+      <details className="directory-overview-disclosure" open={showOverviewByDefault}>
+        <summary className="directory-overview-toggle">
+          <span>Roster summary <strong>{employees.length} people</strong></span>
+          <ChevronDown size={16} aria-hidden="true" />
+        </summary>
+        <PeopleOverview employees={employees} filtered={filtered} activeFilterCount={activeFilterCount} />
+      </details>
 
       {/* Advanced search, filters and sort controls */}
       <div className="directory-filter-shell premium-card mobile-filter-card">
@@ -1039,57 +1051,11 @@ export default function Directory() {
         </div>
       )}
 
-      {/* Pagination component */}
-      {filtered.length > 12 && (
-        <nav className="premium-card pagination-shell" aria-label="People pagination">
-          <div className="pagination-summary">
-            <span className="pagination-range">
-              <b>{(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, sorted.length)}</b>
-              <span>of {sorted.length} people</span>
-            </span>
-            <span className="pagination-page-label">Page {currentPage} of {totalPages}</span>
-          </div>
-
-          <div className="pagination-pages" aria-label="Pages">
-            {/* 500 employees at 15 a page is 34 pages. Prev/Next alone means 19 clicks to reach
-                page 20, so the numbers are here, with first/last and an ellipsis window. */}
-            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}
-              aria-label="Previous page" className="pagination-nav-button">
-              <ArrowLeft size={12} />
-            </button>
-            {pageWindow(currentPage, totalPages).map((n, i) =>
-              n === '…' ? (
-                <span key={`gap-${i}`} className="pagination-ellipsis" aria-hidden="true">…</span>
-              ) : (
-                <button
-                  key={n}
-                  onClick={() => setCurrentPage(n)}
-                  aria-label={`Page ${n}`}
-                  aria-current={n === currentPage ? 'page' : undefined}
-                  className="pagination-number"
-                >
-                  {n}
-                </button>
-              )
-            )}
-            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
-              aria-label="Next page" className="pagination-nav-button">
-              <ArrowRight size={12} />
-            </button>
-          </div>
-
-          <label className="pagination-size">
-            <span>Per page</span>
-            <select
-              value={pageSize}
-              onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-              aria-label="Rows per page"
-            >
-              {[12, 15, 30, 60, 120].map((n) => <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>)}
-            </select>
-          </label>
-        </nav>
-      )}
+      <Pagination page={currentPage} setPage={setCurrentPage} totalPages={totalPages}
+        pageSize={pageSize} setPageSize={setPageSize} count={sorted.length}
+        from={sorted.length ? (currentPage - 1) * itemsPerPage + 1 : 0}
+        to={Math.min(currentPage * itemsPerPage, sorted.length)} noun="people"
+        sizes={[12, 15, 30, 60, 120]} initialPageSize={12} />
 
       </div>
 
@@ -1120,19 +1086,6 @@ export default function Directory() {
 }
 
 const FORM_INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-855 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
-/** Page numbers to show: always first and last, a window around the current page, ellipses between. */
-function pageWindow(current, total) {
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-  const out = [1];
-  const from = Math.max(2, current - 1);
-  const to = Math.min(total - 1, current + 1);
-  if (from > 2) out.push('…');
-  for (let n = from; n <= to; n++) out.push(n);
-  if (to < total - 1) out.push('…');
-  out.push(total);
-  return out;
-}
-
 const EMP_STATUSES = ['Active', 'Probation', 'On Leave', 'Inactive'];
 const EMPLOYEE_DOCUMENT_TYPES = [
   { key: 'aadhaar', label: 'Aadhaar card', category: 'Identity', icon: IdCard, hint: 'Government ID proof' },
@@ -2217,7 +2170,7 @@ function FormBlock({ step, title, hint, children }) {
   );
 }
 
-function Header({ count, total }) {
+function Header({ count, total, status }) {
   const filtered = total != null && count !== total;
   return (
     <div>
@@ -2226,9 +2179,9 @@ function Header({ count, total }) {
       </p>
       <h1 className="text-xl font-bold text-neutral-900 dark:text-white font-sans mt-1">Directory</h1>
       <p className="text-base text-neutral-500 dark:text-neutral-400 mt-0.5">
-        {filtered
+        {status || (filtered
           ? `${count} of ${total} people match your filters.`
-          : `${count} ${count === 1 ? 'person' : 'people'} visible to you — scoped by company hierarchy.`}
+          : `${count} ${count === 1 ? 'person' : 'people'} visible to you — scoped by company hierarchy.`)}
       </p>
     </div>
   );

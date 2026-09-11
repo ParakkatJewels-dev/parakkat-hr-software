@@ -23,6 +23,7 @@ import { usePermissions } from '../auth/usePermissions';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
+import ListSearch from './ui/ListSearch';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import { useSyncHealth, DIAGNOSIS, forHumans, useQueuedExport, useQueuedRecompute } from '../data/syncStatus';
 import EmployeeLink from './ui/EmployeeLink';
@@ -113,7 +114,7 @@ function Kpi({ icon: Icon, label, value, tone = 'neutral', onClick, active = fal
 function ErrorNote({ error }) {
   if (!error) return null;
   return (
-    <div className="premium-card border-red-300 dark:border-red-900/60">
+    <div role="alert" className="premium-card border-red-300 dark:border-red-900/60">
       <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
         <AlertTriangle size={14} className="mt-0.5 shrink-0" />
         <span>{error.message || String(error)}</span>
@@ -744,12 +745,29 @@ function CalendarView({ employeeId, employeeName }) {
 // Exceptions + reports
 // ---------------------------------------------------------------------------
 
-function ExceptionsView() {
+export function ExceptionsView() {
   // Exceptions are chased down while they are fresh, so the last week is the useful default.
   const range = useDateRange('week');
   const { from, to } = range;
 
   const { data = [], isLoading, error, refetch } = useAttendanceExceptions(from, to);
+  const [search, setSearch] = useState('');
+  const [issue, setIssue] = useState('All exceptions');
+  const matching = useMemo(() => {
+    const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    return data.filter((row) => {
+      if (issue === 'Absent' && row.status !== 'Absent') return false;
+      if (issue === 'No shift assigned' && row.status !== 'No Shift') return false;
+      if (issue === 'Missing punch' && !row.is_missing_punch) return false;
+      if (issue === 'Late arrivals' && !row.is_late) return false;
+      if (issue === 'Early exits' && !row.is_early_exit) return false;
+      if (issue === 'Short days' && !row.is_short_day) return false;
+      if (issue === 'Break issues' && !(row.is_long_break || row.breaks_incomplete)) return false;
+      const text = [row.employee?.full_name, row.employee?.employee_code, row.employee?.branch?.name, row.work_date, row.status].join(' ').toLocaleLowerCase();
+      return terms.every((term) => text.includes(term));
+    });
+  }, [data, search, issue]);
+  const pager = usePagination(matching, 25, null, `${from}:${to}:${search}:${issue}`);
   // Queued through Supabase rather than called directly on the HR laptop. The direct route only
   // ever worked from inside the office over plain http — from the deployed HTTPS site the browser
   // refuses to call it at all, so all three of these buttons did nothing.
@@ -841,11 +859,17 @@ function ExceptionsView() {
 
       <ErrorNote error={error} />
 
+      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
+        <ListSearch value={search} onChange={setSearch} label="Search attendance exceptions" placeholder="Search employee, code, branch or date…" />
+        <FilterSelect label="Issue" value={issue} onChange={setIssue} allValue="All exceptions"
+          options={['All exceptions', 'Absent', 'No shift assigned', 'Missing punch', 'Late arrivals', 'Early exits', 'Short days', 'Break issues']} />
+      </div>
+
       <div className="premium-card overflow-hidden">
         {isLoading ? (
           <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
-        ) : data.length === 0 ? (
-          <div className="p-10 text-center text-xs text-neutral-500">No exceptions in this range.</div>
+        ) : error ? null : matching.length === 0 ? (
+          <div className="p-10 text-center text-xs text-neutral-500">{search.trim() || issue !== 'All exceptions' ? 'No exceptions match your filters.' : 'No exceptions in this range.'}</div>
         ) : (
           <div className="table-scroll">
             <table className="premium-table w-full text-xs">
@@ -861,7 +885,7 @@ function ExceptionsView() {
                 </tr>
               </thead>
               <tbody>
-                {data.map((row) => {
+                {pager.slice.map((row) => {
                   // Ordered by how much somebody needs to act on it, not by column order: an
                   // absence is a question for a manager, a long break is only an explanation for
                   // why the overtime looks small.
@@ -913,6 +937,7 @@ function ExceptionsView() {
           </div>
         )}
       </div>
+      <Pagination {...pager} noun="attendance exceptions" />
     </div>
   );
 }
@@ -921,17 +946,18 @@ function ExceptionsView() {
 // Regularizations
 // ---------------------------------------------------------------------------
 
-function RegularizationsView({ employee, canApprove }) {
+export function RegularizationsView({ employee, canApprove }) {
   const { can, viewingAsEmployee } = usePermissions();
   // A regularization notification links straight here — see the 0098 migration, which points the
   // trigger at `attendance/regularizations` instead of the screen's default tab.
-  const { rowProps } = useFocusRow();
+  const { focusId, rowProps } = useFocusRow();
   // A reviewer sees the pending queue; everybody else sees THEIR OWN requests. The second argument
   // is what stops "not an approver" from meaning "no filter at all".
   const reviewing = canApprove && !viewingAsEmployee;
-  const { data: queue = [], isLoading } = useRegularizations(
+  const { data: queue = [], isLoading, error: queueError } = useRegularizations(
     reviewing ? 'Pending' : undefined,
-    reviewing ? undefined : employee?.id
+    reviewing ? undefined : employee?.id,
+    { enabled: reviewing || Boolean(employee?.id) }
   );
 
   /**
@@ -950,18 +976,37 @@ function RegularizationsView({ employee, canApprove }) {
       deptId: r.department_id,
       employeeId: r.employee_id,
     });
-  const { data: mine = [] } = useMyRegularizations(employee?.id);
+  const { data: mine = [], isLoading: loadingMine, error: mineError } = useMyRegularizations(employee?.id);
   const create = useCreateRegularization();
   const decide = useDecideRegularization();
 
   const [form, setForm] = useState({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' });
+  const [search, setSearch] = useState('');
+  const [formError, setFormError] = useState('');
+  const matching = useMemo(() => {
+    const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    return queue.filter((r) => {
+      const text = [r.employee?.full_name, r.employee?.employee_code, r.employee?.branch?.name, r.reason, r.work_date, r.status].join(' ').toLocaleLowerCase();
+      return terms.every((term) => text.includes(term));
+    });
+  }, [queue, search]);
+  const queuePager = usePagination(matching, 25, focusId, `${reviewing}:${employee?.id}:${search}`);
+  const minePager = usePagination(mine, 8, reviewing ? focusId : null, employee?.id);
 
   const submit = (e) => {
     e.preventDefault();
     if (!employee?.id) return;
-    if (!form.checkIn && !form.checkOut) return;
+    setFormError('');
+    if (!form.checkIn && !form.checkOut) {
+      setFormError('Enter a check-in or check-out time to request a correction.');
+      return;
+    }
+    if (!form.reason.trim()) {
+      setFormError('Enter a reason for this correction.');
+      return;
+    }
     create.mutate(
-      { employeeId: employee.id, ...form },
+      { employeeId: employee.id, ...form, reason: form.reason.trim() },
       { onSuccess: () => setForm({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' }) }
     );
   };
@@ -974,13 +1019,12 @@ function RegularizationsView({ employee, canApprove }) {
             Raise a correction
           </h3>
           <p className="text-xs text-neutral-500">
-            For a day the terminal missed a punch. Approval feeds back into the engine, which
-            recomputes that date.
+            Request a correction for a missed punch. Once approved, your attendance for that date is updated.
           </p>
 
           <label className="block text-2xs uppercase tracking-wider text-neutral-500">
             Date
-            <input type="date" required value={form.workDate}
+            <input type="date" required max={todayIso()} value={form.workDate}
               onChange={(e) => setForm({ ...form, workDate: e.target.value })}
               className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
           </label>
@@ -1014,20 +1058,23 @@ function RegularizationsView({ employee, canApprove }) {
           </button>
 
           {create.isError ? <ErrorNote error={create.error} /> : null}
+          {formError ? <p role="alert" className="text-xs text-red-700 dark:text-red-300">{formError}</p> : null}
           {create.isSuccess ? <p className="text-xs text-emerald-600 dark:text-emerald-400">Submitted.</p> : null}
           {!employee?.id ? <p className="text-xs text-amber-600">Your login is not linked to an employee record.</p> : null}
         </form>
 
-        <div className="premium-card">
+        <div className="premium-card paged-collection">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200 mb-2">
             My requests
           </h3>
-          {mine.length === 0 ? (
+          {mineError ? <ErrorNote error={mineError} /> : loadingMine ? (
+            <p role="status" className="text-xs text-neutral-500">Loading your requests…</p>
+          ) : mine.length === 0 ? (
             <p className="text-xs text-neutral-500">Nothing raised yet.</p>
           ) : (
             <ul className="space-y-1.5">
-              {mine.slice(0, 8).map((r) => (
-                <li key={r.id} {...rowProps(r.id)} className="mobile-list-row flex items-center justify-between text-xs">
+              {minePager.slice.map((r) => (
+                <li key={r.id} {...(reviewing ? rowProps(r.id) : {})} className="mobile-list-row flex items-center justify-between text-xs">
                   <span className="font-mono">{r.work_date}</span>
                   <span className={`badge ${r.status === 'Approved' ? 'badge-green' : r.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 'badge-muted'}`}>
                     {r.status}
@@ -1036,21 +1083,25 @@ function RegularizationsView({ employee, canApprove }) {
               ))}
             </ul>
           )}
+          <Pagination {...minePager} noun="my requests" sizes={[8, 25, 50]} />
         </div>
       </div>
 
-      <div className="lg:col-span-2">
+      <div className="lg:col-span-2 min-w-0 space-y-3 paged-collection">
         <div className="premium-card overflow-hidden">
           <div className="p-4 pb-2">
             <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
-              {canApprove ? 'Pending approval' : 'Recent requests'}
+              {reviewing ? 'Pending approval' : 'My request details'}
             </h3>
+            <div className="mt-3">
+              <ListSearch value={search} onChange={setSearch} label="Search attendance corrections" placeholder="Search name, code, date or reason…" />
+            </div>
           </div>
 
-          {isLoading ? (
+          {queueError ? <ErrorNote error={queueError} /> : isLoading ? (
             <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
-          ) : queue.length === 0 ? (
-            <div className="p-10 text-center text-xs text-neutral-500">Nothing waiting.</div>
+          ) : matching.length === 0 ? (
+            <div className="p-10 text-center text-xs text-neutral-500">{search.trim() ? 'No requests match your search.' : reviewing ? 'Nothing waiting for approval.' : 'No correction requests yet.'}</div>
           ) : (
             <div className="table-scroll">
               <table className="premium-table w-full text-xs">
@@ -1060,11 +1111,12 @@ function RegularizationsView({ employee, canApprove }) {
                     <th className="text-left">Employee</th>
                     <th className="text-left">Proposed</th>
                     <th className="text-left">Reason</th>
-                    {canApprove ? <th className="text-right">Decision</th> : null}
+                    <th className="text-left">Status</th>
+                    {reviewing ? <th className="text-right">Decision</th> : null}
                   </tr>
                 </thead>
                 <tbody>
-                  {queue.map((r) => (
+                  {queuePager.slice.map((r) => (
                     <tr key={r.id} {...rowProps(r.id)}>
                       <td data-label="Date" className="font-mono">{r.work_date}</td>
                       <td data-label="Employee">
@@ -1072,8 +1124,11 @@ function RegularizationsView({ employee, canApprove }) {
                         <div className="text-2xs text-neutral-400">{r.employee?.branch?.name ?? ''}</div>
                       </td>
                       <td data-label="Proposed" className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
-                      <td data-label="Reason" className="max-w-55 truncate text-neutral-500" title={r.reason} aria-label={r.reason}>{r.reason}</td>
-                      {canDecide(r) ? (
+                      <td data-label="Reason" className="max-w-72 whitespace-normal break-words text-neutral-500">{r.reason}</td>
+                      <td data-label="Status"><span className={`badge ${r.status === 'Approved' ? 'badge-green' : r.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 'badge-muted'}`}>{r.status}</span>
+                        {r.decision_note && <p className="mt-1 whitespace-normal break-words text-neutral-500">{r.decision_note}</p>}
+                      </td>
+                      {reviewing && canDecide(r) ? (
                         <td data-label="Decision" className="text-right whitespace-nowrap">
                           <button
                             onClick={() => decide.mutate({ id: r.id, decision: 'Approved' })}
@@ -1093,7 +1148,7 @@ function RegularizationsView({ employee, canApprove }) {
                             Reject
                           </button>
                         </td>
-                      ) : null}
+                      ) : reviewing ? <td data-label="Decision" className="text-neutral-500">{r.employee_id === employee?.id ? 'Another reviewer must decide' : 'Outside your review scope'}</td> : null}
                     </tr>
                   ))}
                 </tbody>
@@ -1101,6 +1156,8 @@ function RegularizationsView({ employee, canApprove }) {
             </div>
           )}
         </div>
+        {decide.error ? <ErrorNote error={decide.error} /> : null}
+        <Pagination {...queuePager} noun={reviewing ? 'pending requests' : 'requests'} disabled={decide.isPending} />
       </div>
     </div>
   );

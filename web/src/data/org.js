@@ -4,6 +4,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 import { visibleOrg } from '../lib/orgScope';
 import { useAuth } from '../auth/AuthContext';
 
@@ -19,13 +20,11 @@ export function useOrgAll() {
   return useQuery({
     queryKey: ['org', 'all'],
     queryFn: async () => {
-      // 50+ branches today; the limit is explicit so a silent PostgREST truncation at 1000 can
-      // never quietly drop branches out of every placement dropdown in the app.
-      const results = await Promise.all(ORG_TABLES.map((t) => supabase.from(t).select('*').limit(2000)));
+      const results = await Promise.all(ORG_TABLES.map((t) =>
+        fetchCollection(() => supabase.from(t).select('*').order('id'))));
       const out = {};
       results.forEach((res, i) => {
-        if (res.error) throw res.error;
-        out[ORG_TABLES[i]] = res.data ?? [];
+        out[ORG_TABLES[i]] = res;
       });
       return out; // { entities, zones, branches, departments, designations }
     },

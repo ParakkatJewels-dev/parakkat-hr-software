@@ -6,8 +6,9 @@
 // read it. One boundary, not two.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchInCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
-import { withSchemaFallback, isMissingSchema } from '../lib/pendingMigration';
+import { withSchemaFallback } from '../lib/pendingMigration';
 
 /** Comment counts for a page of tasks, in one query rather than one per card. */
 export function useTaskCommentCounts(taskIds) {
@@ -16,12 +17,8 @@ export function useTaskCommentCounts(taskIds) {
     enabled: ids.length > 0,
     queryKey: ['task-comment-counts', ids],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_comments')
-        .select('task_id')
-        .in('task_id', ids)
-        .limit(5000);
-      if (error) throw error;
+      const data = await fetchInCollection((batch) => supabase
+        .from('task_comments').select('id, task_id').in('task_id', batch).order('id'), ids);
       const counts = {};
       for (const row of data ?? []) counts[row.task_id] = (counts[row.task_id] ?? 0) + 1;
       return counts;

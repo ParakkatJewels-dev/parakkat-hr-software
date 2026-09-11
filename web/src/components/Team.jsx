@@ -9,7 +9,7 @@
 // So: one screen, two verbs, and a database function behind each (migration 0099). Nothing here
 // reaches Easy Time Pro — that integration is read-only towards the terminal by construction, so a
 // correction made here changes nothing on any biometric reader.
-import React, { useState, useDeferredValue } from 'react';
+import React, { useState, useDeferredValue, useMemo } from 'react';
 import {
   Users, UserPlus, UserMinus, Search, Loader2, AlertTriangle, History, X, Building2,
 } from 'lucide-react';
@@ -22,6 +22,7 @@ import IconInput from './ui/IconInput';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Pagination, { usePagination } from './ui/Pagination';
 import Avatar from './ui/Avatar';
+import ListSearch from './ui/ListSearch';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 import { relativeTime } from '../lib/dates';
 
@@ -40,11 +41,20 @@ export default function Team() {
   const department = departments.find((d) => d.id === selectedId) ?? departments[0] ?? null;
   const departmentId = department?.id ?? null;
 
-  const { data: members = [], isLoading: loadingMembers } = useDepartmentMembers(departmentId);
+  const { data: members = [], isLoading: loadingMembers, error: membersError } = useDepartmentMembers(departmentId);
   const move = useMoveEmployeeDepartment();
+  const [memberSearch, setMemberSearch] = useState('');
+  const deferredSearch = useDeferredValue(memberSearch);
+  const filteredMembers = useMemo(() => {
+    const terms = deferredSearch.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    return members.filter((member) => {
+      const text = [member.full_name, member.employee_code, member.designation?.title, member.branch?.code].join(' ').toLocaleLowerCase();
+      return terms.every((term) => text.includes(term));
+    });
+  }, [members, deferredSearch]);
   // A department is not a handful of people — the largest here runs to dozens, and the roster is
   // the one list on this screen somebody scrolls looking for a name.
-  const memberPager = usePagination(members);
+  const memberPager = usePagination(filteredMembers, 25, null, `${departmentId}:${deferredSearch}`);
 
   if (loadingDepts) {
     return <div className="page-shell flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
@@ -58,7 +68,7 @@ export default function Team() {
           <div>
             <p className="font-semibold">Couldn't load your teams.</p>
             <p className="text-neutral-500 dark:text-neutral-400 mt-1">
-              {deptError.message}. If it mentions <code>my_departments</code>, run migration <code>0099</code>.
+              {deptError.message}
             </p>
           </div>
         </div>
@@ -92,7 +102,7 @@ export default function Team() {
             the attendance terminal.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button onClick={() => setShowHistory((v) => !v)} className={btnClass('ghost')}>
             <History size={13} /> <span>{showHistory ? 'Hide changes' : 'Recent changes'}</span>
           </button>
@@ -114,7 +124,7 @@ export default function Team() {
             return (
               <button
                 key={d.id}
-                onClick={() => setSelectedId(d.id)}
+                onClick={() => { setSelectedId(d.id); setMemberSearch(''); setRemoving(null); }}
                 aria-current={on ? 'page' : undefined}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                   on
@@ -163,13 +173,16 @@ export default function Team() {
         <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 px-1">
           {department?.name} · {members.length} {members.length === 1 ? 'person' : 'people'}
         </h2>
+        <ListSearch value={memberSearch} onChange={setMemberSearch} label="Search team members" placeholder="Search name, employee code, role or branch…" />
 
-        {loadingMembers ? (
+        {membersError ? (
+          <p role="alert" className="premium-card text-sm text-red-700 dark:text-red-300">Could not load team members: {membersError.message}</p>
+        ) : loadingMembers ? (
           <div className="flex justify-center py-12 text-brand-ink"><Loader2 size={20} className="animate-spin" /></div>
-        ) : members.length === 0 ? (
+        ) : filteredMembers.length === 0 ? (
           <div className="premium-card p-10 text-center text-xs text-neutral-500 space-y-1.5">
-            <p className="font-semibold text-neutral-700 dark:text-neutral-300">Nobody in this department yet.</p>
-            <p>Use <span className="font-semibold">Add someone</span> to bring in the people who work for you.</p>
+            <p className="font-semibold text-neutral-700 dark:text-neutral-300">{memberSearch.trim() ? 'No team members match your search.' : 'Nobody in this department yet.'}</p>
+            {memberSearch.trim() ? <button type="button" onClick={() => setMemberSearch('')} className={btnClass('ghost')}>Clear search</button> : <p>Use <span className="font-semibold">Add someone</span> to bring in the people who work for you.</p>}
           </div>
         ) : (
           <>
@@ -231,10 +244,10 @@ function AddToTeam({ department, busy, onClose, onPick }) {
   // and the button looks like it did nothing.
   const panelRef = useRevealOnOpen(true);
   const deferredQ = useDeferredValue(q);
-  const { data: candidates = [], isLoading } = useAssignableEmployees(department.id, deferredQ);
+  const { data: candidates = [], isLoading, isFetching, error } = useAssignableEmployees(department.id, deferredQ);
   // The pool is everyone active in the company. Search narrows it, but an empty search must not
   // render 264 rows into a scroll box nobody can find the bottom of.
-  const pager = usePagination(candidates, 10);
+  const pager = usePagination(candidates, 10, null, `${department.id}:${deferredQ}`);
 
   return (
     <div ref={panelRef} className="premium-card form-section space-y-4 animate-fade-in scroll-mt-4">
@@ -267,7 +280,9 @@ function AddToTeam({ department, busy, onClose, onPick }) {
         inputClassName={INPUT}
       />
 
-      {isLoading ? (
+      {error ? (
+        <p role="alert" className="text-sm text-red-700 dark:text-red-300">Could not load people: {error.message}</p>
+      ) : isLoading ? (
         <div className="flex justify-center py-8 text-brand-ink"><Loader2 size={18} className="animate-spin" /></div>
       ) : candidates.length === 0 ? (
         <p className="text-xs text-neutral-500 py-4 text-center">
@@ -287,9 +302,9 @@ function AddToTeam({ department, busy, onClose, onPick }) {
             <button
               key={c.id}
               type="button"
-              disabled={busy}
+              disabled={busy || isFetching || q !== deferredQ}
               onClick={() => onPick(c.id)}
-              className="w-full text-left px-3 py-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center justify-between gap-3 cursor-pointer disabled:opacity-50"
+              className="w-full text-left px-3 py-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-900 flex flex-wrap items-center justify-between gap-3 cursor-pointer disabled:opacity-50"
             >
               <span className="flex items-center gap-2.5 min-w-0">
                 <Avatar name={c.full_name} />
@@ -302,13 +317,13 @@ function AddToTeam({ department, busy, onClose, onPick }) {
                 </span>
               </span>
               {/* Where they are now, so nobody is moved off another team by accident. */}
-              <span className={`text-2xs font-mono shrink-0 ${c.department_name ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-400'}`}>
+              <span className={`max-w-full break-words text-2xs font-mono ${c.department_name ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-400'}`}>
                 {c.department_name ? `now in ${c.department_name}` : 'no department'}
               </span>
             </button>
           ))}
         </div>
-        <Pagination {...pager} noun="people" />
+        <Pagination {...pager} noun="people" disabled={busy || isFetching || q !== deferredQ} />
         </>
       )}
     </div>
@@ -317,16 +332,16 @@ function AddToTeam({ department, busy, onClose, onPick }) {
 
 /** What was changed by hand — the list to reconcile against once Easy Time Pro is corrected. */
 function MoveHistory({ departmentId }) {
-  const { data: moves = [], isLoading } = useDepartmentMoves(departmentId);
+  const { data: moves = [], isLoading, error } = useDepartmentMoves(departmentId);
   // This list only ever grows — it is the record to reconcile against once Easy Time Pro is fixed.
-  const pager = usePagination(moves, 10);
+  const pager = usePagination(moves, 10, null, departmentId);
   if (isLoading) return null;
   return (
     <section className="premium-card space-y-2">
       <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500">
         Recent changes
       </h2>
-      {moves.length === 0 ? (
+      {error ? <p role="alert" className="text-sm text-red-700 dark:text-red-300">Could not load team changes: {error.message}</p> : moves.length === 0 ? (
         <p className="text-xs text-neutral-500">Nothing has been moved in or out of this team yet.</p>
       ) : (
         <>

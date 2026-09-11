@@ -3,8 +3,10 @@
 // The long-running ones (backfill, recompute) return 202 immediately and run in the background —
 // a browser request should not be held open for four minutes while six months of history loads.
 // Progress is visible through /api/status, which reads the same sync_runs rows.
+import { asyncRoute } from '../asyncRoute';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
+import { dateString, catchupSchema } from '../validation';
 import { prisma, jsonSafe } from '../../lib/db';
 import { logger } from '../../lib/logger';
 import { authenticate, requirePermission, resolveScopedEmployeeIds, resolveVisibleScope } from '../auth';
@@ -14,8 +16,6 @@ import { recompute, drainRecomputeQueue, enqueueRecompute } from '../../engine/r
 import { workDateStart, workDateEnd, todayWorkDate, eachWorkDate } from '../../lib/time';
 
 export const adminRouter = Router();
-
-const dateString = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-DD');
 
 /** Run work detached, logging failures rather than crashing the request. */
 function background(label: string, fn: () => Promise<unknown>): void {
@@ -51,7 +51,7 @@ async function refuseUnlessOrgWide(
 // sync
 // ---------------------------------------------------------------------------
 
-adminRouter.post('/api/sync/transactions', authenticate, requirePermission('device.manage'), async (req, res) => {
+adminRouter.post('/api/sync/transactions', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A transaction sync')) return;
   try {
     const result = await syncTransactions();
@@ -63,9 +63,9 @@ adminRouter.post('/api/sync/transactions', authenticate, requirePermission('devi
       message: err instanceof Error ? err.message : String(err),
     });
   }
-});
+}));
 
-adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.manage'), async (req, res) => {
+adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'An employee sync')) return;
   try {
     const result = await syncEmployees();
@@ -77,14 +77,19 @@ adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.
       message: err instanceof Error ? err.message : String(err),
     });
   }
-});
+}));
 
-adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.manage'), async (req, res) => {
+adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A catch-up scan')) return;
-  const days = Number(req.body?.days ?? 3);
-  background('catchup', () => catchUpTransactions(Number.isFinite(days) ? days : 3));
+  const parsed = catchupSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
+    return;
+  }
+  const { days } = parsed.data;
+  background('catchup', () => catchUpTransactions(days));
   res.status(202).json({ ok: true, message: `Catch-up scan started for the last ${days} days.` });
-});
+}));
 
 // ---------------------------------------------------------------------------
 // backfill
@@ -96,7 +101,7 @@ const backfillSchema = z.object({
   recompute: z.boolean().optional(),
 });
 
-adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage'), async (req, res) => {
+adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A backfill')) return;
   const parsed = backfillSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -134,7 +139,7 @@ adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage
     ok: true,
     message: `Backfill started for ${from} .. ${to} (${days.length} days). Watch progress on the status page.`,
   });
-});
+}));
 
 // ---------------------------------------------------------------------------
 // recompute
@@ -147,7 +152,7 @@ const recomputeSchema = z.object({
   includeLocked: z.boolean().optional(),
 });
 
-adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.manage'), async (req, res) => {
+adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.manage'), asyncRoute(async (req, res) => {
   const parsed = recomputeSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
@@ -196,32 +201,51 @@ adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.m
 
   background('recompute', () => recompute({ from, to, employeeIds, includeLocked }));
   res.status(202).json({ ok: true, message: `Recompute started for ${from} .. ${to} (${days} days).` });
-});
+}));
 
 // The queue holds whatever the sync enqueued, with no way to drain only one caller's share of it —
 // so this takes an org-wide grant rather than being narrowed like /api/recompute above.
-adminRouter.post('/api/recompute/queue', authenticate, requirePermission('attendance.manage'), async (req, res) => {
+adminRouter.post('/api/recompute/queue', authenticate, requirePermission('attendance.manage'), asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'attendance.manage', 'Draining the recompute queue')) return;
   const summary = await drainRecomputeQueue();
   res.json({ ok: true, drained: summary !== null, ...(summary ?? {}) });
-});
+}));
 
 // ---------------------------------------------------------------------------
 // device code mapping
 // ---------------------------------------------------------------------------
 
-adminRouter.get('/api/mapping', authenticate, requirePermission('device.manage'), async (req, res) => {
-  const status = typeof req.query.status === 'string' ? req.query.status : undefined;
+const mappingQuerySchema = z.object({
+  status: z.enum(['auto', 'manual', 'unmatched', 'ambiguous', 'ignored']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+adminRouter.get('/api/mapping', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Viewing the device roster')) return;
+  const parsed = mappingQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_query', issues: parsed.error.issues });
+    return;
+  }
+  const { status, page, pageSize } = parsed.data;
+  const where = status ? { linkStatus: status } : undefined;
 
   const rows = await prisma.biotimeEmployee.findMany({
-    where: status ? { linkStatus: status } : undefined,
+    where,
     orderBy: [{ linkStatus: 'asc' }, { empCode: 'asc' }],
-    take: 1000,
+    take: page === undefined ? 1000 : pageSize,
+    skip: page === undefined ? undefined : (page - 1) * pageSize,
     include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
   });
 
-  res.json(jsonSafe(rows));
-});
+  if (page === undefined) {
+    res.json(jsonSafe(rows));
+    return;
+  }
+  const total = await prisma.biotimeEmployee.count({ where });
+  res.json(jsonSafe({ rows, page, pageSize, total, pageCount: Math.ceil(total / pageSize) }));
+}));
 
 const linkSchema = z.object({
   empCode: z.string().min(1),
@@ -237,7 +261,8 @@ const linkSchema = z.object({
  * from the caller's point of view: set the link, adopt the orphaned punches already stored under
  * that code, and queue those dates for recompute.
  */
-adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.manage'), async (req, res) => {
+adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Changing device mappings')) return;
   const parsed = linkSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
@@ -303,9 +328,10 @@ adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.ma
     recomputedFrom: adopted.firstDate,
     recomputedTo: adopted.lastDate,
   });
-});
+}));
 
-adminRouter.post('/api/mapping/suggest', authenticate, requirePermission('device.manage'), async (_req, res) => {
+adminRouter.post('/api/mapping/suggest', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Refreshing device suggestions')) return;
   const updated = await refreshSuggestions();
   res.json({ ok: true, updated });
-});
+}));

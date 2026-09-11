@@ -57,10 +57,9 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
   const { from, to } = monthBounds(query.year, query.month);
   const dates = eachWorkDate(from, to);
 
-  // Prisma throws on `undefined`; an empty array would exclude everyone rather than mean
-  // "no filter". Both normalise to null, which the SQL reads as "all".
-  const branchIds = query.branchIds?.length ? query.branchIds : null;
-  const entityIds = query.entityIds?.length ? query.entityIds : null;
+  // Preserve empty selections so a caller cannot accidentally widen a denied scope.
+  const branchIds = query.branchIds ?? null;
+  const entityIds = query.entityIds ?? null;
 
   const records = await prisma.$queryRaw<
     Array<{
@@ -74,6 +73,7 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
       is_lop: boolean | null;
       is_late: boolean | null;
       day_fraction: number | null;
+      leave_fraction: number | null;
       ot_minutes: number | null;
     }>
   >`
@@ -87,19 +87,22 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
            a.is_lop,
            a.is_late,
            a.day_fraction::float8 as day_fraction,
+           l.day_fraction::float8 as leave_fraction,
            a.ot_minutes
       from public.employees e
       left join public.attendance a
              on a.employee_id = e.id and a.work_date between ${from}::date and ${to}::date
+      left join public.leaves l on l.id = a.leave_id
       left join public.branches    br  on br.id  = e.branch_id
       left join public.departments dep on dep.id = e.department_id
-     where e.status = 'Active'
+     where (e.status = 'Active' or a.id is not null)
        and (${branchIds}::uuid[] is null or e.branch_id = any(${branchIds}::uuid[]))
        and (${entityIds}::uuid[] is null or e.entity_id = any(${entityIds}::uuid[]))
      order by br.name nulls last, e.full_name, a.work_date
   `;
 
   const byEmployee = new Map<string, RegisterRow>();
+  const otMinutesByEmployee = new Map<string, number>();
 
   for (const r of records) {
     let row = byEmployee.get(r.employee_id);
@@ -132,7 +135,9 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
     });
 
     row.totals.payable += fraction;
-    row.totals.otHours += minutesToHours(Number(r.ot_minutes ?? 0));
+    otMinutesByEmployee.set(r.employee_id,
+      (otMinutesByEmployee.get(r.employee_id) ?? 0) + Number(r.ot_minutes ?? 0));
+    if (r.is_lop) row.totals.lop += Number(r.leave_fraction ?? 1);
     if (r.is_late) row.totals.lateCount += 1;
 
     switch (r.status) {
@@ -145,8 +150,11 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
         row.totals.absent += 1;
         break;
       case 'On Leave':
-        if (r.is_lop) row.totals.lop += 1;
-        else row.totals.leave += fraction;
+        if (!r.is_lop) {
+          const leaveFraction = Math.min(fraction, Number(r.leave_fraction ?? fraction));
+          row.totals.leave += leaveFraction;
+          row.totals.present += Math.max(0, fraction - leaveFraction);
+        }
         break;
       case 'Weekly Off':
         row.totals.weeklyOff += 1;
@@ -159,7 +167,7 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
 
   const rows = [...byEmployee.values()].map((r) => ({
     ...r,
-    totals: { ...r.totals, otHours: Math.round(r.totals.otHours * 100) / 100 },
+    totals: { ...r.totals, otHours: minutesToHours(otMinutesByEmployee.get(r.employeeId) ?? 0) },
   }));
 
   return { rows, dates };

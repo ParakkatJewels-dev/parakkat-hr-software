@@ -233,10 +233,10 @@ export function resolveColumns(keys?: string[]): ColumnDef[] {
   }
 
   if (unknown.length) {
-    throw new Error(
+    throw Object.assign(new Error(
       `Unknown payroll column(s): ${unknown.join(', ')}. ` +
         `Available: ${PAYROLL_COLUMNS.map((c) => c.key).join(', ')}`
-    );
+    ), { status: 400 });
   }
 
   return resolved.length ? resolved : PAYROLL_COLUMNS.filter((c) => DEFAULT_PAYROLL_LAYOUT.includes(c.key));

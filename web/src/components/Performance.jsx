@@ -14,6 +14,8 @@ import { useUrlTab } from '../lib/useUrlTab';
 import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
+import ListSearch from './ui/ListSearch';
+import { istToday } from '../lib/dates';
 
 const INPUT =
   'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60';
@@ -27,19 +29,24 @@ const fmtDate = (iso) => {
 };
 
 const isOverdue = (g) =>
-  g.status === 'Active' && g.target_date && g.target_date.slice(0, 10) < new Date().toISOString().slice(0, 10);
+  g.status === 'Active' && g.target_date && g.target_date.slice(0, 10) < istToday();
 
 export default function Performance() {
   const { data: goals = [], isLoading, error } = useGoals();
   const { data: employees = [] } = useEmployees();
   const { employee } = useAuth();
-  const { canAny } = usePermissions();
+  const { canAny, can } = usePermissions();
   const canManage = canAny('performance.manage');
+  const canManageGoal = (goal) => can('performance.manage', {
+    entityId: goal.entity_id, zoneId: goal.zone_id, branchId: goal.branch_id,
+    deptId: goal.department_id, employeeId: goal.employee_id,
+  });
 
   const save = useSaveGoal();
   const del = useDeleteGoal();
 
   const [form, setForm] = useState({ employee_id: '', title: '', target_date: '', weight: '' });
+  const [search, setSearch] = useState('');
   // In the URL, so a refresh comes back to the view you were reading — but only among the views
   // this person actually has. The tab bar is already hidden without performance.manage; passing the
   // whole catalogue here meant typing /performance/team still selected the team view. Payroll.jsx
@@ -49,6 +56,13 @@ export default function Performance() {
   const mine = useMemo(() => goals.filter((g) => g.employee_id === employee?.id), [goals, employee]);
   const team = useMemo(() => goals.filter((g) => g.employee_id !== employee?.id), [goals, employee]);
   const shown = view === 'mine' ? mine : team;
+  const matching = useMemo(() => {
+    const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+    return shown.filter((goal) => {
+      const text = [goal.title, goal.employee?.full_name, goal.employee?.employee_code, goal.employee?.department?.name, goal.status].join(' ').toLocaleLowerCase();
+      return terms.every((term) => text.includes(term));
+    });
+  }, [shown, search]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -69,7 +83,7 @@ export default function Performance() {
 
   // Paged: this list grows with the business and was rendering every row.
   // Above the early return — a hook must run in the same order on every render.
-  const pager = usePagination(shown, 25, null, view);
+  const pager = usePagination(matching, 25, null, `${view}:${search}`);
 
   if (isLoading) {
     return <div className="page-shell space-y-5"><SkeletonRows rows={5} /></div>;
@@ -96,13 +110,13 @@ export default function Performance() {
         <form onSubmit={submit} className="premium-card space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Set a goal</h3>
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <select required value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
+            <select required aria-label="Employee for goal" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
               <option value="">For whom…</option>
               {employees.map((e) => (
                 <option key={e.id} value={e.id}>{e.full_name} {e.employee_code ? `(${e.employee_code})` : ''}</option>
               ))}
             </select>
-            <input required placeholder="Goal, e.g. Reduce stock variance to under 1%" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={INPUT + ' sm:col-span-2'} />
+            <input required aria-label="Goal title" placeholder="Goal, e.g. Reduce stock variance to under 1%" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={INPUT + ' sm:col-span-2'} />
             <input type="date" value={form.target_date} onChange={(e) => setForm({ ...form, target_date: e.target.value })} className={INPUT} title="Target date" aria-label="Target date" />
           </div>
           <div className="form-section-actions flex flex-wrap items-center gap-3">
@@ -111,7 +125,6 @@ export default function Performance() {
             </button>
             <span className="text-2xs text-neutral-400">The person can update their own progress; you can edit or remove the goal.</span>
           </div>
-          {save.error && <p className="text-xs text-rose-500">{save.error.message}</p>}
         </form>
       )}
 
@@ -134,14 +147,18 @@ export default function Performance() {
         </div>
       )}
 
-      {shown.length === 0 ? (
+      {(save.error || del.error) && <p role="alert" className="premium-card text-sm text-red-700 dark:text-red-300">{(save.error || del.error).message}</p>}
+      <ListSearch value={search} onChange={setSearch} label="Search goals" placeholder="Search goal, employee, code or status…" />
+
+      {matching.length === 0 ? (
         <div className="premium-card p-8 text-center text-xs text-neutral-500">
-          {view === 'mine' ? 'No goals set for you yet.' : 'No goals set for your team yet.'}
+          {search.trim() ? 'No goals match your search.' : view === 'mine' ? 'No goals set for you yet.' : 'No goals set for your team yet.'}
         </div>
       ) : (
         <div className="space-y-2">
           {pager.slice.map((g) => {
             const own = g.employee_id === employee?.id;
+            const manage = canManageGoal(g);
             return (
               <article key={g.id} className="premium-card">
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -149,7 +166,7 @@ export default function Performance() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-base font-bold text-neutral-900 dark:text-white">{g.title}</span>
                       {g.status !== 'Active' && (
-                        <span className="text-2xs font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+                        <span className={`text-2xs font-bold uppercase px-1.5 py-0.5 rounded ${g.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'}`}>
                           {g.status}
                         </span>
                       )}
@@ -164,7 +181,7 @@ export default function Performance() {
                       {g.target_date ? `Target ${fmtDate(g.target_date)}` : 'No target date'}
                     </p>
                   </div>
-                  {canManage && (
+                  {manage && (
                     <button
                       onClick={() => del.mutate(g.id)}
                       disabled={del.isPending}
@@ -188,12 +205,13 @@ export default function Performance() {
                   </span>
                 </div>
 
-                {(own || canManage) && g.status === 'Active' && (
+                {(own || manage) && g.status === 'Active' && (
                   <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
                     {[0, 25, 50, 75].map((p) => (
                       <button
                         key={p}
                         onClick={() => setProgress(g, p)}
+                        disabled={save.isPending}
                         className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-2 py-1 text-2xs font-semibold text-neutral-600 dark:text-neutral-300 hover:border-brand/40 cursor-pointer"
                       >
                         {p}%
@@ -201,11 +219,12 @@ export default function Performance() {
                     ))}
                     <button
                       onClick={() => setProgress(g, 100)}
+                      disabled={save.isPending}
                       className="inline-flex items-center gap-1 rounded-lg bg-brand-action hover:bg-brand-action-hover px-2.5 py-1 text-2xs font-bold text-brand-on cursor-pointer"
                     >
                       <Check size={10} /> Done
                     </button>
-                    {canManage && (
+                    {manage && (
                       <button
                         onClick={() => save.mutate({ id: g.id, status: 'Dropped' })}
                         disabled={save.isPending}

@@ -2,6 +2,7 @@
 //
 // /health is unauthenticated and deliberately cheap — it is what pm2, systemd and any uptime
 // monitor poll. /api/status is the authenticated, detailed view behind the admin screen.
+import { asyncRoute } from '../asyncRoute';
 import { Router } from 'express';
 import { prisma, jsonSafe } from '../../lib/db';
 import { biotime } from '../../biotime/client';
@@ -21,7 +22,7 @@ const startedAt = Date.now();
  * time — the second condition is the one that matters operationally, because the process can be
  * perfectly alive while silently failing to collect any attendance.
  */
-healthRouter.get('/health', async (_req, res) => {
+healthRouter.get('/health', asyncRoute(async (_req, res) => {
   const checks: Record<string, { ok: boolean; detail?: string }> = {};
   let healthy = true;
 
@@ -63,10 +64,10 @@ healthRouter.get('/health', async (_req, res) => {
     jobsInFlight: jobsInFlight(),
     checks,
   });
-});
+}));
 
 /** Everything the admin status page shows. */
-healthRouter.get('/api/status', authenticate, requirePermission('device.manage', 'attendance.manage'), async (_req, res) => {
+healthRouter.get('/api/status', authenticate, requirePermission('device.manage', 'attendance.manage'), asyncRoute(async (_req, res) => {
   const [state, runs, deviceRows, counts, biotimePing] = await Promise.all([
     prisma.syncState.findMany(),
     recentRuns(25),
@@ -105,4 +106,4 @@ healthRouter.get('/api/status', authenticate, requirePermission('device.manage',
       },
     })
   );
-});
+}));

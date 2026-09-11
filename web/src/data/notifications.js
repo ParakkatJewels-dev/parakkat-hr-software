@@ -75,34 +75,34 @@ export function useActionableNotifications() {
 
   const refStatuses = useMemo(() => {
     const statuses = {};
-    if (leaveIds.length === 0 || leaveStatuses.isFetched) statuses.leave = leaveStatuses.data ?? {};
-    if (expenseIds.length === 0 || expenseStatuses.isFetched) statuses.expense = expenseStatuses.data ?? {};
-    if (regularizationIds.length === 0 || regularizationStatuses.isFetched) {
+    if (leaveIds.length === 0 || leaveStatuses.isSuccess) statuses.leave = leaveStatuses.data ?? {};
+    if (expenseIds.length === 0 || expenseStatuses.isSuccess) statuses.expense = expenseStatuses.data ?? {};
+    if (regularizationIds.length === 0 || regularizationStatuses.isSuccess) {
       statuses.regularization = regularizationStatuses.data ?? {};
     }
-    if (taskIds.length === 0 || taskStatuses.isFetched) statuses.task = taskStatuses.data ?? {};
-    if (ticketIds.length === 0 || ticketStatuses.isFetched) statuses.ticket = ticketStatuses.data ?? {};
-    if (helpIds.length === 0 || helpStatuses.isFetched) statuses.help = helpStatuses.data ?? {};
+    if (taskIds.length === 0 || taskStatuses.isSuccess) statuses.task = taskStatuses.data ?? {};
+    if (ticketIds.length === 0 || ticketStatuses.isSuccess) statuses.ticket = ticketStatuses.data ?? {};
+    if (helpIds.length === 0 || helpStatuses.isSuccess) statuses.help = helpStatuses.data ?? {};
     return statuses;
   }, [
     expenseIds.length,
     expenseStatuses.data,
-    expenseStatuses.isFetched,
+    expenseStatuses.isSuccess,
     leaveIds.length,
     leaveStatuses.data,
-    leaveStatuses.isFetched,
+    leaveStatuses.isSuccess,
     regularizationIds.length,
     regularizationStatuses.data,
-    regularizationStatuses.isFetched,
+    regularizationStatuses.isSuccess,
     taskIds.length,
     taskStatuses.data,
-    taskStatuses.isFetched,
+    taskStatuses.isSuccess,
     ticketIds.length,
     ticketStatuses.data,
-    ticketStatuses.isFetched,
+    ticketStatuses.isSuccess,
     helpIds.length,
     helpStatuses.data,
-    helpStatuses.isFetched,
+    helpStatuses.isSuccess,
   ]);
 
   return {

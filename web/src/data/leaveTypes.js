@@ -1,6 +1,7 @@
 // Leave types and per-employee balances.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useLeaveTypes() {
   return useQuery({
@@ -56,7 +57,7 @@ export function useLeaveBalances(employeeId, year = new Date().getFullYear(), { 
     // EVERY balance row RLS allows — shown to them as their own. Pass {all:true} deliberately.
     enabled: all || Boolean(employeeId),
     queryKey: ['leave-balances', employeeId ?? 'all', year],
-    queryFn: async () => {
+    queryFn: () => fetchCollection(() => {
       let query = supabase
         .from('leave_balances')
         .select(
@@ -65,19 +66,12 @@ export function useLeaveBalances(employeeId, year = new Date().getFullYear(), { 
            employee:employees!leave_balances_employee_id_fkey(id, full_name, employee_code)`
         )
         .eq('year', year)
-        // 264 staff x N leave types. The old 2000 cap would silently truncate HR's
-        // leave-liability report the day a 6th type was added; warn rather than lie.
-        .limit(20000);
+        .order('id');
 
       if (employeeId) query = query.eq('employee_id', employeeId);
 
-      const { data, error } = await query;
-      if (error) throw error;
-      if ((data?.length ?? 0) === 20000) {
-        console.warn('[leave-balances] hit the row cap — results are truncated; add pagination');
-      }
-      return data ?? [];
-    },
+      return query;
+    }),
   });
 }
 
@@ -92,12 +86,11 @@ export function useSeedBalances() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ leaveTypeId, year, entitled }) => {
-      const { data: employees, error: empError } = await supabase
+      const employees = await fetchCollection(() => supabase
         .from('employees')
         .select('id')
         .eq('status', 'Active')
-        .limit(5000);
-      if (empError) throw empError;
+        .order('id'));
 
       const rows = (employees ?? []).map((e) => ({
         employee_id: e.id,
@@ -124,14 +117,15 @@ export function useUpdateBalance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, entitled, carried_forward }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('leave_balances')
         .update({
           ...(entitled !== undefined ? { entitled: Number(entitled) } : {}),
           ...(carried_forward !== undefined ? { carried_forward: Number(carried_forward) } : {}),
         })
-        .eq('id', id);
+        .eq('id', id).select('id').single();
       if (error) throw error;
+      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['leave-balances'] }),
   });

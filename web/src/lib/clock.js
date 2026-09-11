@@ -11,6 +11,9 @@
 //
 // Pure and dependency-free, `hour12` passed in, so both shapes can be tested without a browser.
 const TZ = 'Asia/Kolkata';
+const arrivalClock = new Intl.DateTimeFormat('en-GB', {
+  timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
 
 /**
  * "09:37" or "9:37 am" from an ISO timestamp.
@@ -31,6 +34,16 @@ export function formatClock(iso, hour12 = false) {
   }).replace(/\s?([ap])\.?m\.?/i, (_, p) => ` ${p.toLowerCase()}m`);
 }
 
+/** Minutes after midnight in the company's timezone, for attendance averages. */
+export function minutesOfDay(iso) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return null;
+  const parts = arrivalClock.formatToParts(date);
+  const value = (type) => Number(parts.find((part) => part.type === type)?.value);
+  return value('hour') * 60 + value('minute');
+}
+
 /**
  * The same, from minutes past midnight rather than a timestamp.
  *
@@ -38,7 +51,7 @@ export function formatClock(iso, hour12 = false) {
  * single instant to format.
  */
 export function formatMinutesOfDay(minutes, hour12 = false) {
-  if (minutes == null || Number.isNaN(Number(minutes))) return '—';
+  if (minutes == null || !Number.isFinite(Number(minutes))) return '—';
 
   const total = ((Math.round(Number(minutes)) % 1440) + 1440) % 1440;
   const h = Math.floor(total / 60);

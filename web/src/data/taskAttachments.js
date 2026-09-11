@@ -5,6 +5,7 @@
 // task, so a plain query here inherits the board's rules with nothing to keep in step.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection, fetchInCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 
 const BUCKET = 'task-files';
@@ -22,9 +23,8 @@ export function useTaskAttachmentCounts(taskIds) {
     enabled: ids.length > 0,
     queryKey: ['task-attachment-counts', ids],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('task_attachments').select('task_id').in('task_id', ids).limit(5000);
-      if (error) throw error;
+      const data = await fetchInCollection((batch) => supabase
+        .from('task_attachments').select('id, task_id').in('task_id', batch).order('id'), ids);
       const counts = {};
       for (const row of data ?? []) counts[row.task_id] = (counts[row.task_id] ?? 0) + 1;
       return counts;
@@ -36,16 +36,12 @@ export function useTaskAttachments(taskId, { enabled = true } = {}) {
   return useQuery({
     enabled: enabled && Boolean(taskId),
     queryKey: ['task-attachments', taskId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('task_attachments')
         .select('id, kind, label, url, storage_path, size_bytes, content_type, created_at, added_user, added_by:employees!task_attachments_added_by_fkey(id, full_name)')
         .eq('task_id', taskId)
         .order('created_at', { ascending: true })
-        .limit(200);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('id')),
   });
 }
 

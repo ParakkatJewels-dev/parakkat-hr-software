@@ -1,3 +1,5 @@
+import { minutesOfDay } from './clock.js';
+
 // The numbers behind the per-person attendance screen, derived from its rows.
 //
 // Split out of data/employeeAttendance.js, which imports Supabase and TanStack Query and therefore
@@ -109,10 +111,8 @@ export function summarise(rows) {
   // Average arrival, in minutes past midnight, across working days actually attended.
   const arrivals = working
     .filter((r) => r.check_in)
-    .map((r) => {
-      const d = new Date(r.check_in);
-      return d.getHours() * 60 + d.getMinutes();
-    });
+    .map((r) => minutesOfDay(r.check_in))
+    .filter((minutes) => minutes !== null);
   const avgArrival = arrivals.length
     ? Math.round(arrivals.reduce((a, b) => a + b, 0) / arrivals.length)
     : null;

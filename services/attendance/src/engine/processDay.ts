@@ -249,8 +249,8 @@ function breakDeduction(
   }
 }
 
-/** Compute one employee-date. Pure. */
-export function processDay(input: DayInput): DayResult {
+/** Calculate the punch and calendar outcome before applying the unpaid-leave ceiling. */
+function calculateDay(input: DayInput): DayResult {
   const result = emptyResult(input);
   const { shift } = input;
 
@@ -690,5 +690,19 @@ export function processDay(input: DayInput): DayResult {
     result.status = 'On Leave';
   }
 
+  return result;
+}
+
+/** Compute one employee-date. Pure. */
+export function processDay(input: DayInput): DayResult {
+  const result = calculateDay(input);
+  const { leave } = input;
+  // Flexible and missing-punch policies grant a full day for attendance. They cannot also pay
+  // the half day explicitly approved as unpaid leave. Apply this to every return path, including
+  // an in-progress or reconstructed single-punch day, while retaining the measured hours.
+  if (leave && leave.dayFraction > 0 && leave.dayFraction < 1 &&
+      (leave.isLop || !leave.isPaid) && result.dayType === 'working') {
+    result.dayFraction = Math.min(result.dayFraction, 1 - leave.dayFraction);
+  }
   return result;
 }

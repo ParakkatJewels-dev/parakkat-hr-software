@@ -6,6 +6,7 @@
 // task.update, which is the one thing an employee may record on their own work.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 import { istToday } from '../lib/dates';
 
@@ -14,16 +15,11 @@ export function useRoutineItems({ enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['routine-items'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('routine_items')
         .select('id, employee_id, title, detail, sort_order, is_active, created_at, employee:employees!routine_items_employee_id_fkey(id, full_name, employee_code)')
         .eq('is_active', true)
-        .order('sort_order')
-        .limit(2000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('sort_order').order('id')),
   });
 }
 
@@ -38,15 +34,10 @@ export function useRoutineTicks(onDate, { enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['routine-ticks', day],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('routine_ticks')
         .select('id, routine_item_id, employee_id, on_date, done_at')
-        .eq('on_date', day)
-        .limit(5000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .eq('on_date', day).order('id')),
   });
 }
 

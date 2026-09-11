@@ -184,7 +184,7 @@
   outline: none;
 }
 .messages-watch-menu > div { max-height: 260px; overflow-y: auto; overscroll-behavior: contain; }
-.messages-watch-menu button {
+.messages-watch-results > button {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -198,17 +198,18 @@
   text-align: left;
   font-size: 13px;
 }
-.messages-watch-menu button:hover { background: var(--chat-hover); }
-.messages-watch-menu button[aria-current="true"] { background: var(--chat-active); font-weight: 650; }
-.messages-watch-menu button > svg { flex-shrink: 0; color: var(--chat-muted); }
-.messages-watch-menu button > span { min-width: 0; flex: 1; }
-.messages-watch-menu button small {
+.messages-watch-results > button:hover { background: var(--chat-hover); }
+.messages-watch-results > button[aria-current="true"] { background: var(--chat-active); font-weight: 650; }
+.messages-watch-results > button > svg { flex-shrink: 0; color: var(--chat-muted); }
+.messages-watch-results > button > span { min-width: 0; flex: 1; }
+.messages-watch-results > button small {
   display: block;
   font-family: ui-monospace, monospace;
   font-size: 10px;
   color: var(--chat-muted);
 }
 .messages-watch-menu p { padding: 14px; text-align: center; font-size: 12px; color: var(--chat-muted); }
+.messages-group-panel { max-height: min(26rem, 50dvh); overflow-y: auto; }
 
 /* Sits where the composer would be, so the eye lands where the hand expects a text box. */
 .messages-readonly-bar {

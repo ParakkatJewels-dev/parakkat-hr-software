@@ -9,6 +9,7 @@
 // runs on the privileged Prisma connection that bypasses RLS. So every route MUST declare a
 // required permission — there is no RLS backstop here.
 import type { Request, Response, NextFunction } from 'express';
+import { createHash } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { env, canVerifyTokens } from '../config/env';
 import { logger } from '../lib/logger';
@@ -40,30 +41,26 @@ declare global {
 
 /** Short-lived cache so a burst of calls from one screen is not N round trips to Supabase. */
 const CACHE_TTL_MS = 60_000;
+const MAX_CACHE_ENTRIES = 2_000;
 const cache = new Map<string, { context: AuthContext; expiresAt: number }>();
 
 function cacheKey(token: string): string {
-  // Never key on the raw token — this map would become a credential store in a heap dump.
-  let hash = 0;
-  for (let i = 0; i < token.length; i++) {
-    hash = (hash * 31 + token.charCodeAt(i)) | 0;
-  }
-  return `${token.length}:${hash}`;
+  // A non-cryptographic hash lets a different token reuse a verified caller's privileges.
+  // Keep credentials out of the cache without making authentication depend on 32-bit collisions.
+  return createHash('sha256').update(token).digest('hex');
 }
 
 function bearerToken(req: Request): string | null {
   const header = req.headers.authorization;
   if (!header) return null;
-  const [scheme, value] = header.split(' ');
-  if (!scheme || !value) return null;
-  if (scheme.toLowerCase() !== 'bearer') return null;
-  return value.trim() || null;
+  return /^Bearer\s+(\S+)\s*$/i.exec(header)?.[1] ?? null;
 }
 
 async function resolveContext(token: string): Promise<AuthContext | null> {
   const key = cacheKey(token);
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.context;
+  if (hit) cache.delete(key);
 
   const supabase = createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
     global: { headers: { Authorization: `Bearer ${token}` } },
@@ -94,6 +91,14 @@ async function resolveContext(token: string): Promise<AuthContext | null> {
     employee: payload.employee ?? null,
   };
 
+  // Token refreshes must not grow this process-wide map for the lifetime of the worker.
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const now = Date.now();
+    for (const [cachedKey, entry] of cache) {
+      if (entry.expiresAt <= now) cache.delete(cachedKey);
+    }
+    if (cache.size >= MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value!);
+  }
   cache.set(key, { context, expiresAt: Date.now() + CACHE_TTL_MS });
   return context;
 }

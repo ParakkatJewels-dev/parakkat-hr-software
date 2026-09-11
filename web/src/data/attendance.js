@@ -8,6 +8,7 @@
 // their own. The client never filters for security, only for presentation.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 import { formatClock } from '../lib/clock';
 import { getHour12 } from '../lib/timeFormat';
 
@@ -49,16 +50,11 @@ export function useDayAttendance(workDate) {
   const date = workDate || todayIso();
   return useQuery({
     queryKey: ['attendance', 'day', date],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('attendance')
         .select(SELECT)
         .eq('work_date', date)
-        .order('check_in', { ascending: true, nullsFirst: false })
-        .limit(2000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('check_in', { ascending: true, nullsFirst: false }).order('id')),
     // The engine refreshes today's rows every 15 minutes; polling more often than that just
     // re-fetches identical data.
     refetchInterval: 120_000,
@@ -93,8 +89,7 @@ export function useMonthlyAttendance(employeeId, year, month) {
 export function useAttendanceExceptions(from, to) {
   return useQuery({
     queryKey: ['attendance', 'exceptions', from, to],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('attendance')
         .select(SELECT)
         .gte('work_date', from)
@@ -118,12 +113,7 @@ export function useAttendanceExceptions(from, to) {
           'status.eq.No Shift',
         ].join(','))
         .order('work_date', { ascending: false })
-        // A full month of exceptions across a large entity exceeds 1000; the health tile would
-        // silently under-report. 20k covers a month for ~700 staff.
-        .limit(20000);
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('id')),
   });
 }
 

@@ -3,20 +3,11 @@
 // hierarchy. Ancestry columns are stamped automatically from the assignee (employee_id) by the DB.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 import { openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS } from '../lib/taskBoard';
 import { withSchemaFallback, isMissingSchema } from '../lib/pendingMigration';
 
 export { CLOSED_TASK_WINDOW_DAYS };
-
-/**
- * A backstop, not the bound.
- *
- * The bound is the window below — open work plus a year of finished work — which is what actually
- * keeps this query from growing with the company's history. This cap only exists so that if the
- * window is ever widened or removed, the failure is a loud warning rather than a silently
- * truncated board.
- */
-export const TASK_ROW_CAP = 5000;
 
 // tasks has two FKs to employees (employee_id = the primary assignee, assigned_by = delegator).
 // The ancestry columns are here so each row's controls can be gated the way tasks_update and
@@ -38,8 +29,7 @@ export function useTasks() {
   return useQuery({
     queryKey: ['tasks'],
     queryFn: async () => {
-      const read = (fields) => async () => {
-        const { data, error } = await supabase
+      const read = (fields) => () => fetchCollection(() => supabase
           .from('tasks')
           .select(fields)
           // Everything still open, plus a year of what is finished — see openOrRecentlyClosedFilter.
@@ -48,12 +38,7 @@ export function useTasks() {
           // long as they have existed.
           .or(openOrRecentlyClosedFilter())
           .order('created_at', { ascending: false })
-          // Explicit, so the ceiling is visible here rather than PostgREST's silent 1000-row
-          // default — the same reason useEmployees and useLeaveBalances state theirs.
-          .limit(TASK_ROW_CAP);
-        if (error) throw error;
-        return data ?? [];
-      };
+          .order('id'));
 
       // 0114 ships separately from this client, and PostgREST rejects the WHOLE query when one
       // embed in it is unknown — which is how threading once took the entire comment thread down.
@@ -65,9 +50,6 @@ export function useTasks() {
         read(TASK_FIELDS)
       );
 
-      if (data.length === TASK_ROW_CAP) {
-        console.warn(`[tasks] hit the ${TASK_ROW_CAP}-row cap despite the ${CLOSED_TASK_WINDOW_DAYS}-day window — the board is truncated; move search server-side`);
-      }
       return data;
     },
   });

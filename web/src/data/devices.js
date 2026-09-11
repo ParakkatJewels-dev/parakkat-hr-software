@@ -49,7 +49,7 @@ export function useSaveDevice() {
 export function useDeviceMappings(status) {
   return useQuery({
     queryKey: ['device-mappings', status ?? 'all'],
-    queryFn: async () => {
+    queryFn: () => fetchCollection(() => {
       let query = supabase
         .from('biotime_employees')
         .select(
@@ -59,14 +59,12 @@ export function useDeviceMappings(status) {
         )
         .order('link_status')
         .order('emp_code')
-        .limit(1000);
+        .order('id');
 
       if (status) query = query.eq('link_status', status);
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
-    },
+      return query;
+    }),
   });
 }
 
@@ -75,8 +73,8 @@ export function useMappingCounts() {
   return useQuery({
     queryKey: ['device-mappings', 'counts'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('biotime_employees').select('link_status').limit(5000);
-      if (error) throw error;
+      const data = await fetchCollection(() => supabase
+        .from('biotime_employees').select('id, link_status').order('id'));
 
       const counts = { unmatched: 0, ambiguous: 0, auto: 0, manual: 0, ignored: 0, total: 0 };
       for (const row of data ?? []) {

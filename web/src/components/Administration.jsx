@@ -1271,11 +1271,11 @@ function AuditLogs() {
 
   return (
     <div className="space-y-3">
-      <div className="mobile-toolbar flex items-center gap-3">
+      <div className="mobile-toolbar flex flex-wrap items-center gap-3 min-w-0">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className={INPUT + ' max-w-xs'}
+          className={INPUT + ' max-w-xs min-w-0'}
           placeholder="Filter by person, action or table…"
           aria-label="Filter the audit log"
         />

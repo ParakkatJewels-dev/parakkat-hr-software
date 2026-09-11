@@ -10,7 +10,7 @@
 //     internal work tool is better off not answering.
 //   * Live calls. Different project — WebRTC, signalling, and relay servers that cost money every
 //     month whether anybody calls or not.
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
   Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown,
@@ -32,6 +32,7 @@ import { btnClass } from './ui/Btn';
 import Avatar from './ui/Avatar';
 import IconInput from './ui/IconInput';
 import ConfirmDialog from './ui/ConfirmDialog';
+import Pagination, { usePagination } from './ui/Pagination';
 import { useFocusRow } from '../lib/useFocusRow';
 import { messageLinkParts } from '../lib/messageLinks';
 import './messages.css';
@@ -58,7 +59,7 @@ function dayLabel(day) {
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   if (day === yesterday.toISOString().slice(0, 10)) return 'Yesterday';
   try {
-    return new Date(`${day}T00:00:00Z`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' });
+    return new Date(`${day}T00:00:00Z`).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
   } catch { return day; }
 }
 
@@ -296,12 +297,13 @@ function WatchPicker({ employees, watchingId, open, onToggle, onPick }) {
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const pool = employees;
-    if (!needle) return pool.slice(0, 25);
+    if (!needle) return pool;
     return pool.filter(
       (e) => (e.full_name || '').toLowerCase().includes(needle)
         || (e.employee_code || '').toLowerCase().includes(needle)
-    ).slice(0, 40);
+    );
   }, [employees, q]);
+  const peoplePager = usePagination(results, 10, null, q);
 
   return (
     <div className="messages-watch">
@@ -332,11 +334,11 @@ function WatchPicker({ employees, watchingId, open, onToggle, onPick }) {
               placeholder="Search people…"
               aria-label="Search people to view"
             />
-            <div>
+            <div className="messages-watch-results">
               <button type="button" onClick={() => onPick(null)} aria-current={!watchingId ? 'true' : undefined}>
                 <MessageSquare size={14} /> My chats
               </button>
-              {results.map((e) => (
+              {peoplePager.slice.map((e) => (
                 <button
                   key={e.id}
                   type="button"
@@ -352,6 +354,7 @@ function WatchPicker({ employees, watchingId, open, onToggle, onPick }) {
               ))}
               {results.length === 0 && <p>Nobody matches that.</p>}
             </div>
+            <div className="paged-collection"><Pagination {...peoplePager} noun="people" sizes={[10, 25, 50]} /></div>
           </div>
         </>
       )}
@@ -406,8 +409,8 @@ function ConversationRow({ conversation, me, active, onOpen }) {
 
 /* ---------------------------------------------------------------- the thread -- */
 
-function Thread({ conversation, me, onBack, readOnly = false }) {
-  const { data: messages = [], isLoading, error } = useMessages(conversation.id);
+export function Thread({ conversation, me, onBack, readOnly = false }) {
+  const { data: messages = [], isLoading, error, hasOlder, loadOlder, isLoadingOlder } = useMessages(conversation.id);
   const markRead = useMarkRead();
   const [managing, setManaging] = useState(false);
   const [replyId, setReplyId] = useState(null);
@@ -415,6 +418,7 @@ function Thread({ conversation, me, onBack, readOnly = false }) {
   const viewportRef = useRef(null);
   const timelineRef = useRef(null);
   const followLatestRef = useRef(true);
+  const olderScrollRef = useRef(null);
   const name = conversationName(conversation, me);
   const isGroup = conversation.kind === 'group';
   const days = useMemo(() => groupByDay(messages), [messages]);
@@ -432,9 +436,24 @@ function Thread({ conversation, me, onBack, readOnly = false }) {
     setAwayFromBottom(false);
   }, []);
 
+  const newestMessageId = messages.at(-1)?.id;
   useEffect(() => {
     if (followLatestRef.current) jumpToLatest();
-  }, [messages.length, jumpToLatest]);
+  }, [newestMessageId, jumpToLatest]);
+  useLayoutEffect(() => {
+    const previous = olderScrollRef.current;
+    const viewport = viewportRef.current;
+    if (!previous || !viewport || previous.firstId === messages[0]?.id) return;
+    viewport.scrollTop = previous.top + viewport.scrollHeight - previous.height;
+    olderScrollRef.current = null;
+  }, [messages]);
+  const loadEarlier = () => {
+    const viewport = viewportRef.current;
+    if (!viewport || isLoadingOlder) return;
+    olderScrollRef.current = { top: viewport.scrollTop, height: viewport.scrollHeight, firstId: messages[0]?.id };
+    followLatestRef.current = false;
+    loadOlder();
+  };
   // Media can finish loading after the message row. Follow it only while reading the latest chat.
   useEffect(() => {
     const observer = new ResizeObserver(() => {
@@ -455,7 +474,7 @@ function Thread({ conversation, me, onBack, readOnly = false }) {
           <h2>{name}</h2>
           <p>{isGroup ? `${conversation.members?.length ?? 0} members · ${others(conversation, me).map((member) => member.employee?.full_name).filter(Boolean).join(', ')}` : 'Direct message'}</p>
         </div>
-        {isGroup && <button type="button" onClick={() => setManaging((value) => !value)} aria-label="Group settings"
+        {isGroup && !readOnly && <button type="button" onClick={() => setManaging((value) => !value)} aria-label="Group settings"
           aria-expanded={managing} className="messages-icon-button"><UserPlus size={21} /></button>}
       </header>
       {managing && isGroup && <GroupPanel conversation={conversation} me={me} onClose={() => setManaging(false)} />}
@@ -470,11 +489,16 @@ function Thread({ conversation, me, onBack, readOnly = false }) {
           <div className="messages-timeline" ref={timelineRef}>
             {isLoading && <p className="messages-chat-notice" role="status"><Loader2 size={16} className="animate-spin" />Loading messages…</p>}
             {error && <p className="messages-chat-error" role="alert">{humanDbError(error)}</p>}
+            {hasOlder && <button type="button" className={btnClass('ghost') + ' mx-auto'}
+              onClick={loadEarlier} disabled={isLoadingOlder}>
+              {isLoadingOlder && <Loader2 size={14} className="animate-spin" />}
+              {isLoadingOlder ? 'Loading older messages…' : 'Load older messages'}
+            </button>}
             {!isLoading && !error && !messages.length && <div className="messages-chat-empty"><MessageSquare size={28} /><strong>Say hello</strong><p>Send a message to start the conversation.</p></div>}
             {days.map(({ day, messages: rows }) => (
               <div key={day} className="messages-day">
                 <p className="messages-date"><span>{dayLabel(day)}</span></p>
-                {rows.map((message, index) => <MessageBubble key={message.id} message={message} me={me}
+                {rows.map((message, index) => <MessageBubble key={message.id} message={message} me={me} readOnly={readOnly}
                   quote={byId.get(message.reply_to)} onReply={() => setReplyId(message.id)}
                   withSender={showsSender(message, rows[index - 1] ?? null, { kind: conversation.kind })}
                   endsRun={index === rows.length - 1 || rows[index + 1].sender_id !== message.sender_id || showsSender(rows[index + 1], message, { kind: 'group' })} />)}
@@ -501,7 +525,7 @@ function Thread({ conversation, me, onBack, readOnly = false }) {
 
 /* --------------------------------------------------------------- one message -- */
 
-function MessageBubble({ message, me, withSender, endsRun, quote, onReply }) {
+function MessageBubble({ message, me, withSender, endsRun, quote, onReply, readOnly = false }) {
   const mine = isMine(message, me);
   const [showActions, setShowActions] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -525,11 +549,11 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply }) {
             <div className="message-meta">
               {message.edited_at && <span>edited</span>}
               <time dateTime={message.created_at}>{clockOf(message.created_at)}</time>
-              <button type="button" className="message-options" aria-label="Message options" aria-expanded={showActions}
-                onClick={() => setShowActions((value) => !value)}><ChevronDown size={14} /></button>
+              {!readOnly && <button type="button" className="message-options" aria-label="Message options" aria-expanded={showActions}
+                onClick={() => setShowActions((value) => !value)}><ChevronDown size={14} /></button>}
             </div>
           </div>
-          {showActions && <div className="message-actions">
+          {!readOnly && showActions && <div className="message-actions">
             <button type="button" onClick={() => { onReply(); setShowActions(false); }}><Reply size={14} />Reply</button>
             {mine && <button type="button" onClick={() => setConfirming(true)}><Trash2 size={13} />Delete</button>}
           </div>}
@@ -868,27 +892,28 @@ function VoiceButton({ disabled, onRecorded, onError }) {
 
 /* ------------------------------------------------------- starting a new one -- */
 
-function NewConversation({ me, onClose, onOpened }) {
+export function NewConversation({ me, onClose, onOpened }) {
   const [mode, setMode] = useState('direct');   // 'direct' | 'group'
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState([]);
   const [title, setTitle] = useState('');
-  const { data: employees = [] } = useEmployees();
+  const { data: employees = [], isLoading: loadingEmployees, error: employeeError } = useEmployees();
   const startDirect = useStartDirect();
   const createGroup = useCreateGroup();
 
   const busy = startDirect.isPending || createGroup.isPending;
-  const error = startDirect.error || createGroup.error;
+  const error = startDirect.error || createGroup.error || employeeError;
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const pool = employees.filter((e) => e.id !== me);
-    if (!needle) return pool.slice(0, 12);
+    if (!needle) return pool;
     return pool.filter(
       (e) => (e.full_name || '').toLowerCase().includes(needle)
         || (e.employee_code || '').toLowerCase().includes(needle)
-    ).slice(0, 20);
+    );
   }, [employees, query, me]);
+  const peoplePager = usePagination(results, 12, null, query);
 
   const choose = async (employeeId) => {
     if (mode === 'group') {
@@ -907,7 +932,7 @@ function NewConversation({ me, onClose, onOpened }) {
       className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="w-full sm:max-w-md bg-white dark:bg-neutral-950 rounded-t-2xl sm:rounded-2xl border border-neutral-200 dark:border-neutral-850 p-4 space-y-3 max-h-[85vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-label={mode === 'group' ? 'New group' : 'New message'} className="w-full sm:max-w-md bg-white dark:bg-neutral-950 rounded-t-2xl sm:rounded-2xl border border-neutral-200 dark:border-neutral-850 p-4 space-y-3 max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-neutral-900 dark:text-white">
             {mode === 'group' ? 'New group' : 'New message'}
@@ -956,16 +981,16 @@ function NewConversation({ me, onClose, onOpened }) {
         />
 
         {error && (
-          <p className="flex items-start gap-1.5 text-2xs text-rose-600 dark:text-rose-400">
+          <p role="alert" className="flex items-start gap-1.5 text-2xs text-rose-600 dark:text-rose-400">
             <AlertTriangle size={11} className="mt-0.5 shrink-0" /> {humanDbError(error)}
           </p>
         )}
 
         <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 divide-y divide-neutral-150 dark:divide-neutral-850/60">
-          {results.length === 0 && (
-            <p className="py-6 text-center text-xs text-neutral-500">Nobody matches that.</p>
+          {loadingEmployees ? <p role="status" className="py-6 text-center text-xs text-neutral-500">Loading people…</p> : !employeeError && results.length === 0 && (
+            <p className="py-6 text-center text-xs text-neutral-500">{query.trim() ? 'Nobody matches that.' : 'No colleagues available to message yet.'}</p>
           )}
-          {results.map((e) => {
+          {peoplePager.slice.map((e) => {
             const on = picked.includes(e.id);
             return (
               <button
@@ -990,6 +1015,8 @@ function NewConversation({ me, onClose, onOpened }) {
           })}
         </div>
 
+        <div className="paged-collection shrink-0"><Pagination {...peoplePager} noun="people" sizes={[12, 25, 50]} disabled={busy} /></div>
+
         {mode === 'group' && (
           <button
             type="button"
@@ -1008,7 +1035,7 @@ function NewConversation({ me, onClose, onOpened }) {
 
 /* ----------------------------------------------------------- managing a group -- */
 
-function GroupPanel({ conversation, me, onClose }) {
+export function GroupPanel({ conversation, me, onClose }) {
   const [query, setQuery] = useState('');
   const [title, setTitle] = useState(conversation.title ?? '');
   const { data: employees = [] } = useEmployees();
@@ -1024,14 +1051,15 @@ function GroupPanel({ conversation, me, onClose }) {
     if (!needle) return [];
     return employees
       .filter((e) => !memberIds.has(e.id))
-      .filter((e) => (e.full_name || '').toLowerCase().includes(needle) || (e.employee_code || '').toLowerCase().includes(needle))
-      .slice(0, 8);
+      .filter((e) => (e.full_name || '').toLowerCase().includes(needle) || (e.employee_code || '').toLowerCase().includes(needle));
     // memberIds is rebuilt each render from props; listing it would defeat the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees, query, conversation.members]);
+  const candidatePager = usePagination(candidates, 8, null, `${conversation.id}:${query}`);
+  const memberPager = usePagination(conversation.members ?? [], 12, null, conversation.id);
 
   return (
-    <div className="shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950/60 p-3 space-y-2.5">
+    <div className="messages-group-panel shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950/60 p-3 space-y-2.5">
       <div className="flex items-center justify-between gap-2">
         <p className="text-2xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Group</p>
         <button type="button" onClick={onClose} aria-label="Close group settings" className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white cursor-pointer">
@@ -1058,7 +1086,7 @@ function GroupPanel({ conversation, me, onClose }) {
       </div>
 
       <div className="flex flex-wrap gap-1.5">
-        {(conversation.members ?? []).map((m) => (
+        {memberPager.slice.map((m) => (
           <span key={m.employee_id} className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-850 bg-white dark:bg-neutral-900 px-2 py-1 text-2xs">
             <span className="font-semibold text-neutral-700 dark:text-neutral-300">
               {m.employee?.full_name ?? 'Unknown'}
@@ -1066,6 +1094,7 @@ function GroupPanel({ conversation, me, onClose }) {
             {m.employee_id === me && <span className="opacity-60">(you)</span>}
             <button
               type="button"
+              disabled={remove.isPending}
               onClick={() => remove.mutate({ conversationId: conversation.id, employeeId: m.employee_id })}
               aria-label={m.employee_id === me ? 'Leave this group' : `Remove ${m.employee?.full_name ?? 'this person'}`}
               title={m.employee_id === me ? 'Leave this group' : 'Remove'}
@@ -1076,6 +1105,7 @@ function GroupPanel({ conversation, me, onClose }) {
           </span>
         ))}
       </div>
+      <div className="paged-collection"><Pagination {...memberPager} noun="group members" sizes={[12, 25, 50]} disabled={remove.isPending} /></div>
 
       <IconInput
         icon={Search}
@@ -1088,12 +1118,14 @@ function GroupPanel({ conversation, me, onClose }) {
       />
 
       {candidates.length > 0 && (
+        <div className="paged-collection">
         <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 divide-y divide-neutral-150 dark:divide-neutral-850/60 overflow-hidden">
-          {candidates.map((e) => (
+          {candidatePager.slice.map((e) => (
             <button
               key={e.id}
               type="button"
-              onClick={() => { add.mutate({ conversationId: conversation.id, employeeIds: [e.id] }); setQuery(''); }}
+              disabled={add.isPending}
+              onClick={() => add.mutate({ conversationId: conversation.id, employeeIds: [e.id] }, { onSuccess: () => setQuery('') })}
               className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center justify-between cursor-pointer"
             >
               <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
@@ -1101,7 +1133,11 @@ function GroupPanel({ conversation, me, onClose }) {
             </button>
           ))}
         </div>
+        <Pagination {...candidatePager} noun="matching people" sizes={[8, 25, 50]} disabled={add.isPending} />
+        </div>
       )}
+
+      {query.trim() && candidates.length === 0 && <p className="text-xs text-neutral-500">No new people match this search. Existing members are listed above.</p>}
 
       {error && (
         <p className="flex items-start gap-1.5 text-2xs text-rose-600 dark:text-rose-400">

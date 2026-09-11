@@ -317,3 +317,21 @@ test('normalHours carries no float noise', () => {
   const n = summarise(rows).normalHours;
   assert.equal(n, Math.round(n * 10) / 10, `${n} should be a clean one-decimal figure`);
 });
+
+test('average arrival matches IST punch labels from every browser timezone', () => {
+  const previous = process.env.TZ;
+  try {
+    for (const timezone of ['UTC', 'America/Los_Angeles', 'Asia/Kolkata', 'Pacific/Auckland']) {
+      process.env.TZ = timezone;
+      const result = summarise([
+        day('2026-09-10', { check_in: '2026-09-10T03:30:00Z' }),
+        day('2026-09-11', { check_in: '2026-09-11T04:30:00Z' }),
+      ]);
+      assert.equal(result.avgArrival, 570, `${timezone}: average of 09:00 and 10:00 must be 09:30 IST`);
+    }
+    assert.equal(summarise([day('2026-09-11', { check_in: 'invalid' })]).avgArrival, null);
+  } finally {
+    if (previous === undefined) delete process.env.TZ;
+    else process.env.TZ = previous;
+  }
+});

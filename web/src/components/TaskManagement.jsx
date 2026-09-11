@@ -621,8 +621,10 @@ function TaskComposer({
       (e) => (e.full_name || '').toLowerCase().includes(needle) || (e.employee_code || '').toLowerCase().includes(needle)
     );
     const allowed = canAssignTo ? matches.filter(canAssignTo) : matches;
-    return { results: allowed.slice(0, 8), outOfScope: matches.length - allowed.length };
+    return { results: allowed, outOfScope: matches.length - allowed.length };
   }, [employees, q, canAssignTo]);
+  const availablePeople = useMemo(() => results.filter((e) => !chosenIds.includes(e.id)), [results, chosenIds]);
+  const peoplePager = usePagination(availablePeople, 8, null, q);
 
   const chosen = employees.find((e) => e.id === assigneeId);
   // An assignee the viewer cannot read at all — the embedded join was empty, so they are not in
@@ -740,6 +742,7 @@ function TaskComposer({
                 <input
                   className={INPUT}
                   value={q}
+                  aria-label="Search task assignees"
                   onChange={(e) => setQ(e.target.value)}
                   placeholder={chosenIds.length > 0 ? 'Add someone else…' : 'Search employee by name or code…'}
                 />
@@ -751,15 +754,19 @@ function TaskComposer({
                       : 'Nobody matches that name or code.'}
                   </p>
                 )}
-                {results.length > 0 && (
+                {results.length > 0 && availablePeople.length === 0 && <p className="mt-1 text-xs text-neutral-500">Everyone matching this search is already selected.</p>}
+                {availablePeople.length > 0 && (
+                  <div className="paged-collection">
                   <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
-                    {results.filter((e) => !chosenIds.includes(e.id)).map((e) => (
+                    {peoplePager.slice.map((e) => (
                       <button key={e.id} type="button" onClick={() => addPerson(e.id)}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer">
                         <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
                         <span className="font-mono text-2xs text-neutral-500">{e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}</span>
                       </button>
                     ))}
+                  </div>
+                  <Pagination {...peoplePager} noun="matching people" sizes={[8, 25, 50]} disabled={busy} />
                   </div>
                 )}
                 {currentEmployeeId && !chosenIds.includes(currentEmployeeId)

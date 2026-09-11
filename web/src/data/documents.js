@@ -10,6 +10,7 @@
 // record, and there is a single place where that is decided.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 const BUCKET = 'documents';
 
@@ -19,8 +20,7 @@ const SIGNED_URL_SECONDS = 60;
 export function useDocuments() {
   return useQuery({
     queryKey: ['documents'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('documents')
         .select(
           // employee_id as well as the embed: it is what says "this belongs to a person", and it
@@ -32,10 +32,8 @@ export function useDocuments() {
            storage_path, file_name, mime_type, size_bytes, uploaded_at,
            employee:employees(full_name)`
         )
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false })
+        .order('id')),
   });
 }
 
@@ -50,18 +48,15 @@ export function useEmployeeDocuments(employeeId) {
   return useQuery({
     enabled: Boolean(employeeId),
     queryKey: ['documents', 'employee', employeeId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('documents')
         .select(
           `id, title, category, url, signed, created_at,
            storage_path, file_name, mime_type, size_bytes, uploaded_at`
         )
         .eq('employee_id', employeeId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false })
+        .order('id')),
   });
 }
 

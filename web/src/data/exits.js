@@ -1,19 +1,17 @@
 // Exit / separation records. HR manages within scope; employees can file & see their own.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useExits({ enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['exits'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('exits')
         .select('id, last_day, reason, status, approvals, created_at, employee:employees(id, full_name, employee_code, branch_id, branch:branches(code), department:departments(name))')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('created_at', { ascending: false })
+        .order('id')),
   });
 }
 

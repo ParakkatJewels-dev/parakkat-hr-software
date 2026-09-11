@@ -71,3 +71,19 @@ redirect/email setup.
 - **Module rows** carry `employee_id` + ancestry stamped by a trigger, so RLS filters without joins.
   Note: PostgREST embeds must disambiguate tables with two FKs to `employees` (e.g.
   `employee:employees!leaves_employee_id_fkey(...)` because of `employee_id` + `approver_id`).
+
+## Local database verification
+
+Run `npm test` in this directory with PostgreSQL tools (`initdb`, `pg_ctl`, `createdb`, `psql`)
+on `PATH`. The runner creates its own temporary cluster and private UNIX socket, executes the
+account-integrity and workflow suites, then removes the cluster. It never reads `.env` files or
+connects to the hosted application. The workflow suite loads the real foundational migrations,
+permission functions and RLS, then checks atomic shift replacement, rollback after a conflicting
+date range, preservation of future assignments, branch/company restrictions, assignment-only roles
+without access to personal employee data, and employee goal-progress restrictions.
+
+Migration `0121_atomic_shift_assignment.sql` must be applied before the updated shift-assignment
+form can save. It replaces the old sequence of browser writes with one transaction; a failed
+replacement preserves the employee's current shift. Migration `0123_goal_progress_guard.sql`
+prevents self-service users from rewriting a goal's definition or ancestry while allowing progress
+updates. Apply pending files using the normal migration runner; these tests do not deploy them.
