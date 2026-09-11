@@ -1,17 +1,6 @@
-// The signed-in person's own profile.
-//
-// DESIGNED AROUND ONE FACT: update_my_profile takes exactly one argument — `_phone`. That is the
-// whole of what an employee may change about themselves; HR owns every other field on this page.
-// The previous version did not say so anywhere. It laid twenty-odd label/value pairs out at uniform
-// weight across six sections, put the one editable field third in the middle list behind a pencil,
-// and topped the page with a completion meter reading "75%" — a number nobody could act on, because
-// the fields it was counting were HR's to fill in.
-//
-// So the order here is: who you are, the four facts you actually quote, the one thing you own, then
-// what HR holds about you. Nothing is dropped — the earlier request was that every detail show —
-// but "Not recorded" eight times crowds out what IS known, so absent fields are collected into one
-// quiet line per section instead of taking a row each.
-import React, { useEffect, useMemo, useState } from 'react';
+// The signed-in person's profile: identity and key facts, contact details, then HR information.
+// Only the phone number is self-service; update_my_profile accepts exactly that field.
+import React, { useEffect, useId, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -22,7 +11,6 @@ import {
   Mail,
   Menu,
   Package,
-  Phone,
   Settings,
   ShieldCheck,
   UserRound,
@@ -71,14 +59,14 @@ const tenureFrom = (value) => {
  * are named once at the foot of the section rather than each taking a full row — a section with two
  * of six filled then reads as two facts and a footnote, not as four absences.
  */
-function Facts({ icon: Icon, title, fields, children, note }) {
+function Facts({ icon: Icon, title, fields, children, note, className = '' }) {
   const known = fields.filter(([, value]) => value);
   const missing = fields.filter(([, value]) => !value).map(([label]) => label.toLowerCase());
 
   return (
-    <section className="profile-card">
+    <section className={`profile-card ${className}`}>
       <header>
-        <span className="profile-card-icon"><Icon size={13} /></span>
+        <span className="profile-card-icon"><Icon size={16} aria-hidden="true" /></span>
         <h2>{title}</h2>
       </header>
 
@@ -96,14 +84,14 @@ function Facts({ icon: Icon, title, fields, children, note }) {
         </dl>
       )}
 
-      {children}
-
       {missing.length > 0 && (
         <p className="profile-missing">
           Not on file: {missing.join(', ')}
           {note ? ` — ${note}` : ''}
         </p>
       )}
+
+      {children}
     </section>
   );
 }
@@ -172,9 +160,10 @@ function ProfileLoading({ onOpenMenu, menuOpen }) {
     <div className="page-shell user-profile animate-fade-in" aria-label="Loading profile">
       <ProfileMenuHeader onOpenMenu={onOpenMenu} menuOpen={menuOpen} />
       <div className="profile-hero skeleton" />
-      <div className="profile-grid">
-        <div className="profile-card skeleton" />
-        <div className="profile-card skeleton" />
+      <div className="profile-layout" aria-hidden="true">
+        <div className="profile-card profile-contact skeleton" />
+        <div className="profile-card profile-details skeleton" />
+        <div className="profile-card profile-account skeleton" />
       </div>
     </div>
   );
@@ -195,6 +184,7 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings, on
 
   const [phone, setPhone] = useState('');
   const [saved, setSaved] = useState(false);
+  const phoneId = useId();
 
   useEffect(() => {
     setPhone(record?.phone || '');
@@ -232,44 +222,44 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings, on
     <div className="page-shell user-profile animate-fade-in">
       <ProfileMenuHeader onOpenMenu={onOpenMenu} menuOpen={menuOpen} />
       <header className="profile-hero">
-        <div className="profile-avatar">
-          {avatars[record?.id] ? (
-            <img src={avatars[record.id]} alt={`Photograph of ${displayName}`} />
-          ) : (
-            initials(displayName)
-          )}
-        </div>
-
-        <div className="profile-identity">
-          <h1>{displayName}</h1>
-          <p>{record?.designation?.title || roleLabel}</p>
-          <div className="profile-chips">
-            {record?.status && (
-              <span className={record.status === 'Active' ? 'is-active' : ''}>
-                <BadgeCheck size={11} /> {record.status}
-              </span>
+        <div className="profile-hero-main">
+          <div className="profile-avatar">
+            {avatars[record?.id] ? (
+              <img src={avatars[record.id]} alt={`Photograph of ${displayName}`} />
+            ) : (
+              initials(displayName)
             )}
-            <span>{roleLabel}</span>
           </div>
-        </div>
 
-        {onOpenSettings && <button type="button" className="profile-settings" onClick={onOpenSettings}>
-          <Settings size={14} /> <span>Settings</span>
-        </button>}
-      </header>
-
-      {/* Given their own row so they are answerable at a glance rather than found inside a list. */}
-      {record && (
-        <div className="profile-strip">
-          {strip.map(([label, value, extra]) => (
-            <div key={label}>
-              <small>{label}</small>
-              <strong>{value || '—'}</strong>
-              {extra ? <em>{extra}</em> : null}
+          <div className="profile-identity">
+            <h1>{displayName}</h1>
+            <p>{record?.designation?.title || roleLabel}</p>
+            <div className="profile-chips">
+              {record?.status && (
+                <span className={record.status === 'Active' ? 'is-active' : ''}>
+                  <BadgeCheck size={12} aria-hidden="true" /> {record.status}
+                </span>
+              )}
+              <span>{roleLabel}</span>
             </div>
-          ))}
+          </div>
+
+          {onOpenSettings && <button type="button" className="profile-settings" onClick={onOpenSettings}>
+            <Settings size={16} aria-hidden="true" /> <span>Settings</span>
+          </button>}
         </div>
-      )}
+
+        {record && (
+          <dl className="profile-strip" aria-label="Employment summary">
+            {strip.map(([label, value, extra]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value || '—'}{extra ? <em>{extra} with us</em> : null}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </header>
 
       {employeeQuery.error && (
         <div className="profile-alert" role="alert">
@@ -285,112 +275,116 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings, on
         </div>
       )}
 
-      <div className="profile-grid">
-        {/* Yours to change. update_my_profile accepts a phone number and nothing else, so this is
-            the whole of what the page can offer as an action — worth saying plainly rather than
-            leaving people to work it out by finding no other pencil. */}
-        {linkedEmployee && (
-          <section className="profile-card is-editable">
-            <header>
-              <span className="profile-card-icon"><Phone size={13} /></span>
-              <h2>Your phone number</h2>
-            </header>
-            <form className="profile-phone" onSubmit={savePhone}>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="Not recorded"
-                aria-label="Your phone number"
-              />
-              <button type="submit" disabled={!phoneChanged || updateProfile.isPending}>
-                {updateProfile.isPending
-                  ? <Loader2 size={13} className="animate-spin" />
-                  : <Check size={13} />}
-                Save
-              </button>
-            </form>
-            {updateProfile.isError && <p className="profile-error">{updateProfile.error?.message}</p>}
-            {saved && <p className="profile-saved"><Check size={12} /> Phone updated</p>}
-            <p className="profile-note">
-              The only detail you can change here. Everything else is maintained by HR — ask them if
-              something below is wrong.
-            </p>
-          </section>
-        )}
-
+      <div className={`profile-layout${record ? '' : ' is-unlinked'}`}>
         <Facts
           icon={Mail}
-          title="Contact"
+          title="Contact details"
+          className="profile-contact"
           fields={[
-            ['Work email', workEmail ? <a href={`mailto:${workEmail}`}>{workEmail}</a> : null],
+            ['Work email', workEmail ? <a key="work-email" href={`mailto:${workEmail}`}>{workEmail}</a> : null],
             ['Personal email', record?.personal_email
-              ? <a href={`mailto:${record.personal_email}`}>{record.personal_email}</a> : null],
+              ? <a key="personal-email" href={`mailto:${record.personal_email}`}>{record.personal_email}</a> : null],
             ['Address', record?.address],
           ]}
-        />
+        >
+          {linkedEmployee && (
+            <form className="profile-phone-section" onSubmit={savePhone}>
+              <div className="profile-phone-label">
+                <label htmlFor={phoneId}>Your phone number</label>
+                <span className="profile-editable-label">Editable</span>
+              </div>
+              <div className="profile-phone">
+                <input
+                  id={phoneId}
+                  type="tel"
+                  autoComplete="tel"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  placeholder="Add phone number"
+                  aria-describedby={`${phoneId}-hint`}
+                  disabled={updateProfile.isPending}
+                />
+                <button type="submit" disabled={!phoneChanged || updateProfile.isPending}>
+                  {updateProfile.isPending
+                    ? <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+                    : <Check size={14} aria-hidden="true" />}
+                  Save
+                </button>
+              </div>
+              {updateProfile.isError && <p className="profile-error" role="alert">{updateProfile.error?.message}</p>}
+              {saved && <p className="profile-saved" role="status"><Check size={12} aria-hidden="true" /> Phone updated</p>}
+              <p className="profile-note" id={`${phoneId}-hint`}>
+                You can update your phone number here. Contact HR to change other details.
+              </p>
+            </form>
+          )}
+        </Facts>
 
         {record && (
-          <Facts
-            icon={BriefcaseBusiness}
-            title="Placement"
-            fields={[
-              ['Company', record.entity?.name],
-              ['Designation', record.designation?.title],
-              ['Department', record.department?.name],
-              ['Branch', record.branch?.name || record.branch?.code],
-            ]}
-          />
-        )}
+          <div className="profile-details">
+            <Facts
+              icon={BriefcaseBusiness}
+              title="Employment"
+              className="profile-employment"
+              fields={[
+                ['Company', record.entity?.name],
+                ['Designation', record.designation?.title],
+                ['Department', record.department?.name],
+                ['Branch', record.branch?.name || record.branch?.code],
+              ]}
+            >
+              <p className="profile-details-note">
+                These details are maintained by HR. Contact HR to make a correction.
+              </p>
+            </Facts>
 
-        {/* Ahead of Personal on purpose: the section most worth checking is right, and the one whose
-            being wrong costs the most. */}
-        {record && (
-          <Facts
-            icon={HeartPulse}
-            title="Emergency contact"
-            fields={[
-              ['Name', record.emergency_name],
-              ['Phone', record.emergency_phone
-                ? <a href={`tel:${record.emergency_phone}`}>{record.emergency_phone}</a> : null],
-              ['Relationship', record.emergency_relation],
-            ]}
-            note="ask HR to add them"
-          />
-        )}
+            <div className="profile-details-pair">
+              <Facts
+                icon={UserRound}
+                title="Personal details"
+                fields={[
+                  ['Date of birth', formatDate(record.date_of_birth)],
+                  ['Gender', record.gender],
+                  ["Father's name", record.father_name],
+                  ["Mother's name", record.mother_name],
+                  ['Blood group', record.blood_group],
+                ]}
+              />
 
-        {record && (
-          <Facts
-            icon={UserRound}
-            title="Personal"
-            fields={[
-              ['Date of birth', formatDate(record.date_of_birth)],
-              ['Gender', record.gender],
-              ["Father's name", record.father_name],
-              ["Mother's name", record.mother_name],
-              ['Blood group', record.blood_group],
-            ]}
-          />
+              <Facts
+                icon={HeartPulse}
+                title="Emergency contact"
+                fields={[
+                  ['Name', record.emergency_name],
+                  ['Phone', record.emergency_phone
+                    ? <a key="emergency-phone" href={`tel:${record.emergency_phone}`}>{record.emergency_phone}</a> : null],
+                  ['Relationship', record.emergency_relation],
+                ]}
+                note="ask HR to add them"
+              />
+            </div>
+
+            {record.id && (
+              <Facts icon={Package} title="Assets you hold" fields={[]}>
+                <MyAssets employeeId={record.id} />
+              </Facts>
+            )}
+          </div>
         )}
 
         <Facts
           icon={ShieldCheck}
           title="Account"
+          className="profile-account"
           fields={[
             ['Login email', user?.email],
             ['Access role', roleLabel],
           ]}
         >
           {onOpenSettings && <button type="button" className="profile-inline-link" onClick={onOpenSettings}>
-            <Settings size={13} /> Password and display settings
+            <Settings size={14} aria-hidden="true" /> Password and display settings
           </button>}
         </Facts>
-
-        {record?.id && (
-          <Facts icon={Package} title="Assets you hold" fields={[]}>
-            <MyAssets employeeId={record.id} />
-          </Facts>
-        )}
       </div>
     </div>
   );
