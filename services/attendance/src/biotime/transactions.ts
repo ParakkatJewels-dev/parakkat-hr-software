@@ -122,7 +122,7 @@ export async function fetchRecentTransactions(limit = 5): Promise<BiotimeTransac
     // Explicitly newest-first: the doctor's future-timestamp check inspects rows[0], and without
     // ordering the server's default may hand back the OLDEST punch instead.
     { ordering: '-punch_time' },
-    { pageSize: limit, maxPages: 1 }
+    { pageSize: limit, maxPages: 1, allowPartial: true }
   );
   return rows.slice(0, limit);
 }

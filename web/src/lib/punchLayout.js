@@ -30,11 +30,14 @@ export function packRows(items) {
   const rowEnds = [];
   return items.map((item) => {
     const half = item.needs / 2;
+    // Keep the whole label inside the bar. Pack its visible bounds, not its punch's
+    // anchor: several near-edge punches can otherwise paint over one another.
+    const labelPct = Math.min(100 - half, Math.max(half, item.pct));
     let row = 0;
     // `pct` is the label's centre, so it occupies pct ± half.
-    while (rowEnds[row] != null && item.pct - half < rowEnds[row]) row += 1;
-    rowEnds[row] = item.pct + half;
-    return { ...item, row };
+    while (rowEnds[row] != null && labelPct - half < rowEnds[row]) row += 1;
+    rowEnds[row] = labelPct + half;
+    return { ...item, labelPct, row };
   });
 }
 
@@ -50,24 +53,17 @@ export function labelLayout(punches, minGapPercent = DEFAULT_MIN_GAP) {
   const last = new Date(punches[punches.length - 1]).getTime();
   const span = last - first;
 
-  // Rightmost percentage placed on each row so far.
-  const rowEnds = [];
-
-  return punches.map((punch) => {
+  return packRows(punches.map((punch) => {
     const pct = span > 0
       ? Math.min(100, Math.max(0, ((new Date(punch).getTime() - first) / span) * 100))
       : 0;
-
-    let row = 0;
-    while (rowEnds[row] != null && pct - rowEnds[row] < minGapPercent) row += 1;
-    rowEnds[row] = pct;
 
     // A label centred on 0% or 100% would hang off the container, so the ends anchor instead of
     // centring. Nothing clips and the first and last times stay flush with the bar they describe.
     const align = pct <= minGapPercent / 2 ? 'start' : pct >= 100 - minGapPercent / 2 ? 'end' : 'middle';
 
-    return { punch, pct, row, align };
-  });
+    return { punch, pct, needs: Math.min(100, minGapPercent), align };
+  }));
 }
 
 /** How many rows the layout needs, so the container can reserve the height. */
@@ -103,7 +99,7 @@ const PERCENT_PER_CHAR = 1.15;
  * a nine-hour bar is 1% of the width and there is no honest way to write "6m" across it — a label
  * that overflows its own segment points at the wrong stretch, which is worse than no label.
  */
-export function spanLabels(segs, punches) {
+export function spanLabels(segs, punches, percentPerChar = PERCENT_PER_CHAR) {
   if (!Array.isArray(segs) || segs.length === 0 || !Array.isArray(punches) || punches.length < 2) {
     return [];
   }
@@ -119,7 +115,7 @@ export function spanLabels(segs, punches) {
     const to = at(s.to);
     const widthPct = Math.max(0, to - from);
     const text = s.unknown ? '?' : shortDuration(s.minutes);
-    const needs = text.length * PERCENT_PER_CHAR + 1;
+    const needs = Math.min(100, (text.length + 2) * percentPerChar);
     return {
       ...s,
       text,

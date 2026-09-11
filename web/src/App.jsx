@@ -856,8 +856,10 @@ export default function App() {
             )}
 
             <button
+              type="button"
               onClick={toggleTheme}
-              className="header-theme-toggle p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+              aria-pressed={theme === 'dark'}
+              className="header-theme-toggle inline-flex items-center justify-center min-h-11 min-w-11 p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}

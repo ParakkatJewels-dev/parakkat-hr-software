@@ -662,7 +662,11 @@ function CalendarView({ employeeId, employeeName }) {
               </div>
               <div>
                 <div className="text-2xs text-neutral-400 uppercase">In / Out</div>
-                <span className="font-mono">{fmtTime(selectedRow.check_in)} – {fmtTime(selectedRow.check_out)}</span>
+                <span className="flex flex-wrap items-center gap-x-1 font-mono">
+                  <span className="whitespace-nowrap">{fmtTime(selectedRow.check_in)}</span>
+                  <span aria-hidden="true">–</span>
+                  <span className="whitespace-nowrap">{fmtTime(selectedRow.check_out)}</span>
+                </span>
               </div>
               <div>
                 <div className="text-2xs text-neutral-400 uppercase">Worked</div>

@@ -32,8 +32,10 @@ export class BiotimeApiError extends Error {
 
 export interface PaginateOptions {
   pageSize?: number;
-  /** Stop after this many pages. Undefined = walk to the end. */
+  /** Fail if the complete result exceeds this budget. Undefined = walk to the end. */
   maxPages?: number;
+  /** Explicit sampling only: allow a result truncated by maxPages. Never enable for syncs. */
+  allowPartial?: boolean;
   signal?: AbortSignal;
   /** Called after each page — used for progress logging on long backfills. */
   onPage?: (info: { page: number; received: number; total?: number }) => void;
@@ -118,10 +120,13 @@ export class BiotimeClient {
     return withRetry(
       async () => {
         const send = async (): Promise<T> => {
+          opts.signal?.throwIfAborted();
+          const authorization = await this.auth.authorizationHeader();
+          opts.signal?.throwIfAborted();
           const config: AxiosRequestConfig = {
             params,
             signal: opts.signal,
-            headers: { Authorization: await this.auth.authorizationHeader() },
+            headers: { Authorization: authorization },
             // We handle 401 ourselves rather than letting axios throw, so the replay stays readable.
             validateStatus: (s) => (s >= 200 && s < 300) || s === 401,
           };
@@ -172,7 +177,7 @@ export class BiotimeClient {
           // exactly what a Wi-Fi/LAN switch or a rebooted terminal leaves behind. Retrying over the
           // same agent would reuse those corpses and hang again. Throw the agent away so the retry
           // dials fresh.
-          if (!status) {
+          if (!status && isRetryable(err) && !opts.signal?.aborted) {
             // A transport failure may be this address rather than the server. Try the next route
             // to the same box before giving up on it.
             rotateEndpoint(err instanceof Error ? err.message : 'transport failure');
@@ -200,16 +205,17 @@ export class BiotimeClient {
   ): AsyncGenerator<T[], void, undefined> {
     const pageSize = opts.pageSize ?? env.BIOTIME_PAGE_SIZE;
     const maxPages = opts.maxPages ?? Infinity;
+    if (!Number.isSafeInteger(pageSize) || pageSize < 1 ||
+        (maxPages !== Infinity && (!Number.isSafeInteger(maxPages) || maxPages < 1))) {
+      throw new BiotimeApiError('Invalid pagination page size or page limit');
+    }
 
     let page = 1;
     let seen = 0;
     let total: number | undefined;
 
     while (page <= maxPages) {
-      if (opts.signal?.aborted) {
-        logger.warn({ path, page }, 'pagination aborted');
-        return;
-      }
+      opts.signal?.throwIfAborted();
 
       const body = await this.get<BiotimePage<T>>(
         path,
@@ -217,8 +223,16 @@ export class BiotimeClient {
         { signal: opts.signal }
       );
 
+      opts.signal?.throwIfAborted();
+      if (body == null || typeof body !== 'object' ||
+          (!Array.isArray(body.data) && !Array.isArray(body.results))) {
+        throw new BiotimeApiError(`Invalid pagination response from ${path}: expected a data/results array`);
+      }
       const items = pageItems(body);
-      total = typeof body?.count === 'number' ? body.count : total;
+      if (body.count !== undefined && (!Number.isSafeInteger(body.count) || body.count < 0)) {
+        throw new BiotimeApiError(`Invalid pagination count from ${path}`);
+      }
+      total = typeof body.count === 'number' ? body.count : total;
       seen += items.length;
 
       opts.onPage?.({ page, received: items.length, total });
@@ -226,22 +240,35 @@ export class BiotimeClient {
       if (items.length > 0) {
         yield items;
       }
+      // The consumer may have spent minutes storing this page. Cancellation during those writes
+      // must also fail on the final page, otherwise the caller would commit a successful cursor.
+      opts.signal?.throwIfAborted();
 
       // Prefer the server's own `next` link when present — a server that caps page_size below
       // what we asked for returns "short" pages that are NOT the last page, and stopping on the
       // short-page heuristic alone would silently drop the rest of the window.
       const hasNextField = body != null && typeof body === 'object' && 'next' in body;
-      const isLastPage =
-        items.length === 0 ||
-        (hasNextField ? body.next == null : items.length < pageSize) ||
-        (typeof total === 'number' && seen >= total);
+      const hasNext = hasNextField && body.next != null;
+      if (items.length === 0 && (hasNext || (total !== undefined && seen < total))) {
+        throw new BiotimeApiError(`Incomplete pagination from ${path}: empty page before the advertised end`);
+      }
+      if (hasNextField && !hasNext && total !== undefined && seen < total) {
+        throw new BiotimeApiError(`Incomplete pagination from ${path}: received ${seen} of ${total} records`);
+      }
+      const isLastPage = hasNextField
+        ? !hasNext
+        : total !== undefined ? seen >= total : items.length < pageSize;
       if (isLastPage) return;
 
       page += 1;
     }
 
     if (page > maxPages) {
-      logger.warn({ path, maxPages, seen, total }, 'stopped paginating at maxPages — more records remain');
+      if (opts.allowPartial) return;
+      throw new BiotimeApiError(
+        `Incomplete pagination from ${path}: page limit ${maxPages} reached after ${seen} records; ` +
+        'increase the page limit or use a smaller date window'
+      );
     }
   }
 

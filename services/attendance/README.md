@@ -42,9 +42,15 @@ npm run doctor                # verify everything before starting the worker
 
 ### Before the first run
 
-Apply migrations `0012`–`0014` from `web/backend/supabase/migrations/`. They create
+Apply the pending migrations from `web/backend/supabase/migrations/`. The foundational `0012`–`0014` files create
 `raw_punches`, `devices`, `biotime_employees`, `sync_state`, `sync_runs`, the shift and holiday
 tables, leave types/balances, and regularizations — with RLS matching the rest of the schema.
+
+The current worker also requires `0126_recompute_queue_generations.sql` before deployment. It
+prevents a correction arriving during a rebuild from being acknowledged as already processed.
+`0127_service_command_authority.sql` makes queued sync/backfill admission require the same global
+device authority as execution. Apply both before restarting the updated worker; local tests do not
+apply them to the hosted database.
 
 ```bash
 cd ../../web/backend
@@ -92,7 +98,10 @@ npm run build
 pm2 start ecosystem.config.cjs && pm2 save && pm2 startup
 ```
 
-Run exactly **one** instance. Two would both run the cron schedule and double every sync.
+Run exactly **one worker** instance. Two workers would both run the cron schedule and double every
+sync. API-only replicas do not reconcile work owned by the worker. During shutdown, scheduled,
+startup and detached HTTP jobs are cancelled and drained before the database connection closes;
+new detached requests receive 503 once shutdown starts.
 
 ## Commands
 
@@ -111,16 +120,27 @@ Run exactly **one** instance. Two would both run the cron schedule and double ev
 | `npm run test` | Rules, HTTP/authentication, scheduler and 503-employee calculation tests (isolated mocks; no database needed) |
 | `npm run test:reports` | SQL and XLSX output checks for 503 employees in a disposable local PostgreSQL cluster |
 | `npm run test:roles` | All seven standard roles through real HTTP/scoping/report SQL with migration-replayed access fixtures |
+| `npm run test:engine` | Real recompute/queue SQL, concurrency, cancellation and 503-employee output in disposable PostgreSQL |
 
 ## How the sync stays correct
 
-**Nothing is lost and nothing is duplicated**, which comes from three things working together:
+**Retries preserve stored punches and only advance the cursor after a complete run.** Three mechanisms work together:
 
 - `raw_punches` has `unique (emp_code, punch_time)`, and every insert is `ON CONFLICT DO NOTHING`.
   Re-reading a window is therefore free.
 - Each poll re-queries with a **5-minute overlap** before the cursor. Punches sharing a boundary
   second with the previous batch cannot fall through the gap.
 - The cursor **advances only after a run completes**. A crash mid-run re-reads; it never skips.
+
+Cancellation, exhausted page budgets, malformed successful HTTP responses and queue-write failures
+now fail the run and preserve its cursor. A short server-capped page does not end ingestion while
+the response still advertises more records. Cursor updates are atomic, so a stale overlapping run
+cannot rewind the last successful position. Catch-up and backfill enqueue touched work dates and
+the previous dates needed for overnight exits, just as incremental sync does.
+
+Queued backfills use weekly windows and the historical-import page budget, matching direct HTTP
+backfills. If a window still exceeds its page budget, it fails explicitly; reduce the window or
+increase the configured budget before retrying. Previously stored punches remain safe to re-read.
 
 Two failure modes are handled explicitly because they are not obvious:
 
@@ -184,7 +204,17 @@ and history can be re-derived. Rows flagged `is_locked` (finalised payroll) are 
 Enforced by database triggers, not application code, so an approval from the UI, a script or the
 SQL editor all behave identically. Approving leave, deciding a regularization, reassigning a shift,
 editing a holiday or mapping a device code queues the affected employee-dates in
-`attendance_recompute_queue`; the worker drains it every 5 minutes.
+`attendance_recompute_queue`; the worker checks it every 2 minutes.
+
+Future work remains queued until its date is due. Each repeated enqueue advances a generation;
+the worker acknowledges only the generation it loaded. A correction arriving during computation
+therefore survives for the next pass. Recompute calls serialize within this process, failed
+regularization reads abort before replacing attendance, and explicit historical assignments retain
+their shift rules even after that shift is deactivated. Continue to deploy one worker process.
+
+Queued privileged commands recheck the requester's current grants at execution time. Malformed
+dates and employee selections fail before work starts; cancelled work cannot overwrite an expired
+command status with success. Binary export metadata records decoded file bytes.
 
 ## Reports
 
@@ -213,6 +243,10 @@ available for review.
 localhost port, inserts synthetic records, runs the actual report SQL, and saves/reopens both XLSX
 formats to check their cells and totals. It ignores the configured database and removes the cluster
 on completion. It does not start workers or contact BioTime.
+
+`npm run test:engine` also requires local PostgreSQL tools. It verifies actual batch writes,
+locked payroll rows, pre-hire cleanup, queue generations, loader failure, overlapping recomputes
+and cancellation/retry against synthetic data. The root `npm run verify` includes it.
 
 ## API
 

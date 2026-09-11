@@ -338,7 +338,6 @@ export default function TaskManagement() {
         {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests" badge={waitingOnMe} />}
         <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" />
       </nav>
-      {(isBoard || effectiveView === 'todo') && <TaskStatusGuide />}
       {isBoard && <>
         <div className="work-overview" aria-label="Task summary">
           <Stat label="All tasks" value={stats.total} active={statusFilter === 'All'} onClick={() => { setStatusFilter('All'); pager.setPage(1); }} />
@@ -512,6 +511,10 @@ export default function TaskManagement() {
         </div>
       )}
 
+
+      {(isBoard || effectiveView === 'todo') && <details className="work-status-help">
+        <summary>How task status works</summary><TaskStatusGuide />
+      </details>}
 
       {isBoard && !isLoading && !(error && tasks.length === 0) && filtered.length > 0 && (
         <p className="px-1 text-2xs text-neutral-400">{WINDOW_NOTE}</p>

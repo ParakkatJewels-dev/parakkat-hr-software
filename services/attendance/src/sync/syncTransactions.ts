@@ -14,7 +14,7 @@ import { env } from '../config/env';
 import { streamTransactions, type NormalizedPunch } from '../biotime/transactions';
 import { advanceCursor, computeStartTime, getCursor, markPoll, markSuccess, recordFailure } from './cursor';
 import { SyncRun, type RunKind } from './runLog';
-import { toWorkDate } from '../lib/time';
+import { DateTime, toWorkDate } from '../lib/time';
 import { enqueueRecompute } from '../engine/recompute';
 
 /** Insert chunk size. Large enough to be efficient, small enough to keep statements sane. */
@@ -41,7 +41,7 @@ async function loadEmployeeMap(): Promise<Map<string, string>> {
  * immediately, and we must not depend on the daily roster sync having run first. HR's own
  * entity/branch mapping on the row is never touched here.
  */
-async function upsertDevicesFromPunches(punches: NormalizedPunch[]): Promise<void> {
+async function upsertDevicesFromPunches(punches: NormalizedPunch[], signal?: AbortSignal): Promise<void> {
   const bySerial = new Map<string, { alias: string | null; area: string | null; lastPunch: Date }>();
 
   for (const p of punches) {
@@ -57,6 +57,7 @@ async function upsertDevicesFromPunches(punches: NormalizedPunch[]): Promise<voi
   }
 
   for (const [serialNumber, info] of bySerial) {
+    signal?.throwIfAborted();
     try {
       await prisma.device.upsert({
         where: { serialNumber },
@@ -96,7 +97,8 @@ export interface IngestResult {
 /** Write one batch of normalized punches. Idempotent by construction. */
 export async function ingestPunches(
   punches: NormalizedPunch[],
-  employeeMap: Map<string, string>
+  employeeMap: Map<string, string>,
+  signal?: AbortSignal
 ): Promise<IngestResult> {
   const result: IngestResult = {
     attempted: punches.length,
@@ -118,9 +120,8 @@ export async function ingestPunches(
       result.unmatched += 1;
       result.unmatchedCodes.add(p.empCode);
     } else {
-      // Remember which day this punch belongs to so attendance can be rebuilt for it. The work
-      // date is the IST calendar day; a night shift is re-pointed at the day it started when the
-      // engine runs, so recomputing the calendar day is enough to reach it.
+      // Queueing also includes the previous date: an overnight exit belongs to the shift that
+      // started yesterday, and the engine only rebuilds dates explicitly requested.
       result.touchedDays.add(`${employeeId}|${toWorkDate(p.punchTime)}`);
     }
     if (!result.maxPunchTime || p.punchTime > result.maxPunchTime) {
@@ -148,14 +149,16 @@ export async function ingestPunches(
   });
 
   for (let i = 0; i < rows.length; i += INSERT_CHUNK) {
+    signal?.throwIfAborted();
     const chunk = rows.slice(i, i + INSERT_CHUNK);
     const { count } = await prisma.rawPunch.createMany({ data: chunk, skipDuplicates: true });
     result.inserted += count;
+    signal?.throwIfAborted();
   }
 
   result.skipped = result.attempted - result.inserted;
 
-  await upsertDevicesFromPunches(punches);
+  await upsertDevicesFromPunches(punches, signal);
 
   return result;
 }
@@ -163,29 +166,30 @@ export async function ingestPunches(
 /**
  * Ask the engine to rebuild the days a sync just delivered punches for.
  *
- * Best-effort on purpose: the punches are already stored and the cursor is about to advance, so a
- * failure to queue must not fail the run and cause the same window to be re-downloaded. The
- * nightly pass is the backstop.
+ * A queue failure must preserve the cursor: historical punches can lie outside the nightly
+ * lookback, so storing them without durable recompute work can leave attendance stale forever.
  */
-async function queueTouchedDays(touched: Set<string>): Promise<void> {
+async function queueTouchedDays(touched: Set<string>, signal?: AbortSignal): Promise<void> {
   if (touched.size === 0) return;
 
-  let queued = 0;
+  const ranges = new Map<string, { from: string; to: string }>();
   for (const key of touched) {
     const sep = key.indexOf('|');
     const employeeId = key.slice(0, sep);
     const workDate = key.slice(sep + 1);
-    try {
-      await enqueueRecompute(employeeId, workDate, workDate, 'punches arrived from the terminal');
-      queued += 1;
-    } catch (err) {
-      logger.warn(
-        { employeeId, workDate, err: err instanceof Error ? err.message : String(err) },
-        'could not queue a recompute for a synced day — the nightly pass will cover it'
-      );
-    }
+    const from = DateTime.fromISO(workDate).minus({ days: 1 }).toISODate()!;
+    const existing = ranges.get(employeeId);
+    ranges.set(employeeId, {
+      from: existing && existing.from < from ? existing.from : from,
+      to: existing && existing.to > workDate ? existing.to : workDate,
+    });
   }
-  if (queued > 0) logger.info({ days: queued }, 'queued recomputes for days with new punches');
+  for (const [employeeId, range] of ranges) {
+    signal?.throwIfAborted();
+    await enqueueRecompute(employeeId, range.from, range.to, 'punches arrived from the terminal');
+  }
+  signal?.throwIfAborted();
+  logger.info({ employees: ranges.size, touchedDays: touched.size }, 'queued recomputes for days with punches');
 }
 
 export interface SyncOptions {
@@ -216,6 +220,8 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
 
   const cursor = await getCursor('transactions');
   const startTime = opts.startTime ?? computeStartTime(cursor);
+  // Keep the scanned window fixed while walking pages; new punches belong to the next poll.
+  const endTime = opts.endTime ?? new Date();
 
   // Before anything can go wrong: the service is alive and it is trying. This is what keeps the
   // status screen able to say "running, but Easy Time Pro is not answering" instead of collapsing
@@ -226,10 +232,9 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
     lastPunchTime: cursor.lastPunchTime,
     lastTransactionId: cursor.lastTransactionId ? Number(cursor.lastTransactionId) : null,
     startTime,
-    endTime: opts.endTime ?? null,
+    endTime,
   });
 
-  const employeeMap = await loadEmployeeMap();
   const allUnmatched = new Set<string>();
   const touchedDays = new Set<string>();
 
@@ -238,10 +243,13 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
   let totalMalformed = 0;
 
   try {
+    opts.signal?.throwIfAborted();
+    const employeeMap = await loadEmployeeMap();
+    opts.signal?.throwIfAborted();
     for await (const batch of streamTransactions(
       {
         startTime,
-        endTime: opts.endTime,
+        endTime,
         maxPages: opts.maxPages ?? env.SYNC_MAX_PAGES_PER_RUN,
         signal: opts.signal,
       },
@@ -251,7 +259,7 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
       run.counters.recordsFetched += batch.received;
       totalMalformed += batch.malformed;
 
-      const ingested = await ingestPunches(batch.punches, employeeMap);
+      const ingested = await ingestPunches(batch.punches, employeeMap, opts.signal);
 
       run.counters.recordsInserted += ingested.inserted;
       run.counters.recordsSkipped += ingested.skipped;
@@ -266,6 +274,7 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
       }
     }
 
+    opts.signal?.throwIfAborted();
     run.counters.unmatchedCodes = allUnmatched.size;
 
     if (allUnmatched.size > 0) {
@@ -286,18 +295,15 @@ export async function runTransactionSync(opts: SyncOptions = {}): Promise<{
       );
     }
 
-    // Only now, with every page written, does the watermark move.
-    if (advance && maxPunchTime) {
-      // Rebuild attendance for every day this run brought punches for.
-      //
-      // Without this, a day only gets recomputed if it happens to fall inside the two scheduled
-      // windows: today (every 15 minutes) and the trailing ENGINE_LOOKBACK_DAYS at 02:30. Punches
-      // that arrive for anything older land in raw_punches and are never turned into attendance —
-      // so a machine that was off for a long weekend would come back, faithfully download every
-      // missed punch, and still show everybody as Absent for those days. The queue is drained
-      // every five minutes, so the correction follows the download by minutes.
-      await queueTouchedDays(touchedDays);
+    // Every ingestion mode must derive what it stored, including catch-ups and backfills that
+    // deliberately leave the live watermark alone.
+    await queueTouchedDays(touchedDays, opts.signal);
+    if (totalMalformed > 0) {
+      throw new Error(`BioTime returned ${totalMalformed} malformed transaction(s); cursor preserved for recovery`);
+    }
 
+    // Only now, with every page written and follow-up work durable, does the watermark move.
+    if (advance && maxPunchTime) {
       await advanceCursor('transactions', { lastPunchTime: maxPunchTime, lastTransactionId: maxBiotimeId });
     } else if (advance) {
       await markSuccess('transactions');

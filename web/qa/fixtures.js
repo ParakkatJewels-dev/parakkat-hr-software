@@ -3,6 +3,7 @@ import { accountFixtures } from '../src/test/scaleFixtures.js';
 export const fixture = accountFixtures(525);
 export const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 export const period = today.slice(0, 7);
+export const mobileFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-mobile');
 fixture.org.departments = fixture.org.branches.map((b, i) => ({ id: `dept-${i + 1}`,
   entity_id: b.entity_id, branch_id: b.id, branch_name: b.name, name: `Department ${i + 1}`, is_active: true }));
 fixture.org.designations = [{ id: 'designation-1', title: 'Sales Associate', grade: 'A', is_active: true }];
@@ -81,6 +82,24 @@ export const tables = {
   help_requests: [], task_comments: [], task_attachments: [], pay_components: [], audit_log: [],
 };
 
+if (mobileFixtures) {
+  const employee = fixture.employees[0];
+  const punchTimes = ['09:37', '13:23', '13:42', '13:48', '14:14', '15:47', '16:21', '18:51']
+    .map((time) => new Date(`${today}T${time}:00+05:30`).toISOString());
+  Object.assign(tables.attendance[0], { status: 'Present', is_lop: false, day_fraction: 1,
+    check_in: punchTimes[0], check_out: punchTimes.at(-1), punches: punchTimes, punch_count: 8,
+    worked_minutes: 475, hours: 475 / 60, break_minutes: 79 });
+  tables.raw_punches = punchTimes.map((punch_time, i) => ({ id: `qa-punch-${i}`, employee_id: employee.id,
+    punch_time, punch_state: 255, terminal_alias: 'Synthetic terminal', source: 'qa' }));
+  tables.routine_items = [
+    { id: 'qa-routine-1', employee_id: employee.id, employee, title: 'Check the opening stock and prepare the daily handover notes', detail: 'Synthetic routine for phone layout testing.', sort_order: 0, is_active: true, created_at: stamp },
+    { id: 'qa-routine-2', employee_id: employee.id, employee, title: 'Review today’s customer follow-ups', sort_order: 1, is_active: true, created_at: stamp },
+    { id: 'qa-routine-archived', employee_id: employee.id, employee, title: 'Archived duty must stay hidden', sort_order: 2, is_active: false, created_at: stamp },
+    { id: 'qa-routine-other', employee_id: fixture.employees[1].id, employee: fixture.employees[1], title: 'Another employee’s private routine', sort_order: 0, is_active: true, created_at: stamp },
+  ];
+  tables.tasks[0].title = 'Prepare the branch inventory handover and follow up on the outstanding customer requests before closing';
+}
+
 // Production's ancestry trigger stamps every employee-owned row. Include the same columns here
 // so per-row zone checks exercise realistic responses instead of missing fixture metadata.
 const employeesById = new Map(fixture.employees.map((employee) => [employee.id, employee]));
@@ -106,3 +125,13 @@ tables.messages = Array.from({ length: 250 }, (_, i) => ({ id: `message-${String
   conversation_id: conversation.id, sender_id: fixture.employees[1].id, sender: fixture.employees[1],
   kind: 'text', body: `Synthetic message ${i + 1}`, created_at: new Date(new Date(stamp).getTime() + i * 60_000).toISOString(),
 }));
+if (mobileFixtures) {
+  const direct = { id: 'qa-direct', kind: 'direct', title: null, created_by: fixture.employees[0].id,
+    created_at: stamp, last_message_at: stamp, last_body: 'Synthetic direct message', last_kind: 'text', unread_count: 0 };
+  tables.conversations.push(direct);
+  tables.my_conversations.push(direct);
+  tables.conversation_overview.push(direct);
+  tables.conversation_members.push(...fixture.employees.slice(0, 2).map((employee) => ({
+    conversation_id: direct.id, employee_id: employee.id, employee, role: 'member', joined_at: stamp,
+  })));
+}

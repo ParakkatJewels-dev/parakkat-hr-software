@@ -1,0 +1,32 @@
+/* Home work stays readable inside a narrow dashboard column or a 320px phone. */
+.home-work-widget { min-width: 0; }
+.home-work-widget .dashboard-widget-head { flex-wrap: wrap; row-gap: 4px; }
+.home-work-list { display: flex; flex-direction: column; }
+.home-work-row { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding-block: 8px; }
+.home-work-row + .home-work-row { border-top: 1px solid var(--surface-border, #e5e7eb); }
+.home-work-widget .home-work-check { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 36px; min-width: 36px; height: 40px; min-height: 40px; padding: 0; border: 1px solid var(--surface-border-strong, #cbd5e1); border-radius: 7px; color: var(--surface-text-soft, #64748b); cursor: pointer; }
+.home-work-widget .home-work-check:hover { color: var(--accent-ink, #07814f); border-color: currentColor; background: var(--accent-soft, #e7f7ef); }
+.home-work-widget .home-work-copy { display: block; flex: 1; min-width: 0; padding: 0; text-align: left; cursor: pointer; }
+.home-work-widget .home-work-title { display: block; color: var(--surface-text, #17251f); font-size: 14px; line-height: 1.45; font-weight: 600; overflow-wrap: anywhere; }
+.home-work-widget .home-work-meta { display: flex; flex-wrap: wrap; gap: 3px 10px; margin-top: 3px; color: var(--surface-text-soft, #64748b); font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.home-work-widget .home-work-overdue { color: var(--tone-red, #c23a47); font-weight: 600; }
+.home-work-widget .home-work-more { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding-block: 7px; min-height: 36px; text-align: left; font-size: 12px; font-weight: 600; color: var(--accent-ink, #07814f); cursor: pointer; }
+.home-work-widget .home-work-error { margin-block: 4px 10px; padding: 9px 10px; border-radius: 6px; color: var(--tone-red, #c23a47); background: color-mix(in srgb, var(--tone-red, #c23a47) 8%, transparent); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.home-work-error button { min-height: 36px; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.home-work-widget button:disabled { opacity: .6; cursor: not-allowed; }
+.home-work-widget button:focus-visible { outline: 2px solid var(--accent-ink, #07814f); outline-offset: 3px; }
+.home-routine-note { margin-block: -2px 8px; color: var(--surface-text-soft, #64748b); font-size: 12px; }
+.home-routine-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 8px 16px; }
+.home-work-widget .home-routine-item { display: flex; align-items: flex-start; gap: 10px; min-width: 0; min-height: 44px; padding: 9px 10px; border: 1px solid var(--surface-border, #e5e7eb); border-radius: 7px; text-align: left; cursor: pointer; }
+.home-work-widget .home-routine-checkbox { display: inline-flex; align-items: center; justify-content: center; flex: none; margin-top: 1px; width: 22px; height: 22px; border: 1px solid var(--surface-border-strong, #cbd5e1); border-radius: 5px; color: var(--surface-text-soft, #64748b); }
+.home-routine-item:hover:not(:disabled) .home-routine-checkbox { color: var(--accent-ink, #07814f); border-color: currentColor; }
+.home-punch-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.home-punch-value { min-width: 0; padding: 9px 3px; border: 1px solid var(--surface-border, #e5e7eb); border-radius: 8px; text-align: center; }
+.home-punch-value strong { display: block; font-size: 12px; line-height: 1.4; font-weight: 650; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--surface-text, #17251f); }
+.home-punch-value small { display: block; margin-top: 3px; color: var(--surface-text-soft, #64748b); font-size: 10px; line-height: 1.4; }
+@media (max-width: 420px) {
+  .home-work-widget .home-work-check { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .home-work-widget .home-work-title { font-size: 13px; }
+  .home-work-widget .home-work-meta { font-size: 11px; }
+  .home-work-row { padding-block: 7px; }
+}

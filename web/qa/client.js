@@ -1,16 +1,16 @@
 // This deliberately small adapter tests rendering and controls, not Supabase/RLS semantics.
 // Unknown mutations fail closed; fixtures never connect to a database or send email.
-import { fixture, tables } from './fixtures.js';
+import { fixture, tables, mobileFixtures } from './fixtures.js';
 import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from './roles.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
-const user = { id: `qa-user-v2-${qaRole}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
 const emptyChannel = { on() { return this; }, subscribe() { return this; }, unsubscribe() {} };
 class Query {
-  constructor(rows) { this.rows = rows; this.filters = []; this.orders = []; this.start = 0; this.size = Infinity; }
+  constructor(rows, table) { this.rows = rows; this.table = table; this.filters = []; this.orders = []; this.start = 0; this.size = Infinity; }
   select(_fields, options = {}) { this.head = options.head; return this; }
   eq(k, v) { this.filters.push((r) => String(r[k]) === String(v)); return this; }
   neq(k, v) { this.filters.push((r) => r[k] !== v); return this; }
@@ -35,11 +35,29 @@ class Query {
   maybeSingle() { this.one = true; return this; }
   insert() { this.write = true; return this; }
   update() { this.write = true; return this; }
-  delete() { this.write = true; return this; }
-  upsert() { this.write = true; return this; }
+  delete() { this.write = true; this.operation = 'delete'; return this; }
+  upsert(payload) { this.write = true; this.operation = 'upsert'; this.payload = payload; return this; }
   then(resolve, reject) {
     qaState.reads += 1;
     if (this.write) qaState.mutations += 1;
+    // The explicit phone fixture may complete/reopen its own synthetic routines in memory.
+    // This is only a UI state check; database permissions are covered by the SQL suite.
+    if (this.write && mobileFixtures && !qaState.failReads && this.table === 'routine_ticks'
+        && !new URL(window.location.href).searchParams.has('qa-block-write')) {
+      let changed = [];
+      if (this.operation === 'upsert' && this.payload.employee_id === fixture.employees[0].id) {
+        const existing = tables.routine_ticks.find((row) => row.routine_item_id === this.payload.routine_item_id && row.on_date === this.payload.on_date);
+        if (existing) changed = [existing];
+        else {
+          const row = { ...this.payload, id: `qa-tick-${tables.routine_ticks.length}`, done_at: new Date().toISOString() };
+          tables.routine_ticks.push(row); changed = [row];
+        }
+      } else if (this.operation === 'delete') {
+        changed = tables.routine_ticks.filter((row) => row.employee_id === fixture.employees[0].id && this.filters.every((filter) => filter(row)));
+        tables.routine_ticks.splice(0, tables.routine_ticks.length, ...tables.routine_ticks.filter((row) => !changed.includes(row)));
+      }
+      return Promise.resolve({ data: changed, error: null }).then(resolve, reject);
+    }
     if (this.write || qaState.failReads) return Promise.resolve({ data: null,
       error: { message: this.write ? 'QA mode: this write is intentionally blocked.' : 'QA simulated connection failure' } }).then(resolve, reject);
     const rows = this.rows.filter((r) => this.filters.every((f) => f(r))).sort((a, b) => {
@@ -61,7 +79,7 @@ export const supabase = {
   from(name) {
     let rows = tables[name] ?? [];
     if (roleMode && tablePermissions[name]) rows = rows.filter((row) => fixtureAllows(tablePermissions[name], row));
-    return new Query(rows);
+    return new Query(rows, name);
   },
   rpc(name) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });

@@ -7,13 +7,14 @@ import { env } from './config/env';
 import { logger } from './lib/logger';
 import { assertDbReachable, disconnectDb } from './lib/db';
 import { createServer } from './api/server';
-import { startScheduler, stopScheduler, jobsInFlight } from './jobs/scheduler';
+import { startScheduler, stopScheduler, jobsInFlight, exclusive } from './jobs/scheduler';
 import { reconcileStaleRuns } from './sync/runLog';
 import { reconcileStaleCommands } from './jobs/commands';
 import { biotime } from './biotime/client';
 import { syncEmployees } from './sync/syncEmployees';
+import { backgroundJobs } from './jobs/background';
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   logger.info(
     {
       env: env.NODE_ENV,
@@ -24,79 +25,14 @@ async function main(): Promise<void> {
     'starting Parakkat attendance service'
   );
 
-  // The database being down at boot is NOT fatal either: on the intended deployment (a laptop
-  // that starts the service at logon) the network is often not up yet, and a crash here would
-  // burn through pm2's restart budget and leave the service permanently 'errored'. Wait for it.
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await assertDbReachable();
-      break;
-    } catch (err) {
-      logger.warn(
-        { attempt, err: err instanceof Error ? err.message : String(err) },
-        'database not reachable yet — retrying in 15s (is the internet up?)'
-      );
-      await new Promise((r) => setTimeout(r, 15_000));
-    }
-  }
-  logger.info('database reachable');
-
-  // Listen BEFORE probing BioTime: the probe can take minutes against a firewalled host, and
-  // the API (health checks, exports) must not wait on it.
-  const app = createServer();
-  const server = app.listen(env.API_PORT, () => {
-    logger.info({ port: env.API_PORT }, 'API listening');
-  });
-
-  // BioTime being down at boot is NOT fatal — the terminals may be on a site that is offline, and
-  // the worker's whole job is to survive that and catch up. Log it and carry on.
-  void biotime.ping().then((ping) => {
-    if (ping.ok) {
-      logger.info({ authMode: ping.mode }, 'BioTime reachable');
-    } else {
-      logger.warn({ error: ping.error }, 'BioTime not reachable at startup — the worker will keep retrying');
-    }
-  });
-
-  // Anything still marked 'running' belongs to a previous process that did not shut down cleanly.
-  // Settle it before scheduling, so the health endpoint never shows a phantom sync in progress, and
-  // so a command stuck on 'running' stops blocking every future request of its kind — the duplicate
-  // guard in request_service_command() treats it as still in flight.
-  //
-  // AWAITED, and that matters. Both of these settle EVERY open row, which is only sound while
-  // nothing of ours can be running. Fired and forgotten, they raced the scheduler below: the
-  // command drain ticks every 20 seconds, and this database has already produced "Timed out
-  // fetching a new connection" under load, so a slow reconcile could land after the first drain had
-  // claimed a command — marking work that was actively running as failed, and opening the duplicate
-  // guard so a second copy of the same sync could be queued alongside it.
-  //
-  // Neither is fatal if it fails; the periodic maint:overdue job settles the same rows later.
-  await Promise.allSettled([
-    reconcileStaleRuns().catch((err) => {
-      logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale sync runs');
-    }),
-    reconcileStaleCommands().catch((err) => {
-      logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale commands');
-    }),
-  ]);
-
-  startScheduler();
-
-  // Pull the device roster once at boot (fire-and-forget): without this, biotime_employees stays
-  // empty until the 01:15 cron and HR has nothing to map on day one.
-  if (env.ENABLE_WORKERS) {
-    void syncEmployees()
-      .then((r) => logger.info({ fetched: r.fetched, created: r.created }, 'startup roster sync done'))
-      .catch((err) =>
-        logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'startup roster sync failed — the nightly job will retry')
-      );
-  }
-
   // --- graceful shutdown ------------------------------------------------------
   // Stop taking new work, let anything in flight finish, then close cleanly. Killing a worker
   // mid-sync is safe (the cursor only advances on success) but finishing is tidier and avoids a
   // pointless re-read of the same window on restart.
   let shuttingDown = false;
+  let server: import('node:http').Server | undefined;
+  let retryTimer: ReturnType<typeof setTimeout> | undefined;
+  let finishRetry: (() => void) | undefined;
 
   const shutdown = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
@@ -104,17 +40,23 @@ async function main(): Promise<void> {
 
     logger.info({ signal }, 'shutting down');
     stopScheduler();
-    server.close();
+    backgroundJobs.stop();
+    clearTimeout(retryTimer);
+    finishRetry?.();
+    let apiClosed = !server;
+    server?.close(() => { apiClosed = true; });
 
     const deadline = Date.now() + 30_000;
-    while (jobsInFlight().length > 0 && Date.now() < deadline) {
-      logger.info({ jobs: jobsInFlight() }, 'waiting for jobs to finish');
+    const pendingJobs = () => [...jobsInFlight(), ...backgroundJobs.inFlight().map(name => `http:${name}`)];
+    while ((!apiClosed || pendingJobs().length > 0) && Date.now() < deadline) {
+      logger.info({ jobs: pendingJobs(), apiClosed }, 'waiting for requests and jobs to finish');
       await new Promise((r) => setTimeout(r, 1_000));
     }
 
-    if (jobsInFlight().length > 0) {
-      logger.warn({ jobs: jobsInFlight() }, 'jobs still running at the deadline — exiting anyway');
+    if (pendingJobs().length > 0) {
+      logger.warn({ jobs: pendingJobs() }, 'jobs still running at the deadline — exiting anyway');
     }
+    if (!apiClosed) server?.closeAllConnections();
 
     await disconnectDb();
     logger.info('shutdown complete');
@@ -136,9 +78,87 @@ async function main(): Promise<void> {
     console.error('FATAL uncaught exception:', err);
     process.exit(1);
   });
+
+  // The database being down at boot is NOT fatal either: on the intended deployment (a laptop
+  // that starts the service at logon) the network is often not up yet, and a crash here would
+  // burn through pm2's restart budget and leave the service permanently 'errored'. Wait for it.
+  for (let attempt = 1; ; attempt++) {
+    if (shuttingDown) return;
+    try {
+      await assertDbReachable();
+      if (shuttingDown) return;
+      break;
+    } catch (err) {
+      if (shuttingDown) return;
+      logger.warn(
+        { attempt, err: err instanceof Error ? err.message : String(err) },
+        'database not reachable yet — retrying in 15s (is the internet up?)'
+      );
+      await new Promise<void>((resolve) => {
+        finishRetry = resolve;
+        retryTimer = setTimeout(resolve, 15_000);
+      });
+      finishRetry = undefined;
+    }
+  }
+  logger.info('database reachable');
+
+  // Listen BEFORE probing BioTime: the probe can take minutes against a firewalled host, and
+  // the API (health checks, exports) must not wait on it.
+  const app = createServer();
+  server = app.listen(env.API_PORT, () => {
+    logger.info({ port: env.API_PORT }, 'API listening');
+  });
+
+  // BioTime being down at boot is NOT fatal — the terminals may be on a site that is offline, and
+  // the worker's whole job is to survive that and catch up. Log it and carry on.
+  if (env.ENABLE_WORKERS) void biotime.ping().then((ping) => {
+    if (ping.ok) {
+      logger.info({ authMode: ping.mode }, 'BioTime reachable');
+    } else {
+      logger.warn({ error: ping.error }, 'BioTime not reachable at startup — the worker will keep retrying');
+    }
+  }).catch((err) => logger.warn({ err }, 'startup BioTime probe failed — the worker will retry'));
+
+  // Anything still marked 'running' belongs to a previous process that did not shut down cleanly.
+  // Settle it before scheduling, so the health endpoint never shows a phantom sync in progress, and
+  // so a command stuck on 'running' stops blocking every future request of its kind — the duplicate
+  // guard in request_service_command() treats it as still in flight.
+  //
+  // AWAITED, and that matters. Both of these settle EVERY open row, which is only sound while
+  // nothing of ours can be running. Fired and forgotten, they raced the scheduler below: the
+  // command drain ticks every 20 seconds, and this database has already produced "Timed out
+  // fetching a new connection" under load, so a slow reconcile could land after the first drain had
+  // claimed a command — marking work that was actively running as failed, and opening the duplicate
+  // guard so a second copy of the same sync could be queued alongside it.
+  //
+  // Neither is fatal if it fails; the periodic maint:overdue job settles the same rows later.
+  // API-only replicas must not fail rows owned by the separate worker process.
+  if (env.ENABLE_WORKERS) await Promise.allSettled([
+    reconcileStaleRuns().catch((err) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale sync runs');
+    }),
+    reconcileStaleCommands().catch((err) => {
+      logger.warn({ err: err instanceof Error ? err.message : String(err) }, 'could not reconcile stale commands');
+    }),
+  ]);
+
+  if (shuttingDown) return;
+  startScheduler();
+
+  // Pull the device roster once at boot (fire-and-forget): without this, biotime_employees stays
+  // empty until the 01:15 cron and HR has nothing to map on day one.
+  if (env.ENABLE_WORKERS) {
+    void exclusive('sync:employees', async (signal) => {
+      const r = await syncEmployees(signal);
+      logger.info({ fetched: r.fetched, created: r.created }, 'startup roster sync done');
+    });
+  }
+
+
 }
 
-main().catch((err) => {
+if (require.main === module) main().catch((err) => {
   logger.fatal({ err }, 'failed to start');
   console.error('FATAL failed to start:', err);
   process.exit(1);

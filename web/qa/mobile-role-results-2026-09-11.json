@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-11",
+  "environment": "isolated local Chrome QA; 525 synthetic employees; production React components",
+  "viewport": { "width": 320, "height": 844 },
+  "checksPerAssignedRole": { "routes": 45, "keyboardSkip": 1 },
+  "roles": {
+    "super_admin": { "passed": 46, "failures": [] },
+    "entity_admin": { "passed": 46, "failures": [] },
+    "hr_manager": { "passed": 46, "failures": [] },
+    "zonal_manager": { "passed": 46, "failures": [] },
+    "branch_manager": { "passed": 46, "failures": [] },
+    "dept_head": { "passed": 46, "failures": [] },
+    "employee": { "passed": 46, "failures": [] },
+    "unassigned": { "passed": 1, "failures": [] }
+  },
+  "totalPassed": 323,
+  "totalFailed": 0,
+  "validation": "rendering, expected role denials, scoped counts, horizontal overflow, keyboard route/focus",
+  "limits": "Fixture UI checks do not substitute for RLS, live device integration or concurrent-user benchmarks. Separate SQL and HTTP suites passed."
+}

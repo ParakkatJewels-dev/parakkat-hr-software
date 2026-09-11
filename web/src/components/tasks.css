@@ -146,6 +146,14 @@
 .work-page .work-delete:hover { color: var(--work-danger); }
 .work-page .work-personal { display: flex; flex-direction: column; gap: 18px; }
 .work-page .work-personal[hidden] { display: none; }
+.work-page .work-status-help { color: var(--work-muted); font-size: 12px; }
+.work-page .work-status-help summary { width: fit-content; padding-block: 6px; cursor: pointer; }
+.work-page .work-status-help .work-status-guide { margin-top: 5px; }
+.work-page .work-quick-options { margin-top: 7px; color: var(--work-muted); font-size: 12px; }
+.work-page .work-quick-options summary { width: fit-content; min-height: 30px; padding-block: 7px; cursor: pointer; }
+.work-page .work-quick-options .work-quick-fields { margin-top: 4px; }
+.work-page .work-quick-options label { display: grid; gap: 5px; min-width: 0; flex: 1; }
+.work-page .work-quick-options :is(input, select) { width: 100%; min-width: 0; }
 .work-page .work-personal > .work-search { flex: none; width: 100%; }
 .work-page .work-personal-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--work-muted); }
 .work-page .work-personal-summary > div:first-child { display: flex; flex-direction: column; gap: 5px; }
@@ -206,16 +214,26 @@
   .work-page .work-filter { width: 100%; }
   .work-page .work-filter select { flex: 1; width: 0; max-width: none; }
   .work-page .work-filter > span:not(.sr-only) { display: none; }
-  .work-page .work-row-grid { padding: 16px 12px; gap: 9px; }
-  .work-page .work-title { font-size: 16px; }
-  .work-page .work-description { font-size: 14px; }
+  .work-page .work-row-grid { padding: 12px 10px; gap: 8px; }
+  .work-page .work-row-content { gap: 9px; }
+  .work-page .work-title { font-size: 14px; line-height: 1.45; }
+  .work-page .work-description { font-size: 12px; line-height: 1.5; margin-top: 4px; }
+  .work-page .work-row:not(.work-row-open) > .work-row-grid .work-description { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .work-page .work-row-meta { gap: 5px 10px; margin-top: 6px; }
+  .work-page .work-personal { gap: 12px; }
+  .work-page .work-personal .work-row-grid { grid-template-areas: 'content content expand' 'date status status'; }
+  .work-page .work-personal .work-row-person { display: none; }
+  .work-page .work-personal .work-row-date { margin-left: 39px; font-size: 11px; }
+  .work-page .work-personal-summary strong { font-size: 15px; }
+  .work-page .work-quick-add { padding: 10px; }
   .work-page .work-status { min-height: 36px; }
   .work-page .work-status select { min-height: 28px; }
   .work-page .work-expand { min-height: 36px; }
   .work-page .work-row-details { padding: 12px; }
-  .work-page .work-quick-fields input:not([type=date]) { flex-basis: 100%; }
+  .work-page .work-quick-fields input:not([type=date]) { flex-basis: 120px; font-size: 16px; }
   .work-page .work-quick-fields input[type=date] { min-width: 0; width: 135px; flex: 1; }
-  .work-page .work-quick-fields .work-button { width: 100%; }
+  .work-page .work-quick-fields .work-button { flex: none; min-height: 40px; padding-inline: 9px; }
+  .work-page .work-quick-options input[type=date] { width: 100%; }
   .work-page .task-message-input { font-size: 16px; }
   .work-page .task-message-attach, .work-page .task-message-send { width: 40px; height: 40px; }
   /* Flatten the composer on a phone. The input row already has its own border and surface, so the
@@ -225,6 +243,21 @@
 @keyframes work-detail-enter {
   from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 640px) {
+  .work-page { gap: 10px; }
+  .work-page .work-eyebrow, .work-page .work-page-header p { display: none; }
+  .work-page .work-page-header .work-button { margin-top: 0; }
+  .work-page .work-view-tab { padding-block: 8px; }
+  .work-page .work-personal { gap: 10px; }
+  .work-page .work-personal-summary { gap: 8px; font-size: 12px; }
+  .work-page .work-personal-summary > div:first-child { gap: 2px; }
+  .work-page .work-progress { min-width: 60px; max-width: 90px; }
+  .work-page .work-quick-add { padding: 8px; }
+  .work-page .work-quick-add > label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .work-page .work-quick-options { margin-top: 3px; }
+  .work-page .work-quick-options summary { padding-block: 4px; min-height: 26px; }
+  .work-page .task-list-summary { padding-bottom: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
   .work-page *, .work-page *::before, .work-page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

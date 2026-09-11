@@ -171,3 +171,31 @@ test('nothing to label when there is no span', () => {
   assert.deepEqual(spanLabels(SEGS, [at('09:00')]), []);
   assert.deepEqual(spanLabels(SEGS, [at('09:00'), at('09:00')]), [], 'a zero-length day');
 });
+
+for (const width of [220, 266, 326, 520, 900]) {
+  test(`12-hour punch and duration labels fit a ${width}px detail panel`, () => {
+    const percentPerChar = 7.5 / width * 100;
+    for (const punches of [REAL, ['09:00', '09:01', '09:02', '17:58', '17:59', '18:00'].map(at)]) {
+      const labels = labelLayout(punches, 10 * percentPerChar);
+      assert.equal(labels.length, punches.length, 'every time remains visible');
+      assertLabelBounds(labels);
+    }
+    const durations = spanLabels(SEGS, REAL, percentPerChar);
+    assert.equal(durations.length, SEGS.length, 'every duration remains visible');
+    assertLabelBounds(durations);
+  });
+}
+
+function assertLabelBounds(labels) {
+  for (const item of labels) {
+    assert.ok(item.labelPct - item.needs / 2 >= -0.000001, 'left edge inside bar');
+    assert.ok(item.labelPct + item.needs / 2 <= 100.000001, 'right edge inside bar');
+  }
+  for (const row of new Set(labels.map((item) => item.row))) {
+    const items = labels.filter((item) => item.row === row).sort((a, b) => a.labelPct - b.labelPct);
+    for (let i = 1; i < items.length; i++) {
+      assert.ok(items[i].labelPct - items[i].needs / 2 >= items[i - 1].labelPct + items[i - 1].needs / 2 - 0.000001,
+        'visible label bounds never overlap, including near the bar edges');
+    }
+  }
+}

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   directKey, others, conversationName, previewOf, sortConversations, unreadTotal,
   groupByDay, showsSender, isMine, hasUnread, mediaPath, filterConversations, replyPreviewOf,
+  formatVoiceDuration, playbackFraction,
 } from './conversations.js';
 
 const ME = 'emp-me';
@@ -258,4 +259,45 @@ test('two files sent in the same moment do not collide', () => {
 
 test('the extension survives, so the browser still knows what it is', () => {
   assert.match(mediaPath('c', 'holiday.png'), /\.png$/);
+});
+
+// ---------------------------------------------------------------- voice notes ----
+
+test('a voice note length reads m:ss', () => {
+  assert.equal(formatVoiceDuration(4000), '0:04');
+  assert.equal(formatVoiceDuration(65000), '1:05');
+  assert.equal(formatVoiceDuration(600000), '10:00');
+});
+
+test('the length rounds to the nearest second, as the recorder measured it', () => {
+  assert.equal(formatVoiceDuration(3223), '0:03');
+  assert.equal(formatVoiceDuration(3672), '0:04');
+});
+
+test('a length that is not a real number reads 0:00, never NaN:NaN', () => {
+  for (const bad of [null, undefined, NaN, Infinity, -5, 0, '3000']) {
+    assert.equal(formatVoiceDuration(bad), '0:00', `for ${String(bad)}`);
+  }
+});
+
+test('progress uses the browser duration when it is a real number', () => {
+  assert.equal(playbackFraction(2, 4, 9000), 0.5);
+});
+
+test('progress falls back to the stored length when the browser reports Infinity', () => {
+  // Chrome and Android record WebM with no length in the header, so <audio>.duration is Infinity
+  // until the clip ends. Without the fallback the bar never moves.
+  assert.equal(playbackFraction(1, Infinity, 4000), 0.25);
+  assert.equal(playbackFraction(1, NaN, 4000), 0.25);
+});
+
+test('progress is 0 when neither the browser nor the database knows the length', () => {
+  assert.equal(playbackFraction(3, Infinity, null), 0);
+  assert.equal(playbackFraction(3, NaN, undefined), 0);
+});
+
+test('progress is 0 before playback and never passes 1', () => {
+  assert.equal(playbackFraction(0, 4, null), 0);
+  assert.equal(playbackFraction(-1, 4, null), 0);
+  assert.equal(playbackFraction(9, 4, null), 1);
 });

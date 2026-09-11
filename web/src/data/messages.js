@@ -15,6 +15,7 @@ import { useAuth } from '../auth/AuthContext';
 import { isMissingSchema } from '../lib/pendingMigration';
 import { directKey, mediaPath } from '../lib/conversations';
 import { fetchMessagePage, flattenMessagePages } from '../lib/messageHistory';
+import { renameGroup, setGroupPicture } from '../lib/groupIdentity';
 
 /**
  * Number of messages fetched when opening a conversation or loading an earlier page.
@@ -162,6 +163,7 @@ function useConversationMutation(mutationFn) {
     mutationFn,
     onSuccess: (_result, variables) => {
       qc.invalidateQueries({ queryKey: ['conversations'] });
+      qc.invalidateQueries({ queryKey: ['admin-conversations'] });
       if (variables?.conversationId) {
         qc.invalidateQueries({ queryKey: ['messages', variables.conversationId] });
       }
@@ -397,25 +399,22 @@ export function useAddMembers() {
 
 export function useRemoveMember() {
   return useConversationMutation(async ({ conversationId, employeeId }) => {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('conversation_members')
       .delete()
       .eq('conversation_id', conversationId)
-      .eq('employee_id', employeeId);
+      .eq('employee_id', employeeId).select('employee_id');
     if (error) throw error;
+    if (!data?.length) throw new Error('This group member could not be removed. Refresh the chat and try again.');
   });
 }
 
 export function useRenameGroup() {
-  return useConversationMutation(async ({ conversationId, title }) => {
-    const { data, error } = await supabase
-      .from('conversations')
-      .update({ title: String(title ?? '').trim().slice(0, 120) || null })
-      .eq('id', conversationId)
-      .select('id');
-    if (error) throw error;
-    if (!data?.length) throw new Error('Only people in this group can rename it.');
-  });
+  return useConversationMutation((params) => renameGroup(supabase, params));
+}
+
+export function useSetGroupPicture() {
+  return useConversationMutation((params) => setGroupPicture(supabase, params));
 }
 
 /* ---------------------------------------------------------------------- media -- */

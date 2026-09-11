@@ -107,9 +107,10 @@ export function asString(v: unknown): string | null {
 export function asBigInt(v: unknown): bigint | null {
   if (v === null || v === undefined || v === '') return null;
   try {
-    const n = typeof v === 'number' ? Math.trunc(v) : Number(String(v).trim());
-    if (!Number.isFinite(n)) return null;
-    return BigInt(n);
+    if (typeof v === 'bigint') return v;
+    if (typeof v === 'number') return Number.isSafeInteger(v) ? BigInt(v) : null;
+    if (typeof v !== 'string' || !/^[+-]?\d+$/.test(v.trim())) return null;
+    return BigInt(v.trim());
   } catch {
     return null;
   }

@@ -118,7 +118,9 @@ export async function syncEmployees(signal?: AbortSignal): Promise<EmployeeSyncR
   };
 
   try {
+    signal?.throwIfAborted();
     const [devicePeople, candidates] = await Promise.all([fetchAllEmployees(signal), loadCandidates()]);
+    signal?.throwIfAborted();
 
     result.fetched = devicePeople.length;
     run.counters.recordsFetched = devicePeople.length;
@@ -130,10 +132,12 @@ export async function syncEmployees(signal?: AbortSignal): Promise<EmployeeSyncR
     );
 
     for (const person of devicePeople) {
+      signal?.throwIfAborted();
       const existing = await prisma.biotimeEmployee.findUnique({
         where: { empCode: person.empCode },
         select: { id: true, linkStatus: true, employeeId: true },
       });
+      signal?.throwIfAborted();
 
       // A human decision is final until a human changes it.
       const humanDecided = existing?.linkStatus === 'manual' || existing?.linkStatus === 'ignored';
@@ -184,6 +188,7 @@ export async function syncEmployees(signal?: AbortSignal): Promise<EmployeeSyncR
         else if (decision.linkStatus === 'ambiguous') result.ambiguous += 1;
         else result.unmatched += 1;
       }
+      signal?.throwIfAborted();
 
       // Newly linked? Adopt any punches already sitting unassigned under this code.
       const nowLinked = decision.employeeId && existing?.employeeId !== decision.employeeId;
@@ -198,6 +203,7 @@ export async function syncEmployees(signal?: AbortSignal): Promise<EmployeeSyncR
     run.addDetail(result as unknown as Record<string, unknown>);
 
     await syncDevices(signal);
+    signal?.throwIfAborted();
     await markSuccess('employees');
     await run.finish('success');
 
@@ -250,9 +256,11 @@ export async function resolvePunchLinks(empCode: string): Promise<{
   };
 }
 
-/** Refresh the terminal list. Non-fatal: devices are also created lazily from incoming punches. */
+/** Refresh the terminal list. Missing optional endpoints are supported; other failures surface. */
 export async function syncDevices(signal?: AbortSignal): Promise<number> {
+  signal?.throwIfAborted();
   const terminals = await fetchAllTerminals(signal);
+  signal?.throwIfAborted();
   if (terminals.length === 0) {
     logger.debug('no terminals returned by BioTime (endpoint may not exist on this build)');
     return 0;
@@ -260,6 +268,7 @@ export async function syncDevices(signal?: AbortSignal): Promise<number> {
 
   let count = 0;
   for (const t of terminals) {
+    signal?.throwIfAborted();
     try {
       await prisma.device.upsert({
         where: { serialNumber: t.serialNumber },
@@ -288,6 +297,7 @@ export async function syncDevices(signal?: AbortSignal): Promise<number> {
       logger.warn({ err, sn: t.serialNumber }, 'could not upsert terminal');
     }
   }
+  signal?.throwIfAborted();
 
   logger.info({ count }, 'terminals synced');
   return count;

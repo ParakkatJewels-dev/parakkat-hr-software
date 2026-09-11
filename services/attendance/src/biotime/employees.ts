@@ -97,7 +97,11 @@ export async function fetchAllTerminals(signal?: AbortSignal): Promise<Normalize
   try {
     const raw = await biotime.getAll<BiotimeTerminal>(TERMINALS_PATH, {}, { signal });
     return raw.map(normalizeTerminal).filter((d): d is NormalizedDevice => d !== null);
-  } catch {
-    return [];
+  } catch (err) {
+    signal?.throwIfAborted();
+    const failure = err as { status?: number; response?: { status?: number } };
+    const status = failure?.response?.status ?? failure?.status;
+    if (status === 404 || status === 405) return [];
+    throw err;
   }
 }

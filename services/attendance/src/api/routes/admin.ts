@@ -14,12 +14,13 @@ import { syncTransactions, catchUpTransactions, runTransactionSync } from '../..
 import { syncEmployees, refreshSuggestions, resolvePunchLinks } from '../../sync/syncEmployees';
 import { recompute, drainRecomputeQueue, enqueueRecompute } from '../../engine/recompute';
 import { workDateStart, workDateEnd, todayWorkDate, eachWorkDate } from '../../lib/time';
+import { backgroundJobs } from '../../jobs/background';
 
 export const adminRouter = Router();
 
 /** Run work detached, logging failures rather than crashing the request. */
-function background(label: string, fn: () => Promise<unknown>): void {
-  void fn().catch((err) => logger.error({ err, task: label }, 'background task failed'));
+function background(label: string, fn: (signal: AbortSignal) => Promise<unknown>): void {
+  void backgroundJobs.start(label, fn).catch((err) => logger.error({ err, task: label }, 'background task failed'));
 }
 
 /**
@@ -87,7 +88,7 @@ adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.ma
     return;
   }
   const { days } = parsed.data;
-  background('catchup', () => catchUpTransactions(days));
+  background('catchup', (signal) => catchUpTransactions(days, signal));
   res.status(202).json({ ok: true, message: `Catch-up scan started for the last ${days} days.` });
 }));
 
@@ -119,9 +120,10 @@ adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage
 
   const days = eachWorkDate(from, to);
 
-  background('backfill', async () => {
+  background('backfill', async (signal) => {
     // Weekly chunks, same reasoning as the CLI: keep each BioTime request small.
     for (let i = 0; i < days.length; i += 7) {
+      signal.throwIfAborted();
       const slice = days.slice(i, i + 7);
       await runTransactionSync({
         kind: 'backfill',
@@ -130,9 +132,11 @@ adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage
         endTime: workDateEnd(slice[slice.length - 1]!),
         advanceCursorAfter: false,
         maxPages: 10_000,
+        signal,
       });
+      signal.throwIfAborted();
     }
-    if (parsed.data.recompute) await recompute({ from, to });
+    if (parsed.data.recompute) await recompute({ from, to }, { signal });
   });
 
   res.status(202).json({
@@ -161,6 +165,10 @@ adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.m
 
   const { from, includeLocked } = parsed.data;
   const to = parsed.data.to ?? from;
+  if (from > to) {
+    res.status(400).json({ error: 'invalid_range', message: '`from` is after `to`.' });
+    return;
+  }
   const days = eachWorkDate(from, to).length;
 
   // requirePermission only asked whether attendance.manage is held SOMEWHERE. A recompute rewrites
@@ -199,7 +207,7 @@ adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.m
     return;
   }
 
-  background('recompute', () => recompute({ from, to, employeeIds, includeLocked }));
+  background('recompute', (signal) => recompute({ from, to, employeeIds, includeLocked }, { signal }));
   res.status(202).json({ ok: true, message: `Recompute started for ${from} .. ${to} (${days} days).` });
 }));
 

@@ -10,7 +10,7 @@ import { istToday } from '../lib/dates.js';
 import { rangeFor } from '../lib/dateRange.js';
 
 let server, AuthContext, Administration, Onboarding, Recruitment, ReportTable, Pagination, Payroll,
-  RegularizationsView, ExceptionsView, Team, PeopleOverview, Performance, NewConversation, GroupPanel, Thread, ChatMonitor;
+  RegularizationsView, ExceptionsView, Team, PeopleOverview, Performance, NewConversation, GroupPanel, ConversationSettings, Thread, ChatMonitor;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
@@ -24,7 +24,7 @@ before(async () => {
   ({ default: Team } = await server.ssrLoadModule('/src/components/Team.jsx'));
   ({ PeopleOverview } = await server.ssrLoadModule('/src/components/Directory.jsx'));
   ({ default: Performance } = await server.ssrLoadModule('/src/components/Performance.jsx'));
-  ({ NewConversation, GroupPanel, Thread } = await server.ssrLoadModule('/src/components/Messages.jsx'));
+  ({ NewConversation, GroupPanel, ConversationSettings, Thread } = await server.ssrLoadModule('/src/components/Messages.jsx'));
   ({ default: ChatMonitor } = await server.ssrLoadModule('/src/components/ChatMonitor.jsx'));
 });
 after(async () => { await server?.close(); });
@@ -51,7 +51,7 @@ function render(Component, seeds = [], props = {}, path = '/', authOverrides = {
 
 test('Users & Access mounts 25 account controls for 675 users, with all three companies and 27 pages', () => {
   const html = render(Administration);
-  assert.equal((html.match(/<details /g) ?? []).length, 25);
+  assert.equal((html.match(/<details class="users-account"/g) ?? []).length, 25);
   assert.equal((html.match(/Send password reset to /g) ?? []).length, 25);
   for (const label of ['Sample Jewellery', 'Sample Manufacturing', 'Sample Retail', 'Search user accounts',
     'Go to account page', 'Page 1 of 27', 'of 675 accounts', 'Account status']) assert.ok(html.includes(label), label);
@@ -71,7 +71,7 @@ test('recruitment bounds each pipeline column independently and pages job openin
   const html = render(Recruitment, [[['jobs'], jobs], [['candidates'], candidates]]);
   assert.equal((html.match(/class="people-candidate-card"/g) ?? []).length, 32);
   assert.equal((html.match(/class="people-opening-card"/g) ?? []).length, 8);
-  assert.equal((html.match(/Page 1 of 22/g) ?? []).length, 4);
+  assert.equal((html.match(/class="pagination-page-label">Page 1 of 22<\/span>/g) ?? []).length, 4);
 });
 test('report paging preserves the full-result footer and accepts React cells without serializing them', () => {
   const rows = Array.from({ length: 675 }, (_, i) => [React.createElement('span', { key: i }, `Report person ${i}`), i]);
@@ -242,4 +242,31 @@ test('chat exposes earlier pages and read-only monitoring has no message or memb
   const history = render(Thread, [[['messages', conversation.id, 'pages'], allPages]], { conversation, me: 'self', readOnly: true, onBack() {} });
   assert.ok(history.indexOf('Original message') < history.indexOf('Latest message'));
   assert.doesNotMatch(history, /Load older messages/);
+});
+
+
+test('chat and group settings share the same Back flow while only group members edit identity', () => {
+  const members = [
+    { employee_id: 'self', employee: { full_name: 'My Employee', employee_code: 'SELF' } },
+    { employee_id: 'other', employee: { full_name: 'Colleague Name', employee_code: 'EMP002' } },
+  ];
+  for (const kind of ['direct', 'group']) {
+    const conversation = { id: `settings-${kind}`, kind, title: 'Our group', members };
+    const html = render(ConversationSettings, [], { conversation, me: 'self', onClose() {} });
+    assert.match(html, /aria-label="Back to chat"/);
+    assert.match(html, /Colleague Name/);
+    assert.match(html, /EMP002/);
+    if (kind === 'group') {
+      assert.match(html, /Group name/);
+      assert.match(html, /Change picture/);
+      assert.match(html, /Add people/);
+      assert.match(html, /Leave group/);
+    } else {
+      assert.doesNotMatch(html, /<input/);
+      assert.doesNotMatch(html, /Change picture|Group name|Add people|Leave group/);
+      assert.doesNotMatch(html, /Our group/);
+    }
+    const monitored = render(ConversationSettings, [], { conversation, me: 'outsider', readOnly: true, onClose() {} });
+    assert.doesNotMatch(monitored, /<input|Change picture|Add people|Leave group/);
+  }
 });

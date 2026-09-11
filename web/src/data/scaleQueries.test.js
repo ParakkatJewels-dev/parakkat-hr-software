@@ -72,7 +72,7 @@ function fixtureDb(tables, { serverCap = 97, rejectAtOffset = null, beforeRead }
         limit(value) { limit = value; return q; },
         range(start, finish) { from = start; end = finish; return q; },
         single() { single = true; return q; },
-        update() { return q; }, delete() { return q; }, insert() { return q; },
+        update() { return q; }, delete() { return q; }, insert() { return q; }, upsert() { return q; },
         then(resolve, reject) {
           calls.push({ table, from, ordering });
           beforeRead?.({ table, request: calls.length });
@@ -285,4 +285,32 @@ test('imported calendar dates retain their day in IST and invalid dates name the
     if (previous === undefined) delete process.env.TZ;
     else process.env.TZ = previous;
   }
+});
+
+test('Home routine queries request one employee and one day with distinct scoped cache keys', async () => {
+  fixtureDb({
+    routine_items: [
+      { id: 'mine', employee_id: 'employee-1', is_active: true },
+      { id: 'other', employee_id: 'employee-2', is_active: true },
+    ],
+    routine_ticks: [
+      { id: 'today', employee_id: 'employee-1', on_date: '2026-09-11' },
+      { id: 'yesterday', employee_id: 'employee-1', on_date: '2026-09-10' },
+      { id: 'other', employee_id: 'employee-2', on_date: '2026-09-11' },
+    ],
+  });
+  const items = routines.useRoutineItems({ employeeId: 'employee-1' });
+  const ticks = routines.useRoutineTicks('2026-09-11', { employeeId: 'employee-1' });
+  assert.deepEqual(items.queryKey, ['routine-items', 'employee-1']);
+  assert.deepEqual(ticks.queryKey, ['routine-ticks', '2026-09-11', 'employee-1']);
+  assert.deepEqual((await items.queryFn()).map(item => item.id), ['mine']);
+  assert.deepEqual((await ticks.queryFn()).map(item => item.id), ['today']);
+});
+
+test('routine mutations require a confirmed affected row so a denied save cannot hide the duty', async () => {
+  fixtureDb({ routine_ticks: [] });
+  const mutation = routines.useSetRoutineTick();
+  const input = { itemId: 'duty', employeeId: 'employee-1', onDate: '2026-09-11' };
+  await assert.rejects(mutation.mutationFn({ ...input, done: true }), /could not be marked done/);
+  await assert.rejects(mutation.mutationFn({ ...input, done: false }), /could not be reopened/);
 });

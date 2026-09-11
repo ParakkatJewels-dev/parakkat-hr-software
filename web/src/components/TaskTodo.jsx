@@ -6,7 +6,7 @@ import { useTaskCommentCounts } from '../data/taskComments';
 import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { useAuth } from '../auth/AuthContext';
 import { humanDbError } from '../lib/dbErrors';
-import { istToday } from '../lib/dates';
+import { useIstToday } from '../lib/useIstToday';
 import { TASK_PRIORITIES, searchTasks } from '../lib/taskBoard';
 import { myBoard, progress, isSelfSet } from '../lib/todoPipeline';
 import TaskListRow, { TaskListColumns } from './TaskListRow';
@@ -17,7 +17,7 @@ import ConfirmDialog from './ui/ConfirmDialog';
 export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowProps }) {
   const { employee } = useAuth();
   const me = employee?.id ?? null;
-  const today = istToday();
+  const today = useIstToday();
   const create = useCreateTask();
   const update = useUpdateTask();
   const remove = useDeleteTask();
@@ -112,14 +112,19 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
         <div className="work-quick-fields">
           <input id="todo-title" value={title} onChange={(event) => setTitle(event.target.value)}
             placeholder="What needs to get done?" maxLength={200} disabled={create.isPending} required />
-          <select aria-label="Priority for new task" value={priority} onChange={(event) => setPriority(event.target.value)} disabled={create.isPending}>
-            {TASK_PRIORITIES.map((value) => <option key={value}>{value}</option>)}
-          </select>
-          <input aria-label="Due date for new task" type="date" value={due} onChange={(event) => setDue(event.target.value)} disabled={create.isPending} />
           <button type="submit" disabled={!title.trim() || create.isPending} className="work-button work-button-primary">
             {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add task
           </button>
         </div>
+        <details className="work-quick-options">
+          <summary>{priority === 'Medium' && !due ? 'Priority & due date' : `${priority} priority${due ? ` · Due ${due}` : ''}`}</summary>
+          <div className="work-quick-fields">
+            <label>Priority<select aria-label="Priority for new task" value={priority} onChange={(event) => setPriority(event.target.value)} disabled={create.isPending}>
+              {TASK_PRIORITIES.map((value) => <option key={value}>{value}</option>)}
+            </select></label>
+            <label>Due date<input aria-label="Due date for new task" type="date" value={due} onChange={(event) => setDue(event.target.value)} disabled={create.isPending} /></label>
+          </div>
+        </details>
       </form>
       {error && <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">{error}</p>}
       {loadError && <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">

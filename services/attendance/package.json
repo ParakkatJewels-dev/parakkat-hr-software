@@ -18,6 +18,7 @@
     "seed": "tsx src/scripts/seed.ts",
     "doctor": "tsx src/scripts/doctor.ts",
     "test": "tsx --test --experimental-test-module-mocks \"src/**/*.test.ts\"",
+    "test:engine": "tsx --test --experimental-test-module-mocks src/engine/recompute.integration.ts",
     "test:reports": "tsx src/scripts/verifyReports.ts",
     "test:roles": "tsx --experimental-test-module-mocks src/scripts/verifyRoleAccess.ts",
     "probe:rules": "tsx src/scripts/probeRules.ts",

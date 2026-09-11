@@ -130,7 +130,8 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
 
     if (!r.work_date || !r.status) continue;
 
-    const key = DateTime.fromJSDate(r.work_date, { zone: 'utc' }).setZone(APP_TZ).toFormat('yyyy-MM-dd');
+    // Prisma represents a SQL DATE at UTC midnight; this is a calendar label, not an instant.
+    const key = DateTime.fromJSDate(r.work_date, { zone: 'utc' }).toFormat('yyyy-MM-dd');
     const fraction = Number(r.day_fraction ?? 0);
 
     row.days.set(key, {

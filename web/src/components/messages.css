@@ -209,7 +209,7 @@
   color: var(--chat-muted);
 }
 .messages-watch-menu p { padding: 14px; text-align: center; font-size: 12px; color: var(--chat-muted); }
-.messages-group-panel { max-height: min(26rem, 50dvh); overflow-y: auto; }
+
 
 /* Sits where the composer would be, so the eye lands where the hand expects a text box. */
 .messages-readonly-bar {
@@ -278,9 +278,45 @@
 .message-bubble-media { padding-top: 7px; }
 .message-bubble-media :is(img, video) { max-width: 100%; }
 .message-bubble-media .message-text { margin-top: 6px; }
-.messages-audio { display: flex; align-items: center; gap: 5px; max-width: 100%; }
-.messages-audio svg { flex-shrink: 0; }
-.messages-audio audio { width: 260px; min-width: 0; }
+/* ---- voice notes -----------------------------------------------------------------------------
+   A play button, a track and a time, drawn in the bubble's own colours. The browser's native
+   <audio controls> strip is grey in every theme and cannot be restyled to sit inside a green bubble. */
+.voice-note { display: flex; align-items: center; gap: 10px; width: min(260px, 100%); min-width: 200px; padding-top: 2px; }
+.voice-note-toggle {
+  display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; padding: 0;
+  border: 0; border-radius: 50%; background: var(--chat-accent); color: var(--chat-accent-text);
+  transition: transform .12s ease, opacity .12s ease;
+}
+.voice-note-toggle:active { transform: scale(.94); }
+.voice-note[data-own="true"] .voice-note-toggle { background: #fff; color: var(--chat-sent-bg); }
+/* A play triangle centred by its box reads as off-centre; nudge it to where the eye puts the middle. */
+.voice-note[data-playing="false"] .voice-note-toggle svg { margin-left: 2px; }
+
+.voice-note-track {
+  --voice-fill: var(--chat-accent);
+  --voice-rest: var(--chat-border);
+  flex: 1; min-width: 0; height: 22px; margin: 0; background: transparent; cursor: pointer;
+  -webkit-appearance: none; appearance: none;
+}
+.voice-note[data-own="true"] .voice-note-track { --voice-fill: #fff; --voice-rest: #ffffff4d; }
+.voice-note-track:disabled { cursor: default; }
+.voice-note-track::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 4px;
+  background: linear-gradient(to right, var(--voice-fill) var(--voice-progress, 0%), var(--voice-rest) var(--voice-progress, 0%));
+}
+.voice-note-track::-webkit-slider-thumb {
+  width: 14px; height: 14px; margin-top: -5px; border: 0; border-radius: 50%; background: var(--voice-fill);
+  -webkit-appearance: none; appearance: none;
+}
+.voice-note-track::-moz-range-track { height: 4px; border-radius: 4px; background: var(--voice-rest); }
+.voice-note-track::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--voice-fill); }
+.voice-note-track::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--voice-fill); }
+.voice-note-track:focus-visible { outline: 2px solid var(--voice-fill); outline-offset: 2px; border-radius: 4px; }
+
+.voice-note-time { flex-shrink: 0; min-width: 34px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; color: var(--chat-muted); }
+.voice-note[data-own="true"] .voice-note-time { color: #e1f5ec; }
+.voice-note-failed { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--chat-muted); }
+.message-bubble-row[data-own="true"] .voice-note-failed { color: #e1f5ec; }
 .messages-file-name { display: block; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; font-weight: 600; }
 .messages-jump-latest { position: absolute; right: 18px; bottom: 15px; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--chat-border); border-radius: 50%; background: var(--chat-surface); color: var(--chat-text); box-shadow: 0 2px 8px #0002; }
 .messages-chat-notice { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; font-size: 13px; color: var(--chat-muted); }
@@ -334,4 +370,41 @@
   .messages-input-shell .messages-icon-button { width: 36px; flex-basis: 36px; }
   .messages-send, .messages-voice { width: 44px; flex-basis: 44px; }
   .message-bubble-wrap { max-width: 93%; }
+}
+
+/* Settings occupies the same thread space on every screen; the conversation keeps its scroll. */
+.messages-chat { position: relative; }
+.messages-thread-content { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
+.messages-settings { position: absolute; z-index: 10; inset: 0; display: flex; flex-direction: column; min-width: 0; background: var(--chat-surface); color: var(--chat-text); }
+.messages-settings-header { display: flex; align-items: center; gap: 8px; flex-shrink: 0; min-height: 68px; padding: 10px 12px; border-bottom: 1px solid var(--chat-border); background: var(--chat-chrome); }
+.messages-settings-header h2 { margin: 0; font-size: 16px; font-weight: 650; }
+.messages-settings-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px clamp(12px, 4vw, 28px) 24px; }
+.messages-settings-identity { display: flex; flex-direction: column; align-items: center; gap: 7px; margin-bottom: 20px; text-align: center; }
+.messages-settings-identity h3 { max-width: 100%; margin: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 650; }
+.messages-settings-identity p { margin: 0; font-size: 13px; color: var(--chat-muted); }
+.messages-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.messages-settings-avatar { width: 64px; height: 64px; flex-basis: 64px; }
+.messages-settings-section { min-width: 0; padding-block: 14px; border-top: 1px solid var(--chat-border); }
+.messages-settings-section > h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 14px; font-weight: 650; }
+.messages-settings-section > h3 span { color: var(--chat-muted); font-size: 12px; font-weight: 400; }
+.messages-group-name label { display: block; margin-bottom: 5px; font-size: 12px; color: var(--chat-muted); }
+.messages-group-name > div { display: flex; align-items: center; gap: 6px; }
+.messages-group-name input { flex: 1; min-width: 0; }
+.messages-settings :is(button, input[type='search'], input:not([type])) { min-height: 40px; }
+.messages-settings-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.messages-settings-hint { margin: 8px 0 0; color: var(--chat-muted); font-size: 12px; line-height: 1.5; }
+.messages-settings-status { margin: 10px 0; font-size: 13px; color: var(--chat-accent); }
+.messages-settings-members { list-style: none; margin: 0; padding: 0; }
+.messages-settings-members li { display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 56px; padding: 6px 0; }
+.messages-settings-members li > div { flex: 1; min-width: 0; }
+.messages-settings-members strong { display: block; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.messages-settings-members li > div > span { display: block; margin-top: 2px; font-size: 12px; color: var(--chat-muted); }
+.messages-leave-group { display: flex; align-items: center; margin-top: 18px; padding: 8px 0; border: 0; background: transparent; color: #be123c; font-size: 13px; font-weight: 600; }
+.dark .messages-leave-group { color: #fda4af; }
+@media (max-width: 420px) {
+  .messages-settings-header { padding: 8px 5px; min-height: 62px; }
+  .messages-settings-scroll { padding-top: 12px; }
+  .messages-settings-identity { margin-bottom: 12px; }
+  .messages-settings-section { padding-block: 12px; }
+  .messages-settings input { font-size: 16px; }
 }

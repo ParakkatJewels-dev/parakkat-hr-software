@@ -167,6 +167,15 @@ begin
       end if;
     end loop;
     prefix:=a.key||'/';
+    -- Execute the real enqueue RPC. Each call rolls back so the duplicate-work guard does not
+    -- obscure the permission result, and no test command can be collected by any worker.
+    foreach module in array array['sync_transactions','sync_employees','backfill','refresh_suggestions','recompute','export_register','export_payroll'] loop
+      perform audit_test.write_expect(prefix||'service commands/'||module,format(
+        'select jsonb_build_array(public.request_service_command(%L,%L::jsonb) is not null)',
+        module,'{"from":"2026-07-01","to":"2026-07-02","year":2026,"month":7}'),
+        case when module in ('export_register','export_payroll') then a.ordinal<=5 else a.ordinal=1 end,
+        '[true]');
+    end loop;
     perform audit_test.write_expect(prefix||'role administration/superadmin grant',format(
       'insert into public.role_assignments(user_id,role_id,scope_type) select %L,id,''global'' from public.roles where key=''super_admin''',audit_test.id(7,1)),
       a.ordinal=1,'[1]',false);
@@ -243,6 +252,62 @@ do $$ declare actor_number integer; actor_id uuid; actual jsonb; begin
   perform set_config('request.jwt.claim.sub',audit_test.id(6,8)::text,true);
   perform audit_test.write_expect('unassigned/personal task/insert without representation',
     'insert into public.tasks(employee_id,title,assigned_by) values(audit_test.id(5,108),''Personal note'',audit_test.id(5,108))',true,'[1]',false);
+end $$;
+reset role;
+
+-- Chat identity is based on conversation membership, not the caller's company role. A monitor
+-- may read a group but cannot change it; a direct thread always keeps its employee identities.
+insert into public.conversations(id,kind,title,created_by,photo_path)
+  select audit_test.id(9,ordinal),'group','Role group',employee_id,
+    audit_test.id(9,ordinal)::text||'/group-photo/original.png' from audit_test.actors
+  union all select audit_test.id(9,100+ordinal),'direct',null,employee_id,null from audit_test.actors
+  union all select audit_test.id(9,200),'group','Other group',audit_test.id(5,1),null;
+insert into public.conversation_members(conversation_id,employee_id,role)
+  select audit_test.id(9,ordinal),employee_id,'member' from audit_test.actors
+  union all select audit_test.id(9,100+ordinal),employee_id,'member' from audit_test.actors
+  union all select audit_test.id(9,200),audit_test.id(5,1),'owner';
+insert into storage.objects(bucket_id,name,metadata)
+  select 'chat-media',audit_test.id(9,ordinal)::text||'/group-photo/original.png',
+    '{"mimetype":"image/png","size":1024}'::jsonb from audit_test.actors;
+set role authenticated;
+do $$ declare a record; prefix text; group_id uuid; direct_id uuid; actual jsonb; path text; rejected boolean; begin
+  for a in select * from audit_test.actors order by ordinal loop
+    perform set_config('request.jwt.claim.sub',a.user_id::text,true);
+    prefix:=a.key||'/chat identity/';
+    group_id:=audit_test.id(9,a.ordinal); direct_id:=audit_test.id(9,100+a.ordinal);
+    path:=group_id::text||'/group-photo/updated.png';
+    perform audit_test.write_expect(prefix||'member renames group',format(
+      'with changed as (update public.conversations set title=''Team updates'' where id=%L returning title) select coalesce(jsonb_agg(title),''[]''::jsonb) from changed',group_id),true,'["Team updates"]');
+    perform audit_test.write_expect(prefix||'member changes group picture',format(
+      'with changed as (update public.conversations set photo_path=%L where id=%L returning photo_path) select coalesce(jsonb_agg(photo_path),''[]''::jsonb) from changed',path,group_id),true,jsonb_build_array(path));
+    perform audit_test.write_expect(prefix||'member removes group picture',format(
+      'with changed as (update public.conversations set photo_path=null where id=%L returning photo_path) select coalesce(jsonb_agg(photo_path),''[]''::jsonb) from changed',group_id),true,'[null]');
+    perform audit_test.write_expect(prefix||'direct name is immutable',format(
+      'with changed as (update public.conversations set title=''Changed employee name'' where id=%L returning title) select coalesce(jsonb_agg(title),''[]''::jsonb) from changed',direct_id),false,'[]');
+    perform audit_test.write_expect(prefix||'direct picture is immutable',format(
+      'with changed as (update public.conversations set photo_path=%L where id=%L returning photo_path) select coalesce(jsonb_agg(photo_path),''[]''::jsonb) from changed',path,direct_id),false,'[]');
+    perform audit_test.write_expect(prefix||'nonmember cannot rename',
+      'with changed as (update public.conversations set title=''Monitor rename'' where id=audit_test.id(9,200) returning title) select coalesce(jsonb_agg(title),''[]''::jsonb) from changed',false,'[]');
+    perform audit_test.write_expect(prefix||'nonmember cannot change picture',
+      'with changed as (update public.conversations set photo_path=null where id=audit_test.id(9,200) returning photo_path) select coalesce(jsonb_agg(photo_path),''[]''::jsonb) from changed',false,'[]');
+    perform audit_test.write_expect(prefix||'cannot convert a direct thread into a group',format(
+      'with changed as (update public.conversations set kind=''group'' where id=%L returning kind) select coalesce(jsonb_agg(kind),''[]''::jsonb) from changed',direct_id),false,'[]');
+    perform audit_test.write_expect(prefix||'cannot replace group creator',format(
+      'with changed as (update public.conversations set created_by=audit_test.id(5,1) where id=%L returning created_by) select coalesce(jsonb_agg(created_by),''[]''::jsonb) from changed',group_id),false,'[]');
+    select jsonb_agg(photo_path) into actual from public.my_conversations where id=group_id;
+    perform audit_test.expect(prefix||'inbox exposes current private picture',actual,jsonb_build_array(group_id::text||'/group-photo/original.png'));
+    select jsonb_agg(photo_path) into actual from public.conversation_overview where id=group_id;
+    perform audit_test.expect(prefix||'overview exposes current private picture',actual,jsonb_build_array(group_id::text||'/group-photo/original.png'));
+    perform audit_test.write_expect(prefix||'member uploads into private group folder',format(
+      'with changed as (insert into storage.objects(bucket_id,name) values(''chat-media'',%L) returning name) select jsonb_agg(name) from changed',path),true,jsonb_build_array(path));
+    perform audit_test.write_expect(prefix||'nonmember cannot upload group picture',
+      'with changed as (insert into storage.objects(bucket_id,name) values(''chat-media'',audit_test.id(9,200)::text||''/group-photo/blocked.png'') returning name) select jsonb_agg(name) from changed',false,'[]');
+    rejected:=false;
+    begin
+      update public.conversations set photo_path=audit_test.id(9,200)::text||'/group-photo/foreign.png' where id=group_id;
+    exception when check_violation then rejected:=true; end;
+    perform audit_test.expect(prefix||'cannot reference another conversation picture',to_jsonb(rejected),'true');
+  end loop;
 end $$;
 reset role;
 

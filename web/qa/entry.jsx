@@ -8,6 +8,9 @@ panel.id = 'qa-panel';
 panel.style.cssText = 'position:fixed;right:4px;bottom:78px;z-index:99999;max-width:calc(100vw - 8px);max-height:65vh;overflow:auto;background:#fff;color:#111;border:2px solid #b45309;border-radius:8px;padding:8px;font:12px/1.5 sans-serif;box-shadow:0 2px 15px #0003';
 panel.innerHTML = '<summary>QA · 525 synthetic employees</summary><p>Isolated fixtures. Writes and external connections blocked.</p><label>QA role <select id="qa-role" aria-label="QA role"></select></label><button id="qa-sweep">Run all-screen smoke checks</button> <button id="qa-fail">Simulate read failure</button><pre id="qa-results" style="white-space:pre-wrap;max-width:520px"></pre>';
 document.body.appendChild(panel);
+if (new URL(window.location.href).searchParams.has('qa-mobile')) {
+  panel.querySelector('p').textContent = 'Isolated phone fixtures. Routine ticks save in memory only; all other writes and external connections are blocked.';
+}
 for (const role of [...ROLE_NAMES, 'unassigned']) {
   const option = document.createElement('option');
   option.value = role; option.textContent = role; option.selected = role === qaRole;

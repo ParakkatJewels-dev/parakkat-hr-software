@@ -6,15 +6,18 @@
 // service_commands and this drains it. No inbound connection to the HR laptop is required for
 // anything, which is what makes the office network irrelevant to whether the buttons work.
 //
-// One command runs at a time. These are heavy operations against an on-prem BioTime box, and two
-// backfills at once is how you take it down mid-morning. The claim is atomic (`for update skip
-// locked`), so a second service instance would simply find nothing to do rather than duplicate.
+// The scheduler runs one command at a time in this worker. The atomic claim (`for update skip
+// locked`) prevents two consumers claiming the same row; it does not serialize different commands
+// across processes. Deploy exactly one worker for the shared BioTime integration.
 import { prisma } from '../lib/db';
+import { z } from 'zod';
 import { logger } from '../lib/logger';
 import { syncTransactions, runTransactionSync } from '../sync/syncTransactions';
 import { syncEmployees, refreshSuggestions } from '../sync/syncEmployees';
 import { recompute } from '../engine/recompute';
-import { contextForUserId } from '../api/auth';
+import { contextForUserId, resolveVisibleScope } from '../api/auth';
+import { branchFilter, dateString } from '../api/validation';
+import { workDateStart, workDateEnd, todayWorkDate, DateTime, APP_TZ } from '../lib/time';
 import { generateExport, type ExportKind } from '../exports/generate';
 
 interface CommandRow {
@@ -50,6 +53,23 @@ interface ExportResult {
 const isExportResult = (v: unknown): v is ExportResult =>
   typeof v === 'object' && v !== null && 'base64' in v && 'filename' in v;
 
+const exportParams = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+  month: z.coerce.number().int().min(1).max(12),
+  branchIds: z.union([branchFilter, z.array(z.string().uuid())]).optional(),
+  columns: z.array(z.string().min(1)).optional(),
+});
+const recomputeParams = z.object({
+  from: dateString,
+  to: dateString.optional(),
+  employeeIds: z.array(z.string().uuid()).min(1, 'Choose at least one employee or omit the filter.').optional(),
+});
+const backfillParams = z.object({
+  from: dateString,
+  to: dateString.optional(),
+  recompute: z.boolean().optional(),
+}).refine(p => !p.to || p.from <= p.to, 'Backfill end date must not precede its start date.');
+
 /**
  * Build an export for whoever asked for it.
  *
@@ -58,26 +78,21 @@ const isExportResult = (v: unknown): v is ExportResult =>
  * bypasses RLS, so "no context" must mean no rows, never all of them — and a command whose
  * requester has since been deleted has nobody's authority behind it.
  */
-async function runExport(kind: ExportKind, cmd: CommandRow): Promise<ExportResult> {
+async function runExport(kind: ExportKind, cmd: CommandRow, signal?: AbortSignal): Promise<ExportResult> {
   const auth = await contextForUserId(cmd.requested_by);
+  signal?.throwIfAborted();
   if (!auth) {
     throw new Error('Cannot identify who requested this export, so its scope cannot be established.');
   }
 
-  const p = cmd.params ?? {};
-  const year = Number(p.year);
-  const month = Number(p.month);
-  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
-    throw new Error('an export needs a year and a month');
-  }
+  const p = exportParams.parse(cmd.params ?? {});
+  const { year, month } = p;
 
   // scopeFor takes the comma-joined form the query string used, but the screens hand this over as
   // JSON and one of them sends an array. Dropping an unrecognised shape here would not error — it
   // would widen the export from the branch that was chosen to every branch the caller can see,
   // which is the kind of wrong that looks like a successful download.
-  const branchIds = Array.isArray(p.branchIds)
-    ? (p.branchIds as unknown[]).filter((b): b is string => typeof b === 'string' && b !== '').join(',')
-    : str(p.branchIds);
+  const branchIds = Array.isArray(p.branchIds) ? p.branchIds.join(',') : p.branchIds;
 
   const { filename, workbook } = await generateExport({
     kind,
@@ -85,17 +100,29 @@ async function runExport(kind: ExportKind, cmd: CommandRow): Promise<ExportResul
     year,
     month,
     branchIds: branchIds || undefined,
-    columns: Array.isArray(p.columns) ? (p.columns as string[]) : undefined,
+    columns: p.columns,
   });
+  signal?.throwIfAborted();
 
   const buffer = Buffer.from(await workbook.xlsx.writeBuffer());
   return { filename, base64: buffer.toString('base64') };
 }
 
-const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
-
 async function execute(cmd: CommandRow, signal?: AbortSignal): Promise<unknown> {
   const p = cmd.params ?? {};
+  signal?.throwIfAborted();
+
+  // A command may have waited since the original RPC permission check. Re-resolve current
+  // authority before privileged work; a revoked/deleted requester cannot retain queue privileges.
+  // Operational commands act across the service, so an entity/branch grant is insufficient.
+  if (cmd.kind !== 'export_register' && cmd.kind !== 'export_payroll') {
+    const auth = await contextForUserId(cmd.requested_by);
+    if (!auth) throw new Error('The requester no longer has authority to run this command.');
+    const permission = cmd.kind === 'recompute' ? 'attendance.manage' : 'device.manage';
+    const scope = await resolveVisibleScope(auth, [permission]);
+    if (!scope.all) throw new Error(`This operation requires global ${permission} access.`);
+    signal?.throwIfAborted();
+  }
 
   switch (cmd.kind) {
     case 'sync_transactions':
@@ -108,36 +135,42 @@ async function execute(cmd: CommandRow, signal?: AbortSignal): Promise<unknown> 
       return { updated: await refreshSuggestions() };
 
     case 'recompute': {
-      const from = str(p.from);
-      const to = str(p.to) ?? from;
-      if (!from || !to) throw new Error('recompute needs a from and to date');
-      const employeeIds = Array.isArray(p.employeeIds) ? (p.employeeIds as string[]) : undefined;
-      return recompute({ from, to, employeeIds });
+      const { from, to = from, employeeIds } = recomputeParams.parse(p);
+      return recompute({ from, to, employeeIds }, { signal });
     }
 
     case 'backfill': {
-      const from = str(p.from);
-      const to = str(p.to);
-      if (!from) throw new Error('backfill needs a from date');
+      const { from, to = todayWorkDate(), recompute: rebuild } = backfillParams.parse(p);
+      if (from > to) throw new Error('Backfill end date must not precede its start date.');
       // Chunked the same way the CLI does it: asking BioTime for months in one query is what
       // produces a timeout, or a terminal server on its knees during business hours.
-      const result = await runTransactionSync({
-        kind: 'backfill',
-        source: 'backfill',
-        startTime: new Date(`${from}T00:00:00+05:30`),
-        endTime: to ? new Date(`${to}T23:59:59+05:30`) : undefined,
-        advanceCursorAfter: false,
-        signal,
-      });
-      if (p.recompute && to) await recompute({ from, to });
+      const result: { inserted: number; fetched: number; skipped: number; chunks: number; rowsWritten?: number } = {
+        inserted: 0, fetched: 0, skipped: 0, chunks: 0,
+      };
+      for (let start = from; start <= to;) {
+        signal?.throwIfAborted();
+        const weekEnd = DateTime.fromISO(start, { zone: APP_TZ }).plus({ days: 6 }).toISODate()!;
+        const end = weekEnd < to ? weekEnd : to;
+        const chunk = await runTransactionSync({
+          kind: 'backfill', source: 'backfill', startTime: workDateStart(start), endTime: workDateEnd(end),
+          advanceCursorAfter: false, maxPages: 10_000, signal,
+        });
+        signal?.throwIfAborted();
+        result.inserted += chunk.inserted;
+        result.fetched += chunk.fetched;
+        result.skipped += chunk.skipped;
+        result.chunks += 1;
+        start = DateTime.fromISO(end, { zone: APP_TZ }).plus({ days: 1 }).toISODate()!;
+      }
+      if (rebuild) result.rowsWritten = (await recompute({ from, to }, { signal })).rowsWritten;
       return result;
     }
 
     case 'export_register':
-      return runExport('register', cmd);
+      return runExport('register', cmd, signal);
 
     case 'export_payroll':
-      return runExport('payroll', cmd);
+      return runExport('payroll', cmd, signal);
 
     default:
       throw new Error(`unknown command kind "${cmd.kind}"`);
@@ -146,6 +179,7 @@ async function execute(cmd: CommandRow, signal?: AbortSignal): Promise<unknown> 
 
 /** Run at most one queued command. Returns true if it did something. */
 export async function drainServiceCommands(signal?: AbortSignal): Promise<boolean> {
+  signal?.throwIfAborted();
   const cmd = await claimNext();
   if (!cmd) return false;
 
@@ -154,6 +188,7 @@ export async function drainServiceCommands(signal?: AbortSignal): Promise<boolea
 
   try {
     const result = await execute(cmd, signal);
+    signal?.throwIfAborted();
 
     // An export's file goes in its own column, never into `result`. The admin screen lists recent
     // commands and selects `result` for every one of them; a few hundred kilobytes of base64 in
@@ -163,16 +198,18 @@ export async function drainServiceCommands(signal?: AbortSignal): Promise<boolea
         update public.service_commands
            set status = 'done',
                finished_at = now(),
-               result = ${JSON.stringify({ filename: result.filename, bytes: result.base64.length })}::jsonb,
+               result = ${JSON.stringify({ filename: result.filename, bytes: Buffer.byteLength(result.base64, 'base64') })}::jsonb,
                result_file = ${result.base64},
                result_filename = ${result.filename}
          where id = ${cmd.id}::uuid
+           and status = 'running'
       `;
     } else {
       await prisma.$executeRaw`
         update public.service_commands
            set status = 'done', finished_at = now(), result = ${JSON.stringify(result ?? {})}::jsonb
          where id = ${cmd.id}::uuid
+           and status = 'running'
       `;
     }
     logger.info({ id: cmd.id, kind: cmd.kind, ms: Date.now() - started }, 'command finished');
@@ -183,6 +220,7 @@ export async function drainServiceCommands(signal?: AbortSignal): Promise<boolea
       update public.service_commands
          set status = 'failed', finished_at = now(), error_message = ${message}
        where id = ${cmd.id}::uuid
+         and status = 'running'
     `;
     logger.error({ id: cmd.id, kind: cmd.kind, err: message }, 'command failed');
   }

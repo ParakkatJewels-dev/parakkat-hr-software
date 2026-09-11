@@ -11,15 +11,18 @@ import { useAuth } from '../auth/AuthContext';
 import { istToday } from '../lib/dates';
 
 /** Every routine the caller can see — their own, or their team's. RLS decides which. */
-export function useRoutineItems({ enabled = true } = {}) {
+export function useRoutineItems({ enabled = true, employeeId } = {}) {
   return useQuery({
     enabled,
-    queryKey: ['routine-items'],
-    queryFn: () => fetchCollection(() => supabase
+    queryKey: employeeId ? ['routine-items', employeeId] : ['routine-items'],
+    queryFn: () => fetchCollection(() => {
+      const query = supabase
         .from('routine_items')
         .select('id, employee_id, title, detail, sort_order, is_active, created_at, employee:employees!routine_items_employee_id_fkey(id, full_name, employee_code)')
         .eq('is_active', true)
-        .order('sort_order').order('id')),
+        .order('sort_order').order('id');
+      return employeeId ? query.eq('employee_id', employeeId) : query;
+    }),
   });
 }
 
@@ -29,15 +32,18 @@ export function useRoutineItems({ enabled = true } = {}) {
  * Bounded to the day on purpose: this table grows by a row per duty per person per day forever, and
  * nothing on screen ever asks about last March.
  */
-export function useRoutineTicks(onDate, { enabled = true } = {}) {
+export function useRoutineTicks(onDate, { enabled = true, employeeId } = {}) {
   const day = onDate ?? istToday();
   return useQuery({
     enabled,
-    queryKey: ['routine-ticks', day],
-    queryFn: () => fetchCollection(() => supabase
+    queryKey: employeeId ? ['routine-ticks', day, employeeId] : ['routine-ticks', day],
+    queryFn: () => fetchCollection(() => {
+      const query = supabase
         .from('routine_ticks')
         .select('id, routine_item_id, employee_id, on_date, done_at')
-        .eq('on_date', day).order('id')),
+        .eq('on_date', day).order('id');
+      return employeeId ? query.eq('employee_id', employeeId) : query;
+    }),
   });
 }
 
@@ -63,17 +69,19 @@ export function useSetRoutineTick() {
     mutationFn: async ({ itemId, employeeId, onDate, done }) => {
       const day = onDate ?? istToday();
       if (done) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('routine_ticks')
           .upsert(
             { routine_item_id: itemId, employee_id: employeeId, on_date: day, done_by: employee?.id ?? null },
             { onConflict: 'routine_item_id,on_date' }
-          );
+          ).select('id');
         if (error) throw error;
+        if (!data?.length) throw new Error('That duty could not be marked done. Your access may have changed.');
       } else {
-        const { error } = await supabase
-          .from('routine_ticks').delete().eq('routine_item_id', itemId).eq('on_date', day);
+        const { data, error } = await supabase
+          .from('routine_ticks').delete().eq('routine_item_id', itemId).eq('on_date', day).select('id');
         if (error) throw error;
+        if (!data?.length) throw new Error('That duty could not be reopened. Refresh the routine and try again.');
       }
     },
     onSuccess: invalidate,

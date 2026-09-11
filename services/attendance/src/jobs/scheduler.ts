@@ -15,6 +15,9 @@ import { drainServiceCommands, expireStaleCommands } from './commands';
 import { todayWorkDate, DateTime, APP_TZ } from '../lib/time';
 
 const running = new Map<string, { since: number; abort: AbortController }>();
+// A deadline releases the per-name lock, but the underlying promise can remain alive until
+// its network/DB call returns. Shutdown must still see and abort that work.
+const activeRuns = new Map<AbortController, string>();
 const tasks: ScheduledTask[] = [];
 
 /**
@@ -50,6 +53,7 @@ export async function exclusive(name: string, fn: (signal: AbortSignal) => Promi
   const abort = new AbortController();
   const deadline = JOB_DEADLINE_MS[name] ?? DEFAULT_DEADLINE_MS;
   running.set(name, { since: Date.now(), abort });
+  activeRuns.set(abort, name);
 
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<'deadline'>((resolve) => {
@@ -69,7 +73,8 @@ export async function exclusive(name: string, fn: (signal: AbortSignal) => Promi
   // dead network return. If the job ignores the signal, `await fn(...)` never settles, the finally
   // block never runs, and the lock stays held — which is precisely the failure this was written to
   // prevent. Racing means the lock is released on the deadline whether the job cooperates or not.
-  const work = fn(abort.signal);
+  // Capture synchronous throws too; otherwise a setup failure escapes before the lock is freed.
+  const work = Promise.resolve().then(() => { abort.signal.throwIfAborted(); return fn(abort.signal); });
 
   // The abandoned promise still has to be handled. index.ts treats an unhandled rejection as fatal
   // and exits, so a job that rejects ten minutes after being abandoned would kill the service.
@@ -79,7 +84,7 @@ export async function exclusive(name: string, fn: (signal: AbortSignal) => Promi
       logger.error({ err, job: name }, 'scheduled job failed');
       return 'failed' as const;
     }
-  );
+  ).finally(() => { activeRuns.delete(abort); });
 
   const outcome = await Promise.race([settled, expired]);
 
@@ -114,6 +119,7 @@ export function startScheduler(): void {
     logger.warn('ENABLE_WORKERS=false — running API only, no scheduled jobs');
     return;
   }
+  if (tasks.length) return;
 
   // 1. The live punch pull.
   schedule('sync:transactions', env.SYNC_TRANSACTIONS_CRON, (signal) => syncTransactions(signal));
@@ -125,14 +131,17 @@ export function startScheduler(): void {
   //    Order matters — recomputing before the catch-up would use punches that are about to change.
   schedule('engine:nightly', env.ENGINE_CRON, async (signal) => {
     await catchUpTransactions(env.SYNC_CATCHUP_DAYS, signal);
+    signal.throwIfAborted();
 
     const to = todayWorkDate();
     const from = DateTime.fromISO(to, { zone: APP_TZ })
       .minus({ days: env.ENGINE_LOOKBACK_DAYS })
       .toFormat('yyyy-MM-dd');
 
-    await recompute({ from, to });
-    await drainRecomputeQueue();
+    await recompute({ from, to }, { signal });
+    signal.throwIfAborted();
+    await drainRecomputeQueue(5000, { signal });
+    signal.throwIfAborted();
     await pruneRuns(90);
   });
 
@@ -149,7 +158,7 @@ export function startScheduler(): void {
   //    deliberately NOT folded into the punch sync itself — a large queue (the tail of a backfill)
   //    would then run inside the sync job and could push it past its ten-minute deadline, stalling
   //    punch collection to make attendance a little fresher. Wrong trade.
-  schedule('engine:queue', '*/2 * * * *', () => drainRecomputeQueue());
+  schedule('engine:queue', '*/2 * * * *', (signal) => drainRecomputeQueue(5000, { signal }));
 
   // 5. Work asked for from the admin screen. Every 5 seconds, because somebody is watching a
   //    spinner when they press one of those buttons — unlike the other jobs here, this one has a
@@ -175,19 +184,20 @@ export function startScheduler(): void {
 
   // 7. Keep today's attendance current through the day, so the "who's in today" view and the
   //    exceptions list reflect punches as they arrive rather than only after the nightly pass.
-  schedule('engine:today', '*/15 * * * *', () => {
+  schedule('engine:today', '*/15 * * * *', (signal) => {
     const today = todayWorkDate();
-    return recompute({ from: today, to: today });
+    return recompute({ from: today, to: today }, { signal });
   });
 }
 
 export function stopScheduler(): void {
   for (const task of tasks) task.stop();
   tasks.length = 0;
+  for (const abort of activeRuns.keys()) abort.abort();
   logger.info('scheduler stopped');
 }
 
 /** True while any job is mid-run — used by the shutdown path to drain before exiting. */
 export function jobsInFlight(): string[] {
-  return [...running.keys()];
+  return [...new Set(activeRuns.values())];
 }

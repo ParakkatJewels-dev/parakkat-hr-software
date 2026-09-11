@@ -8,7 +8,7 @@
 // usePagination slices an already-filtered collection. The control also accepts server-side
 // counts and page callbacks (for example the audit log) without loading the whole history.
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { ArrowLeft, ArrowRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { pageContaining } from '../../lib/focusRow';
 import { shouldShowPager, pageSizeOptions, pageWindow, paginationWindow } from '../../lib/pagination';
 
@@ -82,6 +82,21 @@ export default function Pagination({
   // The select shows the size actually in use. Without this a caller starting at 8 rendered a
   // dropdown whose value matched no option, which browsers draw as the first one — a control
   // saying 25 over a list of 8.
+  const sizeControl = (compact = false) => (
+    <label className={`pagination-size${compact ? ' pagination-size-compact' : ''}`}>
+      <span>Per page</span>
+      <select
+        value={pageSize}
+        disabled={disabled}
+        onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
+        aria-label="Rows per page"
+      >
+        {options.map((n) => (
+          <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>
+        ))}
+      </select>
+    </label>
+  );
 
   return (
     <nav className={`premium-card pagination-shell ${className}`} aria-label={`${noun} pagination`}>
@@ -107,6 +122,22 @@ export default function Pagination({
         >
           <ArrowLeft size={12} />
         </button>
+
+        <details className="pagination-mobile-options">
+          <summary
+            aria-label={`Page ${page} of ${totalPages}. ${from}–${to} of ${count} ${noun}. Pagination options`}
+            title="Page information and rows per page"
+          >
+            <span className="pagination-mobile-position" aria-hidden="true">
+              <b>{page}</b><span>/{totalPages}</span><ChevronDown size={10} />
+            </span>
+            <span className="pagination-mobile-count" aria-hidden="true">{count} total</span>
+          </summary>
+          <div className="pagination-options-panel">
+            <span className="pagination-options-range"><b>{from}–{to}</b> of {count} {noun}</span>
+            {sizeControl(true)}
+          </div>
+        </details>
 
         {pageWindow(page, totalPages).map((n, i) =>
           n === '…' ? (
@@ -141,19 +172,7 @@ export default function Pagination({
         </button>
       </div>
 
-      <label className="pagination-size">
-        <span>Per page</span>
-        <select
-          value={pageSize}
-          disabled={disabled}
-          onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}
-          aria-label="Rows per page"
-        >
-          {options.map((n) => (
-            <option key={n} value={n} className="bg-white dark:bg-black">{n}</option>
-          ))}
-        </select>
-      </label>
+      {sizeControl()}
     </nav>
   );
 }

@@ -7,8 +7,9 @@
 import React, { useState } from 'react';
 import {
   Clock, CalendarDays, ReceiptText, LifeBuoy, ListChecks, Wallet, CheckCircle2,
-  ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Fingerprint, Check } from 'lucide-react';
+  ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Fingerprint, Check, Loader2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
+import { usePermissions } from '../../auth/usePermissions';
 import { useDayAttendance, useMonthlyAttendance, todayIso, fmtTime, fmtMinutes, STATUS_STYLES } from '../../data/attendance';
 import { useLeaveBalances } from '../../data/leaveTypes';
 import { useLeaves } from '../../data/leaves';
@@ -17,8 +18,14 @@ import { useTickets } from '../../data/tickets';
 import { useMyRegularizations } from '../../data/regularizations';
 import { useTasks, useUpdateTask } from '../../data/tasks';
 import { usePayslips } from '../../data/payroll';
+import { useRoutineItems, useRoutineTicks, useSetRoutineTick } from '../../data/routines';
+import { routineForDay, routineProgress } from '../../lib/routines';
+import { useIstToday } from '../../lib/useIstToday';
+import { checklistProgress } from '../../lib/checklist';
+import { humanDbError } from '../../lib/dbErrors';
 import { isAssignedTo } from '../../lib/taskBoard';
 import { Widget, EmptyNote, StatPill, StatusBadge, fmtDay, inr } from './shared';
+import './selfWidgets.css';
 
 /** Is this row (with an `employee` join) the signed-in person's own record? */
 const isMine = (row, me) => {
@@ -134,15 +141,15 @@ export function PunchCard({ onNavigate }) {
               </span>
             )}
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="home-punch-values">
             {[
               { label: 'Check-in', value: fmtTime(row.check_in) },
               { label: 'Check-out', value: fmtTime(row.check_out) },
               { label: 'Worked', value: fmtMinutes(row.worked_minutes) },
             ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl border border-neutral-200/70 dark:border-neutral-850 py-2">
-                <p className="text-sm font-bold font-mono text-neutral-900 dark:text-white leading-none">{value}</p>
-                <p className="mt-1 text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500">{label}</p>
+              <div key={label} className="home-punch-value">
+                <strong>{value}</strong>
+                <small>{label}</small>
               </div>
             ))}
           </div>
@@ -306,53 +313,54 @@ export function MyRequests({ onNavigate }) {
 /** My open tasks, overdue first, with inline complete. */
 export function MyTasks({ onNavigate }) {
   const { employee } = useAuth();
-  const { data: tasks = [] } = useTasks();
+  const { can } = usePermissions();
+  const { data: tasks = [], isLoading, error } = useTasks();
   const updateTask = useUpdateTask();
-  const today = todayIso();
+  const today = useIstToday();
 
   const mine = tasks
     .filter((t) => isAssignedTo(t, employee?.id) && t.status !== 'Done' && t.status !== 'Cancelled')
-    .sort((a, b) => (a.due_date || '9999') < (b.due_date || '9999') ? -1 : 1)
-    .slice(0, 5);
+    .sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || String(a.id).localeCompare(String(b.id)));
+  const openTasks = () => onNavigate?.('tasks/todo');
 
   return (
-    <Widget title="My Tasks" icon={CheckCircle2} badge={mine.length || null} action="All tasks" onAction={() => onNavigate?.('tasks')}>
-      {mine.length === 0 ? (
+    <Widget title="My Tasks" className="home-work-widget" icon={CheckCircle2} badge={mine.length || null} action="All tasks" onAction={openTasks}>
+      {(error || updateTask.error) && <p role="alert" className="home-work-error">{humanDbError(updateTask.error || error, 'tasks')}</p>}
+      {isLoading ? <EmptyNote>Loading your tasks…</EmptyNote> : mine.length === 0 && !error ? (
         <EmptyNote>No open tasks. Enjoy the calm.</EmptyNote>
       ) : (
-        <div className="space-y-1.5">
-          {mine.map((t) => {
+        <div className="home-work-list">
+          {mine.slice(0, 5).map((t) => {
             const overdue = t.due_date && t.due_date < today;
+            const checklist = checklistProgress(t.checklist ?? []);
+            const needsSteps = checklist.total > 0 && !checklist.allDone;
+            const taskScope = { employeeId: employee?.id, entityId: t.entity_id, zoneId: t.zone_id, branchId: t.branch_id, deptId: t.department_id };
+            const canComplete = can('task.update', taskScope) || can('task.manage', taskScope);
             return (
-              <div key={t.id} className="flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5">
-                {/* An EMPTY 16px button was caught by the phone rule that gives every button
-                    without an icon a 40px minimum height — so it drew as a 16x40 sliver, which is
-                    what made this widget look broken rather than merely tight. A single svg child
-                    exempts it from that rule, and it now carries a tick that appears on hover, at
-                    a 32px target rather than 16. */}
+              <div key={t.id} className="home-work-row">
                 <button
-                  onClick={() => updateTask.mutate({ id: t.id, status: 'Done' })}
-                  title="Mark done" aria-label={`Mark "${t.title}" done`}
-                  className="shrink-0 inline-flex items-center justify-center w-8 h-8 sm:w-7 sm:h-7 rounded-lg border border-neutral-300 dark:border-neutral-700 text-transparent hover:text-brand-ink dark:hover:text-brand-ink hover:border-brand hover:bg-brand/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 transition-colors cursor-pointer"
+                  type="button" disabled={!canComplete || updateTask.isPending}
+                  onClick={() => needsSteps ? openTasks() : updateTask.mutate({ id: t.id, status: 'Done' })}
+                  title={needsSteps ? 'Complete the subtasks first' : 'Mark done'}
+                  aria-label={needsSteps ? `Open subtasks for ${t.title}` : `Mark "${t.title}" done`}
+                  className="home-work-check"
                 >
-                  <Check size={14} />
+                  {updateTask.isPending && updateTask.variables?.id === t.id ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
                 </button>
-                {/* Priority moved down beside the due date. Competing with the title for one line
-                    cost the title ~70px, so it truncated mid-word on a phone while "Critical" sat
-                    beside it — and the title is the part being read. */}
                 <button
-                  onClick={() => onNavigate?.('tasks')}
-                  className="min-w-0 flex-1 text-left cursor-pointer"
-                  title="Open task board" aria-label={`Open ${t.title} on the task board`}
+                  type="button" onClick={openTasks}
+                  className="home-work-copy"
+                  aria-label={`Open ${t.title} in My tasks`}
                 >
-                  <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 line-clamp-2">{t.title}</span>
-                  <span className="flex items-center gap-1.5 text-2xs mt-0.5">
-                    <span className="font-mono text-neutral-400">{t.priority}</span>
+                  <span className="home-work-title">{t.title}</span>
+                  <span className="home-work-meta">
+                    <span>{t.priority}</span>
                     {t.due_date && (
-                      <span className={overdue ? 'text-rose-500 font-bold' : 'text-neutral-450 dark:text-neutral-500'}>
-                        · {overdue ? 'Overdue · ' : 'Due '}{fmtDay(t.due_date)}
+                      <span className={overdue ? 'home-work-overdue' : ''}>
+                        {overdue ? 'Overdue · ' : t.due_date === today ? '' : 'Due '}{t.due_date === today ? 'Today' : fmtDay(t.due_date)}
                       </span>
                     )}
+                    {checklist.total > 0 && <span>{checklist.done}/{checklist.total} subtasks</span>}
                   </span>
                 </button>
               </div>
@@ -360,6 +368,53 @@ export function MyTasks({ onNavigate }) {
           })}
         </div>
       )}
+      {mine.length > 5 && <button type="button" onClick={openTasks} className="home-work-more">View all {mine.length} tasks <ArrowRight size={13} /></button>}
+    </Widget>
+  );
+}
+
+/** Only this person's remaining daily work. Completion is derived from saved ticks for today. */
+export function MyRoutineToday({ onNavigate }) {
+  const { employee } = useAuth();
+  const { can, canAny } = usePermissions();
+  const today = useIstToday();
+  const enabled = Boolean(employee?.id && canAny('task.read'));
+  const itemsQuery = useRoutineItems({ enabled, employeeId: employee?.id });
+  const ticksQuery = useRoutineTicks(today, { enabled, employeeId: employee?.id });
+  const setTick = useSetRoutineTick();
+  const items = employee?.id ? routineForDay(itemsQuery.data ?? [], ticksQuery.data ?? [], employee.id, today) : [];
+  const progress = routineProgress(items);
+  const error = itemsQuery.error || ticksQuery.error || setTick.error;
+  const loading = itemsQuery.isLoading || ticksQuery.isLoading;
+  const canTick = can('task.update', { employeeId: employee?.id, entityId: employee?.entity_id, zoneId: employee?.zone_id, branchId: employee?.branch_id, deptId: employee?.department_id });
+
+  if (!enabled || (!loading && !error && !setTick.isPending && (progress.complete || items.length === 0))) return null;
+
+  return (
+    <Widget title="My routine today" className="home-work-widget home-routine" icon={ListChecks}
+      badge={loading ? null : `${progress.done}/${progress.total}`} action="Routine" onAction={() => onNavigate?.('tasks/routine')}>
+      {error && <div role="alert" className="home-work-error">
+        <p>{humanDbError(error, 'routine_ticks')}</p>
+        {(itemsQuery.error || ticksQuery.error) && <button type="button" onClick={() => { itemsQuery.refetch(); ticksQuery.refetch(); }}>Try again</button>}
+      </div>}
+      {loading ? <EmptyNote>Loading today's routine…</EmptyNote> : <>
+        <p className="home-routine-note">{fmtDay(today)} · {progress.total - progress.done} remaining</p>
+        <div className="home-routine-list">
+          {items.filter(item => !item.done).slice(0, 6).map(item => (
+            <button key={item.id} type="button" className="home-routine-item" disabled={!canTick || setTick.isPending || Boolean(ticksQuery.error)}
+              aria-label={`Complete routine: ${item.title}`}
+              onClick={() => setTick.mutate({ itemId: item.id, employeeId: employee.id, onDate: today, done: true })}>
+              <span className="home-routine-checkbox" aria-hidden="true">
+                {setTick.isPending && setTick.variables?.itemId === item.id ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
+              </span>
+              <span className="home-work-copy"><span className="home-work-title">{item.title}</span>
+                {item.detail && <span className="home-work-meta">{item.detail}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+        {progress.total - progress.done > 6 && <button type="button" className="home-work-more" onClick={() => onNavigate?.('tasks/routine')}>View all remaining duties <ArrowRight size={13} /></button>}
+      </>}
     </Widget>
   );
 }

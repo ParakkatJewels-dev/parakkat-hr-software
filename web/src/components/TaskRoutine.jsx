@@ -14,7 +14,7 @@ import {
   useRoutineItems, useRoutineTicks, useSetRoutineTick, useSaveRoutineItem, useRetireRoutineItem,
 } from '../data/routines';
 import { routineForDay, routineProgress, teamRoutineSummary } from '../lib/routines';
-import { istToday } from '../lib/dates';
+import { useIstToday } from '../lib/useIstToday';
 import { humanDbError } from '../lib/dbErrors';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
@@ -26,14 +26,14 @@ const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
 export default function TaskRoutine({ employees = [] }) {
-  const today = istToday();
+  const today = useIstToday();
   const { employee } = useAuth();
   const { canBeyondSelf, canAny } = usePermissions();
   const canDefine = canAny('task.create');
   const seesTeam = canBeyondSelf('task.read');
 
   const { data: items = [], isLoading, error } = useRoutineItems();
-  const { data: ticks = [] } = useRoutineTicks(today);
+  const { data: ticks = [], isLoading: ticksLoading, error: ticksError } = useRoutineTicks(today);
   const setTick = useSetRoutineTick();
   const retire = useRetireRoutineItem();
   const [editing, setEditing] = useState(null);   // { id?, employeeId }
@@ -46,16 +46,16 @@ export default function TaskRoutine({ employees = [] }) {
   const teamPager = usePagination(others, 10);
   const mutationError = humanDbError(setTick.error || retire.error, 'routine_ticks');
 
-  if (isLoading) return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>;
+  if (isLoading || ticksLoading) return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>;
 
-  if (error) {
+  if (error || ticksError) {
     return (
       <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
         <AlertTriangle size={16} className="shrink-0 mt-0.5" />
         <div>
           <p className="font-semibold">Couldn't load routines.</p>
           <p className="text-neutral-500 dark:text-neutral-400 mt-1">
-            {error.message}. If it mentions <code>routine_items</code>, run migration <code>0107</code>.
+            {humanDbError(error || ticksError, 'routine_ticks')}
           </p>
         </div>
       </div>

@@ -60,35 +60,22 @@ export async function advanceCursor(
   key: SyncKey,
   next: { lastPunchTime?: Date | null; lastTransactionId?: bigint | null }
 ): Promise<void> {
-  const current = await getCursor(key);
+  await getCursor(key); // Create the row on a fresh installation.
 
-  // Never move the watermark backwards. A backfill of last March must not reset the live cursor
-  // to March and cause the poller to re-read four months of punches.
-  const lastPunchTime =
-    next.lastPunchTime && (!current.lastPunchTime || next.lastPunchTime > current.lastPunchTime)
-      ? next.lastPunchTime
-      : current.lastPunchTime;
+  // Compare inside the write, under PostgreSQL's row lock. Reading then updating can rewind
+  // the watermark if an older overlapping run finishes after a newer one.
+  await prisma.$executeRaw`
+    update public.sync_state
+       set last_punch_time = greatest(last_punch_time, ${next.lastPunchTime ?? null}::timestamptz),
+           last_transaction_id = greatest(last_transaction_id, ${next.lastTransactionId ?? null}::bigint),
+           last_success_at = now(),
+           last_error = null,
+           consecutive_failures = 0,
+           updated_at = now()
+     where key = ${key}
+  `;
 
-  const lastTransactionId =
-    next.lastTransactionId !== null &&
-    next.lastTransactionId !== undefined &&
-    (current.lastTransactionId === null || next.lastTransactionId > current.lastTransactionId)
-      ? next.lastTransactionId
-      : current.lastTransactionId;
-
-  await prisma.syncState.update({
-    where: { key },
-    data: {
-      lastPunchTime,
-      lastTransactionId,
-      lastSuccessAt: new Date(),
-      lastError: null,
-      consecutiveFailures: 0,
-      updatedAt: new Date(),
-    },
-  });
-
-  logger.debug({ key, lastPunchTime, lastTransactionId }, 'cursor advanced');
+  logger.debug({ key, ...next }, 'cursor advanced');
 }
 
 /** Mark a successful run that found nothing new — clears the failure streak without moving the mark. */

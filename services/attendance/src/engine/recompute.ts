@@ -9,7 +9,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 import { logger } from '../lib/logger';
-import { eachWorkDate, punchWindowBounds, toWorkDate, resolveRecomputeRange } from './windows';
+import { eachWorkDate, punchWindowBounds, resolveRecomputeRange } from './windows';
 import { todayWorkDate } from '../lib/time';
 import { fullDayLeaveConflictsWithPunch, processDay } from './processDay';
 import { punchWindow } from './processDay';
@@ -23,6 +23,11 @@ export interface RecomputeScope {
   employeeIds?: string[];
   /** Recompute even rows marked is_locked. Off by default and never on by accident. */
   includeLocked?: boolean;
+}
+
+export interface RecomputeOptions {
+  /** Stop between database operations. Completed chunks remain safe to retry. */
+  signal?: AbortSignal;
 }
 
 export interface RecomputeSummary {
@@ -54,6 +59,8 @@ interface AssignmentRow {
 // ---------------------------------------------------------------------------
 
 async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
+  // Deactivation stops new/default assignments; existing historical assignments still need
+  // their definition when attendance is rebuilt. Defaults are filtered separately below.
   const rows = await prisma.$queryRaw<
     Array<{
       id: string;
@@ -87,7 +94,6 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
            missed_punch_policy, late_absent_minutes, early_absent_minutes, is_flexible,
            short_day_tolerance_minutes
       from public.shifts
-     where is_active
   `;
 
   const map = new Map<string, ShiftDefinition>();
@@ -284,30 +290,27 @@ async function loadRegularizations(
 ): Promise<Map<string, { id: string; checkIn: Date | null; checkOut: Date | null }>> {
   if (employeeIds.length === 0) return new Map();
 
-  try {
-    const rows = await prisma.$queryRaw<
-      Array<{ id: string; employee_id: string; work_date: Date; check_in: Date | null; check_out: Date | null }>
-    >`
-      select id, employee_id, work_date, check_in, check_out
-        from public.attendance_regularizations
-       where status = 'Approved'
-         and employee_id = any(${employeeIds}::uuid[])
-         and work_date between ${from}::date and ${to}::date
-    `;
+  // A failed read cannot mean "no corrections": doing so overwrites approved attendance with
+  // device-only results. All supported schemas contain this table; fail the run if it is absent.
+  const rows = await prisma.$queryRaw<
+    Array<{ id: string; employee_id: string; work_date: Date; check_in: Date | null; check_out: Date | null }>
+  >`
+    select id, employee_id, work_date, check_in, check_out
+      from public.attendance_regularizations
+     where status = 'Approved'
+       and employee_id = any(${employeeIds}::uuid[])
+       and work_date between ${from}::date and ${to}::date
+  `;
 
-    const map = new Map<string, { id: string; checkIn: Date | null; checkOut: Date | null }>();
-    for (const r of rows) {
-      map.set(`${r.employee_id}|${r.work_date.toISOString().slice(0, 10)}`, {
-        id: r.id,
-        checkIn: r.check_in,
-        checkOut: r.check_out,
-      });
-    }
-    return map;
-  } catch {
-    // Table arrives in 0014; before then there is simply nothing to overlay.
-    return new Map();
+  const map = new Map<string, { id: string; checkIn: Date | null; checkOut: Date | null }>();
+  for (const r of rows) {
+    map.set(`${r.employee_id}|${r.work_date.toISOString().slice(0, 10)}`, {
+      id: r.id,
+      checkIn: r.check_in,
+      checkOut: r.check_out,
+    });
   }
+  return map;
 }
 
 /** employee -> punches in the whole (window-widened) range, sorted. */
@@ -361,12 +364,13 @@ const WRITE_CHUNK = 400;
  * entity/zone/branch/department when someone transfers branch. Without it, a transferred
  * employee's recomputed history keeps their old branch and disappears from their new manager's view.
  */
-async function writeResults(results: DayResult[], includeLocked: boolean): Promise<{ written: number; skippedLocked: number }> {
+async function writeResults(results: DayResult[], includeLocked: boolean, signal?: AbortSignal): Promise<{ written: number; skippedLocked: number }> {
   if (results.length === 0) return { written: 0, skippedLocked: 0 };
 
   let written = 0;
 
   for (let i = 0; i < results.length; i += WRITE_CHUNK) {
+    signal?.throwIfAborted();
     const chunk = results.slice(i, i + WRITE_CHUNK);
 
     const values = chunk.map(
@@ -467,7 +471,20 @@ async function writeResults(results: DayResult[], includeLocked: boolean): Promi
 // the run
 // ---------------------------------------------------------------------------
 
-export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary> {
+// Scheduled queue, nightly and API runs share this process. Serialize their snapshots so a
+// slower old run cannot overwrite a correction already written by a newer run.
+let recomputeTail: Promise<void> = Promise.resolve();
+
+export async function recompute(scope: RecomputeScope, options: RecomputeOptions = {}): Promise<RecomputeSummary> {
+  options.signal?.throwIfAborted();
+  const pending = recomputeTail.then(() => runRecompute(scope, options));
+  recomputeTail = pending.then(() => undefined, () => undefined);
+  return pending;
+}
+
+async function runRecompute(scope: RecomputeScope, options: RecomputeOptions): Promise<RecomputeSummary> {
+  const { signal } = options;
+  signal?.throwIfAborted();
   const startedAt = Date.now();
   // The instant this whole run describes. Taken once so that a recompute spanning several minutes
   // does not have its first employee judged against a different "now" than its last.
@@ -494,6 +511,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
 
   try {
     const employees = await loadEmployees(scope.employeeIds);
+    signal?.throwIfAborted();
     const employeeIds = employees.map((e) => e.id);
 
     if (employeeIds.length === 0) {
@@ -520,10 +538,12 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
       ]);
     const leaves = loadedLeaves.approved;
     const cancellableLeaves = loadedLeaves.cancellable;
+    signal?.throwIfAborted();
 
     // Widen the punch query to cover night shifts spilling past either end of the range.
     const { from: punchFrom, to: punchTo } = punchWindowBounds(from, to);
     const punchesByEmployee = await loadPunches(punchFrom, punchTo, employeeIds);
+    signal?.throwIfAborted();
 
     // Results are flushed in batches: a full-year recompute would otherwise hold 264 x 365
     // objects (~100 MB) before the single write at the end.
@@ -535,7 +555,8 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
     let totalProcessed = 0;
     const flush = async (): Promise<void> => {
       if (results.length === 0) return;
-      const r = await writeResults(results, scope.includeLocked ?? false);
+      signal?.throwIfAborted();
+      const r = await writeResults(results, scope.includeLocked ?? false, signal);
       written += r.written;
       skippedLocked += r.skippedLocked;
       totalProcessed += results.length;
@@ -557,6 +578,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
     };
 
     for (const employee of employees) {
+      signal?.throwIfAborted();
       const empAssignments = assignments.get(employee.id) ?? [];
       const allPunches = punchesByEmployee.get(employee.id) ?? [];
       const calendarId = calendars.get(employee.id);
@@ -602,6 +624,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
         const leaveConflicts = (cancellableLeaves.get(leaveKey) ?? [])
           .filter((request) => fullDayLeaveConflictsWithPunch(request, dayPunches));
         for (const request of leaveConflicts) {
+          signal?.throwIfAborted();
           const leaveId = request.id;
           const outcome = await cancelLeaveForPunch(leaveId, workDate);
           if (outcome === 'day' || outcome === 'leave') {
@@ -670,6 +693,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
     // Scoped to the employees and the date range this run covered, so a recompute never reaches
     // outside what it was asked to rebuild. Locked rows are left alone, exactly as the writer does.
     const hiredIds = employees.filter((e) => e.join_date).map((e) => e.id);
+    signal?.throwIfAborted();
     if (hiredIds.length > 0) {
       const idList = Prisma.join(hiredIds.map((id) => Prisma.sql`${id}::uuid`));
       // Same source of truth the writer uses (`writeResults(results, scope.includeLocked ?? false)`),
@@ -688,6 +712,7 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
           ${preHireLockGuard}`;
       if (cleared > 0) run.addDetail({ preHireRowsRemoved: cleared });
     }
+    signal?.throwIfAborted();
 
     run.counters.recordsFetched = totalProcessed;
     run.counters.recordsInserted = written;
@@ -717,12 +742,18 @@ export async function recompute(scope: RecomputeScope): Promise<RecomputeSummary
  * Drain the recompute queue: everything a leave approval, regularization or late punch-mapping
  * flagged since the last pass. Grouped into one recompute per contiguous scope for efficiency.
  */
-export async function drainRecomputeQueue(limit = 5_000): Promise<RecomputeSummary | null> {
-  const pending = await prisma.$queryRaw<Array<{ id: bigint; employee_id: string | null; work_date: Date }>>`
-    select id, employee_id, work_date
+export async function drainRecomputeQueue(limit = 5_000, options: RecomputeOptions = {}): Promise<RecomputeSummary | null> {
+  const { signal } = options;
+  signal?.throwIfAborted();
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > 5_000) {
+    throw new Error('recompute queue limit must be an integer between 1 and 5000');
+  }
+  const pending = await prisma.$queryRaw<Array<{ id: bigint; generation: bigint; employee_id: string | null; work_date: Date }>>`
+    select id, generation, employee_id, work_date
       from public.attendance_recompute_queue
      where processed_at is null
-     order by requested_at
+       and work_date <= ${todayWorkDate()}::date
+     order by requested_at, id
      limit ${limit}
   `;
 
@@ -732,17 +763,19 @@ export async function drainRecomputeQueue(limit = 5_000): Promise<RecomputeSumma
   // and today's punch fix) would span every day between them. Cap the span and leave the rest for
   // the next tick, oldest first, rather than recomputing months inside a 5-minute cron.
   const MAX_SPAN_DAYS = 31;
+  // A PostgreSQL DATE is delivered at UTC midnight, not an instant in the business timezone.
+  const queueDate = (value: Date): string => value.toISOString().slice(0, 10);
   const sorted = [...pending].sort(
-    (a, b) => toWorkDate(a.work_date).localeCompare(toWorkDate(b.work_date))
+    (a, b) => queueDate(a.work_date).localeCompare(queueDate(b.work_date))
   );
-  const from = toWorkDate(sorted[0]!.work_date);
+  const from = queueDate(sorted[0]!.work_date);
   const spanEnd = new Date(`${from}T00:00:00Z`);
-  spanEnd.setUTCDate(spanEnd.getUTCDate() + MAX_SPAN_DAYS);
+  spanEnd.setUTCDate(spanEnd.getUTCDate() + MAX_SPAN_DAYS - 1);
   const cutoff = spanEnd.toISOString().slice(0, 10);
 
-  const batch = sorted.filter((p) => toWorkDate(p.work_date) <= cutoff);
+  const batch = sorted.filter((p) => queueDate(p.work_date) <= cutoff);
   const deferred = sorted.length - batch.length;
-  const to = toWorkDate(batch[batch.length - 1]!.work_date);
+  const to = queueDate(batch[batch.length - 1]!.work_date);
 
   // A null employee_id means "everybody" — resolve it explicitly so the intent is visible in the
   // logs instead of silently widening the run to every active employee.
@@ -758,13 +791,18 @@ export async function drainRecomputeQueue(limit = 5_000): Promise<RecomputeSumma
     from,
     to,
     employeeIds: allEmployees || explicitIds.length === 0 ? undefined : explicitIds,
-  });
+  }, options);
 
-  const ids = batch.map((p) => p.id);
+  // New requests can share the same pending row. A generation fence prevents this run from
+  // acknowledging work queued after its data snapshot; that row is picked up on the next drain.
+  signal?.throwIfAborted();
+  const versions = Prisma.join(batch.map(p => Prisma.sql`(${p.id}::bigint, ${p.generation}::bigint)`));
   await prisma.$executeRaw`
-    update public.attendance_recompute_queue
+    update public.attendance_recompute_queue q
        set processed_at = now()
-     where id = any(${ids}::bigint[])
+      from (values ${versions}) as completed(id, generation)
+     where q.id = completed.id and q.generation = completed.generation
+       and q.processed_at is null
   `;
 
   return summary;

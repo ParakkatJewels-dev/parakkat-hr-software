@@ -170,3 +170,34 @@ export function mediaPath(conversationId, fileName) {
     .slice(-80) || 'file';
   return `${conversationId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${clean}`;
 }
+
+/**
+ * A voice note's length as the bubble shows it: m:ss, the way every chat app writes it.
+ *
+ * Takes milliseconds because that is what the recorder measures and what 0115 stores in
+ * duration_ms. Anything that is not a finite, positive number reads as 0:00 rather than NaN:NaN,
+ * which matters more than it sounds: see playbackFraction for where Infinity comes from.
+ */
+export function formatVoiceDuration(ms) {
+  const total = Number.isFinite(ms) && ms > 0 ? Math.round(ms / 1000) : 0;
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
+/**
+ * How far through a voice note playback is, from 0 to 1.
+ *
+ * The denominator is the whole reason this exists. A browser reports an <audio>'s length as
+ * `duration`, but a voice note recorded by MediaRecorder in Chrome or on Android is WebM with no
+ * length written into its header, so that element reports Infinity until it has played to the end.
+ * Divide by it and the progress bar never moves; the native control read 0:00 for the same reason.
+ * The recorder already measured the length and 0115 stored it, so that is the fallback.
+ */
+export function playbackFraction(currentSeconds, mediaDuration, storedMs) {
+  const duration = Number.isFinite(mediaDuration) && mediaDuration > 0
+    ? mediaDuration
+    : (Number.isFinite(storedMs) && storedMs > 0 ? storedMs / 1000 : 0);
+  if (!duration || !Number.isFinite(currentSeconds) || currentSeconds <= 0) return 0;
+  return Math.min(1, currentSeconds / duration);
+}

@@ -25,26 +25,8 @@ test('each sheet resolves scope from exactly the permissions it admits', () => {
   assert.deepEqual(EXPORT_PERMISSIONS.payroll, ['report.read', 'payslip.read']);
 });
 
-// The two screens disagree about how to send a branch filter: Reports sends ["<uuid>"], the query
-// string form is "<uuid>". An unrecognised shape must not quietly become "no filter", because that
-// widens the sheet from one branch to every branch the caller can see and still downloads happily.
-test('a branch filter survives being sent as an array or as a string', () => {
-  const normalise = (v: unknown): string | undefined => {
-    const joined = Array.isArray(v)
-      ? v.filter((b): b is string => typeof b === 'string' && b !== '').join(',')
-      : typeof v === 'string' && v
-        ? v
-        : undefined;
-    return joined || undefined;
-  };
-
-  assert.equal(normalise(['b1']), 'b1');
-  assert.equal(normalise(['b1', 'b2']), 'b1,b2');
-  assert.equal(normalise('b1,b2'), 'b1,b2');
-  assert.equal(normalise(undefined), undefined, 'no filter stays no filter');
-  assert.equal(normalise([]), undefined, 'an empty array is no filter, which scopeFor then resolves');
-  assert.equal(normalise(['', null as unknown as string]), undefined, 'junk does not become a branch id');
-});
+// Filter conversion and rejection are exercised through the actual command worker in
+// jobs/commands.test.ts. A duplicate normalizer inside a test cannot validate that path.
 
 test('base64 round-trips the bytes a browser will turn back into a workbook', () => {
   // The transport is a text column, so this is the one lossy-looking step in the chain. A .xlsx is

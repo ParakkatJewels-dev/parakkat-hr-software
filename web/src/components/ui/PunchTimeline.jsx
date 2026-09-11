@@ -8,7 +8,8 @@
 // Pairing follows the engine exactly — first punch in, last punch out, the middle ones alternate
 // out/in. See splitSessions() in services/attendance/src/engine/processDay.ts. The terminals send
 // punch_state 255 on every record, so there is no direction flag to read; order is all there is.
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import './PunchTimeline.css';
 import { labelLayout, rowCount, spanLabels } from '../../lib/punchLayout';
 import { formatClock } from '../../lib/clock';
 import { useClockFormat } from '../../lib/timeFormat';
@@ -76,6 +77,17 @@ export function BreakSummary({ row }) {
  */
 export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = false, className = '' }) {
   const { hour12 } = useClockFormat();
+  const container = useRef(null);
+  const [width, setWidth] = useState(520);
+  useEffect(() => {
+    const element = container.current;
+    if (!element) return undefined;
+    const resize = () => setWidth(Math.max(1, element.getBoundingClientRect().width));
+    resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [punches?.length]);
   const time = (ts) => formatClock(ts, hour12);
   const segs = segments(punches);
   if (!segs.length) {
@@ -90,16 +102,20 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
   const total = new Date(punches[punches.length - 1]).getTime() - start;
   const pct = (ts) => (total > 0 ? ((new Date(ts).getTime() - start) / total) * 100 : 0);
   const worked = segs.filter((s) => !s.away && !s.unknown).reduce((a, s) => a + s.minutes, 0);
-  const layout = labelLayout(punches);
+  // The monospace 12px labels need actual room at every container width, including
+  // a narrow detail panel on a desktop. Padding also leaves space between neighbours.
+  const percentPerChar = 7.5 / width * 100;
+  const timeWidth = (Math.max(...punches.map((punch) => time(punch).length)) + 2) * percentPerChar;
+  const layout = labelLayout(punches, timeWidth);
   const rows = rowCount(layout);
   // How long each stretch lasted, over the stretch itself. Durations describe spans and go above
   // the bar; punch times describe moments and go below it, so which is which is never in doubt.
-  const spans = spanLabels(segs, punches);
+  const spans = spanLabels(segs, punches, percentPerChar);
   const spanRows = rowCount(spans);
 
   return (
-    <div className={className}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-2xs mb-1.5">
+    <div ref={container} className={`punch-timeline ${className}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs mb-1.5">
         <span className="font-semibold text-neutral-900 dark:text-white tabular-nums">
           {time(punches[0])} → {time(punches[punches.length - 1])}
         </span>
@@ -122,42 +138,22 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
         )}
       </div>
 
-      {/* How long each stretch lasted, above the stretch it measures. The wrapped list this
-          replaced carried these between the times — "13:23 ·19m· 13:42" — and positioning the times
-          lost them, leaving a visible gap in the bar with no measurement anywhere near it. A label
-          too narrow for its own stretch moves up a row rather than being dropped: 19 minutes is
-          3.4% of a nine-hour bar and "19m" needs about 4.5%, which is the commonest break there
-          is. */}
-      <div className="relative" style={{ height: `${spanRows * 14 + 2}px` }}>
+      <div className="relative punch-duration-labels" style={{ height: `${spanRows * 20 + 2}px` }}>
         {spans.map((sp, i) => (
-          <span
-            key={i}
-            className="absolute bottom-0 flex flex-col items-center"
-            style={{ left: `${sp.pct}%`, transform: 'translateX(-50%)' }}
-          >
+          <React.Fragment key={i}>
+            <span aria-hidden="true" className="absolute bottom-0 w-px bg-neutral-300 dark:bg-neutral-700"
+              style={{ left: `${sp.pct}%`, height: `${sp.row * 20 + 3}px` }} />
             <span
-              className={`px-1 rounded text-2xs tabular-nums leading-none py-px whitespace-nowrap ${
-                sp.unknown
-                  ? 'text-neutral-450'
-                  : sp.away
-                    ? 'text-amber-700 dark:text-amber-400 font-semibold'
-                    : 'text-neutral-500 dark:text-neutral-400'
+              className={`punch-timeline-label absolute px-1 rounded text-xs font-mono tabular-nums leading-none py-0.5 whitespace-nowrap ${
+                sp.unknown ? 'text-neutral-450' : sp.away
+                  ? 'text-amber-700 dark:text-amber-400 font-semibold'
+                  : 'text-neutral-500 dark:text-neutral-400'
               }`}
+              style={{ left: `${sp.labelPct}%`, bottom: `${sp.row * 20 + 3}px`, transform: 'translateX(-50%)' }}
               title={sp.unknown ? 'A punch is missing — this stretch cannot be classified'
                 : sp.away ? `Away ${sp.minutes} minutes` : `Present ${sp.minutes} minutes`}
-            >
-              {sp.text}
-            </span>
-            {/* Only the moved labels need pointing back at their stretch; one sitting over its own
-                span already points at it. */}
-            {!sp.inline && (
-              <span
-                aria-hidden="true"
-                className="w-px bg-neutral-300 dark:bg-neutral-700"
-                style={{ height: `${sp.row * 14 + 2}px` }}
-              />
-            )}
-          </span>
+            >{sp.text}</span>
+          </React.Fragment>
         ))}
       </div>
 
@@ -185,44 +181,25 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
         ))}
       </div>
 
-      {/* Each punch under its own point on the bar.
-          These used to be a wrapped list in reading order — "09:37 ─ 13:23 ·19m· 13:42 …" — with no
-          relationship to the bar above, so matching a time to a stretch meant counting along.
-          Labels that would overlap drop to a lower row with a leader line back to their point;
-          see lib/punchLayout.js. */}
-      <div className="relative mt-1" style={{ height: `${rows * 15 + 4}px` }}>
-        {layout.map(({ punch, pct, row, align }, i) => {
+      <div className="relative mt-1 punch-time-labels" style={{ height: `${rows * 20 + 4}px` }}>
+        {layout.map(({ punch, pct, labelPct, row }, i) => {
           const first = i === 0;
           const last = i === punches.length - 1;
-          const leaving = segs[i]?.away === true; // this punch starts a break
+          const leaving = segs[i]?.away === true;
+          const unknown = segs[i]?.unknown === true;
           return (
-            <span
-              key={`${punch}-${i}`}
-              className="absolute top-0 flex flex-col items-center"
-              style={{
-                left: align === 'end' ? undefined : `${pct}%`,
-                right: align === 'end' ? 0 : undefined,
-                transform: align === 'middle' ? 'translateX(-50%)' : undefined,
-              }}
-            >
-              {/* Leader line: as tall as the row is deep, so a stacked label still points at its
-                  own moment rather than floating free. */}
+            <React.Fragment key={`${punch}-${i}`}>
+              <span aria-hidden="true" className="absolute top-0 w-px bg-neutral-300 dark:bg-neutral-700"
+                style={{ left: `${pct}%`, height: `${row * 20 + 3}px` }} />
               <span
-                aria-hidden="true"
-                className="w-px bg-neutral-300 dark:bg-neutral-700"
-                style={{ height: `${row * 15 + 3}px` }}
-              />
-              <span
-                className={`px-1 rounded text-2xs font-semibold tabular-nums leading-none py-0.5 ${
-                  first || last
-                    ? 'bg-brand/10 text-brand-ink dark:bg-brand/15 dark:text-brand-ink'
+                className={`punch-timeline-label absolute px-1 rounded text-xs font-mono font-semibold tabular-nums leading-none py-0.5 whitespace-nowrap ${
+                  first || last ? 'bg-brand/10 text-brand-ink dark:bg-brand/15 dark:text-brand-ink'
                     : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
                 }`}
-                title={first ? 'Arrived' : last ? 'Left' : leaving ? 'Went out' : 'Came back'}
-              >
-                {time(punch)}
-              </span>
-            </span>
+                style={{ left: `${labelPct}%`, top: `${row * 20 + 3}px`, transform: 'translateX(-50%)' }}
+                title={first ? 'Arrived' : last ? 'Left' : unknown ? 'Unpaired punch' : leaving ? 'Went out' : 'Came back'}
+              >{time(punch)}</span>
+            </React.Fragment>
           );
         })}
       </div>

@@ -74,9 +74,9 @@ function CardTitle({ icon: Icon, title, subtitle }) {
   );
 }
 
-function SettingRow({ icon: Icon, title, detail, children }) {
+function SettingRow({ icon: Icon, title, detail, children, className = '' }) {
   return (
-    <div className="settings-row">
+    <div className={`settings-row ${className}`}>
       <div className="flex min-w-0 items-start gap-2.5">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
           <Icon size={14} />
@@ -95,7 +95,7 @@ function SettingRow({ icon: Icon, title, detail, children }) {
   );
 }
 
-function ToggleSwitch({ checked, onChange, label }) {
+export function ToggleSwitch({ checked, onChange, label }) {
   return (
     <button
       type="button"
@@ -103,18 +103,12 @@ function ToggleSwitch({ checked, onChange, label }) {
       aria-checked={checked}
       aria-label={label}
       onClick={onChange}
-      className={`relative h-7 w-12 shrink-0 rounded-full border transition-colors cursor-pointer ${
-        checked
-          ? 'border-brand bg-brand-action'
-          : 'border-neutral-300 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800'
-      }`}
+      className="settings-theme-switch"
     >
-      <span
-        className={`absolute top-0.5 flex h-[22px] w-[22px] items-center justify-center rounded-full bg-white text-neutral-600 shadow-sm transition-transform ${
-          checked ? 'translate-x-5' : 'translate-x-0.5'
-        }`}
-      >
-        {checked ? <Moon size={11} /> : <Sun size={11} />}
+      <span className="settings-theme-track" aria-hidden="true">
+        <span className="settings-theme-thumb">
+          {checked ? <Moon size={12} /> : <Sun size={12} />}
+        </span>
       </span>
     </button>
   );
@@ -249,10 +243,11 @@ function PreferencesCard({
       <div className="settings-stack">
         <SettingRow
           icon={dark ? Moon : Sun}
+          className="settings-theme-row"
           title="Theme mode"
           detail={dark ? 'Dark mode is active on this device.' : 'Light mode is active on this device.'}
         >
-          <div className="flex items-center gap-2">
+          <div className="settings-theme-control flex items-center gap-2">
             <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400">
               {dark ? 'Dark' : 'Light'}
             </span>

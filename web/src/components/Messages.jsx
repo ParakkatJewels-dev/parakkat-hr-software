@@ -13,18 +13,18 @@
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown,
+  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Pause, Settings,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
   useStartDirect, useCreateGroup, useAddMembers, useRemoveMember, useRenameGroup,
-  useUploadMedia, useMediaUrl, useEmployeeConversations,
+  useUploadMedia, useMediaUrl, useEmployeeConversations, useSetGroupPicture,
 } from '../data/messages';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import {
   conversationName, previewOf, sortConversations, groupByDay, showsSender, isMine, hasUnread,
-  others, filterConversations, replyPreviewOf,
+  others, filterConversations, replyPreviewOf, formatVoiceDuration, playbackFraction,
 } from '../lib/conversations';
 import { humanDbError } from '../lib/dbErrors';
 import { relativeTime, istToday } from '../lib/dates';
@@ -367,7 +367,6 @@ function WatchPicker({ employees, watchingId, open, onToggle, onPick }) {
 function ConversationRow({ conversation, me, active, onOpen }) {
   const name = conversationName(conversation, me);
   const unread = hasUnread(conversation);
-  const isGroup = conversation.kind === 'group';
 
   return (
     <button
@@ -376,9 +375,7 @@ function ConversationRow({ conversation, me, active, onOpen }) {
       aria-current={active ? 'page' : undefined}
       className={`conversation-row ${active ? 'conversation-row-active' : ''} ${unread ? 'conversation-row-unread' : ''}`}
     >
-      {isGroup
-        ? <span className="messages-avatar messages-avatar-group"><Users size={14} /></span>
-        : <Avatar name={name} size="md" className="messages-avatar" />}
+      <ConversationAvatar conversation={conversation} me={me} />
 
       <span className="conversation-row-copy">
         <span className="conversation-row-top">
@@ -413,6 +410,11 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
   const { data: messages = [], isLoading, error, hasOlder, loadOlder, isLoadingOlder } = useMessages(conversation.id);
   const markRead = useMarkRead();
   const [managing, setManaging] = useState(false);
+  const settingsButtonRef = useRef(null);
+  const closeSettings = useCallback(() => {
+    setManaging(false);
+    requestAnimationFrame(() => settingsButtonRef.current?.focus());
+  }, []);
   const [replyId, setReplyId] = useState(null);
   const [awayFromBottom, setAwayFromBottom] = useState(false);
   const viewportRef = useRef(null);
@@ -466,18 +468,19 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
 
   return (
     <div className="messages-chat">
-      <header className="messages-chat-header">
+      <header className="messages-chat-header" inert={managing || undefined} aria-hidden={managing || undefined}>
         <button type="button" onClick={onBack} aria-label="Back to conversations" className="messages-icon-button messages-back"><ArrowLeft size={21} /></button>
-        {isGroup ? <span className="messages-avatar messages-avatar-group"><Users size={21} /></span>
-          : <Avatar name={name} size="md" className="messages-avatar" />}
+        <ConversationAvatar conversation={conversation} me={me} />
         <div className="messages-chat-heading">
           <h2>{name}</h2>
           <p>{isGroup ? `${conversation.members?.length ?? 0} members · ${others(conversation, me).map((member) => member.employee?.full_name).filter(Boolean).join(', ')}` : 'Direct message'}</p>
         </div>
-        {isGroup && !readOnly && <button type="button" onClick={() => setManaging((value) => !value)} aria-label="Group settings"
-          aria-expanded={managing} className="messages-icon-button"><UserPlus size={21} /></button>}
+        <button ref={settingsButtonRef} type="button" onClick={() => setManaging(true)} aria-label="Chat settings"
+          aria-expanded={managing} className="messages-icon-button"><Settings size={21} /></button>
       </header>
-      {managing && isGroup && <GroupPanel conversation={conversation} me={me} onClose={() => setManaging(false)} />}
+      {managing && <ConversationSettings conversation={conversation} me={me} readOnly={readOnly}
+        onClose={closeSettings} />}
+      <div className="messages-thread-content" inert={managing || undefined} aria-hidden={managing || undefined}>
       <div className="messages-chat-history">
         <div className="messages-chat-scroll" ref={viewportRef} role="region" aria-label="Message history" tabIndex={0}
           onScroll={(event) => {
@@ -519,6 +522,7 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
       <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
         onSent={() => { setReplyId(null); jumpToLatest(); }} />
       )}
+      </div>
     </div>
   );
 }
@@ -574,6 +578,117 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply, readO
   );
 }
 
+/*
+ * Only one voice note plays at a time. Starting a second pauses the first, the way every chat app
+ * behaves; otherwise two people's voices talk over each other and neither can be followed.
+ * Module-level on purpose: the notes are separate components in separate bubbles, and this is the
+ * one thing they need to share.
+ */
+let playingVoice = null;
+
+/**
+ * A voice note that looks like it belongs in the bubble.
+ *
+ * It replaces a bare <audio controls>, which drew the browser's own grey control strip inside a
+ * green bubble, sat beside a second, decorative play icon, and read 0:00 where the length should
+ * be. The <audio> element still plays the sound; it is just no longer what is on screen.
+ *
+ * preload="none" when the length is already known from duration_ms: a thread of voice notes on a
+ * phone should not download every one of them just to be scrolled past.
+ */
+function VoiceNote({ url, durationMs, mine }) {
+  const audioRef = useRef(null);
+  const [playing, setPlaying] = useState(false);
+  const [current, setCurrent] = useState(0);
+  const [mediaDuration, setMediaDuration] = useState(NaN);
+  const [failed, setFailed] = useState(false);
+
+  const knownMs = Number.isFinite(mediaDuration) && mediaDuration > 0 ? mediaDuration * 1000 : durationMs;
+  const fraction = playbackFraction(current, mediaDuration, durationMs);
+
+  useEffect(() => () => {
+    // Leaving the thread mid-note must stop the sound, and must not leave this note registered as
+    // the one playing: the next note started would try to pause an element that no longer exists.
+    const audio = audioRef.current;
+    if (audio) audio.pause();
+    if (playingVoice === audio) playingVoice = null;
+  }, []);
+
+  const toggle = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (!audio.paused) { audio.pause(); return; }
+    if (playingVoice && playingVoice !== audio) playingVoice.pause();
+    playingVoice = audio;
+    try { await audio.play(); }
+    catch { setFailed(true); }
+  };
+
+  const seek = (event) => {
+    const audio = audioRef.current;
+    const total = (knownMs ?? 0) / 1000;
+    if (!audio || !total) return;
+    const next = (Number(event.target.value) / 1000) * total;
+    audio.currentTime = next;
+    setCurrent(next);
+  };
+
+  if (failed) {
+    return (
+      <p className="voice-note-failed" role="status">
+        <AlertTriangle size={13} aria-hidden="true" /> This voice note can’t be played on this device.
+      </p>
+    );
+  }
+
+  // The time reads the length at rest and the elapsed time once started: how long is this, then
+  // how far in am I. Those are the two questions a listener has, in that order.
+  const shownMs = playing || current > 0 ? current * 1000 : knownMs;
+
+  return (
+    <div className="voice-note" data-own={mine ? 'true' : 'false'} data-playing={playing ? 'true' : 'false'}>
+      <audio
+        ref={audioRef}
+        src={url}
+        preload={durationMs ? 'none' : 'metadata'}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => {
+          setPlaying(false);
+          setCurrent(0);
+          if (playingVoice === audioRef.current) playingVoice = null;
+        }}
+        onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => setMediaDuration(e.currentTarget.duration)}
+        onDurationChange={(e) => setMediaDuration(e.currentTarget.duration)}
+        onError={() => setFailed(true)}
+      />
+      <button
+        type="button"
+        className="voice-note-toggle"
+        onClick={toggle}
+        aria-label={playing ? 'Pause voice note' : 'Play voice note'}
+      >
+        {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
+      </button>
+      <input
+        type="range"
+        className="voice-note-track"
+        min={0}
+        max={1000}
+        step={1}
+        value={Math.round(fraction * 1000)}
+        onChange={seek}
+        disabled={!knownMs}
+        style={{ '--voice-progress': `${fraction * 100}%` }}
+        aria-label="Voice note position"
+        aria-valuetext={`${formatVoiceDuration(current * 1000)} of ${formatVoiceDuration(knownMs)}`}
+      />
+      <span className="voice-note-time">{formatVoiceDuration(shownMs)}</span>
+    </div>
+  );
+}
+
 /** A photo, a clip, a voice note or a file — fetched through a signed URL, because the bucket is private. */
 function MediaBubble({ message, mine }) {
   const { data: url, isLoading, error } = useMediaUrl(message.storage_path);
@@ -613,12 +728,7 @@ function MediaBubble({ message, mine }) {
   }
 
   if (message.kind === 'voice') {
-    return (
-      <span className="messages-audio">
-        <Play size={13} className={mine ? 'text-white/90' : 'text-brand-ink'} />
-        <audio src={url} controls preload="metadata" className="h-8 max-w-full" />
-      </span>
-    );
+    return <VoiceNote url={url} durationMs={message.duration_ms} mine={mine} />;
   }
 
   return (
@@ -873,7 +983,7 @@ function VoiceButton({ disabled, onRecorded, onError }) {
           <Square size={12} className="relative" />
         </span>
         <span className="font-mono text-2xs tabular-nums">
-          {String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}
+          {formatVoiceDuration(seconds * 1000)}
         </span>
       </button>
     );
@@ -1033,117 +1143,145 @@ export function NewConversation({ me, onClose, onOpened }) {
   );
 }
 
-/* ----------------------------------------------------------- managing a group -- */
+/* ------------------------------------------------------------ chat settings -- */
 
-export function GroupPanel({ conversation, me, onClose }) {
+function ConversationAvatar({ conversation, me, large = false }) {
+  const isGroup = conversation.kind === 'group';
+  const { data: photoUrl } = useMediaUrl(isGroup ? conversation.photo_path : null);
+  const name = conversationName(conversation, me);
+  if (!isGroup) return <Avatar name={name} size={large ? 'lg' : 'md'} className="messages-avatar" />;
+  return <span className={`messages-avatar messages-avatar-group${large ? ' messages-settings-avatar' : ''}`}>
+    {photoUrl ? <img src={photoUrl} alt={`${name} group picture`} /> : <Users size={large ? 30 : 21} />}
+  </span>;
+}
+
+/** One route inside the thread for both chat types. Employee identities are always read-only. */
+export function ConversationSettings({ conversation, me, onClose, readOnly = false }) {
+  const isGroup = conversation.kind === 'group';
+  const editable = !readOnly && isGroup && (conversation.members ?? []).some((member) => member.employee_id === me);
+  const closeRef = useRef(null);
+  useEffect(() => {
+    closeRef.current?.focus();
+    const closeOnEscape = (event) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [onClose]);
+  return <section className="messages-settings" aria-label="Chat settings">
+    <header className="messages-settings-header">
+      <button ref={closeRef} type="button" onClick={onClose} aria-label="Back to chat" className="messages-icon-button"><ArrowLeft size={21} /></button>
+      <h2>{isGroup ? 'Group settings' : 'Chat settings'}</h2>
+    </header>
+    <div className="messages-settings-scroll">
+      <div className="messages-settings-identity">
+        <ConversationAvatar conversation={conversation} me={me} large />
+        <h3>{conversationName(conversation, me)}</h3>
+        <p>{isGroup ? `${conversation.members?.length ?? 0} members` : 'Direct message'}</p>
+      </div>
+      {isGroup ? <GroupPanel conversation={conversation} me={me} editable={editable} />
+        : <div className="messages-settings-section">
+          <h3>People</h3>
+          <ul className="messages-settings-members">
+            {(conversation.members ?? []).map((member) => <li key={member.employee_id}>
+              <Avatar name={member.employee?.full_name} size="sm" />
+              <div><strong>{member.employee?.full_name ?? 'Unknown'}{member.employee_id === me && ' (you)'}</strong>
+                <span>{member.employee?.employee_code ?? ''}{member.employee?.branch?.code ? ` · ${member.employee.branch.code}` : ''}</span></div>
+            </li>)}
+          </ul>
+        </div>}
+    </div>
+  </section>;
+}
+
+export function GroupPanel({ conversation, me, editable = true }) {
   const [query, setQuery] = useState('');
   const [title, setTitle] = useState(conversation.title ?? '');
-  const { data: employees = [] } = useEmployees();
+  const [status, setStatus] = useState('');
+  const [localError, setLocalError] = useState(null);
+  const photoInput = useRef(null);
+  const { data: employees = [], error: employeesError } = useEmployees();
   const add = useAddMembers();
   const remove = useRemoveMember();
   const rename = useRenameGroup();
-
-  const memberIds = new Set((conversation.members ?? []).map((m) => m.employee_id));
-  const error = add.error || remove.error || rename.error;
-
+  const picture = useSetGroupPicture();
+  const busy = add.isPending || remove.isPending || rename.isPending || picture.isPending;
+  const error = localError || add.error || remove.error || rename.error || picture.error;
+  const memberIds = useMemo(() => new Set((conversation.members ?? []).map((member) => member.employee_id)), [conversation.members]);
   const candidates = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return [];
-    return employees
-      .filter((e) => !memberIds.has(e.id))
-      .filter((e) => (e.full_name || '').toLowerCase().includes(needle) || (e.employee_code || '').toLowerCase().includes(needle));
-    // memberIds is rebuilt each render from props; listing it would defeat the memo.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employees, query, conversation.members]);
+    return employees.filter((person) => !memberIds.has(person.id))
+      .filter((person) => (person.full_name || '').toLowerCase().includes(needle)
+        || (person.employee_code || '').toLowerCase().includes(needle));
+  }, [employees, query, memberIds]);
   const candidatePager = usePagination(candidates, 8, null, `${conversation.id}:${query}`);
   const memberPager = usePagination(conversation.members ?? [], 12, null, conversation.id);
-
-  return (
-    <div className="messages-group-panel shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950/60 p-3 space-y-2.5">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-2xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">Group</p>
-        <button type="button" onClick={onClose} aria-label="Close group settings" className="text-neutral-400 hover:text-neutral-700 dark:hover:text-white cursor-pointer">
-          <X size={13} />
-        </button>
+  const save = async (mutation, variables, success) => {
+    setStatus(''); setLocalError(null);
+    for (const action of [add, remove, rename, picture]) action.reset();
+    try { await mutation.mutateAsync(variables); setStatus(success); }
+    catch (failure) { setLocalError(failure); }
+  };
+  return <div className="messages-group-settings">
+    {editable && <div className="messages-settings-section">
+      <h3>Group details</h3>
+      <form className="messages-group-name" onSubmit={(event) => {
+        event.preventDefault();
+        void save(rename, { conversationId: conversation.id, title }, 'Group name updated.');
+      }}>
+        <label htmlFor={`group-name-${conversation.id}`}>Group name</label>
+        <div><input id={`group-name-${conversation.id}`} className={INPUT} value={title}
+          onChange={(event) => setTitle(event.target.value)} maxLength={120} required disabled={busy} />
+          <button type="submit" disabled={busy || !title.trim() || title.trim() === (conversation.title ?? '')}
+            className={btnClass('ghost', 'sm')}>{rename.isPending ? <Loader2 size={15} className="animate-spin" /> : <PenLine size={15} />}Save</button></div>
+      </form>
+      <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only"
+        aria-label="Choose group picture" disabled={busy} onChange={(event) => {
+          const file = event.target.files?.[0]; event.target.value = '';
+          if (file) void save(picture, { conversationId: conversation.id, file }, 'Group picture updated.');
+        }} />
+      <div className="messages-settings-actions">
+        <button type="button" className={btnClass('ghost', 'sm')} disabled={busy} onClick={() => photoInput.current?.click()}>
+          {picture.isPending ? <Loader2 size={16} className="animate-spin" /> : <ImageIcon size={16} />}Change picture</button>
+        {conversation.photo_path && <button type="button" className={btnClass('ghost', 'sm')} disabled={busy}
+          onClick={() => void save(picture, { conversationId: conversation.id }, 'Group picture removed.')}><Trash2 size={15} />Remove picture</button>}
       </div>
-
-      <div className="flex items-center gap-1.5">
-        <input
-          className={INPUT + ' text-xs'}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Group name"
-          maxLength={120}
-        />
-        <button
-          type="button"
-          onClick={() => rename.mutate({ conversationId: conversation.id, title })}
-          disabled={rename.isPending || title === (conversation.title ?? '')}
-          className={btnClass('ghost', 'sm')}
-        >
-          {rename.isPending ? <Loader2 size={12} className="animate-spin" /> : <PenLine size={12} />} Rename
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-1.5">
-        {memberPager.slice.map((m) => (
-          <span key={m.employee_id} className="inline-flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-850 bg-white dark:bg-neutral-900 px-2 py-1 text-2xs">
-            <span className="font-semibold text-neutral-700 dark:text-neutral-300">
-              {m.employee?.full_name ?? 'Unknown'}
-            </span>
-            {m.employee_id === me && <span className="opacity-60">(you)</span>}
-            <button
-              type="button"
-              disabled={remove.isPending}
-              onClick={() => remove.mutate({ conversationId: conversation.id, employeeId: m.employee_id })}
-              aria-label={m.employee_id === me ? 'Leave this group' : `Remove ${m.employee?.full_name ?? 'this person'}`}
-              title={m.employee_id === me ? 'Leave this group' : 'Remove'}
-              className="opacity-50 hover:opacity-100 hover:text-rose-500 cursor-pointer"
-            >
-              <X size={10} />
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="paged-collection"><Pagination {...memberPager} noun="group members" sizes={[12, 25, 50]} disabled={remove.isPending} /></div>
-
-      <IconInput
-        icon={Search}
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        aria-label="Add someone to this group"
-        placeholder="Add someone…"
-        inputClassName={INPUT + ' text-xs'}
-      />
-
-      {candidates.length > 0 && (
-        <div className="paged-collection">
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 divide-y divide-neutral-150 dark:divide-neutral-850/60 overflow-hidden">
-          {candidatePager.slice.map((e) => (
-            <button
-              key={e.id}
-              type="button"
-              disabled={add.isPending}
-              onClick={() => add.mutate({ conversationId: conversation.id, employeeIds: [e.id] }, { onSuccess: () => setQuery('') })}
-              className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex items-center justify-between cursor-pointer"
-            >
-              <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
-              <span className="font-mono text-2xs text-neutral-500">{e.employee_code}</span>
-            </button>
-          ))}
-        </div>
-        <Pagination {...candidatePager} noun="matching people" sizes={[8, 25, 50]} disabled={add.isPending} />
-        </div>
-      )}
-
-      {query.trim() && candidates.length === 0 && <p className="text-xs text-neutral-500">No new people match this search. Existing members are listed above.</p>}
-
-      {error && (
-        <p className="flex items-start gap-1.5 text-2xs text-rose-600 dark:text-rose-400">
-          <AlertTriangle size={11} className="mt-0.5 shrink-0" /> {humanDbError(error)}
-        </p>
-      )}
+      <p className="messages-settings-hint">JPG, PNG, WebP or GIF · Up to 5 MB</p>
+    </div>}
+    {error && <p role="alert" className="messages-chat-error"><AlertTriangle size={16} />{humanDbError(error)}</p>}
+    {status && <p role="status" className="messages-settings-status">{status}</p>}
+    <div className="messages-settings-section">
+      <h3>Members <span>{conversation.members?.length ?? 0}</span></h3>
+      <ul className="messages-settings-members">
+        {memberPager.slice.map((member) => <li key={member.employee_id}>
+          <Avatar name={member.employee?.full_name} size="sm" />
+          <div><strong>{member.employee?.full_name ?? 'Unknown'}{member.employee_id === me && ' (you)'}</strong>
+            <span>{member.employee?.employee_code ?? ''}</span></div>
+          {editable && member.employee_id !== me && <button type="button" disabled={busy}
+            onClick={() => void save(remove, { conversationId: conversation.id, employeeId: member.employee_id }, 'Member removed.')}
+            aria-label={`Remove ${member.employee?.full_name ?? 'this person'}`} title="Remove" className="messages-icon-button"><X size={17} /></button>}
+        </li>)}
+      </ul>
+      <Pagination {...memberPager} noun="group members" sizes={[12, 25, 50]} disabled={busy} />
     </div>
-  );
+    {editable && <div className="messages-settings-section">
+      <h3>Add people</h3>
+      <IconInput icon={Search} type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+        aria-label="Add someone to this group" placeholder="Search name or employee code" inputClassName={INPUT} />
+      {employeesError && <p role="alert" className="messages-chat-error">{humanDbError(employeesError)}</p>}
+      {candidates.length > 0 && <div className="paged-collection">
+        <ul className="messages-settings-members">
+          {candidatePager.slice.map((person) => <li key={person.id}>
+            <div><strong>{person.full_name}</strong><span>{person.employee_code}</span></div>
+            <button type="button" disabled={busy} className="messages-icon-button" aria-label={`Add ${person.full_name}`}
+              onClick={() => { void save(add, { conversationId: conversation.id, employeeIds: [person.id] }, 'Member added.'); }}><UserPlus size={18} /></button>
+          </li>)}
+        </ul>
+        <Pagination {...candidatePager} noun="matching people" sizes={[8, 25, 50]} disabled={busy} />
+      </div>}
+      {!employeesError && query.trim() && candidates.length === 0 && <p className="messages-settings-hint">No new people match this search.</p>}
+      <button type="button" disabled={busy} className="messages-leave-group"
+        onClick={() => void save(remove, { conversationId: conversation.id, employeeId: me }, 'You left the group.')}>
+        Leave group</button>
+    </div>}
+  </div>;
 }

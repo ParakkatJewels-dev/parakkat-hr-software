@@ -1,0 +1,11 @@
+.punch-timeline {
+  min-width: 0;
+  width: 100%;
+}
+
+/* Packing uses these readable, fixed metrics. Do not shrink the time text on phones. */
+.punch-timeline .punch-timeline-label {
+  font-size: 12px;
+  line-height: 14px;
+  white-space: nowrap;
+}

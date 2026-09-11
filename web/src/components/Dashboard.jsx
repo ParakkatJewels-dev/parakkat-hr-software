@@ -28,7 +28,7 @@ import { useLeaveBalances } from '../data/leaveTypes';
 import { KpiRow, NotificationsStrip, HolidaysCard, QuickActions, inr } from './dashboard/shared';
 import { useActionableApprovals } from './dashboard/useActionableApprovals';
 import {
-  EmployeeTodayHero, PunchCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, EssSection,
+  EmployeeTodayHero, PunchCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, MyRoutineToday, EssSection,
 } from './dashboard/selfWidgets';
 import {
   TeamAttendanceToday, ApprovalsQueue, OnLeaveThisWeek, TeamTickets, TeamAssets, TeamTasksBoard,
@@ -436,16 +436,17 @@ function EmployeeDashboard({ onNavigate, actions }) {
   return (
     <>
       <EmployeeTodayHero onNavigate={onNavigate} />
+      <MyRoutineToday onNavigate={onNavigate} />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <MyTasks onNavigate={onNavigate} />
+        <MyRequests onNavigate={onNavigate} />
+      </div>
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <PunchCard onNavigate={onNavigate} />
         <MyLeaveBalances onNavigate={onNavigate} />
         <MyPayslip onNavigate={onNavigate} />
       </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <MyMonthCard onNavigate={onNavigate} />
-        <MyTasks onNavigate={onNavigate} />
-        <MyRequests onNavigate={onNavigate} />
-      </div>
+      <MyMonthCard onNavigate={onNavigate} />
       <QuickActions actions={actions} onNavigate={onNavigate} />
       <HolidaysCard showAnniversaries={false} onNavigate={onNavigate} />
     </>
@@ -674,6 +675,7 @@ export default function Dashboard({ onNavigate, viewRole }) {
   return (
     <div className="page-shell dashboard-shell space-y-5 animate-slide-up py-3" data-dashboard-role={role}>
       <NotificationsStrip onNavigate={onNavigate} />
+      {role !== 'employee' && <MyRoutineToday onNavigate={onNavigate} />}
       <Preset onNavigate={onNavigate} actions={actions} />
     </div>
   );

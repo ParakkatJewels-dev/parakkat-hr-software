@@ -3,6 +3,7 @@ import { after, before, beforeEach, mock, test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
 import type { AuthContext } from './auth';
+import { backgroundJobs } from '../jobs/background';
 
 const branchId = '00000000-0000-4000-8000-000000001002';
 const users: Record<string, AuthContext> = {
@@ -14,6 +15,7 @@ const calls: Array<{ name: string; args?: unknown }> = [];
 let failMappings = false;
 let server: Server;
 let baseUrl: string;
+let onWork: ((name: string, args: unknown, options: unknown) => Promise<unknown>) | undefined;
 
 before(async () => {
   mock.module(require.resolve('../config/env'), {
@@ -57,7 +59,7 @@ before(async () => {
   mock.module(require.resolve('../biotime/client'), { namedExports: { biotime: { baseUrl: 'http://fixture-only.invalid', ping: async () => ({ ok: true }) } } });
   mock.module(require.resolve('../jobs/scheduler'), { namedExports: { jobsInFlight: () => [] } });
   mock.module(require.resolve('../sync/runLog'), { namedExports: { recentRuns: async () => [] } });
-  const invoked = (name: string) => async (args: unknown) => { calls.push({ name, args }); return {}; };
+  const invoked = (name: string) => async (args: unknown, options?: unknown) => { calls.push({ name, args }); return await onWork?.(name, args, options) ?? {}; };
   mock.module(require.resolve('../sync/syncTransactions'), { namedExports: { syncTransactions: invoked('sync'), catchUpTransactions: invoked('catchup'), runTransactionSync: invoked('backfill') } });
   mock.module(require.resolve('../sync/syncEmployees'), { namedExports: { syncEmployees: invoked('employees'), refreshSuggestions: invoked('suggestions'), resolvePunchLinks: invoked('link') } });
   mock.module(require.resolve('../engine/recompute'), { namedExports: { recompute: invoked('recompute'), drainRecomputeQueue: invoked('queue'), enqueueRecompute: invoked('enqueue') } });
@@ -67,7 +69,7 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
 
-beforeEach(() => { calls.length = 0; failMappings = false; });
+beforeEach(() => { calls.length = 0; failMappings = false; onWork = undefined; });
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -129,6 +131,12 @@ test('valid leap-day requests and catch-up parameters reach the actual handler u
   assert.equal(calls[1]?.args, 7);
 });
 
+test('a reversed recompute date range is refused before rewriting attendance', async () => {
+  const response = await request('/api/recompute', 'admin', { from: '2026-07-31', to: '2026-07-01' });
+  assert.equal(response.status, 400);
+  assert.equal(calls.length, 0);
+});
+
 test('invalid report periods, branch identifiers and column keys receive 400', async () => {
   for (const query of ['year=2026&month=13', 'year=2026&month=7&branchIds=invalid', 'year=2026&month=7&columns=unknown&format=json']) {
     assert.equal((await request(`/api/exports/payroll?${query}`, 'admin')).status, 400, query);
@@ -171,4 +179,57 @@ test('CORS allows the configured application and refuses an unrelated origin', a
     assert.equal(response.status, expected);
     assert.equal(response.headers.get('Access-Control-Allow-Private-Network'), expected === 204 ? 'true' : null);
   }
+});
+
+test('two accepted catch-up requests remain separately tracked after both 202 responses finish', async () => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const signals: unknown[] = [];
+  onWork = async (name, _args, signal) => { if (name === 'catchup') { signals.push(signal); await held; } };
+  try {
+    for (let i = 0; i < 2; i++) {
+      const response = await request('/api/sync/catchup', 'admin', { days: 7 });
+      assert.equal(response.status, 202);
+      await response.text();
+    }
+    assert.deepEqual(backgroundJobs.inFlight(), ['catchup', 'catchup']);
+    assert.equal(signals.length, 2, 'an accepted duplicate label must not silently skip work');
+    assert.ok(signals.every(signal => signal instanceof AbortSignal));
+  } finally { release(); await new Promise(resolve => setImmediate(resolve)); }
+  assert.deepEqual(backgroundJobs.inFlight(), []);
+});
+
+test('a long HTTP recompute keeps its scope and receives cancellation while its response has finished', async () => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let options: unknown;
+  onWork = async (name, _args, value) => { if (name === 'recompute') { options = value; await held; } };
+  try {
+    const employeeIds = ['00000000-0000-4000-8000-000000000501'];
+    const response = await request('/api/recompute', 'admin', { from: '2026-06-01', to: '2026-07-31', employeeIds, includeLocked: true });
+    assert.equal(response.status, 202); await response.text();
+    assert.deepEqual(backgroundJobs.inFlight(), ['recompute']);
+    assert.ok((options as { signal?: AbortSignal })?.signal instanceof AbortSignal);
+    assert.deepEqual(calls[0]?.args, { from: '2026-06-01', to: '2026-07-31', employeeIds, includeLocked: true });
+  } finally { release(); await new Promise(resolve => setImmediate(resolve)); }
+});
+
+test('shutdown cancellation stops later HTTP backfill chunks and the trailing recompute', async () => {
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  let signal: AbortSignal | undefined;
+  onWork = async (name, args) => { if (name === 'backfill') { signal = (args as { signal: AbortSignal }).signal; await held; } };
+  try {
+    const response = await request('/api/backfill', 'admin', { from: '2026-07-01', to: '2026-07-31', recompute: true });
+    assert.equal(response.status, 202); await response.text();
+    assert.deepEqual(backgroundJobs.inFlight(), ['backfill']);
+    backgroundJobs.stop();
+    assert.equal(signal?.aborted, true);
+    assert.deepEqual(backgroundJobs.inFlight(), ['backfill'], 'cancellation does not pretend an in-flight DB call has settled');
+  } finally { release(); await new Promise(resolve => setImmediate(resolve)); }
+  assert.equal(calls.filter(call => call.name === 'backfill').length, 1);
+  assert.equal(calls.some(call => call.name === 'recompute'), false);
+  assert.deepEqual(backgroundJobs.inFlight(), []);
+  const late = await request('/api/sync/catchup', 'admin', { days: 7 });
+  assert.equal(late.status, 503, 'a request reaching the handler during shutdown is refused explicitly');
 });

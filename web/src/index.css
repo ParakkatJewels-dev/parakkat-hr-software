@@ -20,11 +20,6 @@
 .directory-overview-disclosure[open] > .directory-overview-toggle { margin-bottom: .75rem; }
 .directory-overview-disclosure[open] > .directory-overview-toggle svg { transform: rotate(180deg); }
 @media (min-width: 641px) { .directory-overview-toggle { display: none; } }
-@container collection (max-width: 34rem) {
-  .pagination-shell { grid-template-columns: minmax(0, 1fr) !important; gap: .75rem !important; }
-  .pagination-pages { justify-content: flex-start !important; flex-wrap: wrap; }
-  .pagination-size { justify-content: flex-start !important; }
-}
 
 /* ============================================================================
    Parakkat HR — Design System
@@ -2142,11 +2137,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .pagination-shell {
+    position: relative;
+    container: pagination / inline-size;
     display: grid;
-    grid-template-columns: minmax(10rem, .8fr) auto minmax(7rem, .45fr);
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: .65rem;
-    padding: .55rem .6rem;
+    padding: .25rem .375rem;
     border: 1px solid var(--surface-border);
     border-radius: var(--radius-sm);
     background: transparent;
@@ -6926,97 +6923,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     padding-inline: 0;
   }
 
-  main .pagination-shell {
-    position: static;
-    display: grid;
-    grid-template-columns: 1fr;
-    margin-top: .5rem;
-    padding: .5rem;
-    gap: .45rem;
-    border-radius: var(--radius-sm);
-    background: transparent;
-  }
-
-  main .pagination-summary {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: .65rem;
-    padding-inline: .15rem;
-    width: 100%;
-  }
-
-  main .pagination-range {
-    font-size: .75rem;
-  }
-
-  main .pagination-range b {
-    font-size: .82rem;
-  }
-
-  main .pagination-page-label {
-    flex: 0 0 auto;
-    font-size: .65rem;
-  }
-
-  main .pagination-pages {
-    display: grid;
-    grid-template-columns: 2.75rem 2.75rem minmax(0, 1fr) 2.75rem 2.75rem;
-    width: 100%;
-    gap: .3rem;
-    padding: 0;
-    border-radius: var(--radius-sm);
-  }
-
-  main .pagination-ellipsis,
-  main .pagination-number:not([aria-current="page"]) {
-    display: none;
-  }
-
-  main .pagination-nav-button,
-  main .pagination-number {
-    min-width: 0;
-    width: 100%;
-    min-height: 2.75rem;
-    height: 2.75rem;
-    border-radius: var(--radius-sm);
-  }
-
-  main .pagination-boundary-button {
-    display: inline-flex;
-  }
-
-  main .pagination-number[aria-current="page"] {
-    box-shadow: none;
-  }
-
-  main .pagination-number[aria-current="page"]::before {
-    /* A non-breaking space, because a trailing one in `content` is collapsed and the label
-       rendered as "Page1". */
-    content: "Page\00a0";
-    font-weight: 700;
-  }
-
-  main .pagination-size {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    min-height: 2.35rem;
-    border: 0;
-    border-top: 1px solid var(--surface-border);
-    border-radius: 0;
-    background: transparent;
-    padding: .45rem .1rem 0;
-    font-size: .68rem;
-  }
-
-  main .pagination-size select {
-    width: auto;
-    min-width: 4rem;
-    height: 1.9rem;
-    background: transparent;
-  }
-
   .mobile-filter-toggle {
     width: 100%;
     min-height: 2.45rem;
@@ -9250,10 +9156,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: 0;
   }
 
-  .header-theme-toggle {
-    display: none !important;
-  }
-
   .header-update-action {
     display: none !important;
   }
@@ -9850,7 +9752,6 @@ button.role-chip:hover,
   }
 
   .mobile-search-trigger,
-  .header-theme-toggle,
   .header-install-action,
   .header-profile-trigger {
     display: none !important;
@@ -9934,4 +9835,166 @@ button.role-chip:hover,
     -webkit-mask-position: center;
     mask-position: center;
   }
+}
+
+
+/* One navigation row in narrow lists. Record details and page size remain available from
+   the centre disclosure, without forcing every phone list to carry a three-row footer. */
+.pagination-mobile-options { display: none; }
+@container pagination (max-width: 34rem) {
+  .pagination-summary,
+  .pagination-shell > .pagination-size,
+  .pagination-ellipsis,
+  .pagination-number { display: none; }
+
+  .pagination-pages {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: 2.75rem 2.75rem minmax(0, 1fr) 2.75rem 2.75rem;
+    width: 100%;
+    gap: .125rem;
+  }
+
+  .pagination-nav-button,
+  .pagination-boundary-button {
+    display: inline-flex;
+    width: 2.75rem;
+    min-width: 2.75rem;
+    height: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  .pagination-mobile-options { display: block; min-width: 0; }
+  .pagination-mobile-options > summary {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .15rem;
+    min-height: 2.75rem;
+    min-width: 0;
+    border-radius: var(--radius-sm);
+    color: var(--surface-text);
+    cursor: pointer;
+    list-style: none;
+    touch-action: manipulation;
+  }
+  .pagination-mobile-options > summary::-webkit-details-marker { display: none; }
+  .pagination-mobile-options > summary:hover,
+  .pagination-mobile-options[open] > summary { background: var(--accent-soft); }
+  .pagination-mobile-options > summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+  .pagination-mobile-position {
+    display: flex;
+    align-items: center;
+    gap: .2rem;
+    font-size: .75rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .pagination-mobile-position > svg { flex: none; }
+  .pagination-mobile-count {
+    max-width: 100%;
+    color: var(--surface-text-soft);
+    font-size: .625rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pagination-options-panel {
+    position: absolute;
+    z-index: 30;
+    right: 0;
+    bottom: calc(100% + .35rem);
+    display: grid;
+    gap: .5rem;
+    width: 16rem;
+    max-width: 100%;
+    padding: .75rem;
+    border: 1px solid var(--surface-border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface-elevated);
+    box-shadow: 0 8px 24px rgb(0 0 0 / .14);
+  }
+  .pagination-options-range {
+    font-size: .8125rem;
+    color: var(--surface-text-soft);
+    overflow-wrap: anywhere;
+  }
+  .pagination-options-range b { color: var(--surface-text); }
+  .pagination-size-compact { justify-content: space-between; }
+  .pagination-size-compact select { height: 2.75rem; min-height: 2.75rem; min-width: 5rem; font-size: 1rem; }
+}
+
+/* The hit area stays 44px high while the switch track keeps its own fixed geometry. */
+.settings-theme-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 3rem;
+  min-width: 3rem;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.settings-theme-track {
+  position: relative;
+  display: block;
+  width: 3rem;
+  height: 1.75rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  transition: background-color .16s ease, border-color .16s ease;
+}
+.settings-theme-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: #fff;
+  color: #525252;
+  box-shadow: 0 1px 3px rgb(0 0 0 / .18);
+  transition: transform .16s ease;
+}
+.settings-theme-switch[aria-checked="true"] .settings-theme-track { background: var(--accent-action); border-color: var(--accent-action); }
+.settings-theme-switch[aria-checked="true"] .settings-theme-thumb { transform: translateX(20px); }
+.settings-theme-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .header-theme-toggle {
+    display: inline-flex !important;
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+  .settings-theme-row { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
+  .settings-theme-row .settings-row-action,
+  .settings-theme-row .settings-theme-control { width: auto; }
+  .settings-theme-control > span { display: none; }
+  /* The floating filter shortcut must yield while the nearby page options are being used. */
+  .page-shell:has(.pagination-mobile-options[open]) > .directory-filter-fab {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-theme-track,
+  .settings-theme-thumb { transition: none; }
 }
