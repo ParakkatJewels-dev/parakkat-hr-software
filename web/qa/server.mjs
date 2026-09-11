@@ -8,6 +8,9 @@ import { dirname, resolve } from 'node:path';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const server = await createServer({
   root, configFile: false, envDir: false,
+  // SSR component tests start their own Vite servers. Keep their dependency cache separate
+  // so a concurrent test run cannot invalidate chunks used by the open browser preview.
+  cacheDir: resolve(root, 'node_modules/.vite-qa'),
   define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify('isolated-qa') },
   plugins: [{
     name: 'isolated-qa', enforce: 'pre',

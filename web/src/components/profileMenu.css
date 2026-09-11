@@ -1,4 +1,19 @@
 /* The profile is the mobile home for account settings and the full application menu. */
+.user-profile {
+  --profile-card-radius: 1rem;
+}
+
+.user-profile > .profile-hero,
+.user-profile .profile-card,
+.user-profile .profile-strip > div,
+.user-profile > .profile-alert {
+  border-radius: var(--profile-card-radius);
+}
+
+.user-profile .profile-avatar {
+  border-radius: 50%;
+}
+
 .user-profile > .profile-mobile-topbar {
   display: none;
 }
@@ -54,16 +69,12 @@
   .user-profile > .profile-hero {
     grid-template-columns: auto minmax(0, 1fr);
     gap: .9rem;
-    padding: 1rem .25rem;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
+    padding: 1rem;
   }
 
   .user-profile .profile-avatar {
     width: 4.25rem;
     height: 4.25rem;
-    border-radius: 50%;
     font-size: 1.3rem;
     box-shadow: 0 0 0 3px var(--surface-elevated), 0 0 0 4px var(--surface-border);
   }
@@ -91,7 +102,6 @@
 
   .user-profile > .profile-hero.skeleton {
     min-height: 100px;
-    border-radius: 1rem;
     background: var(--surface-elevated);
   }
 }

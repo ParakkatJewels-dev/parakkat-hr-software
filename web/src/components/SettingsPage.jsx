@@ -3,7 +3,7 @@
 // themselves (phone) save through the update_my_profile RPC; identity fields stay read-only and
 // are managed by HR. Workspace settings are editable by super admins only — everyone else sees
 // them read-only (RLS enforces this server-side too).
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   UserRound,
   Building2,
@@ -19,26 +19,30 @@ import {
   WifiOff,
   ShieldCheck,
   Palette,
+  ChevronRight,
 } from 'lucide-react';
 import ChangePassword from './ChangePassword';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
-import { useEmployees } from '../data/employees';
+import { useEmployee } from '../data/employees';
 import { useWorkspaceSettings, useSaveWorkspaceSettings, useUpdateMyProfile } from '../data/settings';
 import { useClockFormat } from '../lib/timeFormat';
 import { CLOCK_FORMATS } from '../lib/clock';
+import './settings.css';
 
 const inputClass =
   'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-1.5 rounded-xl text-neutral-805 dark:text-neutral-200 text-xs focus:outline-none focus:border-brand/50 disabled:bg-neutral-100 dark:disabled:bg-neutral-905 disabled:text-neutral-500 dark:disabled:text-neutral-400';
 
 function Field({ label, children, hint }) {
+  const generatedId = useId();
+  const id = children.props.id || generatedId;
   return (
-    <div>
-      <label className="block text-neutral-500 dark:text-slate-400 font-semibold mb-1 text-xs">
+    <div className="settings-field">
+      <label htmlFor={id} className="block text-neutral-500 dark:text-slate-400 font-semibold mb-1 text-xs">
         {label}
         {hint && <span className="ml-1.5 font-normal text-2xs text-neutral-400">{hint}</span>}
       </label>
-      {children}
+      {React.cloneElement(children, { id })}
     </div>
   );
 }
@@ -46,6 +50,7 @@ function Field({ label, children, hint }) {
 function SaveButton({ onClick, pending, saved, disabled }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       disabled={disabled || pending}
       className="flex items-center gap-1.5 rounded-lg bg-brand-action hover:bg-brand-action-hover px-3.5 py-1.5 text-base font-bold text-brand-on transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-default"
@@ -58,12 +63,12 @@ function SaveButton({ onClick, pending, saved, disabled }) {
 
 function CardTitle({ icon: Icon, title, subtitle }) {
   return (
-    <div className="flex items-start gap-2.5">
+    <div className="settings-card-heading flex items-start gap-2.5">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand-ink dark:bg-brand/15">
         <Icon size={15} />
       </span>
       <div className="min-w-0">
-        <h3 className="font-semibold text-base text-neutral-800 dark:text-white">{title}</h3>
+        <h2 className="font-semibold text-base text-neutral-800 dark:text-white">{title}</h2>
         {subtitle ? (
           <p className="mt-0.5 text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">
             {subtitle}
@@ -77,7 +82,7 @@ function CardTitle({ icon: Icon, title, subtitle }) {
 function SettingRow({ icon: Icon, title, detail, children, className = '' }) {
   return (
     <div className={`settings-row ${className}`}>
-      <div className="flex min-w-0 items-start gap-2.5">
+      <div className="settings-row-copy flex min-w-0 items-start gap-2.5">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-neutral-100 text-neutral-500 dark:bg-neutral-900 dark:text-neutral-400">
           <Icon size={14} />
         </span>
@@ -135,35 +140,41 @@ function ActionButton({ children, onClick, disabled, variant = 'secondary' }) {
 /** The signed-in person's own employee record; phone is self-service, the rest is HR-managed. */
 function MyProfileCard() {
   const { employee, user } = useAuth();
-  const { data: employees = [] } = useEmployees();
-  const me = employees.find((e) => e.id === employee?.id);
+  const employeeQuery = useEmployee(employee?.id);
+  const me = employeeQuery.data || employee;
+  const unavailable = employeeQuery.isLoading || employeeQuery.isError || !employeeQuery.data;
   const updateProfile = useUpdateMyProfile();
 
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(() => me?.phone || '');
   const [saved, setSaved] = useState(false);
   useEffect(() => setPhone(me?.phone || ''), [me?.phone]);
 
   const save = () =>
     updateProfile.mutate(
       { phone },
-      { onSuccess: () => { setSaved(true); setTimeout(() => setSaved(false), 2000); } }
+      { onSuccess: () => { employeeQuery.refetch(); setSaved(true); setTimeout(() => setSaved(false), 2000); } }
     );
 
   return (
-    <div className="premium-card space-y-4">
+    <div className="premium-card settings-card space-y-4">
       <CardTitle
         icon={UserRound}
-        title="My Profile"
-        subtitle="Your linked employee record and self-service contact details."
+        title="My account"
+        subtitle="Update your phone number. Your identity and placement are managed by HR."
       />
-      {!employee ? (
+      {!employee?.id ? (
         <p className="text-xs text-neutral-500">
           No employee record is linked to this login, so there is no profile to edit here. Profiles
           are linked in Administration → Users &amp; Access.
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+          {employeeQuery.isLoading && <p className="settings-card-notice" role="status">Loading your account details…</p>}
+          {employeeQuery.isError && <div className="settings-card-notice" role="alert">
+            <p>Your account details could not be loaded.</p>
+            <ActionButton onClick={() => employeeQuery.refetch()}>Try again</ActionButton>
+          </div>}
+          <div className="settings-form-grid">
             <Field label="Full Name" hint="managed by HR">
               <input type="text" disabled value={me?.full_name || employee.full_name || ''} className={inputClass} />
             </Field>
@@ -176,6 +187,7 @@ function MyProfileCard() {
             <Field label="Phone">
               <input
                 type="tel"
+                disabled={unavailable || updateProfile.isPending}
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+91 …"
@@ -189,12 +201,12 @@ function MyProfileCard() {
               <input type="text" disabled value={me?.designation?.title || '—'} className={inputClass} />
             </Field>
           </div>
-          <div className="flex items-center gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-850">
+          <div className="settings-card-actions flex items-center gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-850">
             <SaveButton
               onClick={save}
               pending={updateProfile.isPending}
               saved={saved}
-              disabled={(me?.phone || '') === phone.trim()}
+              disabled={unavailable || (me?.phone || '') === phone.trim()}
             />
             {updateProfile.isError && (
               <span className="text-xs text-rose-500">{updateProfile.error?.message}</span>
@@ -233,11 +245,12 @@ function PreferencesCard({
   const DeviceIcon = deviceStatus.Icon;
 
   return (
-    <div className="premium-card space-y-4">
+    <>
+    <div className="premium-card settings-card space-y-4">
       <CardTitle
         icon={Palette}
-        title="Appearance & Device"
-        subtitle="Preferences saved on this device, so your phone and desktop can each feel right."
+        title="Appearance"
+        subtitle="Choose how this device looks and displays time."
       />
 
       <div className="settings-stack">
@@ -261,6 +274,7 @@ function PreferencesCard({
 
         <SettingRow
           icon={Clock}
+          className="settings-time-row"
           title="Time format"
           detail="Used across attendance screens, timelines, and spreadsheet exports."
         >
@@ -283,6 +297,11 @@ function PreferencesCard({
           </div>
         </SettingRow>
 
+      </div>
+    </div>
+    <div className="premium-card settings-card space-y-4">
+      <CardTitle icon={Smartphone} title="App & device" subtitle="Installation, updates and connection status." />
+      <div className="settings-stack">
         <SettingRow
           icon={Smartphone}
           title="Installed app"
@@ -320,6 +339,7 @@ function PreferencesCard({
         </SettingRow>
       </div>
     </div>
+    </>
   );
 }
 
@@ -329,10 +349,12 @@ function WorkspaceCard() {
   // the few screens still open in that view — which made this the one place a super admin kept a
   // live, editable Workspace card while the rest of the app treated them as an employee.
   const { isSuperAdmin } = usePermissions();
-  const { data: settings = {} } = useWorkspaceSettings();
+  const settingsQuery = useWorkspaceSettings();
+  const settings = settingsQuery.data || {};
+  const unavailable = settingsQuery.isLoading || settingsQuery.isError || settingsQuery.data === undefined;
   const saveSettings = useSaveWorkspaceSettings();
 
-  const [form, setForm] = useState({ company_name: '', domain: '', locale: '' });
+  const [form, setForm] = useState(() => ({ company_name: settings.company_name || '', domain: settings.domain || '', locale: settings.locale || '' }));
   const [saved, setSaved] = useState(false);
   useEffect(() => {
     setForm({
@@ -356,33 +378,38 @@ function WorkspaceCard() {
 
 
   return (
-    <div className="premium-card space-y-4">
-      <div className="mobile-list-row flex items-center justify-between">
+    <div className="premium-card settings-card space-y-4">
+      <div className="settings-workspace-heading">
         <CardTitle
           icon={Building2}
           title="Workspace"
           subtitle="Company defaults shared across the HR workspace."
         />
         {!isSuperAdmin && (
-          <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">
+          <span className="settings-managed-note">
             managed by your administrator
           </span>
         )}
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
+      {settingsQuery.isLoading && <p className="settings-card-notice" role="status">Loading workspace settings…</p>}
+      {settingsQuery.isError && <div className="settings-card-notice" role="alert">
+        <p>Workspace settings could not be loaded.</p>
+        <ActionButton onClick={() => settingsQuery.refetch()}>Try again</ActionButton>
+      </div>}
+      <div className="settings-form-grid settings-workspace-fields">
         <Field label="Company Name">
-          <input type="text" disabled={!isSuperAdmin} value={form.company_name} onChange={set('company_name')} className={inputClass} />
+          <input type="text" disabled={!isSuperAdmin || unavailable} value={form.company_name} onChange={set('company_name')} className={inputClass} />
         </Field>
         <Field label="Company Domain">
-          <input type="text" disabled={!isSuperAdmin} value={form.domain} onChange={set('domain')} className={inputClass} />
+          <input type="text" disabled={!isSuperAdmin || unavailable} value={form.domain} onChange={set('domain')} className={inputClass} />
         </Field>
         <Field label="Default Locale">
-          <input type="text" disabled={!isSuperAdmin} value={form.locale} onChange={set('locale')} className={inputClass} />
+          <input type="text" disabled={!isSuperAdmin || unavailable} value={form.locale} onChange={set('locale')} className={inputClass} />
         </Field>
       </div>
       {isSuperAdmin && (
-        <div className="flex items-center gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-850">
-          <SaveButton onClick={save} pending={saveSettings.isPending} saved={saved} disabled={!dirty} />
+        <div className="settings-card-actions flex items-center gap-3 pt-2 border-t border-neutral-200 dark:border-neutral-850">
+          <SaveButton onClick={save} pending={saveSettings.isPending} saved={saved} disabled={unavailable || !dirty} />
           {saveSettings.isError && (
             <span className="text-xs text-rose-500">{saveSettings.error?.message}</span>
           )}
@@ -393,59 +420,82 @@ function WorkspaceCard() {
 }
 
 
+const SETTINGS_SECTIONS = [
+  { id: 'general', label: 'General', description: 'Appearance & app', icon: Palette },
+  { id: 'account', label: 'Account', description: 'Your contact details', icon: UserRound },
+  { id: 'security', label: 'Security', description: 'Password & access', icon: ShieldCheck },
+  { id: 'workspace', label: 'Workspace', description: 'Company defaults', icon: Building2 },
+];
+
 export default function SettingsPage({
-  theme,
-  onToggleTheme,
-  installAvailable,
-  installed,
-  updateAvailable,
-  online,
-  onInstall,
-  onUpdate,
+  theme, onToggleTheme, installAvailable, installed, updateAvailable, online, onInstall, onUpdate,
 }) {
+  const [section, setSection] = useState('general');
+  const [verticalTabs, setVerticalTabs] = useState(false);
+  const tabs = useRef([]);
+  useEffect(() => {
+    const wide = window.matchMedia('(min-width: 1100px)');
+    const update = () => setVerticalTabs(wide.matches);
+    update();
+    wide.addEventListener('change', update);
+    return () => wide.removeEventListener('change', update);
+  }, []);
+  const selectSection = (id) => {
+    setSection(id);
+    document.getElementById('main-content')?.scrollTo({ top: 0 });
+  };
+  const moveTab = (event, index) => {
+    let next;
+    if (['ArrowRight', 'ArrowDown'].includes(event.key)) next = (index + 1) % SETTINGS_SECTIONS.length;
+    else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) next = (index + SETTINGS_SECTIONS.length - 1) % SETTINGS_SECTIONS.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = SETTINGS_SECTIONS.length - 1;
+    else return;
+    event.preventDefault();
+    tabs.current[next]?.focus({ preventScroll: true });
+    selectSection(SETTINGS_SECTIONS[next].id);
+  };
+
   return (
-    <div className="page-shell settings-page space-y-5 animate-fade-in text-xs text-neutral-500">
-      <div className="settings-hero">
-        <div className="min-w-0">
-          <p className="text-2xs font-bold uppercase tracking-wider text-brand-ink dark:text-brand-ink">
-            Preferences
-          </p>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">
-            Settings
-          </h1>
-        </div>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          Theme, app behavior, password, profile, and workspace defaults.
-        </p>
-      </div>
-      <div className="settings-layout">
-        <div className="settings-main-column">
-          <PreferencesCard
-            theme={theme}
-            onToggleTheme={onToggleTheme}
-            installAvailable={installAvailable}
-            installed={installed}
-            updateAvailable={updateAvailable}
-            online={online}
-            onInstall={onInstall}
-            onUpdate={onUpdate}
-          />
-          <ChangePassword />
-        </div>
-        <div className="settings-main-column">
-          <MyProfileCard />
-          <WorkspaceCard />
-          <div className="premium-card space-y-3">
-            <CardTitle
-              icon={ShieldCheck}
-              title="Security Notes"
-              subtitle="Access, roles, and employee data are controlled by Administration and database policies."
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <span className="settings-status-pill justify-center">Role based access</span>
-              <span className="settings-status-pill justify-center">Scoped employee data</span>
+    <div className="page-shell settings-page settings-organized">
+      <header className="settings-heading">
+        <h1>Settings</h1>
+        <p>Manage your account and make the app work for you.</p>
+      </header>
+      <div className="settings-workspace">
+        <nav className="settings-categories" role="tablist" aria-label="Settings sections" aria-orientation={verticalTabs ? 'vertical' : 'horizontal'}>
+          {SETTINGS_SECTIONS.map(({ id, label, description, icon: Icon }, index) => (
+            <button key={id} type="button" role="tab" className="settings-category"
+              aria-label={label}
+              id={`settings-tab-${id}`} aria-controls={`settings-panel-${id}`}
+              aria-selected={section === id} tabIndex={section === id ? 0 : -1}
+              ref={node => { tabs.current[index] = node; }}
+              onClick={() => selectSection(id)} onKeyDown={event => moveTab(event, index)}>
+              <Icon size={20} aria-hidden="true" />
+              <span className="settings-category-copy"><strong>{label}</strong><small>{description}</small></span>
+              <ChevronRight size={16} className="settings-category-arrow" aria-hidden="true" />
+            </button>
+          ))}
+        </nav>
+        <div className="settings-panels">
+          {/* Keep panels mounted so switching sections preserves unsaved form drafts. */}
+          <section className="settings-panel" role="tabpanel" id="settings-panel-general" aria-labelledby="settings-tab-general" hidden={section !== 'general'} tabIndex={0}>
+            <PreferencesCard theme={theme} onToggleTheme={onToggleTheme} installAvailable={installAvailable}
+              installed={installed} updateAvailable={updateAvailable} online={online} onInstall={onInstall} onUpdate={onUpdate} />
+          </section>
+          <section className="settings-panel" role="tabpanel" id="settings-panel-account" aria-labelledby="settings-tab-account" hidden={section !== 'account'} tabIndex={0}>
+            <MyProfileCard />
+          </section>
+          <section className="settings-panel" role="tabpanel" id="settings-panel-security" aria-labelledby="settings-tab-security" hidden={section !== 'security'} tabIndex={0}>
+            <div className="settings-security"><ChangePassword /></div>
+            <div className="premium-card settings-card settings-security-note">
+              <CardTitle icon={ShieldCheck} title="Account access" subtitle="Your administrator manages roles and access to employee information." />
+              <p>Contact your HR administrator if you need to change your access or report an account issue.</p>
             </div>
-          </div>
+          </section>
+          <section className="settings-panel" role="tabpanel" id="settings-panel-workspace" aria-labelledby="settings-tab-workspace" hidden={section !== 'workspace'} tabIndex={0}>
+            <WorkspaceCard />
+          </section>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import {
   ESS_NAV, OVERSIGHT_NAV, canSeeTab, visibleSections as navSections,
-  mobilePrimarySections as pickMobilePrimary, mobileSectionActive,
+  mobilePrimarySections as pickMobilePrimary,
 } from './lib/navMap';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
@@ -39,6 +39,8 @@ const Notifications = lazy(() => import('./components/Notifications'));
 import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
+import LiquidGlassNav from './components/ui/LiquidGlassNav';
+import './components/ui/liquidGlassNav.css';
 import { useAuth } from './auth/AuthContext';
 import { useEmployeeAvatars } from './data/documents';
 import './components/profileNavigation.css';
@@ -174,7 +176,6 @@ export default function App() {
   }, []);
   const { data: ownAvatars = {} } = useEmployeeAvatars(employee?.id ? [employee.id] : []);
   const avatarUrl = ownAvatars[employee?.id];
-  const [failedAvatar, setFailedAvatar] = useState(null);
 
   useEffect(() => {
     if (!mobileMenuOpen) return undefined;
@@ -524,10 +525,12 @@ export default function App() {
   }, [primaryRole, activeSection, activeTab]);
 
   const mobilePrimarySections = pickMobilePrimary(visibleSections, primaryRole).map(section => ({
-    ...section, icon: ESS_ICONS[section.id] ?? (section.id === 'menu' ? Menu : section.icon),
+    ...section,
+    icon: ESS_ICONS[section.id] ?? (section.id === 'menu' ? Menu : section.icon),
+    label: MOBILE_NAV_LABELS[section.id] ?? section.label,
+    avatarUrl: section.id === 'profile' ? avatarUrl : undefined,
+    initials: displayInitials,
   }));
-  const mobileNavCount = mobilePrimarySections.length;
-  const mobileNavActiveIndex = mobilePrimarySections.findIndex(section => mobileSectionActive(section, activeTab));
   const needle = menuSearch.trim().toLowerCase();
   const menuSections = visibleSections.map(section => ({
     ...section,
@@ -1112,47 +1115,16 @@ export default function App() {
           onInstall={installPwa}
         />
 
-        <nav
-          aria-label="Primary mobile navigation"
-          data-pwa={isPwaInstalled ? 'true' : 'false'}
-          className="mobile-bottom-nav lg:hidden"
-          style={{
-            '--nav-count': String(Math.max(mobileNavCount, 1)),
-            '--nav-active': String(Math.max(mobileNavActiveIndex, 0)),
+        <LiquidGlassNav
+          items={mobilePrimarySections}
+          activeId={activeTab}
+          menuOpen={mobileMenuOpen}
+          isPwaInstalled={isPwaInstalled}
+          onSelect={(item, event) => {
+            if (item.id === 'menu') openMobileMenu(event);
+            else setActiveTab(item.tabs[0].id);
           }}
-        >
-          <span
-            className="mobile-bottom-nav-indicator"
-            data-visible={mobileNavActiveIndex >= 0 ? 'true' : 'false'}
-            aria-hidden="true"
-          />
-          {mobilePrimarySections.map((sec) => {
-            const Icon = sec.icon;
-            const on = mobileSectionActive(sec, activeTab);
-            const mobileLabel = MOBILE_NAV_LABELS[sec.id] ?? sec.label;
-            return (
-              <button
-                key={sec.id}
-                type="button"
-                onClick={sec.id === 'menu' ? openMobileMenu : () => setActiveTab(sec.tabs[0].id)}
-                aria-expanded={sec.id === 'menu' ? mobileMenuOpen : undefined}
-                aria-controls={sec.id === 'menu' ? 'mobile-navigation' : undefined}
-                aria-current={on ? 'page' : undefined}
-                aria-label={mobileLabel}
-                title={mobileLabel}
-                className={`mobile-bottom-nav-item ${on ? 'mobile-bottom-nav-item-active' : ''}`}
-              >
-                {sec.id === 'profile' ? <span className="mobile-bottom-nav-avatar" aria-hidden="true">
-                  {avatarUrl && failedAvatar !== avatarUrl
-                    ? <img src={avatarUrl} alt="" onError={() => setFailedAvatar(avatarUrl)} />
-                    : <span>{displayInitials}</span>}
-                </span> : <Icon size={20} />}
-                <span className="mobile-bottom-nav-label" aria-hidden="true">{mobileLabel}</span>
-              </button>
-            );
-          })}
-
-        </nav>
+        />
 
       </div>
 

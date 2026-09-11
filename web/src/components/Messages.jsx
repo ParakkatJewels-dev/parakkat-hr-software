@@ -11,6 +11,7 @@
 //   * Live calls. Different project — WebRTC, signalling, and relay servers that cost money every
 //     month whether anybody calls or not.
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
   Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Pause, Settings,
@@ -1037,12 +1038,12 @@ export function NewConversation({ me, onClose, onOpened }) {
     try { onOpened(await createGroup.mutateAsync({ title, memberIds: picked })); } catch { /* shown below */ }
   };
 
-  return (
+  const dialog = (
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+      className="messages-new-conversation-overlay fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div role="dialog" aria-modal="true" aria-label={mode === 'group' ? 'New group' : 'New message'} className="w-full sm:max-w-md bg-white dark:bg-neutral-950 rounded-t-2xl sm:rounded-2xl border border-neutral-200 dark:border-neutral-850 p-4 space-y-3 max-h-[85vh] flex flex-col">
+      <div role="dialog" aria-modal="true" aria-label={mode === 'group' ? 'New group' : 'New message'} className="messages-new-conversation-panel w-full sm:max-w-md bg-white dark:bg-neutral-950 rounded-t-2xl sm:rounded-2xl border border-neutral-200 dark:border-neutral-850 p-4 space-y-3 max-h-[85vh] flex flex-col">
         <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-neutral-900 dark:text-white">
             {mode === 'group' ? 'New group' : 'New message'}
@@ -1096,7 +1097,7 @@ export function NewConversation({ me, onClose, onOpened }) {
           </p>
         )}
 
-        <div className="flex-1 min-h-0 overflow-y-auto -mx-1 px-1 divide-y divide-neutral-150 dark:divide-neutral-850/60">
+        <div className="messages-new-conversation-people flex-1 min-h-0 overflow-y-auto -mx-1 px-1 divide-y divide-neutral-150 dark:divide-neutral-850/60">
           {loadingEmployees ? <p role="status" className="py-6 text-center text-xs text-neutral-500">Loading people…</p> : !employeeError && results.length === 0 && (
             <p className="py-6 text-center text-xs text-neutral-500">{query.trim() ? 'Nobody matches that.' : 'No colleagues available to message yet.'}</p>
           )}
@@ -1141,6 +1142,9 @@ export function NewConversation({ me, onClose, onOpened }) {
       </div>
     </div>
   );
+  // The animated Messages page forms a stacking context below the floating navigation.
+  // Mount the picker outside it so the modal covers navigation at every content height.
+  return typeof document === 'undefined' ? dialog : createPortal(dialog, document.body);
 }
 
 /* ------------------------------------------------------------ chat settings -- */

@@ -1,0 +1,399 @@
+/* The capsule's material is separate from its controls: only the decorative surface
+   samples the backdrop, so labels and icons stay sharp while the lens moves. */
+@media (max-width: 1023px) {
+  .mobile-bottom-nav.liquid-glass-nav {
+    --glass-light-x: 50%;
+    --glass-light-y: 0%;
+    --glass-press: 0;
+    --glass-film-top: rgba(255, 255, 255, .53);
+    --glass-film-bottom: rgba(246, 250, 249, .29);
+    --glass-edge: rgba(255, 255, 255, .62);
+    --glass-highlight: rgba(255, 255, 255, .92);
+    --glass-shadow: rgba(20, 37, 32, .2);
+    --glass-lens-top: rgba(255, 255, 255, .62);
+    --glass-lens-bottom: rgba(255, 255, 255, .16);
+
+    /* Keep the inherited absolute anchoring, grid, safe areas and 44px targets. */
+    border-color: transparent;
+    overflow: visible;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow:
+      0 3px 8px rgba(20, 37, 32, .05),
+      0 10px 28px -6px var(--glass-shadow),
+      0 1px 2px rgba(20, 37, 32, .08);
+    touch-action: pan-y;
+  }
+
+  /* Replace the old static top shine with pointer-directed material layers. */
+  .mobile-bottom-nav.liquid-glass-nav::before {
+    content: none;
+  }
+
+  .liquid-glass-nav__surface,
+  .liquid-glass-nav__rim,
+  .liquid-glass-nav__sheen {
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .liquid-glass-nav__surface {
+    z-index: 0;
+    overflow: hidden;
+    background: var(--surface-elevated);
+    box-shadow:
+      inset 0 1.5px 1px var(--glass-highlight),
+      inset 1px 0 1px rgba(255, 255, 255, .26),
+      inset -1px 0 1px rgba(255, 255, 255, .17),
+      inset 0 -1px 1px rgba(25, 48, 41, .13);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .liquid-glass-nav__surface {
+      background: linear-gradient(165deg, var(--glass-film-top), var(--glass-film-bottom));
+      -webkit-backdrop-filter: blur(18px) saturate(175%);
+      backdrop-filter: blur(18px) saturate(175%);
+    }
+  }
+
+  .liquid-glass-nav__rim {
+    z-index: 1;
+    border: 1px solid var(--glass-edge);
+    box-shadow:
+      inset 0 0 0 1px rgba(255, 255, 255, .07),
+      0 0 0 .5px rgba(24, 43, 36, .06);
+  }
+
+  /* A masked one-pixel rim keeps the spectral split at the edge. Unsupported
+     mask compositing falls back to the ordinary border above. */
+  @supports ((mask-composite: exclude) or (-webkit-mask-composite: xor)) {
+    .liquid-glass-nav__rim::before,
+    .liquid-glass-nav__lens::before {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      padding: 1.25px;
+      border-radius: inherit;
+      background:
+        radial-gradient(ellipse 42% 100% at var(--glass-light-x) var(--glass-light-y),
+          rgba(255, 255, 255, .98), rgba(255, 255, 255, .12) 72%, transparent),
+        linear-gradient(140deg,
+          rgba(166, 216, 255, .38), rgba(255, 255, 255, .06) 27%,
+          rgba(255, 223, 184, .18) 54%, rgba(186, 175, 255, .24) 82%,
+          rgba(255, 255, 255, .55));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+  }
+
+  .liquid-glass-nav__sheen {
+    z-index: 1;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 44% 135% at var(--glass-light-x) var(--glass-light-y),
+        rgba(255, 255, 255, .25), rgba(255, 255, 255, .03) 60%, transparent 82%),
+      linear-gradient(180deg, rgba(255, 255, 255, .13), transparent 38% 75%, rgba(255, 255, 255, .05));
+    opacity: calc(.68 + var(--glass-press) * .22);
+    transition: opacity 180ms ease;
+  }
+
+  .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens {
+    position: absolute;
+    z-index: 2;
+    top: var(--nav-pad);
+    bottom: var(--nav-pad);
+    left: 0;
+    width: var(--glass-width, 0px);
+    transform: translateX(var(--glass-x, 0px))
+      scaleX(var(--glass-stretch, 1)) scaleY(var(--glass-squash, 1));
+    transform-origin: 50% 50%;
+    border: 1px solid rgba(255, 255, 255, .65);
+    border-radius: 999px;
+    background:
+      radial-gradient(ellipse at var(--glass-light-x) var(--glass-light-y),
+        rgba(255, 255, 255, .42), transparent 72%),
+      linear-gradient(160deg, var(--glass-lens-top), var(--glass-lens-bottom));
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, .88),
+      inset 1px 0 1px rgba(255, 255, 255, .36),
+      inset -1px 0 1px rgba(255, 255, 255, .2),
+      inset 0 -1px 1px rgba(255, 255, 255, .43),
+      0 2px 4px rgba(21, 43, 34, .06),
+      0 5px 12px -4px rgba(21, 43, 34, .18);
+    /* The spring updates transform and width directly. CSS easing would lag behind it. */
+    transition: opacity 160ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    pointer-events: none;
+  }
+
+  .liquid-glass-nav__lens::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background:
+      radial-gradient(ellipse 85% 55% at var(--glass-light-x) 0%,
+        rgba(255, 255, 255, .42), transparent 100%);
+    opacity: calc(.5 + var(--glass-press) * .35);
+    pointer-events: none;
+  }
+
+  .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .liquid-glass-nav__lens {
+    border-color: rgba(255, 255, 255, .92);
+    box-shadow:
+      inset 0 2px 1px rgba(255, 255, 255, .95),
+      inset 1px 0 2px rgba(255, 255, 255, .48),
+      inset -1px 0 2px rgba(255, 255, 255, .38),
+      inset 0 -1px 1px rgba(255, 255, 255, .5),
+      0 4px 7px rgba(21, 43, 34, .1),
+      0 9px 18px -4px rgba(21, 43, 34, .22);
+  }
+
+  .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item {
+    z-index: 3;
+    overflow: visible;
+    background: transparent;
+    touch-action: pan-y;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, .35);
+    transition: color 160ms ease;
+  }
+
+  .liquid-glass-nav .mobile-bottom-nav-icon {
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 1.55rem;
+    transform-origin: 50% 70%;
+    transition: transform 260ms cubic-bezier(.2, .9, .28, 1.3);
+  }
+
+  .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item svg,
+  .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-avatar {
+    transform: none;
+  }
+
+  .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item:active {
+    transform: none;
+  }
+
+  .liquid-glass-nav .mobile-bottom-nav-item:active .mobile-bottom-nav-icon {
+    transform: translateY(-1px) scale(1.13);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item:hover {
+      background: transparent;
+      transform: none;
+    }
+
+    .liquid-glass-nav .mobile-bottom-nav-item:hover .mobile-bottom-nav-icon {
+      transform: translateY(-2px) scale(1.12);
+    }
+
+    .liquid-glass-nav .mobile-bottom-nav-item:active .mobile-bottom-nav-icon {
+      transform: translateY(-1px) scale(1.16);
+    }
+  }
+
+  .dark .mobile-bottom-nav.liquid-glass-nav {
+    --glass-film-top: rgba(35, 43, 41, .77);
+    --glass-film-bottom: rgba(22, 29, 27, .55);
+    --glass-edge: rgba(255, 255, 255, .25);
+    --glass-highlight: rgba(255, 255, 255, .29);
+    --glass-shadow: rgba(0, 0, 0, .5);
+    --glass-lens-top: rgba(255, 255, 255, .19);
+    --glass-lens-bottom: rgba(255, 255, 255, .055);
+
+    background: transparent;
+    border-color: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .dark .liquid-glass-nav__sheen {
+    opacity: calc(.26 + var(--glass-press) * .18);
+  }
+
+  .dark .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens {
+    border-color: rgba(255, 255, 255, .27);
+    background:
+      radial-gradient(ellipse at var(--glass-light-x) var(--glass-light-y),
+        rgba(255, 255, 255, .12), transparent 72%),
+      linear-gradient(160deg, var(--glass-lens-top), var(--glass-lens-bottom));
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, .32),
+      inset 1px 0 1px rgba(255, 255, 255, .13),
+      inset -1px 0 1px rgba(255, 255, 255, .08),
+      inset 0 -1px 1px rgba(255, 255, 255, .1),
+      0 2px 5px rgba(0, 0, 0, .19),
+      0 7px 14px -4px rgba(0, 0, 0, .32);
+  }
+
+  .dark .liquid-glass-nav__lens::before {
+    opacity: .5;
+  }
+
+  .dark .liquid-glass-nav__lens::after {
+    opacity: calc(.14 + var(--glass-press) * .16);
+  }
+
+  .dark .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .liquid-glass-nav__lens {
+    border-color: rgba(255, 255, 255, .45);
+    box-shadow:
+      inset 0 1.5px 1px rgba(255, 255, 255, .46),
+      inset 1px 0 1px rgba(255, 255, 255, .22),
+      inset -1px 0 1px rgba(255, 255, 255, .16),
+      inset 0 -1px 1px rgba(255, 255, 255, .17),
+      0 4px 7px rgba(0, 0, 0, .24),
+      0 9px 18px -4px rgba(0, 0, 0, .5);
+  }
+
+  .dark .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .35);
+  }
+
+  /* Preview the destination beneath the finger without changing aria-current or
+     navigating before release. The original pressed icon returns to its rest size. */
+  .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item {
+    color: var(--surface-text);
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item svg {
+    fill: transparent;
+    stroke-width: 1.8;
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-label {
+    font-weight: 600;
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-avatar {
+    border-color: color-mix(in srgb, currentColor 45%, transparent);
+    box-shadow: none;
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item .mobile-bottom-nav-icon {
+    transform: none;
+  }
+
+  .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] {
+    color: var(--accent-strong);
+  }
+
+  .dark .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] {
+    color: var(--accent-ink);
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] svg {
+    fill: color-mix(in srgb, currentColor 20%, transparent);
+    stroke-width: 2.1;
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] .mobile-bottom-nav-label {
+    font-weight: 700;
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] .mobile-bottom-nav-avatar {
+    border-color: currentColor;
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] .mobile-bottom-nav-icon {
+    transform: translateY(-1.5px) scale(1.13);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens,
+    .liquid-glass-nav__sheen,
+    .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item,
+    .liquid-glass-nav .mobile-bottom-nav-icon,
+    .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item svg,
+    .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-avatar {
+      transition: none;
+    }
+
+    .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens {
+      transform: translateX(var(--glass-x, 0px));
+    }
+
+    .liquid-glass-nav .mobile-bottom-nav-item:hover .mobile-bottom-nav-icon,
+    .liquid-glass-nav .mobile-bottom-nav-item:active .mobile-bottom-nav-icon,
+    .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] .mobile-bottom-nav-icon {
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .mobile-bottom-nav.liquid-glass-nav,
+    .dark .mobile-bottom-nav.liquid-glass-nav {
+      border-color: var(--surface-text-soft);
+      background: var(--surface-elevated);
+    }
+
+    .liquid-glass-nav__surface {
+      background: var(--surface-elevated);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      box-shadow: none;
+    }
+
+    .liquid-glass-nav__rim,
+    .liquid-glass-nav__sheen,
+    .liquid-glass-nav__lens::before,
+    .liquid-glass-nav__lens::after {
+      display: none;
+    }
+
+    .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens,
+    .dark .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens,
+    .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .liquid-glass-nav__lens,
+    .dark .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .liquid-glass-nav__lens {
+      border: 1px solid var(--surface-text-soft);
+      background: var(--surface-muted);
+      box-shadow: none;
+    }
+
+    .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item,
+    .dark .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item {
+      text-shadow: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .mobile-bottom-nav.liquid-glass-nav,
+    .dark .mobile-bottom-nav.liquid-glass-nav {
+      border-color: ButtonText;
+      background: Canvas;
+      box-shadow: none;
+    }
+
+    .liquid-glass-nav__surface,
+    .liquid-glass-nav__rim,
+    .liquid-glass-nav__sheen,
+    .liquid-glass-nav__lens::before,
+    .liquid-glass-nav__lens::after {
+      display: none;
+    }
+
+    .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens,
+    .dark .mobile-bottom-nav.liquid-glass-nav .liquid-glass-nav__lens,
+    .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .liquid-glass-nav__lens,
+    .dark .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .liquid-glass-nav__lens {
+      background: Canvas;
+      border: 2px solid Highlight;
+      box-shadow: none;
+      forced-color-adjust: none;
+    }
+
+    .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item,
+    .dark .mobile-bottom-nav.liquid-glass-nav .mobile-bottom-nav-item {
+      color: ButtonText;
+      text-shadow: none;
+    }
+  }
+}

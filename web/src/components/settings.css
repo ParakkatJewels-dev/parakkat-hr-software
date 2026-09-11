@@ -1,0 +1,645 @@
+/* Settings owns its card and control geometry at every screen size. */
+.settings-page.settings-organized {
+  --settings-card-radius: 1rem;
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+  max-width: 1180px;
+  color: var(--surface-text);
+}
+
+.app-main .settings-page.settings-organized > * + * {
+  margin-top: 0 !important;
+}
+
+.settings-page.settings-organized :where(button, input, select) {
+  min-height: 2.75rem;
+}
+
+/* Older work screens style their first heading as a banner. This heading is plain. */
+.app-content .app-main .page-shell.settings-page.settings-organized > .settings-heading:first-child {
+  display: grid;
+  gap: .35rem;
+  min-width: 0;
+  padding: .25rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.app-content .app-main .page-shell.settings-page.settings-organized > .settings-heading:first-child::before {
+  display: none;
+}
+
+.settings-organized .settings-heading h1 {
+  margin: 0;
+  color: var(--surface-text);
+  font-size: 1.5rem;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -.025em;
+}
+
+.settings-organized .settings-heading p {
+  max-width: 46rem;
+  margin: 0;
+  color: var(--surface-text-soft);
+  font-size: .8125rem;
+  line-height: 1.5;
+}
+
+.settings-organized .settings-workspace {
+  display: grid;
+  grid-template-columns: 210px minmax(0, 1fr);
+  align-items: start;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.settings-organized .settings-categories {
+  display: grid;
+  align-content: start;
+  gap: .25rem;
+  min-width: 0;
+  padding: .5rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--settings-card-radius);
+  background: var(--surface-elevated);
+}
+
+.settings-organized .settings-category {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  min-width: 0;
+  min-height: 3.75rem;
+  padding: .75rem .6rem;
+  border: 1px solid transparent;
+  border-radius: .65rem;
+  background: transparent;
+  color: var(--surface-text-soft);
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.settings-organized .settings-category > svg {
+  flex: none;
+}
+
+.settings-organized .settings-category-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: .2rem;
+}
+
+.settings-organized .settings-category-copy strong {
+  color: inherit;
+  font-size: .8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.settings-organized .settings-category-copy small {
+  color: var(--surface-text-soft);
+  font-size: .6875rem;
+  line-height: 1.4;
+}
+
+.settings-organized .settings-category-arrow {
+  width: 14px;
+  height: 14px;
+  opacity: .65;
+}
+
+.settings-organized .settings-category[aria-selected="true"] {
+  border-color: color-mix(in srgb, var(--accent) 18%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.settings-organized .settings-category:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.settings-organized .settings-panels,
+.settings-organized .settings-panel {
+  min-width: 0;
+}
+
+.settings-organized .settings-panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-organized .settings-panel[hidden] {
+  display: none;
+}
+
+.settings-organized .premium-card.settings-card,
+.settings-organized .settings-security > .premium-card {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--settings-card-radius);
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  box-shadow: none;
+  transition: none;
+}
+
+.app-main .settings-organized .premium-card.settings-card > *,
+.app-main .settings-organized .settings-security > .premium-card > * {
+  margin-block: 0 !important;
+}
+
+.settings-organized .settings-card-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  min-width: 0;
+  margin-bottom: 1rem;
+}
+
+.settings-organized .settings-card-heading > span {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: .65rem;
+  background: var(--surface-muted);
+  color: var(--accent-strong);
+}
+
+.settings-organized .settings-card-heading > div {
+  min-width: 0;
+}
+
+.settings-organized .settings-card-heading h2 {
+  margin: 0;
+  color: var(--surface-text);
+  font-size: 1rem !important;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.settings-organized .settings-card-heading p {
+  margin: .2rem 0 0;
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-organized .settings-stack {
+  display: grid;
+  gap: 0;
+}
+
+.settings-organized .settings-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  min-height: 4.5rem;
+  padding: .9rem 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.settings-organized .settings-row + .settings-row {
+  border-top: 1px solid var(--surface-border);
+}
+
+.settings-organized .settings-row:first-child {
+  padding-top: .15rem;
+}
+
+.settings-organized .settings-row:last-child {
+  padding-bottom: 0;
+}
+
+.settings-organized .settings-row-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  min-width: 0;
+}
+
+.settings-organized .settings-row-copy > span {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: .5rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text-soft);
+}
+
+.settings-organized .settings-row-copy > div {
+  min-width: 0;
+}
+
+.settings-organized .settings-row-copy p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-organized .settings-row-copy p:first-child {
+  color: var(--surface-text);
+  font-size: .8125rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.settings-organized .settings-row-copy p + p {
+  margin-top: .2rem;
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  line-height: 1.5;
+}
+
+.settings-organized .settings-row-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: auto;
+  min-width: 0;
+}
+
+.settings-organized .settings-row-action > * {
+  width: auto;
+  max-width: 100%;
+}
+
+.settings-organized .settings-row-action > div {
+  justify-content: flex-end;
+}
+
+.settings-organized .settings-theme-control {
+  flex: none;
+  gap: .5rem;
+}
+
+.settings-organized .settings-segmented {
+  grid-template-columns: repeat(2, minmax(5.25rem, 1fr));
+  gap: .25rem;
+  padding: .25rem;
+  border-radius: .75rem;
+  background: var(--surface-subtle);
+}
+
+.settings-organized .settings-segmented > button {
+  min-height: 2.75rem;
+  padding: .4rem .5rem;
+  border-radius: .5rem;
+  font-size: .75rem;
+  line-height: 1.25;
+}
+
+.settings-organized .settings-status-pill {
+  flex: none;
+  gap: .3rem;
+  min-height: 2rem;
+  padding: .3rem .55rem;
+  font-size: .6875rem;
+  font-weight: 650;
+}
+
+.settings-organized .settings-row-action > button,
+.settings-organized .settings-card-actions > button {
+  border-radius: .65rem;
+  font-size: .8125rem;
+}
+
+.settings-organized .settings-form-grid,
+.settings-organized .settings-workspace-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  min-width: 0;
+}
+
+.settings-organized .settings-field {
+  display: grid;
+  align-content: start;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.settings-organized .settings-field label {
+  display: block;
+  margin: 0;
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.settings-organized .settings-field label span {
+  display: inline;
+  font-size: .6875rem;
+  font-weight: 400;
+}
+
+.settings-page.settings-organized .settings-field input,
+.settings-page.settings-organized .settings-security input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: .65rem .75rem;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: .65rem;
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  font-size: .875rem;
+  line-height: 1.4;
+}
+
+.settings-organized .settings-field input:disabled {
+  background: var(--surface-subtle);
+  color: var(--surface-text-soft);
+  opacity: 1;
+  cursor: default;
+  -webkit-text-fill-color: var(--surface-text-soft);
+}
+
+.settings-organized .settings-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.settings-organized .settings-card-actions > :not(button) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-organized .settings-card-notice,
+.settings-organized .settings-managed-note {
+  min-width: 0;
+  padding: .75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .65rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-organized .settings-card-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+}
+
+.settings-organized .settings-card-notice p {
+  flex: 1 1 10rem;
+  margin: 0;
+}
+
+.settings-organized .settings-card-notice button {
+  flex: none;
+}
+
+.settings-organized .settings-card-notice > svg {
+  flex: none;
+  margin-top: .1rem;
+}
+
+.settings-organized .settings-card-notice[role="alert"] {
+  border-color: color-mix(in srgb, var(--tone-red) 35%, var(--surface-border));
+  color: var(--tone-red);
+}
+
+.settings-organized .settings-managed-note {
+  display: block;
+  margin: 0 0 1rem;
+}
+
+.settings-organized .settings-workspace-heading {
+  display: grid;
+  gap: .75rem;
+}
+
+.settings-organized .settings-workspace-heading > * {
+  margin: 0;
+}
+
+.settings-organized .settings-security {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.settings-organized .settings-security > .premium-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-organized .settings-security > .premium-card > * {
+  margin: 0;
+}
+
+.settings-organized .settings-security > .premium-card > h3 {
+  color: var(--surface-text);
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.settings-organized .settings-security form {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.settings-organized .settings-security form > * {
+  margin: 0;
+}
+
+.settings-organized .settings-security form > div {
+  display: grid;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.settings-organized .settings-security form label {
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.settings-organized .settings-security form p {
+  font-size: .75rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.settings-organized .settings-security form > button {
+  justify-self: start;
+  border-radius: .65rem;
+}
+
+.settings-organized .settings-security-note p {
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1099px) {
+  .settings-organized .settings-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .settings-organized .settings-categories {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: .35rem;
+  }
+
+  .settings-organized .settings-category {
+    flex-direction: column;
+    justify-content: center;
+    gap: .35rem;
+    min-height: 3.5rem;
+    padding: .5rem .25rem;
+    text-align: center;
+  }
+
+  .settings-organized .settings-category > svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .settings-organized .settings-category-copy {
+    flex: none;
+  }
+
+  .settings-organized .settings-category-copy strong {
+    font-size: .75rem;
+  }
+
+  .settings-organized .settings-category-copy small,
+  .settings-organized .settings-category-arrow {
+    display: none;
+  }
+}
+
+@media (max-width: 639px) {
+  .settings-page.settings-organized {
+    gap: 1rem;
+  }
+
+  .settings-organized .settings-categories {
+    gap: .2rem;
+    padding: .25rem;
+  }
+
+  .settings-organized .settings-category-copy strong {
+    font-size: .71875rem;
+  }
+
+  .settings-organized .settings-category {
+    padding-inline: .125rem;
+  }
+
+  .settings-organized .premium-card.settings-card,
+  .settings-organized .settings-security > .premium-card {
+    padding: 1rem;
+  }
+
+  .settings-organized .settings-card-heading {
+    gap: .65rem;
+    margin-bottom: .9rem;
+  }
+
+  .settings-organized .settings-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: .65rem;
+    min-height: 4.15rem;
+    padding: .85rem 0;
+  }
+
+  .settings-organized .settings-row-copy {
+    gap: .5rem;
+  }
+
+  .settings-organized .settings-row-copy > span {
+    width: 1.5rem;
+    height: 1.5rem;
+  }
+
+  .settings-organized .settings-theme-control > span {
+    display: none;
+  }
+
+  .settings-organized .settings-time-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-organized .settings-time-row .settings-row-action,
+  .settings-organized .settings-time-row .settings-segmented {
+    width: 100%;
+  }
+
+  .settings-organized .settings-time-row .settings-segmented {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-organized .settings-form-grid,
+  .settings-organized .settings-workspace-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-organized .settings-card-actions > button,
+  .settings-organized .settings-security form > button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 1023px) {
+  .settings-page.settings-organized .settings-field input,
+  .settings-page.settings-organized .settings-security input {
+    font-size: 1rem;
+  }
+}
+
+@media (hover: hover) {
+  .settings-organized .settings-category:hover {
+    background: var(--surface-muted);
+    color: var(--surface-text);
+  }
+
+  .settings-organized .settings-category[aria-selected="true"]:hover {
+    background: var(--accent-soft);
+    color: var(--accent-strong);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-organized .settings-category {
+    transition: none;
+  }
+}

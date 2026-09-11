@@ -75,13 +75,8 @@
   box-shadow: none;
 }
 
-/* The one inset worth keeping, and it belongs at 640px rather than at the layout breakpoint.
-   The bottom nav is `display: none` at top level and is only turned on inside @media (max-width:
-   640px) — so between 641px and 1023px there is no capsule to clear, and reserving a band for it
-   there would put back exactly the dead space this file just removed. 640px is also where
-   --mobile-nav-height itself is defined, which makes the fallback below a belt rather than the
-   only thing holding the composer up. */
-@media (max-width: 640px) {
+/* Match the dock breakpoint so both phone and tablet composers clear navigation. */
+@media (max-width: 1023px) {
   .app-main:has(.messages-shell) { padding-bottom: var(--mobile-nav-height, 4.25rem); }
 }
 .messages-shell button { cursor: pointer; }
@@ -407,4 +402,29 @@
   .messages-settings-identity { margin-bottom: 12px; }
   .messages-settings-section { padding-block: 12px; }
   .messages-settings input { font-size: 16px; }
+}
+
+/* A short people list should not collapse the new-message sheet into the bottom dock. */
+.messages-new-conversation-panel > :not(.messages-new-conversation-people) { flex-shrink: 0; }
+.messages-new-conversation-panel > div:first-child button { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; }
+.messages-new-conversation-panel :is(button, input):focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+.messages-new-conversation-panel button:disabled { cursor: not-allowed; opacity: .45; }
+.messages-new-conversation-people { overscroll-behavior: contain; }
+.messages-new-conversation-people > button { min-height: 56px; }
+@media (max-width: 1023px) {
+  .messages-new-conversation-panel {
+    height: min(36rem, 75dvh);
+    max-height: calc(100dvh - 1rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .messages-new-conversation-panel input { min-height: 44px; font-size: 16px; }
+  .messages-new-conversation-panel > button { min-height: 44px; }
+  .messages-new-conversation-panel h2 { font-size: 17px; line-height: 1.4; }
+  .messages-new-conversation-panel > div:nth-child(2) button { min-height: 44px; }
+  .messages-new-conversation-people { min-height: 5.5rem; }
+}
+@media (max-width: 1023px) and (max-height: 560px) {
+  .messages-new-conversation-panel { height: calc(100dvh - 1rem); }
 }
