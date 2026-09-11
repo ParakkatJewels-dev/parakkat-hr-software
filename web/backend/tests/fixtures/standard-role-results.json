@@ -1,0 +1,17 @@
+{
+  "source": "Actual PostgreSQL RLS and mutation results in an isolated cluster",
+  "migrationCount": 127,
+  "groups": {
+    "shared": 12,
+    "employee": 122,
+    "anonymous": 12,
+    "dept_head": 120,
+    "hr_manager": 120,
+    "unassigned": 121,
+    "super_admin": 120,
+    "entity_admin": 120,
+    "zonal_manager": 120,
+    "branch_manager": 128
+  },
+  "assertions": 995
+}

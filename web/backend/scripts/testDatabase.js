@@ -27,6 +27,7 @@ try {
     const output = run('psql', [...connection, '-d', database, '-v', 'ON_ERROR_STOP=1', '-f', join(__dirname, '..', 'tests', filename)]);
     console.log(output.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
   }
+  require('./testRoleMatrix')({ run, connection: ['-h', directory, '-U', 'audit_owner'], directory });
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

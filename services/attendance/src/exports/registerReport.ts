@@ -24,6 +24,7 @@ export interface RegisterQuery {
   month: number;
   branchIds?: string[] | null;
   entityIds?: string[] | null;
+  scopeUnion?: boolean;
 }
 
 interface RegisterCell {
@@ -60,6 +61,7 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
   // Preserve empty selections so a caller cannot accidentally widen a denied scope.
   const branchIds = query.branchIds ?? null;
   const entityIds = query.entityIds ?? null;
+  const scopeUnion = query.scopeUnion === true;
 
   const records = await prisma.$queryRaw<
     Array<{
@@ -96,8 +98,12 @@ export async function buildRegisterRows(query: RegisterQuery): Promise<{ rows: R
       left join public.branches    br  on br.id  = e.branch_id
       left join public.departments dep on dep.id = e.department_id
      where (e.status = 'Active' or a.id is not null)
-       and (${branchIds}::uuid[] is null or e.branch_id = any(${branchIds}::uuid[]))
-       and (${entityIds}::uuid[] is null or e.entity_id = any(${entityIds}::uuid[]))
+       and (
+         (${scopeUnion} and (e.branch_id = any(${branchIds}::uuid[]) or e.entity_id = any(${entityIds}::uuid[])))
+         or (not ${scopeUnion}
+           and (${branchIds}::uuid[] is null or e.branch_id = any(${branchIds}::uuid[]))
+           and (${entityIds}::uuid[] is null or e.entity_id = any(${entityIds}::uuid[])))
+       )
      order by br.name nulls last, e.full_name, a.work_date
   `;
 

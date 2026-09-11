@@ -218,6 +218,9 @@
   .work-page .work-quick-fields .work-button { width: 100%; }
   .work-page .task-message-input { font-size: 16px; }
   .work-page .task-message-attach, .work-page .task-message-send { width: 40px; height: 40px; }
+  /* Flatten the composer on a phone. The input row already has its own border and surface, so the
+     padded card around it was a box inside a box, costing ~20px of the ~190px left to type in. */
+  .work-page .task-message-composer { padding: 0; border: 0; background: transparent; }
 }
 @keyframes work-detail-enter {
   from { opacity: 0; transform: translateY(-4px); }

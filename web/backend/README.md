@@ -76,7 +76,7 @@ redirect/email setup.
 
 Run `npm test` in this directory with PostgreSQL tools (`initdb`, `pg_ctl`, `createdb`, `psql`)
 on `PATH`. The runner creates its own temporary cluster and private UNIX socket, executes the
-account-integrity and workflow suites, then removes the cluster. It never reads `.env` files or
+account-integrity, workflow and standard-role suites, then removes the cluster. It never reads `.env` files or
 connects to the hosted application. The workflow suite loads the real foundational migrations,
 permission functions and RLS, then checks atomic shift replacement, rollback after a conflicting
 date range, preservation of future assignments, branch/company restrictions, assignment-only roles
@@ -87,3 +87,29 @@ form can save. It replaces the old sequence of browser writes with one transacti
 replacement preserves the employee's current shift. Migration `0123_goal_progress_guard.sql`
 prevents self-service users from rewriting a goal's definition or ancestry while allowing progress
 updates. Apply pending files using the normal migration runner; these tests do not deploy them.
+
+The standard-role suite replays every application migration against a minimal local Supabase SQL
+platform shell (Auth identities, Storage tables and Supabase's API-role default grants). It uses
+seven real standard role grants, including automatically added employee/self grants for managers,
+plus linked-but-unassigned and anonymous controls. Five synthetic peers sit across department,
+branch, zone and company boundaries; each actor also has their own employee record. Assertions
+compare exact visible rows and mutation outputs for employees, attendance, leave, expenses, tasks,
+goals, published/draft payslips and role administration. Successful trial writes are rolled back
+individually. Shared-task tests verify that membership permits work updates without transferring
+ownership. Migration `0124_role_revoke_visibility.sql` fixes scoped role revocation with returned
+rows; `0125_task_assignment_guard.sql` protects task ownership and delegation fields.
+
+Fresh replay also verifies the corrected `0119` view rebuild, which must drop the old view before
+changing its column order. Historical migration `0062` expects an existing `GN` shift configured in
+the deployed database: the disposable fixture inserts a synthetic `GN` shift immediately before
+that migration. The test does not assert that an entirely empty production project can replay the
+historical files without that prerequisite.
+
+The runner exports actual grants to `../src/test/standardRolePermissions.json` and actual
+`get_my_access()` payloads plus synthetic org IDs to `tests/fixtures/standard-role-access.json` for
+the browser, rendered-component and attendance HTTP role tests. The matrix covers representative
+standard scopes (global, entity, zone, branch, department and self); it does not exhaust arbitrary
+custom/multiple role combinations or all legitimate HR scope variants. Hosted authentication,
+PostgREST transport, Storage HTTP and Realtime are not started by these PostgreSQL tests. The
+existing `0113` exception is tested explicitly: a linked login without a role may insert a personal
+root task without requesting returned rows, while it remains unable to read or update that task.

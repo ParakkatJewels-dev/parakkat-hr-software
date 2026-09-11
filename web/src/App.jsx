@@ -982,7 +982,7 @@ export default function App() {
               {pullRefresh.refreshing ? 'Refreshing' : pullRefresh.ready ? 'Release to refresh' : 'Pull to refresh'}
             </strong>
           </div>
-          <div ref={routeStageRef} className="route-stage">
+          <div ref={routeStageRef} className="route-stage" data-route={location.pathname}>
             <Suspense fallback={<div className="page-shell py-24 flex justify-center text-neutral-400 text-xs">Loading…</div>}>
             {(() => {
               if (!canViewTab(activeTab)) {

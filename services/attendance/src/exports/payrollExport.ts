@@ -38,6 +38,7 @@ export interface PayrollQuery {
   /** Restrict to these branches; null = every branch the caller may see. */
   branchIds?: string[] | null;
   entityIds?: string[] | null;
+  scopeUnion?: boolean;
   columns?: string[];
 }
 
@@ -47,6 +48,7 @@ export async function buildPayrollRows(query: PayrollQuery): Promise<PayrollRow[
   // Omitted scope means all; an explicitly empty scope must continue to mean nobody.
   const branchIds = query.branchIds ?? null;
   const entityIds = query.entityIds ?? null;
+  const scopeUnion = query.scopeUnion === true;
 
   const rows = await prisma.$queryRaw<
     Array<{
@@ -117,8 +119,12 @@ export async function buildPayrollRows(query: PayrollQuery): Promise<PayrollRow[
     left join public.departments  dep on dep.id = e.department_id
     left join public.designations des on des.id = e.designation_id
     where (e.status = 'Active' or a.id is not null)
-      and (${branchIds}::uuid[] is null or e.branch_id = any(${branchIds}::uuid[]))
-      and (${entityIds}::uuid[] is null or e.entity_id = any(${entityIds}::uuid[]))
+      and (
+        (${scopeUnion} and (e.branch_id = any(${branchIds}::uuid[]) or e.entity_id = any(${entityIds}::uuid[])))
+        or (not ${scopeUnion}
+          and (${branchIds}::uuid[] is null or e.branch_id = any(${branchIds}::uuid[]))
+          and (${entityIds}::uuid[] is null or e.entity_id = any(${entityIds}::uuid[])))
+      )
     group by e.id, e.employee_code, be.emp_code, e.full_name,
              ent.name, br.name, dep.name, des.title
     order by br.name nulls last, e.full_name

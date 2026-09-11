@@ -33,7 +33,15 @@ before(async () => {
     namedExports: {
       jsonSafe: (value: unknown) => value,
       prisma: {
-        $queryRaw: async () => { throw new Error('Unexpected database query in HTTP fixture'); },
+        $queryRaw: async (strings: TemplateStringsArray) => {
+          if (strings.join('').includes("'punches_total'")) {
+            calls.push({ name: 'status.metrics' });
+            return [{ metric: 'punches_total', value: 503 }];
+          }
+          throw new Error('Unexpected database query in HTTP fixture');
+        },
+        syncState: { findMany: async () => { calls.push({ name: 'status.state' }); return []; } },
+        device: { findMany: async () => { calls.push({ name: 'status.devices' }); return [{ id: 'other-company-device' }]; } },
         biotimeEmployee: {
           findMany: async (args: { take: number; skip?: number }) => {
             calls.push({ name: 'mapping.list', args });
@@ -46,7 +54,7 @@ before(async () => {
       },
     },
   });
-  mock.module(require.resolve('../biotime/client'), { namedExports: { biotime: {} } });
+  mock.module(require.resolve('../biotime/client'), { namedExports: { biotime: { baseUrl: 'http://fixture-only.invalid', ping: async () => ({ ok: true }) } } });
   mock.module(require.resolve('../jobs/scheduler'), { namedExports: { jobsInFlight: () => [] } });
   mock.module(require.resolve('../sync/runLog'), { namedExports: { recentRuns: async () => [] } });
   const invoked = (name: string) => async (args: unknown) => { calls.push({ name, args }); return {}; };
@@ -92,6 +100,15 @@ test('self-only payslip permissions cannot download company payroll', async () =
   assert.equal(calls.length, 0);
 });
 
+test('organisation-wide diagnostics are refused before reading telemetry for a scoped device manager', async () => {
+  const denied = await request('/api/status', 'branch');
+  assert.equal(denied.status, 403);
+  assert.equal(calls.length, 0, 'no cross-company device rows or sync metrics were read');
+  const allowed = await request('/api/status', 'admin');
+  assert.equal(allowed.status, 200);
+  assert.deepEqual((await allowed.json() as { devices: unknown[] }).devices, [{ id: 'other-company-device' }]);
+});
+
 test('invalid calendar dates and catch-up sizes are rejected before any work is queued', async () => {
   for (const date of ['2026-02-30', '2026-13-01', 'not-a-date']) {
     assert.equal((await request('/api/recompute', 'admin', { from: date })).status, 400);
@@ -100,6 +117,7 @@ test('invalid calendar dates and catch-up sizes are rejected before any work is 
   for (const days of [-1, 0, 1.5, 91, 'wrong']) {
     assert.equal((await request('/api/sync/catchup', 'admin', { days })).status, 400);
   }
+  assert.equal((await request('/api/recompute', 'admin', { from: '2026-07-15', employeeIds: [] })).status, 400);
   assert.equal(calls.length, 0);
 });
 

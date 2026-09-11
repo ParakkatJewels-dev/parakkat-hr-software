@@ -1,0 +1,2633 @@
+{
+  "source": "Fresh isolated PostgreSQL replay of every application migration",
+  "migrations": [
+    "0001_init.sql",
+    "0002_org.sql",
+    "0003_identity.sql",
+    "0004_rbac.sql",
+    "0005_functions.sql",
+    "0006_modules.sql",
+    "0007_rls.sql",
+    "0008_seed_rbac.sql",
+    "0009_admin_rpcs.sql",
+    "0010_modules2.sql",
+    "0011_audit.sql",
+    "0012_biotime.sql",
+    "0013_attendance_engine.sql",
+    "0014_leave_regularization.sql",
+    "0015_repair_attendance_fks.sql",
+    "0016_user_role_admin.sql",
+    "0017_tasks.sql",
+    "0018_admin_create_user.sql",
+    "0019_role_scope_guard.sql",
+    "0020_delete_role_any.sql",
+    "0021_employee_no_task_create.sql",
+    "0022_realtime.sql",
+    "0023_notifications.sql",
+    "0024_employee_self_read.sql",
+    "0025_role_grants_and_manager_ess.sql",
+    "0026_settings_profile.sql",
+    "0027_report_summary.sql",
+    "0028_fixes_realtime_shift.sql",
+    "0029_seed_shift_calendar.sql",
+    "0030_grant_app_access.sql",
+    "0031_delete_login.sql",
+    "0032_grant_access_adoption_guard.sql",
+    "0033_security_hardening.sql",
+    "0034_wire_email_guard_and_device_scope.sql",
+    "0035_config_scope_and_polish.sql",
+    "0036_scope_floor_for_config.sql",
+    "0037_report_summary_performance.sql",
+    "0038_exception_summary.sql",
+    "0039_email_binding_guard.sql",
+    "0040_payroll_core.sql",
+    "0041_payroll_engine.sql",
+    "0042_payroll_earning_breakdown.sql",
+    "0043_goals.sql",
+    "0044_delegated_administration.sql",
+    "0045_fix_admin_role_guard.sql",
+    "0046_expose_rank.sql",
+    "0047_employee_statutory_fields.sql",
+    "0048_attendance_break_tracking.sql",
+    "0049_break_policy_excess.sql",
+    "0050_link_device_code_rpc.sql",
+    "0051_ot_basis.sql",
+    "0052_service_commands.sql",
+    "0053_expire_stale_commands.sql",
+    "0054_realtime_service_commands.sql",
+    "0055_break_from_punches.sql",
+    "0056_easy_time_pro_rules.sql",
+    "0057_ot_counts_early_starts.sql",
+    "0058_scope_to_connected_site.sql",
+    "0059_single_shift_after_reset.sql",
+    "0060_break_excess_only.sql",
+    "0061_break_allowance_40.sql",
+    "0062_flexible_shift.sql",
+    "0063_sync_heartbeat.sql",
+    "0064_document_storage.sql",
+    "0065_document_object_lookup_fix.sql",
+    "0066_document_delete_via_api.sql",
+    "0067_close_helper_functions.sql",
+    "0068_exceptions_for_a_flexible_shift.sql",
+    "0069_short_day_and_long_break_flags.sql",
+    "0070_close_two_open_definer_functions.sql",
+    "0071_scope_the_unscoped_checks.sql",
+    "0072_no_approving_your_own_request.sql",
+    "0074_close_the_anonymous_door.sql",
+    "0075_unpaid_days_come_from_the_day_itself.sql",
+    "0076_asset_register_and_custody.sql",
+    "0077_scope_the_payroll_run_list.sql",
+    "0078_no_lending_a_retired_asset.sql",
+    "0079_who_handed_the_asset_over.sql",
+    "0080_seniority_is_cumulative.sql",
+    "0081_the_org_chart_is_not_public.sql",
+    "0082_exports_without_reaching_the_laptop.sql",
+    "0083_reversible_leave_and_attendance_status.sql",
+    "0084_cancel_leave_when_attendance_is_recorded.sql",
+    "0085_employee_mother_name.sql",
+    "0086_delete_draft_payroll.sql",
+    "0087_nobody_approves_what_they_filed.sql",
+    "0088_org_wide_is_not_one_company.sql",
+    "0089_finish_what_0088_started.sql",
+    "0090_attendance_is_derived_not_declared.sql",
+    "0091_hr_does_not_appoint_managers.sql",
+    "0092_regularizations_realtime.sql",
+    "0093_assets_have_a_photograph.sql",
+    "0094_asset_assignments_realtime.sql",
+    "0094_leaves_speak_the_catalog_language.sql",
+    "0095_drafts_are_not_payslips_yet.sql",
+    "0095_grant_rules_do_not_drift.sql",
+    "0096_a_new_terminal_belongs_to_somebody.sql",
+    "0096_manager_links_get_employee_workspace.sql",
+    "0097_named_salary_gross_components.sql",
+    "0098_a_notification_points_at_the_row.sql",
+    "0099_a_department_head_picks_their_own_team.sql",
+    "0100_a_payslip_is_not_a_management_report.sql",
+    "0101_asking_another_department_for_a_hand.sql",
+    "0102_a_request_answers_itself_on_screen.sql",
+    "0103_the_head_who_takes_the_work_sets_its_priority.sql",
+    "0104_a_request_and_its_task_can_be_corrected.sql",
+    "0105_a_task_is_a_conversation.sql",
+    "0106_a_task_can_carry_the_thing_it_is_about.sql",
+    "0107_the_same_things_every_day.sql",
+    "0108_attachments_arrive_by_themselves.sql",
+    "0109_hiding_a_screen_from_one_person.sql",
+    "0110_a_comment_can_be_answered.sql",
+    "0111_a_default_password_is_a_temporary_one.sql",
+    "0112_a_saved_employee_gets_a_login.sql",
+    "0113_work_you_set_yourself.sql",
+    "0114_many_hands_and_a_list.sql",
+    "0115_a_place_to_talk.sql",
+    "0116_you_may_join_the_room_you_built.sql",
+    "0117_a_row_cannot_look_itself_up_yet.sql",
+    "0118_nobody_reads_a_room_they_are_not_in.sql",
+    "0119_the_super_admin_monitors.sql",
+    "0120_monitoring_moves_out_of_the_inbox.sql",
+    "0120_user_account_integrity.sql",
+    "0121_atomic_shift_assignment.sql",
+    "0123_goal_progress_guard.sql",
+    "0124_role_revoke_visibility.sql",
+    "0125_task_assignment_guard.sql"
+  ],
+  "roles": [
+    {
+      "key": "branch_manager",
+      "name": "Branch Manager",
+      "rank": 40,
+      "permissions": [
+        "asset.read",
+        "attendance.manage",
+        "attendance.punch",
+        "attendance.read",
+        "employee.assign",
+        "employee.create",
+        "employee.read",
+        "employee.update",
+        "exit.create",
+        "expense.approve",
+        "expense.create",
+        "expense.read",
+        "goal.read",
+        "goal.update",
+        "leave.approve",
+        "leave.create",
+        "leave.read",
+        "performance.manage",
+        "rbac.manage",
+        "regularization.approve",
+        "regularization.create",
+        "report.read",
+        "task.create",
+        "task.manage",
+        "task.read",
+        "task.request",
+        "task.update",
+        "ticket.create",
+        "ticket.manage",
+        "ticket.read"
+      ]
+    },
+    {
+      "key": "dept_head",
+      "name": "Department Head",
+      "rank": 30,
+      "permissions": [
+        "asset.read",
+        "attendance.punch",
+        "attendance.read",
+        "employee.assign",
+        "employee.create",
+        "employee.read",
+        "employee.update",
+        "exit.create",
+        "expense.create",
+        "expense.read",
+        "goal.read",
+        "goal.update",
+        "leave.approve",
+        "leave.create",
+        "leave.read",
+        "performance.manage",
+        "rbac.manage",
+        "regularization.approve",
+        "regularization.create",
+        "report.read",
+        "task.create",
+        "task.manage",
+        "task.read",
+        "task.request",
+        "task.update",
+        "ticket.create",
+        "ticket.read"
+      ]
+    },
+    {
+      "key": "employee",
+      "name": "Employee (ESS)",
+      "rank": 10,
+      "permissions": [
+        "asset.read",
+        "attendance.punch",
+        "attendance.read",
+        "document.read",
+        "employee.read",
+        "exit.create",
+        "expense.create",
+        "expense.read",
+        "goal.read",
+        "goal.update",
+        "leave.create",
+        "leave.read",
+        "payslip.read",
+        "regularization.create",
+        "task.read",
+        "task.update",
+        "ticket.create",
+        "ticket.read"
+      ]
+    },
+    {
+      "key": "entity_admin",
+      "name": "Entity Admin",
+      "rank": 80,
+      "permissions": [
+        "asset.manage",
+        "asset.read",
+        "attendance.manage",
+        "attendance.punch",
+        "attendance.read",
+        "audit.read",
+        "device.manage",
+        "document.manage",
+        "document.read",
+        "employee.assign",
+        "employee.create",
+        "employee.delete",
+        "employee.read",
+        "employee.update",
+        "exit.create",
+        "exit.manage",
+        "expense.approve",
+        "expense.create",
+        "expense.read",
+        "goal.read",
+        "goal.update",
+        "holiday.manage",
+        "leave.approve",
+        "leave.create",
+        "leave.manage",
+        "leave.read",
+        "onboarding.manage",
+        "org.manage",
+        "payroll.manage",
+        "payslip.read",
+        "performance.manage",
+        "rbac.manage",
+        "recruitment.manage",
+        "regularization.approve",
+        "regularization.create",
+        "report.read",
+        "shift.manage",
+        "task.create",
+        "task.manage",
+        "task.read",
+        "task.request",
+        "task.update",
+        "ticket.create",
+        "ticket.manage",
+        "ticket.read"
+      ]
+    },
+    {
+      "key": "hr_manager",
+      "name": "HR Manager",
+      "rank": 60,
+      "permissions": [
+        "asset.read",
+        "attendance.manage",
+        "attendance.punch",
+        "attendance.read",
+        "device.manage",
+        "document.manage",
+        "document.read",
+        "employee.assign",
+        "employee.create",
+        "employee.read",
+        "employee.update",
+        "exit.create",
+        "exit.manage",
+        "expense.approve",
+        "expense.create",
+        "expense.read",
+        "goal.read",
+        "goal.update",
+        "holiday.manage",
+        "leave.approve",
+        "leave.create",
+        "leave.manage",
+        "leave.read",
+        "onboarding.manage",
+        "payroll.manage",
+        "payslip.read",
+        "performance.manage",
+        "rbac.manage",
+        "recruitment.manage",
+        "regularization.approve",
+        "regularization.create",
+        "report.read",
+        "shift.manage",
+        "task.create",
+        "task.manage",
+        "task.read",
+        "task.request",
+        "task.update",
+        "ticket.create",
+        "ticket.manage",
+        "ticket.read"
+      ]
+    },
+    {
+      "key": "super_admin",
+      "name": "Super Admin",
+      "rank": 100,
+      "permissions": [
+        "asset.manage",
+        "asset.read",
+        "attendance.manage",
+        "attendance.punch",
+        "attendance.read",
+        "audit.read",
+        "device.manage",
+        "document.manage",
+        "document.read",
+        "employee.assign",
+        "employee.create",
+        "employee.delete",
+        "employee.read",
+        "employee.update",
+        "exit.create",
+        "exit.manage",
+        "expense.approve",
+        "expense.create",
+        "expense.read",
+        "goal.read",
+        "goal.update",
+        "holiday.manage",
+        "leave.approve",
+        "leave.create",
+        "leave.manage",
+        "leave.read",
+        "onboarding.manage",
+        "org.manage",
+        "payroll.manage",
+        "payslip.read",
+        "performance.manage",
+        "rbac.manage",
+        "recruitment.manage",
+        "regularization.approve",
+        "regularization.create",
+        "report.read",
+        "shift.manage",
+        "task.create",
+        "task.manage",
+        "task.read",
+        "task.request",
+        "task.update",
+        "ticket.create",
+        "ticket.manage",
+        "ticket.read"
+      ]
+    },
+    {
+      "key": "zonal_manager",
+      "name": "Zonal Manager",
+      "rank": 50,
+      "permissions": [
+        "asset.read",
+        "attendance.manage",
+        "attendance.punch",
+        "attendance.read",
+        "employee.assign",
+        "employee.create",
+        "employee.read",
+        "employee.update",
+        "exit.create",
+        "expense.approve",
+        "expense.create",
+        "expense.read",
+        "goal.read",
+        "goal.update",
+        "leave.approve",
+        "leave.create",
+        "leave.read",
+        "performance.manage",
+        "rbac.manage",
+        "regularization.approve",
+        "regularization.create",
+        "report.read",
+        "task.create",
+        "task.manage",
+        "task.read",
+        "task.request",
+        "task.update",
+        "ticket.create",
+        "ticket.manage",
+        "ticket.read"
+      ]
+    }
+  ],
+  "org": {
+    "zones": [
+      {
+        "id": "20000000-0000-0000-0000-000000000001",
+        "code": null,
+        "name": "Audit zone 1",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.475864+05:30"
+      },
+      {
+        "id": "20000000-0000-0000-0000-000000000002",
+        "code": null,
+        "name": "Audit zone 2",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.475864+05:30"
+      },
+      {
+        "id": "20000000-0000-0000-0000-000000000003",
+        "code": null,
+        "name": "Audit zone 3",
+        "entity_id": "10000000-0000-0000-0000-000000000002",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.475864+05:30"
+      }
+    ],
+    "branches": [
+      {
+        "id": "30000000-0000-0000-0000-000000000001",
+        "city": null,
+        "code": "AUDIT-B1",
+        "name": "Audit branch 1",
+        "address": null,
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.476253+05:30",
+        "holiday_calendar_id": null
+      },
+      {
+        "id": "30000000-0000-0000-0000-000000000002",
+        "city": null,
+        "code": "AUDIT-B2",
+        "name": "Audit branch 2",
+        "address": null,
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.476253+05:30",
+        "holiday_calendar_id": null
+      },
+      {
+        "id": "30000000-0000-0000-0000-000000000003",
+        "city": null,
+        "code": "AUDIT-B3",
+        "name": "Audit branch 3",
+        "address": null,
+        "zone_id": "20000000-0000-0000-0000-000000000002",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.476253+05:30",
+        "holiday_calendar_id": null
+      },
+      {
+        "id": "30000000-0000-0000-0000-000000000004",
+        "city": null,
+        "code": "AUDIT-B4",
+        "name": "Audit branch 4",
+        "address": null,
+        "zone_id": "20000000-0000-0000-0000-000000000003",
+        "entity_id": "10000000-0000-0000-0000-000000000002",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.476253+05:30",
+        "holiday_calendar_id": null
+      }
+    ],
+    "entities": [
+      {
+        "id": "10000000-0000-0000-0000-000000000001",
+        "code": "AUDIT-E1",
+        "name": "Audit company 1",
+        "gstin": null,
+        "address": null,
+        "is_active": true,
+        "legal_name": null,
+        "updated_at": "2026-09-11T11:50:50.474342+05:30"
+      },
+      {
+        "id": "10000000-0000-0000-0000-000000000002",
+        "code": "AUDIT-E2",
+        "name": "Audit company 2",
+        "gstin": null,
+        "address": null,
+        "is_active": true,
+        "legal_name": null,
+        "updated_at": "2026-09-11T11:50:50.474342+05:30"
+      }
+    ],
+    "employees": [
+      {
+        "id": "50000000-0000-0000-0000-000000000001",
+        "status": "Active",
+        "user_id": "70000000-0000-0000-0000-000000000001",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit target 1",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "TARGET-1"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000002",
+        "status": "Active",
+        "user_id": "70000000-0000-0000-0000-000000000002",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit target 2",
+        "department_id": "40000000-0000-0000-0000-000000000002",
+        "employee_code": "TARGET-2"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000003",
+        "status": "Active",
+        "user_id": "70000000-0000-0000-0000-000000000003",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000002",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit target 3",
+        "department_id": "40000000-0000-0000-0000-000000000003",
+        "employee_code": "TARGET-3"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000004",
+        "status": "Active",
+        "user_id": "70000000-0000-0000-0000-000000000004",
+        "zone_id": "20000000-0000-0000-0000-000000000002",
+        "branch_id": "30000000-0000-0000-0000-000000000003",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit target 4",
+        "department_id": "40000000-0000-0000-0000-000000000004",
+        "employee_code": "TARGET-4"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000005",
+        "status": "Active",
+        "user_id": "70000000-0000-0000-0000-000000000005",
+        "zone_id": "20000000-0000-0000-0000-000000000003",
+        "branch_id": "30000000-0000-0000-0000-000000000004",
+        "entity_id": "10000000-0000-0000-0000-000000000002",
+        "full_name": "Audit target 5",
+        "department_id": "40000000-0000-0000-0000-000000000005",
+        "employee_code": "TARGET-5"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000101",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000001",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit super_admin",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-1"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000102",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000002",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit entity_admin",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-2"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000103",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000003",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit hr_manager",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-3"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000104",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000004",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit zonal_manager",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-4"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000105",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000005",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit branch_manager",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-5"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000106",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000006",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit dept_head",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-6"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000107",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000007",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit employee",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-7"
+      },
+      {
+        "id": "50000000-0000-0000-0000-000000000108",
+        "status": "Active",
+        "user_id": "60000000-0000-0000-0000-000000000008",
+        "zone_id": "20000000-0000-0000-0000-000000000001",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "full_name": "Audit unassigned",
+        "department_id": "40000000-0000-0000-0000-000000000001",
+        "employee_code": "ACTOR-8"
+      }
+    ],
+    "departments": [
+      {
+        "id": "40000000-0000-0000-0000-000000000001",
+        "code": null,
+        "name": "Audit department 1",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.47675+05:30"
+      },
+      {
+        "id": "40000000-0000-0000-0000-000000000002",
+        "code": null,
+        "name": "Audit department 2",
+        "branch_id": "30000000-0000-0000-0000-000000000001",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.47675+05:30"
+      },
+      {
+        "id": "40000000-0000-0000-0000-000000000003",
+        "code": null,
+        "name": "Audit department 3",
+        "branch_id": "30000000-0000-0000-0000-000000000002",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.47675+05:30"
+      },
+      {
+        "id": "40000000-0000-0000-0000-000000000004",
+        "code": null,
+        "name": "Audit department 4",
+        "branch_id": "30000000-0000-0000-0000-000000000003",
+        "entity_id": "10000000-0000-0000-0000-000000000001",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.47675+05:30"
+      },
+      {
+        "id": "40000000-0000-0000-0000-000000000005",
+        "code": null,
+        "name": "Audit department 5",
+        "branch_id": "30000000-0000-0000-0000-000000000004",
+        "entity_id": "10000000-0000-0000-0000-000000000002",
+        "is_active": true,
+        "updated_at": "2026-09-11T11:50:50.47675+05:30"
+      }
+    ]
+  },
+  "actors": [
+    {
+      "key": "super_admin",
+      "access": {
+        "rank": 1000,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000101",
+          "email": "super_admin@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit super_admin",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-1",
+          "designation_id": null
+        },
+        "assignments": [
+          {
+            "role": "super_admin",
+            "scope_id": null,
+            "scope_type": "global"
+          }
+        ],
+        "permissions": [
+          {
+            "scope_id": null,
+            "permission": "asset.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "asset.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.punch",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "audit.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "device.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.assign",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.create",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.delete",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.update",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.create",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.approve",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.create",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.update",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "holiday.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.approve",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.create",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "onboarding.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "org.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "payroll.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "payslip.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "performance.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "rbac.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "recruitment.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.approve",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.create",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "report.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "shift.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.create",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.read",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.request",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.update",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.create",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.manage",
+            "scope_type": "global"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.read",
+            "scope_type": "global"
+          }
+        ],
+        "hidden_screens": [],
+        "is_super_admin": true,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000001",
+      "scopeId": null,
+      "scopeType": "global",
+      "employeeId": "50000000-0000-0000-0000-000000000101"
+    },
+    {
+      "key": "entity_admin",
+      "access": {
+        "rank": 80,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000102",
+          "email": "entity_admin@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit entity_admin",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-2",
+          "designation_id": null
+        },
+        "assignments": [
+          {
+            "role": "employee",
+            "scope_id": null,
+            "scope_type": "self"
+          },
+          {
+            "role": "entity_admin",
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "scope_type": "entity"
+          }
+        ],
+        "permissions": [
+          {
+            "scope_id": null,
+            "permission": "asset.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.punch",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "payslip.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "asset.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "asset.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "attendance.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "attendance.punch",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "attendance.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "audit.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "device.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "document.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "document.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.assign",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.delete",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.update",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "exit.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "exit.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "expense.approve",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "expense.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "expense.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "goal.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "goal.update",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "holiday.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.approve",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "onboarding.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "org.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "payroll.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "payslip.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "performance.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "rbac.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "recruitment.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "regularization.approve",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "regularization.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "report.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "shift.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.request",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.update",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "ticket.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "ticket.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "ticket.read",
+            "scope_type": "entity"
+          }
+        ],
+        "hidden_screens": [],
+        "is_super_admin": false,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000002",
+      "scopeId": "10000000-0000-0000-0000-000000000001",
+      "scopeType": "entity",
+      "employeeId": "50000000-0000-0000-0000-000000000102"
+    },
+    {
+      "key": "hr_manager",
+      "access": {
+        "rank": 60,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000103",
+          "email": "hr_manager@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit hr_manager",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-3",
+          "designation_id": null
+        },
+        "assignments": [
+          {
+            "role": "employee",
+            "scope_id": null,
+            "scope_type": "self"
+          },
+          {
+            "role": "hr_manager",
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "scope_type": "entity"
+          }
+        ],
+        "permissions": [
+          {
+            "scope_id": null,
+            "permission": "asset.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.punch",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "payslip.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "asset.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "attendance.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "attendance.punch",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "attendance.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "device.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "document.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "document.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.assign",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "employee.update",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "exit.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "exit.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "expense.approve",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "expense.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "expense.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "goal.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "goal.update",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "holiday.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.approve",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "leave.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "onboarding.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "payroll.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "payslip.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "performance.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "rbac.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "recruitment.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "regularization.approve",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "regularization.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "report.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "shift.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.read",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.request",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "task.update",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "ticket.create",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "ticket.manage",
+            "scope_type": "entity"
+          },
+          {
+            "scope_id": "10000000-0000-0000-0000-000000000001",
+            "permission": "ticket.read",
+            "scope_type": "entity"
+          }
+        ],
+        "hidden_screens": [],
+        "is_super_admin": false,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000003",
+      "scopeId": "10000000-0000-0000-0000-000000000001",
+      "scopeType": "entity",
+      "employeeId": "50000000-0000-0000-0000-000000000103"
+    },
+    {
+      "key": "zonal_manager",
+      "access": {
+        "rank": 50,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000104",
+          "email": "zonal_manager@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit zonal_manager",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-4",
+          "designation_id": null
+        },
+        "assignments": [
+          {
+            "role": "employee",
+            "scope_id": null,
+            "scope_type": "self"
+          },
+          {
+            "role": "zonal_manager",
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "scope_type": "zone"
+          }
+        ],
+        "permissions": [
+          {
+            "scope_id": null,
+            "permission": "asset.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.punch",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "payslip.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "asset.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "attendance.manage",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "attendance.punch",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "attendance.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "employee.assign",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "employee.create",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "employee.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "employee.update",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "exit.create",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "expense.approve",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "expense.create",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "expense.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "goal.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "goal.update",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "leave.approve",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "leave.create",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "leave.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "performance.manage",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "rbac.manage",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "regularization.approve",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "regularization.create",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "report.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "task.create",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "task.manage",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "task.read",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "task.request",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "task.update",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "ticket.create",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "ticket.manage",
+            "scope_type": "zone"
+          },
+          {
+            "scope_id": "20000000-0000-0000-0000-000000000001",
+            "permission": "ticket.read",
+            "scope_type": "zone"
+          }
+        ],
+        "hidden_screens": [],
+        "is_super_admin": false,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000004",
+      "scopeId": "20000000-0000-0000-0000-000000000001",
+      "scopeType": "zone",
+      "employeeId": "50000000-0000-0000-0000-000000000104"
+    },
+    {
+      "key": "branch_manager",
+      "access": {
+        "rank": 40,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000105",
+          "email": "branch_manager@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit branch_manager",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-5",
+          "designation_id": null
+        },
+        "assignments": [
+          {
+            "role": "branch_manager",
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "scope_type": "branch"
+          },
+          {
+            "role": "employee",
+            "scope_id": null,
+            "scope_type": "self"
+          }
+        ],
+        "permissions": [
+          {
+            "scope_id": null,
+            "permission": "asset.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.punch",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "payslip.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "asset.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "attendance.manage",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "attendance.punch",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "attendance.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "employee.assign",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "employee.create",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "employee.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "employee.update",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "exit.create",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "expense.approve",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "expense.create",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "expense.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "goal.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "goal.update",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "leave.approve",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "leave.create",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "leave.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "performance.manage",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "rbac.manage",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "regularization.approve",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "regularization.create",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "report.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "task.create",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "task.manage",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "task.read",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "task.request",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "task.update",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "ticket.create",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "ticket.manage",
+            "scope_type": "branch"
+          },
+          {
+            "scope_id": "30000000-0000-0000-0000-000000000001",
+            "permission": "ticket.read",
+            "scope_type": "branch"
+          }
+        ],
+        "hidden_screens": [],
+        "is_super_admin": false,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000005",
+      "scopeId": "30000000-0000-0000-0000-000000000001",
+      "scopeType": "branch",
+      "employeeId": "50000000-0000-0000-0000-000000000105"
+    },
+    {
+      "key": "dept_head",
+      "access": {
+        "rank": 30,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000106",
+          "email": "dept_head@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit dept_head",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-6",
+          "designation_id": null
+        },
+        "assignments": [
+          {
+            "role": "dept_head",
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "scope_type": "department"
+          },
+          {
+            "role": "employee",
+            "scope_id": null,
+            "scope_type": "self"
+          }
+        ],
+        "permissions": [
+          {
+            "scope_id": null,
+            "permission": "asset.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.punch",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "payslip.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "asset.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "attendance.punch",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "attendance.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "employee.assign",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "employee.create",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "employee.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "employee.update",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "exit.create",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "expense.create",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "expense.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "goal.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "goal.update",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "leave.approve",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "leave.create",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "leave.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "performance.manage",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "rbac.manage",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "regularization.approve",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "regularization.create",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "report.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "task.create",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "task.manage",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "task.read",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "task.request",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "task.update",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "ticket.create",
+            "scope_type": "department"
+          },
+          {
+            "scope_id": "40000000-0000-0000-0000-000000000001",
+            "permission": "ticket.read",
+            "scope_type": "department"
+          }
+        ],
+        "hidden_screens": [],
+        "is_super_admin": false,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000006",
+      "scopeId": "40000000-0000-0000-0000-000000000001",
+      "scopeType": "department",
+      "employeeId": "50000000-0000-0000-0000-000000000106"
+    },
+    {
+      "key": "employee",
+      "access": {
+        "rank": 10,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000107",
+          "email": "employee@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit employee",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-7",
+          "designation_id": null
+        },
+        "assignments": [
+          {
+            "role": "employee",
+            "scope_id": null,
+            "scope_type": "self"
+          }
+        ],
+        "permissions": [
+          {
+            "scope_id": null,
+            "permission": "asset.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.punch",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "attendance.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "document.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "employee.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "exit.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "expense.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "goal.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "leave.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "payslip.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "regularization.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.read",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "task.update",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.create",
+            "scope_type": "self"
+          },
+          {
+            "scope_id": null,
+            "permission": "ticket.read",
+            "scope_type": "self"
+          }
+        ],
+        "hidden_screens": [],
+        "is_super_admin": false,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000007",
+      "scopeId": null,
+      "scopeType": "self",
+      "employeeId": "50000000-0000-0000-0000-000000000107"
+    },
+    {
+      "key": "unassigned",
+      "access": {
+        "rank": 0,
+        "employee": {
+          "id": "50000000-0000-0000-0000-000000000108",
+          "email": "unassigned@audit.invalid",
+          "status": "Active",
+          "zone_id": "20000000-0000-0000-0000-000000000001",
+          "branch_id": "30000000-0000-0000-0000-000000000001",
+          "entity_id": "10000000-0000-0000-0000-000000000001",
+          "full_name": "Audit unassigned",
+          "department_id": "40000000-0000-0000-0000-000000000001",
+          "employee_code": "ACTOR-8",
+          "designation_id": null
+        },
+        "assignments": [],
+        "permissions": [],
+        "hidden_screens": [],
+        "is_super_admin": false,
+        "must_change_password": false
+      },
+      "userId": "60000000-0000-0000-0000-000000000008",
+      "scopeId": null,
+      "scopeType": null,
+      "employeeId": "50000000-0000-0000-0000-000000000108"
+    }
+  ]
+}

@@ -15,6 +15,7 @@ import { useTickets } from '../../data/tickets';
 import { useAssets } from '../../data/assets';
 import { useTasks } from '../../data/tasks';
 import { Widget, EmptyNote, Avatar, StatPill, StatusBadge, fmtDay, inr } from './shared';
+import { useActionableApprovals } from './useActionableApprovals';
 
 /** Live team attendance for today: counters plus who's absent / late right now. */
 export function TeamAttendanceToday({ onNavigate }) {
@@ -95,32 +96,33 @@ export function TeamAttendanceToday({ onNavigate }) {
 export function ApprovalsQueue({ onNavigate }) {
   const { employee } = useAuth();
   const { canAny } = usePermissions();
-  const { data: leaves = [] } = useLeaves();
-  const { data: expenses = [] } = useExpenses();
-  const { data: regs = [] } = useRegularizations('Pending');
+  const { data: leaves = [], error: leaveError } = useLeaves();
+  const { data: expenses = [], error: expenseError } = useExpenses();
+  const { data: regs = [], error: regError } = useRegularizations('Pending');
   const setLeaveStatus = useSetLeaveStatus();
   const setExpenseStatus = useSetExpenseStatus();
   const decideReg = useDecideRegularization();
 
-  // A manager shouldn't act on their own requests. Every source now selects employee.id, so
-  // compare on that; a viewer with no employee record has no "own" rows to exclude.
-  const notMine = (row) => !employee?.id || row.employee?.id !== employee.id;
+  const approvals = useActionableApprovals({ leaves, expenses, regs });
 
   const tabs = [
     canAny('leave.approve') && {
       id: 'leaves',
       label: 'Leaves',
-      rows: leaves.filter((l) => l.status === 'Pending' && notMine(l)),
+      rows: approvals.leaves,
+      error: leaveError,
     },
     canAny('regularization.approve') && {
       id: 'regs',
       label: 'Punches',
-      rows: regs.filter((r) => notMine(r)),
+      rows: approvals.punches,
+      error: regError,
     },
     canAny('expense.approve') && {
       id: 'expenses',
       label: 'Expenses',
-      rows: expenses.filter((e) => e.status === 'Pending' && notMine(e)),
+      rows: approvals.expenses,
+      error: expenseError,
     },
   ].filter(Boolean);
 
@@ -128,10 +130,14 @@ export function ApprovalsQueue({ onNavigate }) {
   const tab = tabs.find((t) => t.id === active) || tabs[0];
   const total = tabs.reduce((n, t) => n + t.rows.length, 0);
   const busy = setLeaveStatus.isPending || setExpenseStatus.isPending || decideReg.isPending;
+  const decisionError = setLeaveStatus.error || setExpenseStatus.error || decideReg.error;
 
   if (tabs.length === 0) return null;
 
   const decide = (row, approve) => {
+    setLeaveStatus.reset();
+    setExpenseStatus.reset();
+    decideReg.reset();
     if (tab.id === 'leaves') setLeaveStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected' });
     else if (tab.id === 'expenses') {
       setExpenseStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected', approverEmployeeId: employee?.id });
@@ -177,6 +183,7 @@ export function ApprovalsQueue({ onNavigate }) {
         ))}
       </div>
       <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+        {(tab.error || decisionError) && <p role="alert" className="rounded-lg bg-rose-500/10 px-3 py-2 text-xs text-rose-600 dark:text-rose-400">{(tab.error || decisionError).message}</p>}
         {tab.rows.slice(0, 6).map((row) => (
           <div key={row.id} className="flex gap-2.5 p-2.5 rounded-xl border border-neutral-200/60 dark:border-neutral-850 bg-white dark:bg-charcoal-900/10">
             <Avatar name={row.employee?.full_name} />
@@ -214,7 +221,7 @@ export function ApprovalsQueue({ onNavigate }) {
           </div>
         ))}
         {busy && <div className="flex justify-center py-1 text-brand-ink"><Loader2 size={14} className="animate-spin" /></div>}
-        {tab.rows.length === 0 && <EmptyNote>Queue is clear. Nothing pending here.</EmptyNote>}
+        {tab.rows.length === 0 && !tab.error && <EmptyNote>Queue is clear. Nothing pending here.</EmptyNote>}
         {tab.rows.length > 6 && (
           <button
             onClick={() => onNavigate?.(tab.id === 'expenses' ? 'expense' : tab.id === 'regs' ? 'attendance' : 'leave')}

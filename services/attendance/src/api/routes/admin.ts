@@ -148,7 +148,7 @@ adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage
 const recomputeSchema = z.object({
   from: dateString,
   to: dateString.optional(),
-  employeeIds: z.array(z.string().uuid()).optional(),
+  employeeIds: z.array(z.string().uuid()).min(1, 'Choose at least one employee or omit the filter.').optional(),
   includeLocked: z.boolean().optional(),
 });
 

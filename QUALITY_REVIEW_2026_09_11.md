@@ -2,6 +2,8 @@
 
 Four agents tested frontend rendering and behavior, data access and database permissions, attendance/API/report correctness, and integration/mobile behavior. Reproduced defects were fixed and tested against independent expected results. No hosted database migrations, live biometric synchronization, emails, or production HR writes were performed.
 
+**Role follow-up:** the initial browser pass below used Super Admin. All seven roles have since been tested explicitly, with 315 mobile route/subtab checks, 995 real PostgreSQL assertions after 127 migration files, and 249 additional local HTTP requests. The updated frontend/service suites pass 646 and 163 tests. See the [role testing report](ROLE_TEST_REVIEW_2026_09_11.md) for exact coverage, additional fixes, and environment boundaries. This later database replay extends the targeted database coverage described below.
+
 ## Verified results
 
 | Method | Result | What the result establishes |
@@ -13,7 +15,7 @@ Four agents tested frontend rendering and behavior, data access and database per
 | Actual report SQL and serialized/reopened Excel files | Passed, **503 employees** | Exact workbook values, totals, duplicate device mappings, historical employees, empty scopes and export-column variants |
 | Engine scale fixture | **15,593 employee-days** checked in approximately **1.32 seconds** | Expected work, credit and overtime results for 503 staff across a month |
 | Workbook generation and save/reopen | Approximately **360 ms** locally | Register and payroll workbook correctness for the synthetic report dataset; not network response time |
-| Browser smoke | **46 routes/subtabs passed at 320px**; initial 30-screen desktop sweep passed | Rendering, routing, selected known totals and main-content overflow against 525 synthetic employees |
+| Browser smoke | **45 routes/subtabs plus keyboard skip passed at 320px**; initial 30-screen desktop sweep passed | Rendering, routing, selected known totals and main-content overflow against 525 synthetic employees |
 | Additional browser behavior | Passed | Final roster page, employee-code search, drawer dismissal, keyboard skip, correction validation/write failure, older chat retrieval and failed roster reads |
 | Builds and static checks | Passed | Web build, attendance typecheck/build, Prisma generation and lint; existing lint warnings remain |
 | Dependency audit | **0 advisories** in root, web, database-tooling and attendance production dependency audits | Registry audit state when checked; not a guarantee of absence of undisclosed vulnerabilities |

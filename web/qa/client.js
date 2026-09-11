@@ -1,9 +1,10 @@
 // This deliberately small adapter tests rendering and controls, not Supabase/RLS semantics.
 // Unknown mutations fail closed; fixtures never connect to a database or send email.
 import { fixture, tables } from './fixtures.js';
+import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from './roles.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
-const user = { id: qaState.failReads ? 'qa-user-offline' : 'qa-user', email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v2-${qaRole}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
@@ -53,14 +54,19 @@ class Query {
       count: rows.length, error: null }).then(resolve, reject);
   }
 }
-const access = { is_super_admin: true, rank: 1000, employee: fixture.employees[0],
-  permissions: [], assignments: [], hidden_screens: [], must_change_password: false };
+const tablePermissions = { employees: 'employee.read', attendance: 'attendance.read', leaves: 'leave.read',
+  attendance_regularizations: 'attendance.read', payslips: 'payslip.read', salary_structures: 'payroll.manage',
+  goals: 'goal.read', tasks: 'task.read', leave_balances: 'leave.read' };
 export const supabase = {
-  from(name) { return new Query(tables[name] ?? []); },
+  from(name) {
+    let rows = tables[name] ?? [];
+    if (roleMode && tablePermissions[name]) rows = rows.filter((row) => fixtureAllows(tablePermissions[name], row));
+    return new Query(rows);
+  },
   rpc(name) {
-    if (name === 'get_my_access') return Promise.resolve({ data: access, error: null });
-    if (name === 'list_managed_users') return new Query(fixture.users);
-    if (name === 'my_departments') return new Query(fixture.org.departments);
+    if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    if (name === 'list_managed_users') return new Query(roleMode ? fixture.users.filter((user) => qaVisibleEmployees.some((e) => e.id === user.employee_id)) : fixture.users);
+    if (name === 'my_departments') return new Query(roleMode ? fixture.org.departments.filter((d) => qaVisibleEmployees.some((e) => e.department_id === d.id)) : fixture.org.departments);
     if (name === 'report_attendance_exceptions') return new Query([{ absent: 105, late: 0, missing_punch: 0 }]);
     if (name === 'report_attendance_summary') return new Query([]);
     if (/^(list_|get_|department_|assignable_)/.test(name)) return new Query([]);

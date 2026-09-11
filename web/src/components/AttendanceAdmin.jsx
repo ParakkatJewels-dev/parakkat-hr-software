@@ -18,7 +18,7 @@ import {
 } from '../data/devices';
 import {
   useServiceStatus, useSyncState, useSyncRuns, useTriggerSync, useTriggerBackfill,
-  useSyncHealth, useServiceCommands, DIAGNOSIS, forHumans, RUN_STATUS_STYLES, relativeTime,
+  useSyncHealth, useServiceCommands, DIAGNOSIS, RUN_STATUS_STYLES, relativeTime,
 } from '../data/syncStatus';
 import { useVisibleOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
@@ -841,8 +841,8 @@ function summariseResult(r) {
   return bits.join(' · ') || JSON.stringify(r).slice(0, 120);
 }
 
-function SyncTab() {
-  const { data: status, error: statusError } = useServiceStatus();
+export function SyncTab() {
+  const { error: statusError } = useServiceStatus();
   const { data: health } = useSyncHealth();
   const { data: commands = [] } = useServiceCommands(6);
   const { data: state = [] } = useSyncState();
@@ -905,19 +905,21 @@ function SyncTab() {
         </div>
       </div>
 
-      {/* The buttons below post to the service directly, which needs to be on the same network.
-          Say so once, here, instead of letting every button fail with a bare network error. */}
-      {statusError && health?.level === 'ok' ? (
+      {statusError?.status === 403 ? (
+        <div className="premium-card text-xs text-neutral-600 dark:text-neutral-300" role="status">
+          <p>Detailed service diagnostics require global attendance administration access.</p>
+          <p className="mt-1">Sync health above shows the attendance data available to your role.</p>
+        </div>
+      ) : statusError && health?.level === 'ok' ? (
         <div className="premium-card border-amber-300 dark:border-amber-900/60">
           <p className="text-xs text-amber-700 dark:text-amber-300">
-            Punches are arriving, but the buttons below need a browser on the office network.
+            Punches are arriving. This browser could not load detailed service diagnostics.
           </p>
           <details className="detail-disclosure mt-1.5">
             <summary>Why</summary>
             <p>
-              Sync now, backfill and recompute post to the sync service directly, and this browser
-              cannot reach it from here. Nothing is broken — the service is collecting punches on
-              its own schedule regardless.
+              Sync and backfill requests below are queued through the app. Their results show
+              whether the attendance service completed each request.
             </p>
           </details>
         </div>

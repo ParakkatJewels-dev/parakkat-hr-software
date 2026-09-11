@@ -21,6 +21,8 @@ export const EXPORT_PERMISSIONS: Record<ExportKind, string[]> = {
 export interface ExportScope {
   branchIds: string[] | null;
   entityIds: string[] | null;
+  /** Multiple grants are additive; an entity also covers employees without a branch. */
+  scopeUnion?: boolean;
 }
 
 /**
@@ -68,11 +70,10 @@ export async function scopeFor(
     return { branchIds: chosen, entityIds: null };
   }
 
-  // No filter requested: the whole visible scope. The report SQL ANDs the two arrays, so when
-  // both branch and entity grants exist, express their UNION as one branch list.
+  // Expanding an entity into its branches would drop staff whose branch is not assigned yet.
+  // Preserve the two dimensions and explicitly mark the union of the caller's grants.
   if (scope.branchIds.length && scope.entityIds.length) {
-    const union = new Set([...scope.branchIds, ...(await branchesOfEntities(scope.entityIds))]);
-    return { branchIds: [...union], entityIds: null };
+    return { branchIds: scope.branchIds, entityIds: scope.entityIds, scopeUnion: true };
   }
   return {
     branchIds: scope.branchIds.length ? scope.branchIds : null,

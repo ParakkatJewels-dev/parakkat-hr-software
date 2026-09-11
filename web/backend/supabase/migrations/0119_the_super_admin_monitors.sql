@@ -59,7 +59,10 @@ $$;
  * shape over the tables, not a way around them — if 0118 is ever re-applied, this list narrows
  * back to membership on its own.
  */
-create or replace view public.my_conversations
+-- The new is_member column changes the existing projection's order; CREATE OR REPLACE cannot
+-- rename the unread_count position. Recreate the view, then restore its grant below.
+drop view if exists public.my_conversations;
+create view public.my_conversations
 with (security_invoker = true) as
 select
   c.id,

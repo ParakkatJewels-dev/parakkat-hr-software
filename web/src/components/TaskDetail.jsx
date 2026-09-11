@@ -520,13 +520,18 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 128)}px`;
               }}
               onKeyDown={(e) => {
-                // The conversation behaves like messaging: Enter sends and Shift+Enter makes a line.
-                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault();
-                  post();
-                }
+                // Enter sends and Shift+Enter makes a line — on a keyboard. A phone keyboard has no
+                // Shift to hold, so there Enter must be the new line and the Send button the send;
+                // otherwise nobody on a phone can ever write a second line. `(pointer: coarse)` is
+                // the same test index.css already uses to recognise a touch screen.
+                if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return;
+                if (window.matchMedia?.('(pointer: coarse)').matches) return;
+                e.preventDefault();
+                post();
               }}
-              placeholder={replyTo ? 'Write a reply…' : 'Write a message or paste a link…'}
+              // Short enough for one line in the ~190px a phone leaves for it. The longer "Write a
+              // message or paste a link…" wrapped inside a one-row box and was cut in half.
+              placeholder={replyTo ? 'Write a reply…' : 'Write a message…'}
               aria-label={replyTo ? 'Write a reply' : 'Add a comment'}
               className="task-message-input"
               maxLength={4000}
@@ -541,7 +546,12 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
               {busy ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
             </button>
           </div>
-          <p className="task-message-hint">Enter to send · Shift+Enter for a new line · links become clickable automatically</p>
+          {/* The key instructions only make sense with a keyboard. index.css hides that half on a
+              touch screen, where there is no Shift and Enter makes a new line instead. */}
+          <p className="task-message-hint">
+            <span className="task-message-hint-keys">Enter to send · Shift+Enter for a new line · </span>
+            Links become clickable automatically
+          </p>
         </form>
       </div>
     </section>

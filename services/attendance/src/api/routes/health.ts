@@ -8,7 +8,7 @@ import { prisma, jsonSafe } from '../../lib/db';
 import { biotime } from '../../biotime/client';
 import { env } from '../../config/env';
 import { recentRuns } from '../../sync/runLog';
-import { authenticate, requirePermission } from '../auth';
+import { authenticate, requirePermission, resolveVisibleScope } from '../auth';
 import { jobsInFlight } from '../../jobs/scheduler';
 
 export const healthRouter = Router();
@@ -67,7 +67,18 @@ healthRouter.get('/health', asyncRoute(async (_req, res) => {
 }));
 
 /** Everything the admin status page shows. */
-healthRouter.get('/api/status', authenticate, requirePermission('device.manage', 'attendance.manage'), asyncRoute(async (_req, res) => {
+healthRouter.get('/api/status', authenticate, requirePermission('device.manage', 'attendance.manage'), asyncRoute(async (req, res) => {
+  // These diagnostics include all devices, run details and pending work. They cannot be narrowed
+  // to an entity or branch, so a scoped attendance manager must not read them through this
+  // privileged connection. The ordinary attendance views and exports retain their own scopes.
+  const scope = await resolveVisibleScope(req.auth, ['device.manage', 'attendance.manage']);
+  if (!scope.all) {
+    res.status(403).json({
+      error: 'forbidden',
+      message: 'Detailed service diagnostics require a global device.manage or attendance.manage grant.',
+    });
+    return;
+  }
   const [state, runs, deviceRows, counts, biotimePing] = await Promise.all([
     prisma.syncState.findMany(),
     recentRuns(25),

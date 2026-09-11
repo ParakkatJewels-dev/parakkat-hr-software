@@ -19,6 +19,7 @@
     "doctor": "tsx src/scripts/doctor.ts",
     "test": "tsx --test --experimental-test-module-mocks \"src/**/*.test.ts\"",
     "test:reports": "tsx src/scripts/verifyReports.ts",
+    "test:roles": "tsx --experimental-test-module-mocks src/scripts/verifyRoleAccess.ts",
     "probe:rules": "tsx src/scripts/probeRules.ts",
     "shift:from-device": "tsx src/scripts/shiftFromDevice.ts",
     "fetch:all": "tsx src/scripts/fetchAll.ts",

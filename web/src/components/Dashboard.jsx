@@ -26,6 +26,7 @@ import { useManagedUsers } from '../data/admin';
 import { useAttendanceSummary, useMonthlyAttendance, todayIso } from '../data/attendance';
 import { useLeaveBalances } from '../data/leaveTypes';
 import { KpiRow, NotificationsStrip, HolidaysCard, QuickActions, inr } from './dashboard/shared';
+import { useActionableApprovals } from './dashboard/useActionableApprovals';
 import {
   EmployeeTodayHero, PunchCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, EssSection,
 } from './dashboard/selfWidgets';
@@ -135,17 +136,14 @@ function EssKpis({ onNavigate }) {
   );
 }
 
-function TeamKpis({ onNavigate }) {
+export function TeamKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
   const { data: attendanceRows = [], summary } = useAttendanceSummary(todayIso());
   const { data: leaves = [] } = useLeaves();
   const { data: expenses = [] } = useExpenses();
   const { data: regs = [] } = useRegularizations('Pending');
 
-  const pendingApprovals =
-    leaves.filter((l) => l.status === 'Pending').length +
-    expenses.filter((e) => e.status === 'Pending').length +
-    regs.length;
+  const approvals = useActionableApprovals({ leaves, expenses, regs });
 
   return (
     <KpiRow
@@ -155,13 +153,13 @@ function TeamKpis({ onNavigate }) {
         { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
         { label: 'Late Today', value: summary.late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Past shift start', tab: 'attendance', trend: countsBy(attendanceRows.filter((r) => r.is_late), (r) => r.employee?.branch?.code || r.employee?.department?.name) },
         { label: 'Absent Today', value: summary.absent, icon: Users, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'No punch, no leave', tab: 'attendance', trend: countsBy(attendanceRows.filter((r) => r.status === 'Absent'), (r) => r.employee?.branch?.code || r.employee?.department?.name) },
-        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Leaves · punches · expenses', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length, regs.length) },
+        { label: 'Pending Approvals', value: approvals.total, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Ready for your decision', tab: 'leave', trend: queueSeries(approvals.leaves.length, approvals.expenses.length, approvals.punches.length) },
       ]}
     />
   );
 }
 
-function ZonalKpis({ onNavigate }) {
+export function ZonalKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
   const { data: org } = useVisibleOrg();
   const { summary } = useAttendanceSummary(todayIso());
@@ -170,10 +168,7 @@ function ZonalKpis({ onNavigate }) {
   const { data: regs = [] } = useRegularizations('Pending');
 
   const pct = summary.total ? Math.round((summary.checkedIn / summary.total) * 100) : 0;
-  const pendingApprovals =
-    leaves.filter((l) => l.status === 'Pending').length +
-    expenses.filter((e) => e.status === 'Pending').length +
-    regs.length;
+  const approvals = useActionableApprovals({ leaves, expenses, regs });
 
   return (
     <KpiRow
@@ -182,21 +177,24 @@ function ZonalKpis({ onNavigate }) {
         { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-brand-soft text-brand-ink', subtext: 'In your zone', tab: 'organization', trend: countsBy(employees, (e) => e.branch?.code || e.branch?.name) },
         { label: 'Headcount', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-brand/10 text-brand-ink', subtext: 'Active employees', tab: 'directory', trend: employeeStatusSeries(employees) },
         { label: 'Attendance Today', value: `${pct}%`, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: `${summary.checkedIn}/${summary.total} checked in`, tab: 'attendance', trend: attendanceSummarySeries(summary) },
-        { label: 'Pending Approvals', value: pendingApprovals, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Across all branches', tab: 'leave', trend: queueSeries(leaves.filter((l) => l.status === 'Pending').length, expenses.filter((e) => e.status === 'Pending').length, regs.length) },
+        { label: 'Pending Approvals', value: approvals.total, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Ready for your decision', tab: 'leave', trend: queueSeries(approvals.leaves.length, approvals.expenses.length, approvals.punches.length) },
       ]}
     />
   );
 }
 
-function HrKpis({ onNavigate }) {
+export function HrKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
   const { summary } = useAttendanceSummary(todayIso());
   const { data: exits = [] } = useExits();
   const { data: tickets = [] } = useTickets();
   const { data: leaves = [] } = useLeaves();
+  const approvals = useActionableApprovals({ leaves });
 
-  const start = `${todayIso().slice(0, 7)}-01`;
-  const joiners = employees.filter((e) => e.join_date && e.join_date >= start).length;
+  const today = todayIso();
+  const start = `${today.slice(0, 7)}-01`;
+  const joinedMtd = (e) => e.join_date && e.join_date >= start && e.join_date <= today;
+  const joiners = employees.filter(joinedMtd).length;
   const active = employees.filter((e) => e.status === 'Active').length;
 
   return (
@@ -205,22 +203,23 @@ function HrKpis({ onNavigate }) {
       kpis={[
         { label: 'Headcount', value: active, icon: Users, badgeClass: 'bg-brand/10 text-brand-ink', subtext: 'Active', tab: 'directory', trend: countsBy(employees.filter((e) => e.status === 'Active'), (e) => e.branch?.code || e.department?.name) },
         { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
-        { label: 'Joiners (MTD)', value: joiners, icon: UserPlus, badgeClass: 'bg-brand-soft text-brand-ink', subtext: 'This month', tab: 'directory', trend: datedCountSeries(employees, 'join_date', (e) => e.join_date && e.join_date >= start) },
+        { label: 'Joiners (MTD)', value: joiners, icon: UserPlus, badgeClass: 'bg-brand-soft text-brand-ink', subtext: 'This month', tab: 'directory', trend: datedCountSeries(employees, 'join_date', joinedMtd) },
         { label: 'Exits Open', value: exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length, icon: DoorOpen, badgeClass: 'bg-rose-500/10 text-rose-500', subtext: 'In clearance', tab: 'helpdesk', trend: countsBy(exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared'), (x) => x.status) },
-        { label: 'Pending Leaves', value: leaves.filter((l) => l.status === 'Pending').length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Awaiting decision', tab: 'leave', trend: datedCountSeries(leaves, 'created_at', (l) => l.status === 'Pending') },
+        { label: 'Pending Leaves', value: approvals.leaves.length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Ready for your decision', tab: 'leave', trend: datedCountSeries(approvals.leaves, 'created_at') },
         { label: 'Open Tickets', value: tickets.filter((t) => t.status !== 'Resolved').length, icon: LifeBuoy, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Helpdesk', tab: 'helpdesk', trend: countsBy(tickets.filter((t) => t.status !== 'Resolved'), (t) => t.status) },
       ]}
     />
   );
 }
 
-function EntityKpis({ onNavigate }) {
+export function EntityKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
   const { data: org } = useVisibleOrg();
   const { summary } = useAttendanceSummary(todayIso());
   const { data: jobs = [] } = useJobs();
   const { data: expenses = [] } = useExpenses();
   const { data: leaves = [] } = useLeaves();
+  const approvals = useActionableApprovals({ leaves });
 
   const start = `${todayIso().slice(0, 7)}-01`;
   const mtdSpend = expenses
@@ -234,7 +233,7 @@ function EntityKpis({ onNavigate }) {
         { label: 'Headcount', value: employees.filter((e) => e.status === 'Active').length, icon: Users, badgeClass: 'bg-brand/10 text-brand-ink', subtext: 'Active employees', tab: 'directory', trend: countsBy(employees.filter((e) => e.status === 'Active'), (e) => e.branch?.code || e.department?.name) },
         { label: 'Branches', value: (org?.branches ?? []).length, icon: Building2, badgeClass: 'bg-brand-soft text-brand-ink', subtext: 'Across the entity', tab: 'organization', trend: countsBy(employees, (e) => e.branch?.code || e.branch?.name) },
         { label: 'Checked In', value: summary.checkedIn, icon: CalendarCheck2, badgeClass: 'bg-emerald-500/10 text-emerald-500', subtext: 'Today', tab: 'attendance', trend: attendanceSummarySeries(summary) },
-        { label: 'Pending Leaves', value: leaves.filter((l) => l.status === 'Pending').length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Awaiting decision', tab: 'leave', trend: datedCountSeries(leaves, 'created_at', (l) => l.status === 'Pending') },
+        { label: 'Pending Leaves', value: approvals.leaves.length, icon: CalendarDays, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'Ready for your decision', tab: 'leave', trend: datedCountSeries(approvals.leaves, 'created_at') },
         { label: 'Open Roles', value: jobs.filter((j) => j.status === 'Open').length, icon: Briefcase, badgeClass: 'bg-brand-soft text-brand-ink', subtext: 'Recruitment', tab: 'recruitment', trend: countsBy(jobs.filter((j) => j.status === 'Open'), (j) => j.department || j.location || j.title) },
         { label: 'Spend (MTD)', value: inr(mtdSpend), icon: DollarSign, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Approved expenses', tab: 'expense', trend: datedCountSeries(expenses, 'expense_date', (e) => (e.expense_date || '') >= start && (e.status === 'Approved' || e.status === 'Paid')) },
       ]}
@@ -264,9 +263,9 @@ function SuperKpis({ onNavigate }) {
   );
 }
 
-function TodayPriorities({ role, onNavigate }) {
+export function TodayPriorities({ role, onNavigate }) {
   const { employee } = useAuth();
-  const { canAny, canBeyondSelf } = usePermissions();
+  const { canBeyondSelf } = usePermissions();
   const { summary } = useAttendanceSummary(todayIso());
   const { data: leaves = [] } = useLeaves();
   const { data: expenses = [] } = useExpenses();
@@ -278,9 +277,10 @@ function TodayPriorities({ role, onNavigate }) {
   const myLeavePending = leaves.filter((l) => l.status === 'Pending' && l.employee?.id === employee?.id).length;
   const myExpensePending = expenses.filter((e) => e.status === 'Pending' && e.employee?.id === employee?.id).length;
   const myTickets = tickets.filter((t) => t.status !== 'Resolved' && t.employee?.id === employee?.id).length;
-  const pendingLeaves = canAny('leave.approve') ? leaves.filter((l) => l.status === 'Pending' && l.employee?.id !== employee?.id).length : 0;
-  const pendingExpenses = canAny('expense.approve') ? expenses.filter((e) => e.status === 'Pending' && e.employee?.id !== employee?.id).length : 0;
-  const pendingPunches = canAny('regularization.approve') ? regs.filter((r) => r.employee?.id !== employee?.id).length : 0;
+  const approvals = useActionableApprovals({ leaves, expenses, regs });
+  const pendingLeaves = approvals.leaves.length;
+  const pendingExpenses = approvals.expenses.length;
+  const pendingPunches = approvals.punches.length;
   const openTickets = tickets.filter((t) => t.status !== 'Resolved').length;
   const exitsOpen = exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length;
   const openRoles = jobs.filter((j) => j.status === 'Open').length;

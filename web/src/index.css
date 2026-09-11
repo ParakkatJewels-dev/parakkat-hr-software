@@ -5494,6 +5494,27 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 .task-message-input::placeholder { color: var(--surface-text-soft); }
 
+/* One line, never two. A textarea's placeholder wraps like its text does, so a hint longer than the
+   box broke onto a second line inside a one-row field and was sliced in half on a phone. */
+.task-message-input::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* The ROW is the focus indicator: .task-message-input-row:focus-within draws it around the whole
+   composer. The textarea was drawing a second ring of its own inside that one (tasks.css's
+   :focus-visible outline, offset 3px, plus index.css's textarea:focus shadow), and because a text
+   field always matches :focus-visible it appeared on every tap on a phone, as a box inside the box.
+   Three classes deep so it outranks `.work-page :is(…textarea):focus-visible`, which is 0,2,1. */
+.task-message-input-row .task-message-input:is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+
+/* `.dark textarea` paints every textarea's background with !important, which gave this one a filled
+   panel inside the row in dark mode. The row owns the surface; the field is transparent on it. */
+.dark .task-message-input { background-color: transparent !important; }
+
+/* Key instructions describe a keyboard. On a touch screen Enter makes a new line (TaskDetail.jsx)
+   and there is no Shift to hold, so that half of the hint is hidden rather than left there wrong. */
+@media (pointer: coarse) {
+  .task-message-hint-keys { display: none; }
+}
+
 .task-message-file {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;

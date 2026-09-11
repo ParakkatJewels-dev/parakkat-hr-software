@@ -26,6 +26,7 @@ import { SkeletonRows } from './ui/Skeleton';
 import FilterSelect from './ui/FilterSelect';
 import { btnClass } from './ui/Btn';
 import Pagination from './ui/Pagination';
+import { exportEmployeeDirectory } from './directoryExport';
 import { istToday } from '../lib/dates';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import IconInput from './ui/IconInput';
@@ -369,33 +370,7 @@ export default function Directory() {
     useMemo(() => paginated.map((e) => e.id), [paginated]),
   );
 
-  const handleExport = () => {
-    const headers = ['Employee Code', 'Full Name', 'Email', 'Phone', 'Entity', 'Branch', 'Department', 'Designation', 'Status', 'Join Date'];
-    const csvRows = [
-      headers.join(','),
-      ...sorted.map(e => [
-        e.employee_code || '',
-        `"${e.full_name || ''}"`,
-        e.email || '',
-        e.phone || '',
-        `"${e.entity?.name || ''}"`,
-        `"${e.branch?.name || e.branch?.code || ''}"`,
-        `"${e.department?.name || ''}"`,
-        `"${e.designation?.title || ''}"`,
-        e.status || '',
-        e.join_date || ''
-      ].join(','))
-    ];
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `Employee_Directory_${new Date().toISOString().slice(0, 10)}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  const handleExport = () => exportEmployeeDirectory(sorted);
 
   if (isLoading) {
     return (
