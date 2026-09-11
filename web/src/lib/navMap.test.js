@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   ESS_NAV, OVERSIGHT_NAV, canSeeTab, labelForTab, visibleSections, allScreenIds, predicatesFor,
-  mobilePrimarySections, MOBILE_PRIMARY_IDS, MOBILE_NAV_SLOTS,
+  mobilePrimarySections, mobileSectionActive, MOBILE_PRIMARY_IDS, MOBILE_NAV_SLOTS,
 } from './navMap.js';
 
 // Each role's grants at its own scope, plus the employee@self grants every manager also holds
@@ -248,61 +249,128 @@ test('canSeeTab takes a Set or a plain array', () => {
 
 // ---- the phone's bottom bar --------------------------------------------------------------------
 //
-// On a phone the bar IS the navigation — four seats, and everything else is behind More. These
-// tests exist because the seats used to be decided by `sections.slice(0, 4)`, so a row moved in the
-// sidebar rearranged them silently, and the four went to what an employee opens monthly rather than
-// daily. If somebody reorders a tree again, these say so rather than the users noticing.
+// The phone has direct destinations rather than whole desktop sections. Profile stays at the
+// right edge and opens the user's profile, where the full menu lives. Expectations use the
+// database-replayed role grants, so changing a role's access cannot silently put a hidden screen
+// back on the bar as a replacement for another destination.
+const ROLE_MATRIX = JSON.parse(readFileSync(new URL('../test/standardRolePermissions.json', import.meta.url), 'utf8'));
+const MOBILE_ROLES = ['super_admin', 'entity_admin', 'hr_manager', 'zonal_manager', 'branch_manager', 'dept_head', 'employee'];
 
-const barFor = (role) =>
-  mobilePrimarySections(
-    visibleSections(role, predicatesFor(permsFor(role))),
-    role
-  ).map((section) => section.id);
+function mobileRolePermissions(role) {
+  const scope = role === 'super_admin' ? 'global' : role === 'employee' ? 'self' : SCOPE_OF[role];
+  const own = ROLE_MATRIX[role].permissions.map((permission) => ({ permission, scope_type: scope }));
+  if (role === 'employee') return own;
+  return own.concat(ROLE_MATRIX.employee.permissions.map((permission) => ({ permission, scope_type: 'self' })));
+}
 
-test('an employee gets work on the bottom bar, not payslips', () => {
-  const bar = barFor('employee');
-  assert.deepEqual(bar, ['dashboard', 'tasks', 'attendance', 'leave']);
-  assert.ok(!bar.includes('payroll'), 'Pay is opened monthly and does not hold a seat');
-});
+function mobileSectionsFor(role, options = {}, permissions = mobileRolePermissions(role)) {
+  return visibleSections(role, predicatesFor(permissions, { isSuperAdmin: role === 'super_admin', ...options }));
+}
 
-test('a manager reaches Work without opening More', () => {
-  for (const role of ['entity_admin', 'hr_manager', 'branch_manager', 'dept_head']) {
-    const bar = barFor(role);
-    assert.ok(bar.includes('work'), `${role} should reach Work from the bar`);
-    assert.equal(bar[0], 'home');
-    assert.equal(bar[1], 'work', `${role} should have Work seated second`);
+for (const role of MOBILE_ROLES) {
+  test(`${role} gets Home, Tasks, Chat, Time and its own Profile on mobile`, () => {
+    const sections = mobileSectionsFor(role);
+    const destinations = mobilePrimarySections(sections, role);
+    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'tasks', 'messages', 'attendance', 'profile']);
+    assert.equal(destinations.length, MOBILE_NAV_SLOTS);
+    const allowed = new Set(sections.flatMap((section) => section.tabs.map((tab) => tab.id)));
+    for (const destination of destinations) {
+      assert.deepEqual(destination.tabs.map((tab) => tab.id), [destination.id], 'each button must open one specific screen');
+      assert.ok(allowed.has(destination.id), `${destination.id} must already be allowed`);
+    }
+    assert.deepEqual(destinations.at(-1).tabs.map((tab) => tab.id), ['profile'], 'Settings must not be a Profile destination');
+  });
+}
+
+test('mobile destinations do not depend on desktop section order', () => {
+  for (const role of MOBILE_ROLES) {
+    const sections = mobileSectionsFor(role);
+    const reordered = [...sections].reverse().map((section) => ({ ...section, tabs: [...section.tabs].reverse() }));
+    assert.deepEqual(
+      mobilePrimarySections(reordered, role).map((section) => section.id),
+      ['dashboard', 'tasks', 'messages', 'attendance', 'profile'],
+      role
+    );
   }
 });
 
-test('the bar never seats more than it has room for, nor renders short', () => {
-  for (const role of ['employee', 'entity_admin', 'dept_head']) {
-    const bar = barFor(role);
-    assert.equal(bar.length, MOBILE_NAV_SLOTS, `${role} should fill the bar`);
-    assert.equal(new Set(bar).size, bar.length, `${role} has a section seated twice`);
+test('unlinked accounts have no Chat destination and keep Profile last', () => {
+  for (const role of MOBILE_ROLES) {
+    const sections = mobileSectionsFor(role, { hasEmployee: false });
+    const destinations = mobilePrimarySections(sections, role);
+    assert.ok(!destinations.some((section) => section.id === 'messages'), role);
+    assert.equal(destinations.at(-1).id, 'profile', role);
+    assert.ok(destinations.length <= MOBILE_NAV_SLOTS, role);
+    assert.deepEqual(destinations.slice(0, 3).map((section) => section.id), ['dashboard', 'tasks', 'attendance']);
+    assert.equal(destinations[3].id, role === 'employee' ? 'leave' : 'directory', 'replacement must be useful and allowed');
   }
 });
 
-test('a section the viewer cannot see is skipped, and the bar tops up from tree order', () => {
-  // No task.read at all: Tasks leaves the tree, so its seat goes to the next section rather than
-  // leaving a gap or shrinking the bar to three.
-  const noTasks = permsFor('employee').filter((p) => p.permission !== 'task.read');
-  const sections = visibleSections('employee', predicatesFor(noTasks));
-  const bar = mobilePrimarySections(sections, 'employee').map((s) => s.id);
-
-  assert.ok(!bar.includes('tasks'));
-  assert.equal(bar.length, MOBILE_NAV_SLOTS);
-  assert.deepEqual(bar.slice(0, 3), ['dashboard', 'attendance', 'leave'], 'stated order holds');
+test('missing task access uses an allowed fallback and never restores Tasks', () => {
+  const permissions = mobileRolePermissions('employee').filter((permission) => permission.permission !== 'task.read');
+  const sections = mobileSectionsFor('employee', {}, permissions);
+  const destinations = mobilePrimarySections(sections, 'employee');
+  assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'messages', 'attendance', 'leave', 'profile']);
 });
 
-test('every section the bar names is a real one in its tree', () => {
-  const essIds = ESS_NAV.flatMap((g) => g.items.map((i) => i.id));
-  for (const id of MOBILE_PRIMARY_IDS.employee) {
-    assert.ok(essIds.includes(id), `${id} is not a screen in the ESS tree`);
+test('hidden primary routes are excluded from fallback selection for every ordinary role', () => {
+  for (const role of MOBILE_ROLES.filter((key) => key !== 'super_admin')) {
+    const sections = mobileSectionsFor(role, { hiddenScreens: ['tasks', 'messages', 'attendance'] });
+    const destinations = mobilePrimarySections(sections, role);
+    const allowed = new Set(sections.flatMap((section) => section.tabs.map((tab) => tab.id)));
+    assert.equal(destinations[0].id, 'dashboard', role);
+    assert.equal(destinations.at(-1).id, 'profile', role);
+    assert.equal(new Set(destinations.map((section) => section.id)).size, destinations.length, role);
+    for (const destination of destinations) assert.ok(allowed.has(destination.id), `${role}: ${destination.id}`);
+    for (const hidden of ['tasks', 'messages', 'attendance']) assert.ok(!destinations.some((section) => section.id === hidden), `${role}: ${hidden}`);
   }
-  const oversightIds = OVERSIGHT_NAV.map((s) => s.id);
-  for (const id of MOBILE_PRIMARY_IDS.oversight) {
-    assert.ok(oversightIds.includes(id), `${id} is not a section in the oversight tree`);
+});
+
+test('a hidden Profile preserves the full menu as an action without an invented route', () => {
+  for (const role of MOBILE_ROLES.filter((key) => key !== 'super_admin')) {
+    const sections = mobileSectionsFor(role, { hiddenScreens: ['profile'] });
+    const destinations = mobilePrimarySections(sections, role);
+    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'tasks', 'messages', 'attendance', 'menu'], role);
+    assert.equal(destinations.at(-1).label, 'Menu');
+    assert.deepEqual(destinations.at(-1).tabs, [], 'Menu is a dialog action, not a route');
+    for (const route of ['profile', 'settings', 'notifications', 'menu']) {
+      assert.equal(mobileSectionActive(destinations.at(-1), route), false);
+    }
   }
+});
+
+test('restricted accounts keep a short useful bar without promoting account settings', () => {
+  const sections = mobileSectionsFor('employee', { hasEmployee: false }, []);
+  const destinations = mobilePrimarySections(sections, 'employee');
+  assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'profile']);
+  assert.ok(!destinations.some((section) => ['settings', 'notifications'].includes(section.id)));
+});
+
+test('a fully hidden account still has a Menu action and no forbidden destination', () => {
+  const sections = mobileSectionsFor('employee', { hiddenScreens: allScreenIds() });
+  const destinations = mobilePrimarySections(sections, 'employee');
+  assert.deepEqual(destinations.map((section) => section.id), ['menu']);
+  assert.deepEqual(destinations[0].tabs, []);
+});
+
+test('Profile is current only on the actual Profile screen', () => {
+  for (const role of MOBILE_ROLES) {
+    const destinations = mobilePrimarySections(mobileSectionsFor(role), role);
+    for (const destination of destinations) {
+      assert.equal(mobileSectionActive(destination, destination.id), true, `${role}: ${destination.id}`);
+      for (const unrelated of ['settings', 'notifications', 'directory', 'leave', 'unknown']) {
+        assert.equal(mobileSectionActive(destination, unrelated), false, `${role}: ${destination.id} must not claim ${unrelated}`);
+      }
+    }
+    assert.equal(destinations.filter((destination) => mobileSectionActive(destination, 'profile')).length, 1, role);
+  }
+});
+
+test('every preferred mobile destination exists as a real screen in both trees', () => {
+  const essIds = ESS_NAV.flatMap((group) => group.items.map((item) => item.id));
+  const oversightIds = OVERSIGHT_NAV.flatMap((section) => section.tabs.map((tab) => tab.id));
+  for (const id of MOBILE_PRIMARY_IDS.employee) assert.ok(essIds.includes(id), `${id} is not an ESS screen`);
+  for (const id of MOBILE_PRIMARY_IDS.oversight) assert.ok(oversightIds.includes(id), `${id} is not an oversight screen`);
 });
 
 test('an employee section carries the drawer heading it belongs under', () => {

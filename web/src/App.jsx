@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import {
   ESS_NAV, OVERSIGHT_NAV, canSeeTab, visibleSections as navSections,
-  mobilePrimarySections as pickMobilePrimary,
+  mobilePrimarySections as pickMobilePrimary, mobileSectionActive,
 } from './lib/navMap';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import {
@@ -40,6 +40,8 @@ import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
 import { useAuth } from './auth/AuthContext';
+import { useEmployeeAvatars } from './data/documents';
+import './components/profileNavigation.css';
 import { usePermissions } from './auth/usePermissions';
 import { resolveHeldRoles, resolvePrimaryRole } from './lib/roles';
 import { useViewRole } from './lib/viewRole';
@@ -55,12 +57,11 @@ import { syncNativeTheme } from './mobile/native';
 const prettyRole = (key) =>
   key.split('_').map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
-// Short names for the phone, where a section is a 138px tile or a bar label under an icon and
-// "My Expenses" next to "Leave" reads as two different apps. Keyed by SECTION id, and the two trees
-// name their sections differently — 'expense' and 'profile' are sections only in the ESS tree,
-// where in the oversight tree they are tabs inside Pay and My Profile — so these do not collide.
+// Short labels for the phone's five primary destinations. Full menu entries keep their names.
 const MOBILE_NAV_LABELS = {
   dashboard: 'Home',
+  directory: 'People',
+  menu: 'Menu',
   attendance: 'Time',
   leave: 'Leave',
   payroll: 'Pay',
@@ -161,6 +162,55 @@ export default function App() {
   const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [menuSearch, setMenuSearch] = useState('');
+  const menuRef = useRef(null);
+  const menuTriggerRef = useRef(null);
+  const currentPathRef = useRef(location.pathname);
+  currentPathRef.current = location.pathname;
+  const openMobileMenu = useCallback((event) => {
+    menuTriggerRef.current = { element: event?.currentTarget || document.activeElement, path: currentPathRef.current };
+    setMenuSearch('');
+    setMobileMenuOpen(true);
+  }, []);
+  const { data: ownAvatars = {} } = useEmployeeAvatars(employee?.id ? [employee.id] : []);
+  const avatarUrl = ownAvatars[employee?.id];
+  const [failedAvatar, setFailedAvatar] = useState(null);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined;
+    const panel = menuRef.current;
+    const trigger = menuTriggerRef.current;
+    const frame = requestAnimationFrame(() => panel?.querySelector('[aria-label="Close navigation menu"]')?.focus());
+    const onKey = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault(); event.stopPropagation(); setMobileMenuOpen(false); return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = [...(panel?.querySelectorAll('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])') || [])]
+        .filter(element => element.getClientRects().length > 0);
+      if (!items.length) return;
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const onDesktop = () => { if (desktop.matches) setMobileMenuOpen(false); };
+    desktop.addEventListener('change', onDesktop);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', onKey, true);
+      desktop.removeEventListener('change', onDesktop);
+      if (trigger?.path === currentPathRef.current) {
+        const destination = trigger.element?.isConnected && trigger.element.getClientRects().length
+          ? trigger.element : document.getElementById('main-content');
+        destination?.focus({ preventScroll: true });
+      }
+    };
+  }, [mobileMenuOpen]);
 
   // A navigation from the drawer may be triggered by links, browser history, or a dashboard
   // shortcut. Always dismiss the drawer once the route changes so it cannot cover the new page.
@@ -473,26 +523,16 @@ export default function App() {
     document.title = documentTitleFor(primaryRole, screen);
   }, [primaryRole, activeSection, activeTab]);
 
-  // Four plus More. Five primary sections became six physical buttons as soon as a user had any
-  // overflow, which crowded labels and tap targets on 360px phones.
-  //
-  // Which four is navMap's MOBILE_PRIMARY_IDS to answer, not `slice(0, 4)`: the bar is the whole
-  // navigation on a phone, and it should seat what somebody opens the app to do rather than
-  // whatever happens to sit at the top of the sidebar.
-  const mobilePrimarySections = pickMobilePrimary(visibleSections, primaryRole);
-  const mobileOverflowActive =
-    Boolean(activeSection) && !mobilePrimarySections.some((sec) => sec.id === activeSection.id);
-
-  // The glass bar's selection capsule travels between tabs instead of cross-fading, so the column
-  // count and the current column go to CSS as numbers and one absolutely positioned element does
-  // the moving. Arithmetic beats measuring the DOM here: every item is one equal grid column, so
-  // CSS can work out where the capsule belongs without a ref, a resize observer or a re-render.
-  // -1 means nothing on the bar is current — the capsule hides rather than parking on Home.
-  const mobileNavHasOverflow = visibleSections.length > mobilePrimarySections.length;
-  const mobileNavCount = mobilePrimarySections.length + (mobileNavHasOverflow ? 1 : 0);
-  const mobileNavActiveIndex = mobileOverflowActive
-    ? (mobileNavHasOverflow ? mobilePrimarySections.length : -1)
-    : mobilePrimarySections.findIndex((sec) => sec.id === activeSection?.id);
+  const mobilePrimarySections = pickMobilePrimary(visibleSections, primaryRole).map(section => ({
+    ...section, icon: ESS_ICONS[section.id] ?? (section.id === 'menu' ? Menu : section.icon),
+  }));
+  const mobileNavCount = mobilePrimarySections.length;
+  const mobileNavActiveIndex = mobilePrimarySections.findIndex(section => mobileSectionActive(section, activeTab));
+  const needle = menuSearch.trim().toLowerCase();
+  const menuSections = visibleSections.map(section => ({
+    ...section,
+    tabs: section.tabs.filter(tab => !needle || `${section.label} ${tab.label} ${MOBILE_NAV_LABELS[tab.id] || ''}`.toLowerCase().includes(needle)),
+  })).filter(section => section.tabs.length);
 
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {
@@ -572,7 +612,7 @@ export default function App() {
   };
 
   /**
-   * The drawer behind "More", which on a phone is the whole navigation tree.
+   * The menu opened from Profile contains the complete permitted navigation tree.
    *
    * It used to list sections and stop there, which meant every screen inside a section — Roles,
    * Structure, Shifts & Devices, Hiring — was two taps and a horizontal tab bar away, and the
@@ -592,10 +632,10 @@ export default function App() {
     const groups = [
       ...titles.map((title) => ({
         title,
-        sections: visibleSections.filter((sec) => sec.group === title),
+        sections: menuSections.filter((sec) => sec.group === title),
       })),
       // A section the ESS tree did not group cannot go unlisted just because it is unexpected.
-      { title: 'More', sections: visibleSections.filter((sec) => !titles.includes(sec.group)) },
+      { title: 'More', sections: menuSections.filter((sec) => !titles.includes(sec.group)) },
     ].filter((group) => group.sections.length > 0);
 
     return (
@@ -607,7 +647,7 @@ export default function App() {
               {group.sections.map((sec) => {
                 const Icon = sec.icon;
                 const sectionActive = activeSection?.id === sec.id;
-                const label = MOBILE_NAV_LABELS[sec.id] ?? sec.label;
+                const label = sec.label;
                 return (
                   <button
                     key={sec.id}
@@ -633,9 +673,10 @@ export default function App() {
 
     return (
       <div className="mobile-nav-tree">
-        {visibleSections.map((sec) => {
-        const Icon = sec.icon;
-        const sectionActive = activeSection?.id === sec.id;
+        {menuSections.map((sec) => {
+        const single = sec.tabs.length === 1 ? sec.tabs[0] : null;
+        const Icon = single?.icon ?? sec.icon;
+        const sectionActive = single ? single.id === activeTab : activeSection?.id === sec.id;
         const screens = sec.tabs.length > 1 ? sec.tabs : [];
         return (
           <div key={sec.id} className="mobile-nav-group">
@@ -646,7 +687,7 @@ export default function App() {
               className="mobile-nav-section"
             >
               <Icon size={15} />
-              <span className="truncate">{sec.label}</span>
+              <span className="truncate">{single?.label ?? sec.label}</span>
             </button>
 
             {screens.length > 0 && (
@@ -684,7 +725,7 @@ export default function App() {
       }}>Skip to content</a>
 
       {/* Sidebar - Desktop */}
-      <aside className={`hidden lg:flex h-dvh flex-col bg-white dark:bg-charcoal-900 border-r border-neutral-200 dark:border-neutral-800 shrink-0 select-none transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-64'
+      <aside inert={mobileMenuOpen || undefined} aria-hidden={mobileMenuOpen || undefined} className={`hidden lg:flex h-dvh flex-col bg-white dark:bg-charcoal-900 border-r border-neutral-200 dark:border-neutral-800 shrink-0 select-none transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-64'
         }`}>
         {/* Logo area */}
         <div className={`p-4 flex items-center justify-between border-b border-neutral-100 dark:border-charcoal-800/80 transition-all duration-300 ${isSidebarCollapsed ? 'flex-col space-y-4 px-2' : 'flex-row'
@@ -761,21 +802,12 @@ export default function App() {
       </aside>
 
       {/* Main Panel Content Area */}
-      <div className="app-content flex-1 flex min-h-0 flex-col min-w-0">
+      <div inert={mobileMenuOpen || undefined} aria-hidden={mobileMenuOpen || undefined} className="app-content flex-1 flex min-h-0 flex-col min-w-0">
 
         {/* Header toolbar */}
-        <header className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
+        <header data-profile-page={activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined} className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
           {/* Mobile menu toggle & Title */}
           <div className="app-header-title flex items-center gap-3.5">
-            <button
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open navigation menu"
-              aria-expanded={mobileMenuOpen}
-              aria-controls="mobile-navigation"
-              className="mobile-menu-trigger lg:hidden p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-lg text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
-            >
-              <Menu size={18} />
-            </button>
             <span className="app-header-title-label font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
               {activeSection?.label || ''}
               {activeSection && activeSection.tabs.length > 1 && activeTabMeta && (
@@ -935,6 +967,7 @@ export default function App() {
         {activeSection && activeSection.tabs.length > 1 && (
           <nav
             aria-label={`${activeSection.label} sections`}
+            data-profile-page={activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
             className="section-tabbar shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-white/70 dark:bg-charcoal-900/60 backdrop-blur-sm px-4 sm:px-6"
           >
             <div className="section-tab-scroll tab-scroll flex gap-5 -mb-px">
@@ -961,6 +994,7 @@ export default function App() {
 
         <main
           id="main-content"
+          data-profile-page={activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
           tabIndex={-1}
           className={`app-main flex-1 min-h-0 overflow-y-auto px-2 py-4 ${pullRefresh.pulling || pullRefresh.refreshing ? 'is-pulling-refresh' : ''}`}
           onTouchStart={handlePullStart}
@@ -1059,7 +1093,7 @@ export default function App() {
               case 'notifications':
                 return <Notifications onNavigate={setActiveTab} />;
               case 'profile':
-                return <UserProfile roleLabel={roleLabel} onOpenSettings={() => setActiveTab('settings')} />;
+                return <UserProfile roleLabel={roleLabel} onOpenSettings={canViewTab('settings') ? () => setActiveTab('settings') : undefined} onOpenMenu={openMobileMenu} menuOpen={mobileMenuOpen} />;
                 default:
                   // A screen name in the URL that this build does not have: a stale bookmark, a
                   // typo, a link from an older version. Now that the address bar can name a screen,
@@ -1094,38 +1128,30 @@ export default function App() {
           />
           {mobilePrimarySections.map((sec) => {
             const Icon = sec.icon;
-            const on = activeSection?.id === sec.id;
+            const on = mobileSectionActive(sec, activeTab);
             const mobileLabel = MOBILE_NAV_LABELS[sec.id] ?? sec.label;
             return (
               <button
                 key={sec.id}
                 type="button"
-                onClick={() => openSection(sec)}
+                onClick={sec.id === 'menu' ? openMobileMenu : () => setActiveTab(sec.tabs[0].id)}
+                aria-expanded={sec.id === 'menu' ? mobileMenuOpen : undefined}
+                aria-controls={sec.id === 'menu' ? 'mobile-navigation' : undefined}
                 aria-current={on ? 'page' : undefined}
-                aria-label={sec.label}
-                title={sec.label}
+                aria-label={mobileLabel}
+                title={mobileLabel}
                 className={`mobile-bottom-nav-item ${on ? 'mobile-bottom-nav-item-active' : ''}`}
               >
-                <Icon size={20} />
+                {sec.id === 'profile' ? <span className="mobile-bottom-nav-avatar" aria-hidden="true">
+                  {avatarUrl && failedAvatar !== avatarUrl
+                    ? <img src={avatarUrl} alt="" onError={() => setFailedAvatar(avatarUrl)} />
+                    : <span>{displayInitials}</span>}
+                </span> : <Icon size={20} />}
                 <span className="mobile-bottom-nav-label" aria-hidden="true">{mobileLabel}</span>
               </button>
             );
           })}
-          {visibleSections.length > mobilePrimarySections.length && (
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open all sections"
-              aria-expanded={mobileMenuOpen}
-              aria-controls="mobile-navigation"
-              aria-current={mobileOverflowActive ? 'page' : undefined}
-              title="More"
-              className={`mobile-bottom-nav-item ${mobileOverflowActive ? 'mobile-bottom-nav-item-active' : ''}`}
-            >
-              <Menu size={20} />
-              <span className="mobile-bottom-nav-label" aria-hidden="true">More</span>
-            </button>
-          )}
+
         </nav>
 
       </div>
@@ -1133,63 +1159,38 @@ export default function App() {
 
 
 
-      {/* Mobile Drawer Sidebar Navigation */}
       {mobileMenuOpen && (
-        <div
-          className="mobile-drawer fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex animate-fade-in lg:hidden"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setMobileMenuOpen(false);
-          }}
-        >
-          <div
-            id="mobile-navigation"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Main navigation"
-            className="mobile-drawer-panel w-[min(20rem,88vw)] bg-white dark:bg-neutral-950 h-full p-4 flex flex-col justify-between relative border-r border-neutral-200 dark:border-neutral-900 shadow-2xl transition-colors"
-          >
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              aria-label="Close navigation menu"
-              className="absolute top-4 right-4 p-2 bg-neutral-150 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-black dark:hover:text-white transition-all cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-
-            <div className="flex flex-col flex-1 min-h-0 gap-4">
-              <div className="flex items-center space-x-2 dark:border-neutral-900 pb-3">
-                <div className="p-1.5  text-black  dark:text-white rounded-lg">
-                  {appName}
-                </div>
+        <div className="profile-navigation-sheet lg:hidden" role="presentation"
+          onMouseDown={event => { if (event.target === event.currentTarget) setMobileMenuOpen(false); }}>
+          <div ref={menuRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-labelledby="profile-menu-title"
+            className="profile-navigation-panel">
+            <header className="profile-navigation-heading">
+              <h2 id="profile-menu-title">Menu & settings</h2>
+              <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation menu"><X size={22} /></button>
+            </header>
+            <div className="profile-navigation-scroll">
+              <div className="profile-navigation-identity">
+                <span className="profile-navigation-avatar" aria-hidden="true">{displayInitials}</span>
+                <div><strong>{displayName}</strong><span>{displaySubtitle}</span></div>
               </div>
-              <nav className="space-y-4 flex-1 min-h-0 overflow-y-auto overscroll-contain">
-                {renderMobileNavTree()}
-              </nav>
-            </div>
-
-            <div className="p-2.5 border-t border-neutral-200 dark:border-neutral-900 bg-neutral-50/50 dark:bg-neutral-950/20 flex items-center justify-between transition-colors">
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-brand-action text-brand-on flex items-center justify-center font-bold text-xs shrink-0 font-mono">
-                  {displayInitials}
-                </div>
-                <div className="min-w-0">
-                  <span className="block text-xs font-bold text-neutral-800 dark:text-slate-200 truncate">{displayName}</span>
-                  <span className="block text-2xs text-neutral-450 dark:text-neutral-500 truncate">{displaySubtitle}</span>
-                </div>
-                <button
-                  onClick={signOut}
-                  className="p-1.5 ml-auto bg-neutral-150 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-450 rounded-lg cursor-pointer transition-colors"
-                  title="Sign Out" aria-label="Sign Out"
-                >
-                  <LogOut size={13} />
+              <div className="profile-navigation-shortcuts">
+                {canViewTab('settings') && <button type="button" onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}><Settings size={18} /><span>Settings</span><ChevronRight size={16} /></button>}
+                <button type="button" onClick={toggleTheme} aria-pressed={theme === 'dark'}>
+                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}<span>{theme === 'dark' ? 'Light appearance' : 'Dark appearance'}</span>
                 </button>
               </div>
+              {heldRoles.length > 1 && <div className="profile-navigation-role"><span>Workspace view</span>
+                <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={setViewRole} />
+              </div>}
+              <label className="profile-navigation-search"><Search size={18} aria-hidden="true" />
+                <input type="search" aria-label="Search menu" placeholder="Search menu" value={menuSearch} onChange={event => setMenuSearch(event.target.value)} />
+              </label>
+              <nav aria-label="All sections">{menuSections.length ? renderMobileNavTree() : <p className="profile-navigation-empty" role="status">No sections match “{menuSearch}”.</p>}</nav>
+              <button type="button" className="profile-navigation-signout" onClick={signOut}><LogOut size={18} />Sign out</button>
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

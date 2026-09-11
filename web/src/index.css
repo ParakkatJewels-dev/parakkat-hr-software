@@ -6342,10 +6342,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 1023px) {
   :root {
-    --radius-card: var(--radius-sm);
-    --radius-control: var(--radius-sm);
     /* The nav is a floating glass capsule rather than a bar bolted to the bottom edge, so its own
        height, the gap it leaves beneath itself and the safe area are three separate numbers.
        --mobile-nav-height keeps its old meaning — the band the nav covers — because the install
@@ -6359,6 +6357,383 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       var(--mobile-nav-control-height) + var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom)
     );
     --mobile-nav-clearance: calc(var(--mobile-nav-height) + .75rem);
+  }
+
+  .app-content {
+    position: relative;
+  }
+
+  .app-main {
+    padding-bottom: calc(var(--mobile-nav-height) + .5rem);
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + .5rem);
+  }
+
+  /* Floating mobile dock. Keep the scroll content underneath the translucent surface;
+     .app-main reserves its clearance. Anchoring to .app-content also keeps the dock with
+     the app viewport when the browser chrome or on-screen keyboard changes its height. */
+  .mobile-bottom-nav {
+    /* Column count and current column come from App.jsx as inline custom properties; the
+       fallbacks here keep the bar sane if it ever renders before they are set. */
+    --nav-count: 5;
+    --nav-active: 0;
+    --nav-gap: .1rem;
+    --nav-pad: .3rem;
+
+    position: absolute;
+    z-index: 40;
+    right: max(.7rem, calc(var(--mobile-nav-safe-right) + .35rem));
+    bottom: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom));
+    left: max(.7rem, calc(var(--mobile-nav-safe-left) + .35rem));
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: var(--nav-gap);
+    height: var(--mobile-nav-control-height);
+    max-width: 34rem;
+    margin: 0;
+    margin-inline: auto;
+    padding: var(--nav-pad);
+    border: 1px solid rgba(255, 255, 255, .72);
+    border-radius: 999px;
+    overflow: hidden;
+    isolation: isolate;
+    transform: translate3d(0, 0, 0);
+    /* Opaque enough to read without backdrop-filter. */
+    background: var(--surface-elevated);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .95),
+      inset 0 -1px 0 rgba(255, 255, 255, .35),
+      0 2px 6px rgba(16, 32, 26, .07),
+      0 12px 30px rgba(16, 32, 26, .16);
+  }
+
+  /* A neutral film, blurred background and fine rim create the glass appearance. */
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .mobile-bottom-nav {
+      background: linear-gradient(180deg, rgba(255, 255, 255, .58), rgba(255, 255, 255, .3));
+      -webkit-backdrop-filter: blur(24px) saturate(170%);
+      backdrop-filter: blur(24px) saturate(170%);
+    }
+  }
+
+  /* Scroll-edge effect, in the strip the capsule leaves beneath itself. Content scrolls into that
+     strip the way it does under any floating iOS bar, and without this a page ends on a hard
+     half-line of text at the very bottom of the screen. A masked blur rather than a gradient
+     scrim: it needs no opinion about what colour the page behind it is, and where the platform
+     cannot do backdrop-filter it simply does nothing. Below the nav, above the scroller. */
+  .app-content::after {
+    content: '';
+    position: absolute;
+    z-index: 39;
+    inset: auto 0 0 0;
+    height: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom) + .5rem);
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
+    mask-image: linear-gradient(to top, #000 45%, transparent);
+  }
+
+  /* Specular highlight — the bright arc real glass picks up along its top edge. Decorative, so it
+     never takes a touch from the button beneath it. */
+  .mobile-bottom-nav::before {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: 0;
+    right: 5%;
+    left: 5%;
+    height: 48%;
+    border-radius: 999px 999px 60% 60% / 999px 999px 100% 100%;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0));
+    opacity: .65;
+  }
+
+  /* Equal columns let the selection capsule slide using a compositor-friendly transform.
+     The percentage in translateX is the capsule's own width, plus one grid gap per tab. */
+  .mobile-bottom-nav-indicator {
+    --nav-col: calc(
+      (100% - 2 * var(--nav-pad) - (var(--nav-count) - 1) * var(--nav-gap)) / var(--nav-count)
+    );
+
+    position: absolute;
+    z-index: 0;
+    top: var(--nav-pad);
+    bottom: var(--nav-pad);
+    left: var(--nav-pad);
+    width: var(--nav-col);
+    transform: translateX(calc(var(--nav-active) * (100% + var(--nav-gap))));
+    transform-origin: center;
+    border-radius: 999px;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .4)),
+      color-mix(in srgb, var(--accent) 10%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .95),
+      inset 0 -1px 0 rgba(255, 255, 255, .48),
+      0 2px 7px rgba(16, 32, 26, .1);
+    transition:
+      transform .48s cubic-bezier(.22, 1, .36, 1),
+      width .3s ease,
+      opacity .2s ease;
+  }
+
+  /* No section on the bar is current — hide rather than park the capsule on the first tab and
+     claim something that is not true. */
+  .mobile-bottom-nav-indicator[data-visible="false"] {
+    opacity: 0;
+  }
+
+  .mobile-bottom-nav-item {
+    position: relative;
+    z-index: 1;
+    min-width: 0;
+    min-height: 2.75rem !important;
+    height: 100%;
+    display: grid;
+    grid-template-rows: 1.55rem auto;
+    align-items: center;
+    justify-content: center;
+    align-content: center;
+    gap: .12rem;
+    padding: 0 .1rem;
+    border: 0;
+    border-radius: 999px;
+    color: var(--surface-text);
+    background: transparent;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .2s ease, background-color .2s ease,
+      transform .28s cubic-bezier(.22, 1, .36, 1);
+  }
+
+  .mobile-bottom-nav-item svg {
+    justify-self: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    stroke-width: 1.8;
+    fill: transparent;
+    transition: fill .22s ease, stroke-width .22s ease,
+      transform .3s cubic-bezier(.32, .72, 0, 1);
+  }
+
+  .mobile-bottom-nav-label {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    color: inherit;
+    font-size: .6875rem;
+    font-weight: 600;
+    line-height: .875rem;
+    letter-spacing: -.005em;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-bottom-nav-avatar {
+    display: grid;
+    place-items: center;
+    justify-self: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    overflow: hidden;
+    border: 1.5px solid color-mix(in srgb, currentColor 45%, transparent);
+    border-radius: 50%;
+    color: var(--surface-text);
+    background: var(--surface-elevated);
+    font-size: .5625rem;
+    font-weight: 750;
+    line-height: 1;
+    letter-spacing: -.02em;
+    transition: border-color .2s ease, box-shadow .2s ease, transform .28s ease;
+  }
+
+  .mobile-bottom-nav-avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  /* The moving surface carries the selected state while the icon and label add contrast. */
+  .mobile-bottom-nav-item-active {
+    color: var(--accent-strong);
+  }
+
+  .mobile-bottom-nav-item-active svg {
+    fill: color-mix(in srgb, currentColor 20%, transparent);
+    stroke-width: 2.1;
+  }
+
+  .mobile-bottom-nav-item-active .mobile-bottom-nav-label {
+    font-weight: 700;
+  }
+
+  .mobile-bottom-nav-item-active .mobile-bottom-nav-avatar {
+    border-color: var(--accent-strong);
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  .mobile-bottom-nav-item:focus-visible {
+    outline: 2px solid var(--accent-strong);
+    outline-offset: -2px;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .mobile-bottom-nav-item:hover {
+      color: var(--accent-strong);
+      background-color: rgba(255, 255, 255, .25);
+      transform: translateY(-1px);
+    }
+
+    .mobile-bottom-nav-item:hover svg,
+    .mobile-bottom-nav-item:hover .mobile-bottom-nav-avatar {
+      transform: translateY(-1px) scale(1.06);
+    }
+  }
+
+  .mobile-bottom-nav-item:active {
+    transform: scale(.94);
+  }
+
+  .mobile-bottom-nav-item:active svg,
+  .mobile-bottom-nav-item:active .mobile-bottom-nav-avatar {
+    transform: scale(.96);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .mobile-bottom-nav-indicator,
+    .mobile-bottom-nav-item,
+    .mobile-bottom-nav-item svg,
+    .mobile-bottom-nav-avatar {
+      transition: none;
+    }
+
+    .mobile-bottom-nav-item:hover,
+    .mobile-bottom-nav-item:hover svg,
+    .mobile-bottom-nav-item:hover .mobile-bottom-nav-avatar,
+    .mobile-bottom-nav-item:active,
+    .mobile-bottom-nav-item:active svg,
+    .mobile-bottom-nav-item:active .mobile-bottom-nav-avatar {
+      transform: none;
+    }
+  }
+
+  /* Dark mode keeps a darker translucent film so the labels retain contrast. */
+  .dark .mobile-bottom-nav {
+    border-color: rgba(255, 255, 255, .2);
+    background: var(--surface-elevated);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .16),
+      inset 0 -1px 0 rgba(0, 0, 0, .3),
+      0 2px 6px rgba(0, 0, 0, .24),
+      0 12px 30px rgba(0, 0, 0, .42);
+  }
+
+  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .dark .mobile-bottom-nav {
+      background: linear-gradient(180deg, rgba(30, 36, 34, .72), rgba(21, 27, 25, .48));
+      -webkit-backdrop-filter: blur(24px) saturate(160%);
+      backdrop-filter: blur(24px) saturate(160%);
+    }
+  }
+
+  .dark .mobile-bottom-nav::before {
+    background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0));
+    opacity: .6;
+  }
+
+  .dark .mobile-bottom-nav-indicator {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, .19), rgba(255, 255, 255, .07)),
+      color-mix(in srgb, var(--accent) 12%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, .22),
+      inset 0 -1px 0 rgba(0, 0, 0, .22),
+      0 4px 14px rgba(0, 0, 0, .3);
+  }
+
+  .dark .mobile-bottom-nav-item-active {
+    color: var(--accent-ink);
+  }
+
+  .dark .mobile-bottom-nav-item-active .mobile-bottom-nav-avatar {
+    border-color: var(--accent-ink);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .dark .mobile-bottom-nav-item:hover {
+      color: var(--accent-ink);
+      background-color: rgba(255, 255, 255, .08);
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+    .mobile-bottom-nav,
+    .dark .mobile-bottom-nav {
+      background: var(--surface-elevated);
+      border-color: var(--surface-text-soft);
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .mobile-bottom-nav::before,
+    .app-content::after {
+      display: none;
+    }
+
+    .mobile-bottom-nav-indicator,
+    .dark .mobile-bottom-nav-indicator {
+      background: var(--surface-muted);
+      border: 1px solid currentColor;
+      box-shadow: none;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .mobile-bottom-nav,
+    .dark .mobile-bottom-nav {
+      background: Canvas;
+      border-color: ButtonText;
+      box-shadow: none;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+
+    .mobile-bottom-nav::before,
+    .app-content::after {
+      display: none;
+    }
+
+    .mobile-bottom-nav-indicator,
+    .dark .mobile-bottom-nav-indicator {
+      background: Canvas;
+      border: 2px solid Highlight;
+      box-shadow: none;
+    }
+
+    .mobile-bottom-nav-item,
+    .mobile-bottom-nav-item-active,
+    .dark .mobile-bottom-nav-item-active,
+    .mobile-bottom-nav-avatar {
+      color: ButtonText;
+    }
+
+    .mobile-bottom-nav-item:focus-visible {
+      outline-color: Highlight;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --radius-card: var(--radius-sm);
+    --radius-control: var(--radius-sm);
   }
 
   body { font-size: 13.5px; }
@@ -8597,218 +8972,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     background: var(--accent);
   }
 
-  /* ---- Bottom navigation ---------------------------------------------------
-     A floating glass capsule in the current iOS idiom: the bar is detached from the screen edges,
-     the screen scrolls underneath it, and the blur therefore has real content to refract instead
-     of the flat page background it used to sit on. It anchors to .app-content rather than the
-     viewport, because `position: fixed` on iOS Safari gets dragged around by the on-screen
-     keyboard and by URL-bar collapse; .app-main reserves the band it covers, so nothing ends up
-     permanently trapped behind the glass. */
-  .mobile-bottom-nav {
-    /* Column count and current column come from App.jsx as inline custom properties; the
-       fallbacks here keep the bar sane if it ever renders before they are set. */
-    --nav-count: 5;
-    --nav-active: 0;
-    --nav-gap: .12rem;
-    --nav-pad: .3rem;
-
-    position: absolute;
-    z-index: 40;
-    right: max(.7rem, calc(var(--mobile-nav-safe-right) + .35rem));
-    bottom: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom));
-    left: max(.7rem, calc(var(--mobile-nav-safe-left) + .35rem));
-    display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: minmax(0, 1fr);
-    gap: var(--nav-gap);
-    height: var(--mobile-nav-control-height);
-    margin: 0;
-    padding: var(--nav-pad);
-    border: 1px solid rgba(255, 255, 255, .55);
-    border-radius: 999px;
-    overflow: hidden;
-    isolation: isolate;
-    transform: translate3d(0, 0, 0);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .44)),
-      color-mix(in srgb, var(--surface-elevated) 76%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .95),
-      inset 0 -1px 0 rgba(255, 255, 255, .3),
-      0 1px 2px rgba(16, 32, 26, .06),
-      0 12px 30px rgba(16, 32, 26, .14),
-      0 26px 56px rgba(16, 32, 26, .1);
-  }
-
-  /* Pure glass where the platform can frost: no surface tint at all, just a clear pane over the
-     page. The colour under the bar is the page's own, lifted by saturation rather than replaced by
-     a wash of --surface-elevated. Only the thinnest white film stays, because glass with no
-     specular film at all reads as a hole rather than a surface.
-     The tinted fallback above is kept on purpose: without backdrop-filter there is nothing to be
-     transparent ONTO, and a see-through bar over unblurred text is unreadable, not glassy. */
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .mobile-bottom-nav {
-      background: linear-gradient(180deg, rgba(255, 255, 255, .3), rgba(255, 255, 255, .1));
-      -webkit-backdrop-filter: blur(34px) saturate(210%) brightness(1.06);
-      backdrop-filter: blur(34px) saturate(210%) brightness(1.06);
-    }
-  }
-
-  /* Scroll-edge effect, in the strip the capsule leaves beneath itself. Content scrolls into that
-     strip the way it does under any floating iOS bar, and without this a page ends on a hard
-     half-line of text at the very bottom of the screen. A masked blur rather than a gradient
-     scrim: it needs no opinion about what colour the page behind it is, and where the platform
-     cannot do backdrop-filter it simply does nothing. Below the nav, above the scroller. */
-  .app-content::after {
-    content: '';
-    position: absolute;
-    z-index: 39;
-    inset: auto 0 0 0;
-    height: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom) + .5rem);
-    pointer-events: none;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
-    mask-image: linear-gradient(to top, #000 45%, transparent);
-  }
-
-  /* Specular highlight — the bright arc real glass picks up along its top edge. Decorative, so it
-     never takes a touch from the button beneath it. */
-  .mobile-bottom-nav::before {
-    content: '';
-    position: absolute;
-    z-index: 0;
-    top: 0;
-    right: 5%;
-    left: 5%;
-    height: 48%;
-    border-radius: 999px 999px 60% 60% / 999px 999px 100% 100%;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(255, 255, 255, .6), rgba(255, 255, 255, 0));
-    opacity: .75;
-  }
-
-  /* The travelling selection capsule. Its column is arithmetic rather than a measured DOM
-     position: every item is one equal grid column, so the left edge is padding + n × (column +
-     gap). Percentages on an absolutely positioned child resolve against the nav's padding box —
-     which is exactly the box those columns divide up — so the two always agree. */
-  .mobile-bottom-nav-indicator {
-    --nav-col: calc(
-      (100% - 2 * var(--nav-pad) - (var(--nav-count) - 1) * var(--nav-gap)) / var(--nav-count)
-    );
-
-    position: absolute;
-    z-index: 0;
-    top: var(--nav-pad);
-    bottom: var(--nav-pad);
-    left: calc(var(--nav-pad) + var(--nav-active) * (var(--nav-col) + var(--nav-gap)));
-    width: var(--nav-col);
-    border-radius: 999px;
-    pointer-events: none;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, .8), rgba(255, 255, 255, .34)),
-      color-mix(in srgb, var(--accent) 20%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .95),
-      inset 0 -1px 0 color-mix(in srgb, var(--accent) 14%, transparent),
-      0 4px 12px color-mix(in srgb, var(--accent) 20%, transparent);
-    transition:
-      left .42s cubic-bezier(.32, .72, 0, 1),
-      width .42s cubic-bezier(.32, .72, 0, 1),
-      opacity .2s ease;
-  }
-
-  /* No section on the bar is current — hide rather than park the capsule on the first tab and
-     claim something that is not true. */
-  .mobile-bottom-nav-indicator[data-visible="false"] {
-    opacity: 0;
-  }
-
-  .mobile-bottom-nav-item {
-    position: relative;
-    z-index: 1;
-    min-width: 0;
-    min-height: 0 !important;
-    height: 100%;
-    display: grid;
-    grid-template-rows: 1.32rem auto;
-    align-items: center;
-    justify-content: center;
-    align-content: center;
-    gap: .1rem;
-    padding: 0 .1rem;
-    border: 0;
-    border-radius: 999px;
-    color: var(--surface-text-soft);
-    background: transparent;
-    -webkit-tap-highlight-color: transparent;
-    transition: color .22s ease, transform .24s cubic-bezier(.32, .72, 0, 1);
-  }
-
-  .mobile-bottom-nav-item svg {
-    justify-self: center;
-    width: 1.3rem;
-    height: 1.3rem;
-    stroke-width: 1.85;
-    fill: transparent;
-    transition: fill .22s ease, stroke-width .22s ease,
-      transform .3s cubic-bezier(.32, .72, 0, 1);
-  }
-
-  .mobile-bottom-nav-label {
-    display: block;
-    max-width: 100%;
-    overflow: hidden;
-    color: inherit;
-    font-size: .625rem;
-    font-weight: 600;
-    line-height: .85rem;
-    letter-spacing: -.005em;
-    text-align: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  /* Active state is weight, not chrome: the glyph fills and thickens the way an SF Symbol swaps
-     to its filled variant, and the capsule behind it supplies the surface. The button itself
-     stays flat so the two layers cannot disagree while the capsule is mid-travel. */
-  .mobile-bottom-nav-item-active {
-    color: var(--accent-strong);
-  }
-
-  .mobile-bottom-nav-item-active svg {
-    fill: color-mix(in srgb, currentColor 20%, transparent);
-    stroke-width: 2.1;
-  }
-
-  .mobile-bottom-nav-item-active .mobile-bottom-nav-label {
-    font-weight: 700;
-  }
-
-  .mobile-bottom-nav-item:active {
-    transform: scale(.92);
-  }
-
-  .mobile-bottom-nav-item:active svg {
-    transform: scale(.94);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .mobile-bottom-nav-indicator {
-      transition: opacity .2s ease;
-    }
-
-    .mobile-bottom-nav-item,
-    .mobile-bottom-nav-item svg {
-      transition: color .22s ease, fill .22s ease;
-    }
-
-    .mobile-bottom-nav-item:active,
-    .mobile-bottom-nav-item:active svg {
-      transform: none;
-    }
-  }
-
   /* Native-mobile guardrails ------------------------------------------------
      These rules are intentionally global inside the mobile block. Individual pages can still
      choose their layout, but the shell keeps one scroll owner, no accidental horizontal canvas,
@@ -9082,50 +9245,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     transform: translateZ(0);
   }
 
-  /* Dark glass is a dark pane lit from above, not the light one dimmed: the tint drops to a thin
-     white film, the rim is a hairline rather than a highlight, and the shadow carries the lift. */
-  .dark .mobile-bottom-nav {
-    border-color: rgba(255, 255, 255, .12);
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03)),
-      color-mix(in srgb, var(--surface-elevated) 84%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .16),
-      inset 0 -1px 0 rgba(0, 0, 0, .3),
-      0 1px 2px rgba(0, 0, 0, .3),
-      0 14px 34px rgba(0, 0, 0, .48),
-      0 28px 60px rgba(0, 0, 0, .34);
-  }
 
-  /* Dark glass, same idea: the pane darkens what is behind it rather than covering it with a
-     surface colour. Brightness goes down instead of up so light content reads through as dimmed
-     glass rather than glare. */
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .dark .mobile-bottom-nav {
-      background: linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, .015));
-      -webkit-backdrop-filter: blur(34px) saturate(180%) brightness(.62);
-      backdrop-filter: blur(34px) saturate(180%) brightness(.62);
-    }
-  }
-
-  .dark .mobile-bottom-nav::before {
-    background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0));
-    opacity: .6;
-  }
-
-  .dark .mobile-bottom-nav-indicator {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, .14), rgba(255, 255, 255, .04)),
-      color-mix(in srgb, var(--accent) 26%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .22),
-      inset 0 -1px 0 rgba(0, 0, 0, .22),
-      0 4px 14px rgba(0, 0, 0, .3);
-  }
-
-  .dark .mobile-bottom-nav-item-active {
-    color: var(--accent-ink);
-  }
 }
 
 @media (max-width: 380px) {
@@ -9180,10 +9300,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
     right: max(.45rem, calc(var(--mobile-nav-safe-right) + .2rem));
     left: max(.45rem, calc(var(--mobile-nav-safe-left) + .2rem));
-  }
-
-  .mobile-bottom-nav-label {
-    font-size: .56rem;
   }
 
   .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),

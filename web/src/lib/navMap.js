@@ -18,14 +18,8 @@
 /**
  * The self-service tree, shown to somebody whose most senior role is `employee`.
  *
- * Ordered by what somebody actually opens this on a phone to DO, which is not the order it used to
- * be in. Attendance, Leave and Payslips led the tree, so those were the four things the bottom bar
- * offered (see MOBILE_PRIMARY_IDS) and Tasks — the screen an employee touches several times a day
- * — was behind More, two taps and a scroll away. Pay is opened once a month and had a permanent
- * seat; work had none.
- *
- * The groups are titles the phone drawer prints, so they have to read as a map of the app rather
- * than as internal vocabulary: what you do, what is yours, and where to get help.
+ * The full Profile menu groups daily work, personal records and support. The bottom bar has
+ * its own explicit priorities below, independent of this menu's ordering.
  */
 export const ESS_NAV = [
   {
@@ -78,10 +72,7 @@ export const OVERSIGHT_NAV = [
     label: 'Home',
     tabs: [{ id: 'dashboard', label: 'Dashboard', perm: null }],
   },
-  // Second, not sixth. This is the section a manager opens between meetings; People and Pay are
-  // where they go when they sit down. Sixth also put it off the phone's bottom bar entirely, back
-  // when that bar was the first four sections of this list — see MOBILE_PRIMARY_IDS, which now
-  // names its four rather than inheriting them.
+  // Daily work stays near the top of the full menu as well as on the mobile bar.
   {
     id: 'work',
     label: 'Work',
@@ -242,46 +233,38 @@ export function visibleSections(primaryRole, predicates) {
     .filter((section) => section.tabs.length > 0);
 }
 
-/** How many sections the phone's bottom bar seats before the fifth becomes "More". */
-export const MOBILE_NAV_SLOTS = 4;
-
-/**
- * What the bottom bar offers, in order, and why it is a list rather than `sections.slice(0, 4)`.
- *
- * A slice makes the phone's four most valuable pieces of screen a side effect of sidebar order, so
- * moving one row in the tree silently rearranges the bar — which is how Pay came to hold a seat it
- * is opened once a month to use while Tasks, opened several times a day, had none.
- *
- * Stated here instead: the bar is for what somebody came to the app to do. Leave is on it despite
- * living under "Me" in the tree, because applying for it is frequent; Pay and Goals are not,
- * because they are not. A section named here that this viewer cannot see is skipped, and the bar
- * is topped up from tree order so it never renders short.
- */
+/** Four daily destinations and a permanent profile/menu entry. */
+export const MOBILE_NAV_SLOTS = 5;
 export const MOBILE_PRIMARY_IDS = {
-  employee: ['dashboard', 'tasks', 'attendance', 'leave'],
-  oversight: ['home', 'work', 'time', 'people'],
+  employee: ['dashboard', 'tasks', 'messages', 'attendance', 'profile'],
+  oversight: ['dashboard', 'tasks', 'messages', 'attendance', 'profile'],
 };
 
-/**
- * The sections this viewer's bottom bar seats, in bar order.
- *
- * Takes the sections already resolved for the viewer — this decides arrangement, never access.
- */
+/** Arrange actual permitted screens, independent of desktop section grouping. */
 export function mobilePrimarySections(sections, primaryRole) {
-  const wanted =
-    primaryRole === 'employee' ? MOBILE_PRIMARY_IDS.employee : MOBILE_PRIMARY_IDS.oversight;
-
+  const tabs = sections.flatMap(section => section.tabs.map(tab => ({
+    ...section, id: tab.id, label: tab.label, tabs: [tab],
+  })));
+  const wanted = primaryRole === 'employee' ? MOBILE_PRIMARY_IDS.employee : MOBILE_PRIMARY_IDS.oversight;
   const seated = [];
-  for (const id of wanted) {
-    const section = sections.find((s) => s.id === id);
-    if (section) seated.push(section);
+  const add = id => {
+    const destination = tabs.find(tab => tab.id === id);
+    if (destination && !seated.some(tab => tab.id === id)) seated.push(destination);
+  };
+  wanted.slice(0, 4).forEach(add);
+  // System accounts have no employee chat. Fill only with another permitted work screen.
+  for (const id of ['directory', 'leave', 'performance', 'payroll', ...tabs.map(tab => tab.id)]) {
+    if (seated.length >= MOBILE_NAV_SLOTS - 1) break;
+    if (!['profile', 'settings', 'notifications'].includes(id)) add(id);
   }
-  // Somebody who holds none of the named screens still gets a usable bar rather than one button.
-  for (const section of sections) {
-    if (seated.length >= MOBILE_NAV_SLOTS) break;
-    if (!seated.includes(section)) seated.push(section);
-  }
-  return seated.slice(0, MOBILE_NAV_SLOTS);
+  const profile = tabs.find(tab => tab.id === 'profile');
+  seated.push(profile ?? { id: 'menu', label: 'Menu', tabs: [] });
+  return seated;
+}
+
+/** A menu or parent section is not the page itself; only exact destinations are current. */
+export function mobileSectionActive(section, activeTab) {
+  return section.tabs.some(tab => tab.id === activeTab);
 }
 
 /** Every screen id the application defines, in either tree — for route validation. */

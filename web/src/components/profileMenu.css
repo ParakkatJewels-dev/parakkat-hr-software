@@ -1,0 +1,113 @@
+/* The profile is the mobile home for account settings and the full application menu. */
+.user-profile > .profile-mobile-topbar {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .user-profile > .profile-mobile-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    min-height: 44px;
+    gap: .75rem;
+    padding: 0 .2rem .4rem;
+    color: var(--surface-text);
+    border-bottom: 1px solid var(--surface-border);
+  }
+
+  .user-profile .profile-mobile-title {
+    font-size: 1.25rem;
+    line-height: 1.2;
+    font-weight: 750;
+    letter-spacing: -.025em;
+  }
+
+  .user-profile .profile-menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 50%;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    transition: background-color 160ms ease, transform 160ms ease;
+  }
+
+  .user-profile .profile-menu-trigger:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .user-profile .profile-menu-trigger:active {
+    transform: scale(.93);
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .user-profile > .profile-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .9rem;
+    padding: 1rem .25rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .user-profile .profile-avatar {
+    width: 4.25rem;
+    height: 4.25rem;
+    border-radius: 50%;
+    font-size: 1.3rem;
+    box-shadow: 0 0 0 3px var(--surface-elevated), 0 0 0 4px var(--surface-border);
+  }
+
+  .user-profile .profile-identity h1 {
+    font-size: clamp(1.125rem, 4.3vw, 1.4rem);
+    line-height: 1.25;
+    letter-spacing: -.025em;
+  }
+
+  .user-profile .profile-identity p {
+    font-size: .8125rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .user-profile .profile-chips span {
+    font-size: .6875rem;
+    line-height: 1.5;
+  }
+
+  .user-profile .profile-settings {
+    display: none;
+  }
+
+  .user-profile > .profile-hero.skeleton {
+    min-height: 100px;
+    border-radius: 1rem;
+    background: var(--surface-elevated);
+  }
+}
+
+@media (max-width: 1023px) and (hover: hover) {
+  .user-profile .profile-menu-trigger:hover {
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-profile .profile-menu-trigger {
+    transition: none;
+  }
+
+  .user-profile .profile-menu-trigger:active {
+    transform: none;
+  }
+}

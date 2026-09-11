@@ -20,6 +20,7 @@ import {
   HeartPulse,
   Loader2,
   Mail,
+  Menu,
   Package,
   Phone,
   Settings,
@@ -31,6 +32,7 @@ import { useEmployeeAvatars } from '../data/documents';
 import { useEmployee } from '../data/employees';
 import { useEmployeeAssets } from '../data/assets';
 import { useUpdateMyProfile } from '../data/settings';
+import './profileMenu.css';
 
 const initials = (name) =>
   (name || '')
@@ -143,9 +145,32 @@ function MyAssets({ employeeId }) {
   );
 }
 
-function ProfileLoading() {
+// Keep the navigation entry outside the employee-data boundary. An unlinked login or a slow
+// profile request must still be able to reach its settings and the rest of the application.
+export function ProfileMenuHeader({ onOpenMenu, menuOpen = false }) {
+  return (
+    <header className="profile-mobile-topbar">
+      <span className="profile-mobile-title">Profile</span>
+      <button
+        type="button"
+        className="profile-menu-trigger"
+        onClick={onOpenMenu}
+        aria-label="Open profile menu"
+        aria-controls="mobile-navigation"
+        aria-expanded={menuOpen}
+        aria-haspopup="dialog"
+        title="Menu and settings"
+      >
+        <Menu size={23} strokeWidth={1.8} aria-hidden="true" />
+      </button>
+    </header>
+  );
+}
+
+function ProfileLoading({ onOpenMenu, menuOpen }) {
   return (
     <div className="page-shell user-profile animate-fade-in" aria-label="Loading profile">
+      <ProfileMenuHeader onOpenMenu={onOpenMenu} menuOpen={menuOpen} />
       <div className="profile-hero skeleton" />
       <div className="profile-grid">
         <div className="profile-card skeleton" />
@@ -155,7 +180,7 @@ function ProfileLoading() {
   );
 }
 
-export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) {
+export default function UserProfile({ roleLabel = 'Employee', onOpenSettings, onOpenMenu = onOpenSettings, menuOpen = false }) {
   const { employee, user } = useAuth();
   const linkedEmployee = Boolean(employee?.id);
   // The DETAIL row, not the roster. This used to find its record in useEmployees(), whose list
@@ -187,7 +212,9 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) 
     ['Joined', formatDate(record?.join_date), tenureFrom(record?.join_date)],
   ]), [record]);
 
-  if (linkedEmployee && employeeQuery.isLoading && !employeeQuery.data) return <ProfileLoading />;
+  if (linkedEmployee && employeeQuery.isLoading && !employeeQuery.data) {
+    return <ProfileLoading onOpenMenu={onOpenMenu} menuOpen={menuOpen} />;
+  }
 
   const phoneChanged = phone.trim() !== (record?.phone || '');
   const savePhone = (event) => {
@@ -203,6 +230,7 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) 
 
   return (
     <div className="page-shell user-profile animate-fade-in">
+      <ProfileMenuHeader onOpenMenu={onOpenMenu} menuOpen={menuOpen} />
       <header className="profile-hero">
         <div className="profile-avatar">
           {avatars[record?.id] ? (
@@ -225,9 +253,9 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) 
           </div>
         </div>
 
-        <button type="button" className="profile-settings" onClick={onOpenSettings}>
+        {onOpenSettings && <button type="button" className="profile-settings" onClick={onOpenSettings}>
           <Settings size={14} /> <span>Settings</span>
-        </button>
+        </button>}
       </header>
 
       {/* Given their own row so they are answerable at a glance rather than found inside a list. */}
@@ -353,9 +381,9 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings }) 
             ['Access role', roleLabel],
           ]}
         >
-          <button type="button" className="profile-inline-link" onClick={onOpenSettings}>
+          {onOpenSettings && <button type="button" className="profile-inline-link" onClick={onOpenSettings}>
             <Settings size={13} /> Password and display settings
-          </button>
+          </button>}
         </Facts>
 
         {record?.id && (
