@@ -925,6 +925,7 @@ function VoiceButton({ disabled, onRecorded, onError }) {
   useEffect(() => stopStream, [stopStream]);
 
   const start = async () => {
+    onError(null);
     try {
       if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
         throw new Error('This browser cannot record audio. You can still attach an audio file.');
