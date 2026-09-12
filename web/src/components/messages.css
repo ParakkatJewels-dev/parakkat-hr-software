@@ -228,6 +228,22 @@
 .conversation-row-active .messages-avatar { background: var(--chat-surface) !important; }
 .conversation-row-copy { min-width: 0; flex: 1; }
 .conversation-row-top, .conversation-row-bottom { display: flex; align-items: center; gap: 9px; }
+.conversation-row-preview .message-delivery-status { margin-right: 4px; vertical-align: -3px; }
+.conversation-request-label { flex-shrink: 0; padding: 2px 6px; border-radius: 8px; background: var(--chat-hover); color: var(--chat-muted); font-size: 10px; }
+.messages-request-count { display: inline-grid; place-items: center; min-width: 17px; height: 17px; margin-left: 5px; padding: 0 4px; border-radius: 9px; background: var(--chat-accent); color: var(--chat-accent-text); font-size: 10px; }
+.messages-list-filters { flex-wrap: wrap; }
+.messages-request-banner { display: flex; flex-shrink: 0; align-items: flex-start; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--chat-border); background: var(--chat-chrome); color: var(--chat-text); }
+.messages-request-banner > svg { flex-shrink: 0; color: var(--chat-accent); margin-top: 2px; }
+.messages-request-banner > div { min-width: 0; }
+.messages-request-banner strong { display: block; font-size: 14px; }
+.messages-request-banner p { margin: 4px 0 0; color: var(--chat-muted); font-size: 12px; line-height: 1.6; }
+.messages-request-actions { display: flex; gap: 8px; margin-top: 10px; }
+.messages-request-actions button { min-height: 40px; padding-inline: 14px; }
+.messages-new-chat-hint { margin: 0; color: var(--chat-muted, #737373); font-size: 12px; line-height: 1.6; }
+.message-delivery-status { display: inline-flex; flex-shrink: 0; align-items: center; color: inherit; }
+.message-delivery-status[data-status="seen"] { color: #53bdeb; }
+.conversation-row .message-delivery-status[data-status="seen"] { color: #087cb3; }
+.dark .conversation-row .message-delivery-status[data-status="seen"] { color: #53bdeb; }
 .conversation-row-top { margin-bottom: 5px; }
 .conversation-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
 .conversation-row-time { flex-shrink: 0; font-size: 10px; color: var(--chat-muted); }

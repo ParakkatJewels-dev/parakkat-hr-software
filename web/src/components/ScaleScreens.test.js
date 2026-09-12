@@ -214,10 +214,15 @@ test('goal management controls follow each row scope even when reading a wider t
 
 test('chat person and group-member pickers keep all 675 people reachable in bounded pages', () => {
   const fixture = accountFixtures();
-  const picker = render(NewConversation, [], { me: 'not-in-fixture', onClose() {}, onOpened() {} });
+  // Chat search uses its minimal company-wide directory even when the HR directory is hidden.
+  const people = [[['messaging-people', ''], fixture.employees], [['employees'], []]];
+  const picker = render(NewConversation, people, { me: 'not-in-fixture', onClose() {}, onOpened() {} }, '/', {
+    employee: { id: 'not-in-fixture' }, isSuperAdmin: false,
+  });
   assert.equal((picker.match(/>Sample Employee \d+</g) ?? []).length, 12);
   assert.match(picker, /of 675 people/);
   assert.match(picker, /role="dialog"/);
+  assert.match(picker, /New conversations across branches start as message requests/);
   const panel = render(GroupPanel, [], { conversation: { id: 'group-1', kind: 'group', title: 'Everyone',
     members: fixture.employees.map((employee) => ({ employee_id: employee.id, employee })) }, me: 'not-in-fixture', onClose() {} });
   assert.equal((panel.match(/title="Remove"/g) ?? []).length, 12);
@@ -225,6 +230,39 @@ test('chat person and group-member pickers keep all 675 people reachable in boun
   const monitor = render(ChatMonitor);
   assert.equal((monitor.match(/class="chat-monitor-row"/g) ?? []).length, 25);
   assert.match(monitor, /of 675 people/);
+});
+
+test('request recipients must accept before replying, while senders see their pending state', () => {
+  const conversation = { id: 'request', kind: 'direct', created_by: 'sender', request_recipient_id: 'recipient',
+    request_status: 'pending', members: [
+      { employee_id: 'sender', employee: { full_name: 'Other Branch Colleague' } },
+      { employee_id: 'recipient', employee: { full_name: 'Recipient' } },
+    ] };
+  const incoming = render(Thread, [], { conversation, me: 'recipient', onBack() {} });
+  assert.match(incoming, /Accept<\/button>/);
+  assert.match(incoming, /Decline<\/button>/);
+  assert.match(incoming, /Accept this request to reply/);
+  assert.doesNotMatch(incoming, /aria-label="Write a message"/);
+  const outgoing = render(Thread, [], { conversation, me: 'sender', onBack() {} });
+  assert.match(outgoing, /Waiting for acceptance/);
+  assert.match(outgoing, /aria-label="Write a message"/);
+  const declined = render(Thread, [], { conversation: { ...conversation, request_status: 'declined' }, me: 'sender', onBack() {} });
+  assert.match(declined, /Request declined/);
+  assert.doesNotMatch(declined, /aria-label="Write a message"/);
+  const accepted = render(Thread, [], { conversation: { ...conversation, request_status: 'accepted' }, me: 'recipient', onBack() {} });
+  assert.match(accepted, /aria-label="Write a message"/);
+  assert.doesNotMatch(accepted, /Accept this request/);
+});
+
+test('own message bubbles expose sent, delivered and seen ticks from recipient receipts', () => {
+  const message = { id: 'message', sender_id: 'self', conversation_id: 'room', kind: 'text', body: 'Hello', created_at: '2026-09-12T09:00:00Z' };
+  const pages = { pages: [{ messages: [message], nextCursor: null }], pageParams: [null] };
+  for (const [label, receipt] of [['Sent', {}], ['Delivered', { last_delivered_at: message.created_at }], ['Seen', { last_read_at: message.created_at }]]) {
+    const conversation = { id: 'room', kind: 'direct', request_status: 'accepted', members: [{ employee_id: 'self' }, { employee_id: 'other', ...receipt }] };
+    const html = render(Thread, [[['messages', conversation.id, 'pages'], pages]], { conversation, me: 'self', onBack() {} });
+    assert.match(html, new RegExp(`aria-label="${label}"`));
+    assert.match(html, /data-message-id="message"/);
+  }
 });
 
 test('chat exposes earlier pages and read-only monitoring has no message or membership actions', () => {

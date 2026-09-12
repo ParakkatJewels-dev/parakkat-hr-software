@@ -5,21 +5,20 @@
 // conversation list beside a 60%-wide thread gives you two things too narrow to use.
 //
 // What is deliberately NOT here:
-//   * Typing indicators and read receipts. Both need a write per keystroke or per message per
-//     person, and both answer questions ("is he ignoring me", "did she read it at 11pm") that an
-//     internal work tool is better off not answering.
+//   * Typing indicators. Delivery and seen receipts use server-validated reading positions.
 //   * Live calls. Different project — WebRTC, signalling, and relay servers that cost money every
 //     month whether anybody calls or not.
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Settings,
+  Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Settings, Inbox, Check, CheckCheck,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
   useStartDirect, useCreateGroup, useAddMembers, useRemoveMember, useRenameGroup,
   useUploadMedia, useMediaUrl, useEmployeeConversations, useSetGroupPicture,
+  useMessagingPeople, useRespondToMessageRequest,
 } from '../data/messages';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
@@ -38,6 +37,9 @@ import { useFocusRow } from '../lib/useFocusRow';
 import { messageLinkParts } from '../lib/messageLinks';
 import VoiceNote from './VoiceNote';
 import VoiceRecorder from './VoiceRecorder';
+import { isIncomingRequest, hasRequestMessage, belongsInChatSection, canSendToConversation } from '../lib/messageRequests';
+import { messageDeliveryStatus } from '../lib/messageReceipts';
+import { useVisibleMessageReceipts } from '../lib/useVisibleMessageReceipts';
 import './messages.css';
 
 const INPUT =
@@ -115,11 +117,13 @@ export default function Messages() {
     : conversations;
 
   const open = shown.find((c) => c.id === openId) ?? null;
+  const inboxOwner = monitoring ? watchingId : me;
+  const requestCount = shown.filter((c) => isIncomingRequest(c, inboxOwner) && hasRequestMessage(c)).length;
 
   // Filtered from the watched person's side when watching, so a search for a name matches the
   // people THEY talk to rather than the people the administrator talks to.
   const visible = useMemo(
-    () => filterConversations(shown, { query, filter: chatFilter, me: monitoring ? watchingId : me }),
+    () => filterConversations(shown.filter((c) => belongsInChatSection(c, monitoring ? watchingId : me, chatFilter)), { query, filter: chatFilter, me: monitoring ? watchingId : me }),
     [shown, query, chatFilter, me, monitoring, watchingId]
   );
 
@@ -174,7 +178,7 @@ export default function Messages() {
         {/* The list. On a phone it IS the screen until a conversation is opened. */}
         <aside className={`messages-list ${open ? 'messages-list-collapsed' : ''}`} aria-label="Chats">
           <header className="messages-list-header">
-            <h1>Chats</h1>
+            <h1>{chatFilter === 'requests' ? 'Message requests' : 'Chats'}</h1>
             {/* Composing is meaningless while reading somebody else's inbox — you would be starting
                 a conversation of your own from a screen that is showing theirs. */}
             {!monitoring && (
@@ -205,8 +209,10 @@ export default function Messages() {
               aria-label="Search conversations" placeholder="Search or start a new chat" />
           </label>
           <div className="messages-list-filters" aria-label="Filter chats">
-            {[['all', 'All'], ['unread', 'Unread'], ['groups', 'Groups']].map(([value, label]) => (
-              <button type="button" key={value} aria-pressed={chatFilter === value} onClick={() => setChatFilter(value)}>{label}</button>
+            {[['all', 'Chats'], ['unread', 'Unread'], ['groups', 'Groups'], ['requests', 'Requests']].map(([value, label]) => (
+              <button type="button" key={value} aria-pressed={chatFilter === value} onClick={() => setChatFilter(value)}>{label}
+                {value === 'requests' && requestCount > 0 && <span className="messages-request-count">{requestCount > 99 ? '99+' : requestCount}</span>}
+              </button>
             ))}
           </div>
 
@@ -224,9 +230,9 @@ export default function Messages() {
             {!isLoading && visible.length === 0 && (
               <div className="px-1 py-6 text-center">
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {query ? 'No chats match your search.' : chatFilter === 'unread' ? 'You’re all caught up.' : chatFilter === 'groups' ? 'No group chats yet.' : 'No conversations yet.'}
+                  {query ? 'No chats match your search.' : chatFilter === 'unread' ? 'You’re all caught up.' : chatFilter === 'groups' ? 'No group chats yet.' : chatFilter === 'requests' ? 'No message requests. New messages from other branches will appear here.' : 'No conversations yet.'}
                 </p>
-                {!query && (
+                {!query && !monitoring && chatFilter !== 'requests' && (
                   <button
                     type="button"
                     onClick={() => setComposing(true)}
@@ -257,7 +263,9 @@ export default function Messages() {
               conversation={open}
               me={monitoring ? watchingId : me}
               readOnly={monitoring}
+              receiptsPaused={composing}
               onBack={() => setOpenId(null)}
+              onRequestAccepted={() => setChatFilter('all')}
             />
           ) : (
             <div className="messages-welcome">
@@ -274,7 +282,7 @@ export default function Messages() {
         <NewConversation
           me={me}
           onClose={() => setComposing(false)}
-          onOpened={(id) => { setComposing(false); setOpenId(id); }}
+          onOpened={(id) => { setComposing(false); setChatFilter('all'); setQuery(''); setOpenId(id); }}
         />
       )}
     </div>
@@ -391,8 +399,12 @@ function ConversationRow({ conversation, me, active, onOpen }) {
         </span>
         <span className="conversation-row-bottom">
           <span className="conversation-row-preview">
+            {conversation.last_sender_id === me && !conversation.last_deleted && <MessageTicks conversation={conversation}
+              message={{ id: conversation.last_message_id, sender_id: me, created_at: conversation.last_message_created_at ?? conversation.last_message_at }} />}
             {previewOf(conversation, me)}
           </span>
+          {conversation.request_status === 'pending' && <span className="conversation-request-label">{isIncomingRequest(conversation, me) ? 'Request' : 'Pending'}</span>}
+          {conversation.request_status === 'declined' && <span className="conversation-request-label">Declined</span>}
           {unread && (
             <span
               className="conversation-unread-count"
@@ -407,10 +419,26 @@ function ConversationRow({ conversation, me, active, onOpen }) {
   );
 }
 
+function MessageTicks({ message, conversation }) {
+  const status = messageDeliveryStatus(message, conversation);
+  const group = conversation?.kind === 'group';
+  const label = status === 'seen' ? (group ? 'Seen by everyone' : 'Seen')
+    : status === 'delivered' ? (group ? 'Delivered to everyone' : 'Delivered') : 'Sent';
+  return <span className="message-delivery-status" data-status={status} role="img" aria-label={label} title={label}>
+    {status === 'sent' ? <Check size={16} aria-hidden="true" /> : <CheckCheck size={17} aria-hidden="true" />}
+  </span>;
+}
+
 /* ---------------------------------------------------------------- the thread -- */
 
-export function Thread({ conversation, me, onBack, readOnly = false }) {
-  const { data: messages = [], isLoading, error, hasOlder, loadOlder, isLoadingOlder } = useMessages(conversation.id);
+export function Thread({ conversation, me, onBack, readOnly = false, receiptsPaused = false, onRequestAccepted }) {
+  const { data: rawMessages = [], isLoading, error, hasOlder, loadOlder, isLoadingOlder } = useMessages(conversation.id);
+  const messages = useMemo(() => rawMessages.map((message) => ({ ...message,
+    sender: message.sender ?? conversation.members?.find((member) => member.employee_id === message.sender_id)?.employee,
+  })), [rawMessages, conversation.members]);
+  const request = useRespondToMessageRequest();
+  const incomingRequest = isIncomingRequest(conversation, me);
+  const maySend = canSendToConversation(conversation, me);
   const markRead = useMarkRead();
   const [managing, setManaging] = useState(false);
   const settingsButtonRef = useRef(null);
@@ -428,11 +456,16 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
   const isGroup = conversation.kind === 'group';
   const days = useMemo(() => groupByDay(messages), [messages]);
   const byId = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages]);
-  const unread = conversation.unread_count;
-  useEffect(() => {
-    if (!readOnly && unread > 0) markRead.mutate({ conversationId: conversation.id });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversation.id, unread]);
+  useVisibleMessageReceipts({ conversationId: conversation.id, messages, me, viewportRef, markRead,
+    enabled: !readOnly && !receiptsPaused && !managing && !isLoading && !error && (!conversation.request_status || conversation.request_status === 'accepted'),
+  });
+  const respond = async (accept) => {
+    try {
+      await request.mutateAsync({ conversationId: conversation.id, accept });
+      if (accept) onRequestAccepted?.();
+      else onBack?.();
+    } catch { /* Keep the request visible and show its error. */ }
+  };
 
   const jumpToLatest = useCallback(() => {
     const viewport = viewportRef.current;
@@ -476,7 +509,7 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
         <ConversationAvatar conversation={conversation} me={me} />
         <div className="messages-chat-heading">
           <h2>{name}</h2>
-          <p>{isGroup ? `${conversation.members?.length ?? 0} members · ${others(conversation, me).map((member) => member.employee?.full_name).filter(Boolean).join(', ')}` : 'Direct message'}</p>
+          <p>{isGroup ? `${conversation.members?.length ?? 0} members · ${others(conversation, me).map((member) => member.employee?.full_name).filter(Boolean).join(', ')}` : others(conversation, me)[0]?.employee?.branch?.code ? `Direct message · ${others(conversation, me)[0].employee.branch.code}` : 'Direct message'}</p>
         </div>
         <button ref={settingsButtonRef} type="button" onClick={() => setManaging(true)} aria-label="Chat settings"
           aria-expanded={managing} className="messages-icon-button"><Settings size={21} /></button>
@@ -484,6 +517,21 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
       {managing && <ConversationSettings conversation={conversation} me={me} readOnly={readOnly}
         onClose={closeSettings} />}
       <div className="messages-thread-content" inert={managing || undefined} aria-hidden={managing || undefined}>
+      {!readOnly && conversation.request_status && conversation.request_status !== 'accepted' && <div className="messages-request-banner" role="region" aria-label="Message request">
+        <Inbox size={22} aria-hidden="true" />
+        <div>
+          <strong>{incomingRequest ? 'Message request' : conversation.request_status === 'declined' ? 'Request declined' : 'Waiting for acceptance'}</strong>
+          <p>{incomingRequest ? `${name} is from another branch. Accept to reply and share seen receipts.`
+            : conversation.request_status === 'declined' ? 'This message request was declined. You cannot send more messages in this conversation.'
+            : 'Your messages will appear in their Requests section until they accept.'}</p>
+          {incomingRequest && <div className="messages-request-actions">
+            <button type="button" className={btnClass('primary', 'sm')} disabled={request.isPending} onClick={() => respond(true)}>
+              {request.isPending ? <Loader2 size={15} className="animate-spin" /> : <Check size={16} />}Accept</button>
+            <button type="button" className={btnClass('ghost', 'sm')} disabled={request.isPending} onClick={() => respond(false)}>Decline</button>
+          </div>}
+          {request.error && <p role="alert" className="messages-chat-error">{humanDbError(request.error)}</p>}
+        </div>
+      </div>}
       <div className="messages-chat-history">
         <div className="messages-chat-scroll" ref={viewportRef} role="region" aria-label="Message history" tabIndex={0}
           onScroll={(event) => {
@@ -504,7 +552,7 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
             {days.map(({ day, messages: rows }) => (
               <div key={day} className="messages-day">
                 <p className="messages-date"><span>{dayLabel(day)}</span></p>
-                {rows.map((message, index) => <MessageBubble key={message.id} message={message} me={me} readOnly={readOnly}
+                {rows.map((message, index) => <MessageBubble key={message.id} message={message} me={me} readOnly={readOnly} conversation={conversation} canReply={maySend}
                   quote={byId.get(message.reply_to)} onReply={() => setReplyId(message.id)}
                   withSender={showsSender(message, rows[index - 1] ?? null, { kind: conversation.kind })}
                   endsRun={index === rows.length - 1 || rows[index + 1].sender_id !== message.sender_id || showsSender(rows[index + 1], message, { kind: 'group' })} />)}
@@ -521,7 +569,9 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
         <p className="messages-chat-notice messages-readonly-bar" role="status">
           <Eye size={16} aria-hidden="true" /> Viewing someone else’s conversation. Only the people in it can reply.
         </p>
-      ) : (
+      ) : !maySend ? <p className="messages-chat-notice messages-readonly-bar" role="status">
+        {incomingRequest ? 'Accept this request to reply.' : 'This request is closed.'}
+      </p> : (
       <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
         onSent={() => { setReplyId(null); jumpToLatest(); }} />
       )}
@@ -532,7 +582,7 @@ export function Thread({ conversation, me, onBack, readOnly = false }) {
 
 /* --------------------------------------------------------------- one message -- */
 
-function MessageBubble({ message, me, withSender, endsRun, quote, onReply, readOnly = false }) {
+function MessageBubble({ message, me, withSender, endsRun, quote, onReply, conversation, canReply = true, readOnly = false }) {
   const mine = isMine(message, me);
   const [showActions, setShowActions] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -540,7 +590,7 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply, readO
   const isMedia = message.kind !== 'text';
 
   return (
-    <div className="message-bubble-row" data-own={mine} data-ends-run={endsRun}>
+    <div className="message-bubble-row" data-message-id={message.id} data-own={mine} data-ends-run={endsRun}>
       <div className="message-bubble-wrap">
         {message.deleted_at ? <p className="message-deleted"><Trash2 size={12} />Message deleted</p> : <>
           <div className={`message-bubble ${isMedia ? 'message-bubble-media' : ''}`}>
@@ -556,12 +606,13 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply, readO
             <div className="message-meta">
               {message.edited_at && <span>edited</span>}
               <time dateTime={message.created_at}>{clockOf(message.created_at)}</time>
-              {!readOnly && <button type="button" className="message-options" aria-label="Message options" aria-expanded={showActions}
+              {mine && <MessageTicks message={message} conversation={conversation} />}
+              {!readOnly && (mine || canReply) && <button type="button" className="message-options" aria-label="Message options" aria-expanded={showActions}
                 onClick={() => setShowActions((value) => !value)}><ChevronDown size={14} /></button>}
             </div>
           </div>
           {!readOnly && showActions && <div className="message-actions">
-            <button type="button" onClick={() => { onReply(); setShowActions(false); }}><Reply size={14} />Reply</button>
+            {canReply && <button type="button" onClick={() => { onReply(); setShowActions(false); }}><Reply size={14} />Reply</button>}
             {mine && <button type="button" onClick={() => setConfirming(true)}><Trash2 size={13} />Delete</button>}
           </div>}
         </>}
@@ -820,7 +871,7 @@ export function NewConversation({ me, onClose, onOpened }) {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState([]);
   const [title, setTitle] = useState('');
-  const { data: employees = [], isLoading: loadingEmployees, error: employeeError } = useEmployees();
+  const { data: employees = [], isLoading: loadingEmployees, error: employeeError } = useMessagingPeople();
   const startDirect = useStartDirect();
   const createGroup = useCreateGroup();
 
@@ -903,6 +954,7 @@ export function NewConversation({ me, onClose, onOpened }) {
           inputClassName={INPUT}
         />
 
+        {mode === 'direct' && <p className="messages-new-chat-hint">Search any employee. New conversations across branches start as message requests.</p>}
         {error && (
           <p role="alert" className="flex items-start gap-1.5 text-2xs text-rose-600 dark:text-rose-400">
             <AlertTriangle size={11} className="mt-0.5 shrink-0" /> {humanDbError(error)}
@@ -991,7 +1043,7 @@ export function ConversationSettings({ conversation, me, onClose, readOnly = fal
       <div className="messages-settings-identity">
         <ConversationAvatar conversation={conversation} me={me} large />
         <h3>{conversationName(conversation, me)}</h3>
-        <p>{isGroup ? `${conversation.members?.length ?? 0} members` : 'Direct message'}</p>
+        <p>{isGroup ? `${conversation.members?.length ?? 0} members` : others(conversation, me)[0]?.employee?.branch?.code ? `Direct message · ${others(conversation, me)[0].employee.branch.code}` : 'Direct message'}</p>
       </div>
       {isGroup ? <GroupPanel conversation={conversation} me={me} editable={editable} />
         : <div className="messages-settings-section">
@@ -1014,7 +1066,7 @@ export function GroupPanel({ conversation, me, editable = true }) {
   const [status, setStatus] = useState('');
   const [localError, setLocalError] = useState(null);
   const photoInput = useRef(null);
-  const { data: employees = [], error: employeesError } = useEmployees();
+  const { data: employees = [], error: employeesError } = useMessagingPeople({ enabled: editable });
   const add = useAddMembers();
   const remove = useRemoveMember();
   const rename = useRenameGroup();

@@ -38,7 +38,7 @@ const TABLE_KEYS = {
   tickets: [['tickets'], ['notification-ref-statuses']],
   assets: [['assets']],
   asset_assignments: [['assets'], ['asset-history']],
-  employees: [['employees']],
+  employees: [['employees'], ['messaging-people']],
   documents: [['documents'], ['employee-avatars']],
   exits: [['exits']],
   onboarding: [['onboarding']],
@@ -48,7 +48,7 @@ const TABLE_KEYS = {
   profiles: [['managed-users']],
   entities: [['org']],
   zones: [['org']],
-  branches: [['org']],
+  branches: [['org'], ['messaging-people']],
   departments: [['org']],
   designations: [['org']],
   // A chat that arrives on the five-minute safety poll is not a chat. RLS applies to realtime too,
@@ -57,9 +57,9 @@ const TABLE_KEYS = {
   // ['conversations'] as well as ['messages']: a new message changes the LIST — its order, its
   // preview line and its unread badge — and the person it matters most to is the one looking at
   // the list rather than at the thread.
-  messages: [['messages'], ['conversations']],
-  conversations: [['conversations']],
-  conversation_members: [['conversations']],
+  messages: [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']],
+  conversations: [['conversations'], ['admin-conversations'], ['message-delivery']],
+  conversation_members: [['conversations'], ['admin-conversations'], ['message-delivery']],
 };
 
 export function useRealtimeSync() {

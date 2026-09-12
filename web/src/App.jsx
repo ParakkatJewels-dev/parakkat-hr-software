@@ -49,6 +49,7 @@ import { resolveHeldRoles, resolvePrimaryRole } from './lib/roles';
 import { useViewRole } from './lib/viewRole';
 import { appNameFor, documentTitleFor } from './lib/appName';
 import { useRealtimeSync } from './lib/realtime';
+import { useIncomingMessageDelivery } from './data/messages';
 import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
 import { isStandalonePwa } from './lib/pwa';
@@ -101,6 +102,7 @@ export default function App() {
   const { employee, user, isSuperAdmin, signOut, assignments, permissions, hiddenScreens } = useAuth();
   const { canAny, canBeyondSelf } = usePermissions();
   useRealtimeSync(); // live-sync data across devices via Supabase Realtime
+  useIncomingMessageDelivery();
   // Subscribed at the root so switching the clock format repaints every screen at once. Times are
   // printed in a dozen places, several through a plain imported helper rather than a hook, and
   // hunting each one down would leave whichever was missed showing the old format until something

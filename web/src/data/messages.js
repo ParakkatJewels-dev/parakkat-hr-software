@@ -1,21 +1,22 @@
 // Talking to a colleague.
 //
-// Everything here rides on 0115's policies, so there is no permission check in this file: a query
+// Conversation policies and authenticated RPCs enforce access: a query
 // returns the conversations you are in (plus, for a super admin, any conversation they open by id),
 // and an insert is refused unless you are a member sending as yourself. One boundary, not two.
 //
-// Live delivery is not here either. lib/realtime.js already subscribes to Postgres changes and
+// lib/realtime.js subscribes to Postgres changes and
 // invalidates the matching caches, and `messages` is registered there — a second realtime mechanism
 // for one screen would be a second thing to debug when the first one is what everything else uses.
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection, fetchInCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 import { isMissingSchema } from '../lib/pendingMigration';
-import { directKey, mediaPath } from '../lib/conversations';
+import { mediaPath } from '../lib/conversations';
 import { fetchMessagePage, flattenMessagePages } from '../lib/messageHistory';
 import { renameGroup, setGroupPicture } from '../lib/groupIdentity';
+import { receiptCoversMessage } from '../lib/messageReceipts';
 
 /**
  * Number of messages fetched when opening a conversation or loading an earlier page.
@@ -24,9 +25,26 @@ export const MESSAGE_PAGE = 200;
 
 const MEMBER_KEY = (row) => `${row.conversation_id}:${row.employee_id}`;
 
-const MEMBER_FIELDS =
-  'conversation_id, employee_id, role, joined_at, ' +
-  'employee:employees(id, full_name, employee_code, branch:branches(code))';
+function fetchMembers(conversationIds) {
+  // The messaging directory exposes only names/codes, even when HR employee RLS hides another branch.
+  return fetchInCollection((ids) => supabase.rpc('messaging_members', { _conversation_ids: ids })
+    .order('conversation_id').order('employee_id'), conversationIds, { key: MEMBER_KEY });
+}
+
+/** A minimal cross-branch directory, paged so a server row cap cannot hide colleagues. */
+export function useMessagingPeople({ query = '', enabled = true } = {}) {
+  const { employee } = useAuth();
+  const search = String(query ?? '').trim();
+  return useQuery({
+    enabled: enabled && Boolean(employee?.id),
+    queryKey: ['messaging-people', search],
+    queryFn: async () => {
+      const people = await fetchCollection(() => supabase.rpc('messaging_directory', { _query: search })
+        .order('full_name').order('id'));
+      return people.map(person => ({ ...person, branch: person.branch_code ? { code: person.branch_code } : null }));
+    },
+  });
+}
 
 const MESSAGE_FIELDS =
   'id, conversation_id, sender_id, kind, body, storage_path, mime_type, byte_size, ' +
@@ -57,9 +75,7 @@ export function useConversations() {
         throw error;
       }
       if (!rows.length) return { pending: false, conversations: [] };
-      const members = await fetchInCollection((ids) => supabase.from('conversation_members')
-        .select(MEMBER_FIELDS).in('conversation_id', ids)
-        .order('conversation_id').order('employee_id'), rows.map((r) => r.id), { key: MEMBER_KEY });
+      const members = await fetchMembers(rows.map((r) => r.id));
 
       const byConversation = new Map();
       for (const m of members ?? []) {
@@ -121,9 +137,7 @@ export function useEmployeeConversations(employeeId, { enabled = true } = {}) {
         if (isMissingSchema(error)) return [];
         throw error;
       }
-      const everyone = await fetchInCollection((batch) => supabase.from('conversation_members')
-        .select(MEMBER_FIELDS).in('conversation_id', batch)
-        .order('conversation_id').order('employee_id'), ids, { key: MEMBER_KEY });
+      const everyone = await fetchMembers(ids);
 
       const byConversation = new Map();
       for (const m of everyone) {
@@ -217,39 +231,75 @@ export function useDeleteMessage() {
   });
 }
 
-/**
- * Mark this conversation read up to now.
- *
- * Fired when a thread is open and looked at. Deliberately not a mutation with an invalidate storm
- * attached — it runs on nearly every screen view, and refetching the world each time would make
- * reading a conversation the most expensive thing in the app.
- */
-export function useMarkRead() {
+/** Acknowledge only IDs actually fetched by this recipient; all receipt times come from the server. */
+function useAcknowledgeMessages(seen) {
   const qc = useQueryClient();
   const { employee } = useAuth();
   return useMutation({
-    mutationFn: async ({ conversationId }) => {
-      if (!employee?.id || !conversationId) return;
-      const { error } = await supabase
-        .from('conversation_members')
-        .update({ last_read_at: new Date().toISOString() })
-        .eq('conversation_id', conversationId)
-        .eq('employee_id', employee.id);
-      if (error && !isMissingSchema(error)) throw error;
+    mutationFn: async ({ conversationId, messageIds = [] }) => {
+      const ids = [...new Set(messageIds.filter(id => typeof id === 'string' && id))];
+      if (!employee?.id || !conversationId || !ids.length) return;
+      for (let offset = 0; offset < ids.length; offset += 1000) {
+        const { error } = await supabase.rpc('acknowledge_message_receipts', {
+          _conversation_id: conversationId,
+          _message_ids: ids.slice(offset, offset + 1000),
+          _seen: seen,
+        });
+        if (error) throw error;
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['conversations'] });
+      qc.invalidateQueries({ queryKey: ['admin-conversations'] });
+    },
   });
 }
 
-/**
- * Open the conversation with one person, creating it only if there is not one already.
- *
- * The lookup goes through `direct_key` — the sorted pair — rather than "a conversation whose
- * members are exactly these two", which is a query PostgREST cannot express and which would race
- * anyway. If two people press message on each other at the same instant, the unique index rejects
- * the second insert and the catch below re-reads the row the winner just created, so both of them
- * end up in the same conversation instead of two half-conversations.
- */
+/** Call only for received messages rendered in an accepted, actively visible thread. */
+export function useMarkRead() {
+  return useAcknowledgeMessages(true);
+}
+
+/** Delivery means this app received message data; it does not mean the recipient opened the chat. */
+export function useMarkDelivered() {
+  return useAcknowledgeMessages(false);
+}
+
+/** Mount once in the authenticated app. Fetching inbox metadata acknowledges delivery, never seen. */
+export function useIncomingMessageDelivery() {
+  const { employee } = useAuth();
+  const acknowledged = useRef(new Map());
+  const { mutateAsync: markDelivered } = useMarkDelivered();
+  const query = useQuery({
+    enabled: Boolean(employee?.id),
+    queryKey: ['message-delivery', employee?.id],
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    queryFn: () => fetchCollection(() => supabase.from('my_conversations')
+      .select('id, last_incoming_message_id, last_incoming_message_created_at, last_delivered_at, last_delivered_message_id')
+      .order('id')),
+  });
+
+  useEffect(() => {
+    if (!employee?.id || !query.isSuccess) return;
+    for (const conversation of query.data ?? []) {
+      const incoming = { id: conversation.last_incoming_message_id, created_at: conversation.last_incoming_message_created_at };
+      if (!incoming.id || !incoming.created_at || receiptCoversMessage(conversation, incoming, 'delivered')) continue;
+      const key = `${employee.id}:${conversation.id}`;
+      const cursor = `${incoming.created_at}:${incoming.id}`;
+      if (acknowledged.current.get(key) === cursor) continue;
+      acknowledged.current.set(key, cursor);
+      markDelivered({ conversationId: conversation.id, messageIds: [incoming.id] }).catch(() => {
+        // A transient failure is retried after the next poll or reconnect; it cannot mark anything seen.
+        if (acknowledged.current.get(key) === cursor) acknowledged.current.delete(key);
+      });
+    }
+  }, [employee?.id, query.data, query.dataUpdatedAt, query.isSuccess, markDelivered]);
+
+  return query;
+}
+
+/** The server creates both memberships and the request state in one transaction. */
 export function useStartDirect() {
   const qc = useQueryClient();
   const { employee } = useAuth();
@@ -258,93 +308,23 @@ export function useStartDirect() {
       if (!employee?.id) throw new Error('Your account is not linked to an employee record.');
       if (!employeeId) throw new Error('No colleague was chosen. Pick somebody from the list and try again.');
       if (employeeId === employee.id) throw new Error('You cannot start a conversation with yourself.');
-
-      const key = directKey(employee.id, employeeId);
-
-      /*
-       * Both people, in ONE row shape.
-       *
-       * This is where direct conversations were broken for every user. The two rows used to be
-       * written as object literals with different keys — the first carried `role: 'owner'`, the
-       * second left role out and expected the column default. PostgREST takes the UNION of the keys
-       * across a bulk insert and sends NULL for any key a row omits; it does not fall back to the
-       * default. So the second row arrived with role = NULL, the NOT NULL constraint refused it,
-       * and the conversation that had already been created was left with no members at all.
-       *
-       * Groups never hit this because useCreateGroup maps every row through one .map(), which
-       * cannot produce a ragged shape. Anything writing more than one row at a time should be built
-       * the same way, for the same reason.
-       *
-       * Written as an upsert so it also REPAIRS: a conversation stranded by the old bug gets its
-       * members attached the next time somebody opens it, rather than staying permanently unusable.
-       */
-      const attachBoth = async (conversationId) => {
-        const rows = [
-          { conversation_id: conversationId, employee_id: employee.id, role: 'owner' },
-          { conversation_id: conversationId, employee_id: employeeId, role: 'member' },
-        ];
-
-        const first = await supabase.from('conversation_members').insert(rows);
-        if (!first.error) return;
-        // 23505 means at least one of the two was already attached — a repair, or a second tab.
-        if (first.error.code !== '23505') throw first.error;
-
-        /*
-         * One at a time, tolerating the duplicate.
-         *
-         * NOT `.upsert(..., { ignoreDuplicates: true })`, which is the obvious way to write this and
-         * cannot work here. supabase-js turns that into INSERT ... ON CONFLICT DO NOTHING, and an
-         * ON CONFLICT clause makes Postgres apply the table's SELECT policy so it can look at the
-         * conflicting row. conversation_members_select asks whether you are already a member of the
-         * conversation — which is precisely what this call is trying to make you. The identical row
-         * inserts fine without the clause and is refused with it.
-         *
-         * So: a plain insert per row, and a duplicate is success, because the end state is the one
-         * we wanted either way.
-         */
-        for (const row of rows) {
-          const { error } = await supabase.from('conversation_members').insert(row);
-          if (error && error.code !== '23505') throw error;
-        }
-      };
-
-      const existing = await supabase
-        .from('conversations').select('id').eq('direct_key', key).maybeSingle();
-      if (existing.error && !isMissingSchema(existing.error)) throw existing.error;
-      if (existing.data?.id) {
-        await attachBoth(existing.data.id);
-        return existing.data.id;
-      }
-
-      const created = await supabase
-        .from('conversations')
-        .insert({ kind: 'direct', direct_key: key, created_by: employee.id })
-        .select('id')
-        .single();
-
-      if (created.error) {
-        // 23505: the other person created it between our read and our write.
-        if (created.error.code === '23505') {
-          const again = await supabase
-            .from('conversations').select('id').eq('direct_key', key).maybeSingle();
-          if (again.error) throw again.error;
-          if (again.data?.id) {
-            await attachBoth(again.data.id);
-            return again.data.id;
-          }
-          // The row exists — the unique index just said so — but it is not visible yet, because
-          // the winner has not finished attaching us as a member. Milliseconds, and only when two
-          // people press message on each other at once. Say what happened rather than surfacing
-          // "no rows returned", which reads as though the conversation failed to be created.
-          throw new Error('They just started this conversation too. Give it a second and try again.');
-        }
-        throw created.error;
-      }
-
-      await attachBoth(created.data.id);
-      return created.data.id;
+      const { data, error } = await supabase.rpc('start_direct_conversation', { _employee_id: employeeId });
+      if (error) throw error;
+      if (!data) throw new Error('The conversation could not be opened. Please try again.');
+      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+  });
+}
+
+export function useRespondToMessageRequest() {
+  return useConversationMutation(async ({ conversationId, accept }) => {
+    if (!conversationId || typeof accept !== 'boolean') throw new Error('Choose whether to accept or decline this message request.');
+    const { error } = await supabase.rpc('respond_to_message_request', {
+      _conversation_id: conversationId,
+      _accept: accept,
+    });
+    if (error) throw error;
   });
 }
 

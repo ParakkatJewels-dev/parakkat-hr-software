@@ -81,8 +81,17 @@ export const supabase = {
     if (roleMode && tablePermissions[name]) rows = rows.filter((row) => fixtureAllows(tablePermissions[name], row));
     return new Query(rows, name);
   },
-  rpc(name) {
+  rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    if (name === 'messaging_directory') {
+      const query = String(args._query ?? '').trim().toLowerCase();
+      return new Query(fixture.employees.filter((employee) => employee.id !== fixture.employees[0].id)
+        .map(({ id, full_name, employee_code, branch_id, branch }) => ({ id, full_name, employee_code, branch_id, branch_code: branch?.code }))
+        .filter((person) => !query || [person.full_name, person.employee_code, person.branch_code].some((value) => String(value ?? '').toLowerCase().includes(query))));
+    }
+    if (name === 'messaging_members') {
+      return new Query(tables.conversation_members.filter((member) => args._conversation_ids?.includes(member.conversation_id)));
+    }
     if (name === 'list_managed_users') return new Query(roleMode ? fixture.users.filter((user) => qaVisibleEmployees.some((e) => e.id === user.employee_id)) : fixture.users);
     if (name === 'my_departments') return new Query(roleMode ? fixture.org.departments.filter((d) => qaVisibleEmployees.some((e) => e.department_id === d.id)) : fixture.org.departments);
     if (name === 'report_attendance_exceptions') return new Query([{ absent: 105, late: 0, missing_punch: 0 }]);

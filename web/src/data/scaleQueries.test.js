@@ -10,7 +10,8 @@ const stubs = {
   '@tanstack/react-query': `export const useQuery = x => globalThis.auditQueryResult?.(x) ?? x;
     export const useInfiniteQuery = x => x; export const useMutation = x => x;
     export const useQueryClient = () => ({ invalidateQueries() {} });`,
-  react: `export const useMemo = f => f(); export const useCallback = f => f;`,
+  react: `export const useMemo = f => f(); export const useCallback = f => f;
+    export const useEffect = () => {}; export const useRef = value => ({ current: value });`,
   supabaseClient: 'export const supabase = { from: (...args) => globalThis.auditDb.from(...args), rpc: (...args) => globalThis.auditDb.rpc(...args) };',
   AuthContext: 'export const useAuth = () => ({ employee: { id: "employee-1" }, user: { id: "user-1" } });',
   timeFormat: 'export const getHour12 = () => false;',
@@ -51,8 +52,16 @@ const importer = await import('./employeeImport.js');
 
 function fixtureDb(tables, { serverCap = 97, rejectAtOffset = null, beforeRead } = {}) {
   const calls = [];
+  const rpcCalls = [];
   const db = {
     calls,
+    rpcCalls,
+    rpc(name, params) {
+      rpcCalls.push({ name, params });
+      if (name === 'messaging_members') return this.from('conversation_members').in('conversation_id', params._conversation_ids);
+      if (name === 'messaging_directory') return this.from('messaging_directory');
+      assert.fail(`Unexpected RPC: ${name}`);
+    },
     from(table) {
       const conditions = []; const ordering = [];
       let from = 0; let end = Infinity; let limit = Infinity; let single = false;
@@ -205,6 +214,35 @@ test('675 group members remain visible alongside 675 direct conversations', asyn
   assert.equal(result.conversations.length, 676);
   assert.equal(result.conversations.find(c => c.id === 'group').members.length, 675);
   assert.ok(result.conversations.filter(c => c.id !== 'group').every(c => c.members.length === 2));
+});
+
+test('the safe messaging directory pages all 675 matching colleagues without reading HR employee records', async () => {
+  const people = Array.from({ length: 675 }, (_, i) => ({
+    id: `person-${String(i).padStart(4, '0')}`, full_name: `Colleague ${String(i).padStart(4, '0')}`,
+    employee_code: `EMP-${i}`, branch_id: `branch-${i % 3}`, branch_code: `BR-${i % 3}`,
+  }));
+  const db = fixtureDb({ messaging_directory: people });
+  const hook = messages.useMessagingPeople({ query: ' Colleague ' });
+  assert.deepEqual(hook.queryKey, ['messaging-people', 'Colleague']);
+  const result = await hook.queryFn();
+  assert.equal(result.length, 675);
+  assert.deepEqual(result.map(person => person.id), people.map(person => person.id));
+  assert.ok(result.every(person => person.branch.code === person.branch_code));
+  assert.ok(db.calls.every(call => call.table === 'messaging_directory'));
+  assert.ok(db.rpcCalls.every(call => call.name === 'messaging_directory' && call.params._query === 'Colleague'));
+  assert.equal(messages.useMessagingPeople({ enabled: false }).enabled, false);
+});
+
+test('the app delivery poll fetches complete minimal inbox cursors without fetching group rosters', async () => {
+  const conversations = Array.from({ length: 675 }, (_, i) => ({
+    id: `room-${String(i).padStart(4, '0')}`, last_incoming_message_id: `message-${i}`,
+    last_incoming_message_created_at: '2026-09-12T10:00:00Z', last_delivered_at: null,
+  }));
+  const db = fixtureDb({ my_conversations: conversations });
+  const query = messages.useIncomingMessageDelivery();
+  assert.deepEqual(await query.queryFn(), conversations);
+  assert.ok(db.calls.every(call => call.table === 'my_conversations'));
+  assert.equal(db.rpcCalls.length, 0, 'fetching the summary cannot read all members or implicitly acknowledge seen');
 });
 
 test('task comment and attachment counters count every related row with bounded UUID filters', async () => {
