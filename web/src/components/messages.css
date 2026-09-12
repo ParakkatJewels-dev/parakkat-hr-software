@@ -273,45 +273,6 @@
 .message-bubble-media { padding-top: 7px; }
 .message-bubble-media :is(img, video) { max-width: 100%; }
 .message-bubble-media .message-text { margin-top: 6px; }
-/* ---- voice notes -----------------------------------------------------------------------------
-   A play button, a track and a time, drawn in the bubble's own colours. The browser's native
-   <audio controls> strip is grey in every theme and cannot be restyled to sit inside a green bubble. */
-.voice-note { display: flex; align-items: center; gap: 10px; width: min(260px, 100%); min-width: 200px; padding-top: 2px; }
-.voice-note-toggle {
-  display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; padding: 0;
-  border: 0; border-radius: 50%; background: var(--chat-accent); color: var(--chat-accent-text);
-  transition: transform .12s ease, opacity .12s ease;
-}
-.voice-note-toggle:active { transform: scale(.94); }
-.voice-note[data-own="true"] .voice-note-toggle { background: #fff; color: var(--chat-sent-bg); }
-/* A play triangle centred by its box reads as off-centre; nudge it to where the eye puts the middle. */
-.voice-note[data-playing="false"] .voice-note-toggle svg { margin-left: 2px; }
-
-.voice-note-track {
-  --voice-fill: var(--chat-accent);
-  --voice-rest: var(--chat-border);
-  flex: 1; min-width: 0; height: 22px; margin: 0; background: transparent; cursor: pointer;
-  -webkit-appearance: none; appearance: none;
-}
-.voice-note[data-own="true"] .voice-note-track { --voice-fill: #fff; --voice-rest: #ffffff4d; }
-.voice-note-track:disabled { cursor: default; }
-.voice-note-track::-webkit-slider-runnable-track {
-  height: 4px; border-radius: 4px;
-  background: linear-gradient(to right, var(--voice-fill) var(--voice-progress, 0%), var(--voice-rest) var(--voice-progress, 0%));
-}
-.voice-note-track::-webkit-slider-thumb {
-  width: 14px; height: 14px; margin-top: -5px; border: 0; border-radius: 50%; background: var(--voice-fill);
-  -webkit-appearance: none; appearance: none;
-}
-.voice-note-track::-moz-range-track { height: 4px; border-radius: 4px; background: var(--voice-rest); }
-.voice-note-track::-moz-range-progress { height: 4px; border-radius: 4px; background: var(--voice-fill); }
-.voice-note-track::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--voice-fill); }
-.voice-note-track:focus-visible { outline: 2px solid var(--voice-fill); outline-offset: 2px; border-radius: 4px; }
-
-.voice-note-time { flex-shrink: 0; min-width: 34px; font-size: 12px; font-variant-numeric: tabular-nums; text-align: right; color: var(--chat-muted); }
-.voice-note[data-own="true"] .voice-note-time { color: #e1f5ec; }
-.voice-note-failed { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--chat-muted); }
-.message-bubble-row[data-own="true"] .voice-note-failed { color: #e1f5ec; }
 .messages-file-name { display: block; overflow-wrap: anywhere; font-size: 12px; line-height: 1.5; font-weight: 600; }
 .messages-jump-latest { position: absolute; right: 18px; bottom: 15px; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--chat-border); border-radius: 50%; background: var(--chat-surface); color: var(--chat-text); box-shadow: 0 2px 8px #0002; }
 .messages-chat-notice { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 20px; font-size: 13px; color: var(--chat-muted); }

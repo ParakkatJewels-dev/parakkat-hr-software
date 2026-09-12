@@ -14,7 +14,7 @@ import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallba
 import { createPortal } from 'react-dom';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Mic, Square, Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Play, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Pause, Settings,
+  Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Settings,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
@@ -25,7 +25,7 @@ import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import {
   conversationName, previewOf, sortConversations, groupByDay, showsSender, isMine, hasUnread,
-  others, filterConversations, replyPreviewOf, formatVoiceDuration, playbackFraction,
+  others, filterConversations, replyPreviewOf,
 } from '../lib/conversations';
 import { humanDbError } from '../lib/dbErrors';
 import { relativeTime, istToday } from '../lib/dates';
@@ -36,6 +36,8 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useFocusRow } from '../lib/useFocusRow';
 import { messageLinkParts } from '../lib/messageLinks';
+import VoiceNote from './VoiceNote';
+import VoiceRecorder from './VoiceRecorder';
 import './messages.css';
 
 const INPUT =
@@ -579,117 +581,6 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply, readO
   );
 }
 
-/*
- * Only one voice note plays at a time. Starting a second pauses the first, the way every chat app
- * behaves; otherwise two people's voices talk over each other and neither can be followed.
- * Module-level on purpose: the notes are separate components in separate bubbles, and this is the
- * one thing they need to share.
- */
-let playingVoice = null;
-
-/**
- * A voice note that looks like it belongs in the bubble.
- *
- * It replaces a bare <audio controls>, which drew the browser's own grey control strip inside a
- * green bubble, sat beside a second, decorative play icon, and read 0:00 where the length should
- * be. The <audio> element still plays the sound; it is just no longer what is on screen.
- *
- * preload="none" when the length is already known from duration_ms: a thread of voice notes on a
- * phone should not download every one of them just to be scrolled past.
- */
-function VoiceNote({ url, durationMs, mine }) {
-  const audioRef = useRef(null);
-  const [playing, setPlaying] = useState(false);
-  const [current, setCurrent] = useState(0);
-  const [mediaDuration, setMediaDuration] = useState(NaN);
-  const [failed, setFailed] = useState(false);
-
-  const knownMs = Number.isFinite(mediaDuration) && mediaDuration > 0 ? mediaDuration * 1000 : durationMs;
-  const fraction = playbackFraction(current, mediaDuration, durationMs);
-
-  useEffect(() => () => {
-    // Leaving the thread mid-note must stop the sound, and must not leave this note registered as
-    // the one playing: the next note started would try to pause an element that no longer exists.
-    const audio = audioRef.current;
-    if (audio) audio.pause();
-    if (playingVoice === audio) playingVoice = null;
-  }, []);
-
-  const toggle = async () => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (!audio.paused) { audio.pause(); return; }
-    if (playingVoice && playingVoice !== audio) playingVoice.pause();
-    playingVoice = audio;
-    try { await audio.play(); }
-    catch { setFailed(true); }
-  };
-
-  const seek = (event) => {
-    const audio = audioRef.current;
-    const total = (knownMs ?? 0) / 1000;
-    if (!audio || !total) return;
-    const next = (Number(event.target.value) / 1000) * total;
-    audio.currentTime = next;
-    setCurrent(next);
-  };
-
-  if (failed) {
-    return (
-      <p className="voice-note-failed" role="status">
-        <AlertTriangle size={13} aria-hidden="true" /> This voice note can’t be played on this device.
-      </p>
-    );
-  }
-
-  // The time reads the length at rest and the elapsed time once started: how long is this, then
-  // how far in am I. Those are the two questions a listener has, in that order.
-  const shownMs = playing || current > 0 ? current * 1000 : knownMs;
-
-  return (
-    <div className="voice-note" data-own={mine ? 'true' : 'false'} data-playing={playing ? 'true' : 'false'}>
-      <audio
-        ref={audioRef}
-        src={url}
-        preload={durationMs ? 'none' : 'metadata'}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => {
-          setPlaying(false);
-          setCurrent(0);
-          if (playingVoice === audioRef.current) playingVoice = null;
-        }}
-        onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setMediaDuration(e.currentTarget.duration)}
-        onDurationChange={(e) => setMediaDuration(e.currentTarget.duration)}
-        onError={() => setFailed(true)}
-      />
-      <button
-        type="button"
-        className="voice-note-toggle"
-        onClick={toggle}
-        aria-label={playing ? 'Pause voice note' : 'Play voice note'}
-      >
-        {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" />}
-      </button>
-      <input
-        type="range"
-        className="voice-note-track"
-        min={0}
-        max={1000}
-        step={1}
-        value={Math.round(fraction * 1000)}
-        onChange={seek}
-        disabled={!knownMs}
-        style={{ '--voice-progress': `${fraction * 100}%` }}
-        aria-label="Voice note position"
-        aria-valuetext={`${formatVoiceDuration(current * 1000)} of ${formatVoiceDuration(knownMs)}`}
-      />
-      <span className="voice-note-time">{formatVoiceDuration(shownMs)}</span>
-    </div>
-  );
-}
-
 /** A photo, a clip, a voice note or a file — fetched through a signed URL, because the bucket is private. */
 function MediaBubble({ message, mine }) {
   const { data: url, isLoading, error } = useMediaUrl(message.storage_path);
@@ -776,6 +667,8 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
   const [attachOpen, setAttachOpen] = useState(false);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [sending, setSending] = useState(false);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [draftUrl, setDraftUrl] = useState(null);
   const send = useSendMessage();
   const upload = useUploadMedia();
   const fileRef = useRef(null);
@@ -785,6 +678,14 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
   const busy = sending || send.isPending || upload.isPending;
   const error = localError || send.error || upload.error;
   const canSend = Boolean(body.trim()) || Boolean(pending);
+  const voiceDraft = pending?.kind === 'voice';
+
+  useEffect(() => {
+    if (!voiceDraft || !pending?.file) { setDraftUrl(null); return; }
+    const url = URL.createObjectURL(pending.file);
+    setDraftUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [voiceDraft, pending?.file]);
 
   useEffect(() => {
     if (replyTo?.id) textRef.current?.focus();
@@ -811,20 +712,21 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
     requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + emoji.length, start + emoji.length); });
   };
 
-  const submit = async (event) => {
+  const submit = async (event, recordedDraft = null) => {
     event?.preventDefault();
-    if (postingRef.current || !canSend) return;
+    const attachment = recordedDraft ?? pending;
+    if (postingRef.current || (voiceActive && !recordedDraft) || (!body.trim() && !attachment)) return;
     postingRef.current = true;
     setSending(true);
     setLocalError(null);
     setAttachOpen(false);
     setEmojiOpen(false);
     try {
-      if (pending) {
+      if (attachment) {
         // Retain an uploaded object on a failed send, so retrying doesn't create duplicate files.
-        const media = pending.media ?? await upload.mutateAsync({ conversationId, file: pending.file, durationMs: pending.durationMs });
+        const media = attachment.media ?? await upload.mutateAsync({ conversationId, file: attachment.file, durationMs: attachment.durationMs });
         setPending((current) => current ? { ...current, media } : current);
-        await send.mutateAsync({ conversationId, body, kind: pending.kind, media, replyTo: replyTo?.id ?? null });
+        await send.mutateAsync({ conversationId, body, kind: attachment.kind, media, replyTo: replyTo?.id ?? null });
         setPending(null);
       } else {
         await send.mutateAsync({ conversationId, body, replyTo: replyTo?.id ?? null });
@@ -846,21 +748,31 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
         <div><strong>Replying to {isMine(replyTo, me) ? 'yourself' : replyTo.sender?.full_name || 'Unknown'}</strong><p>{replyPreviewOf(replyTo)}</p></div>
         <button type="button" className="messages-icon-button" disabled={busy} onClick={onCancelReply} aria-label="Cancel reply"><X size={18} /></button>
       </div>}
-      {pending && <div className="messages-pending-file">
+      {pending && !voiceDraft && <div className="messages-pending-file">
         <Paperclip size={20} />
         <div><strong>{pending.file.name}</strong><small>{readableSize(pending.file.size)} · Ready to send</small></div>
         <button type="button" className="messages-icon-button" disabled={busy} onClick={() => setPending(null)} aria-label="Remove attachment"><X size={18} /></button>
       </div>}
       {error && <p className="messages-chat-error" role="alert"><AlertTriangle size={13} />{humanDbError(error)}</p>}
+      {voiceDraft && body && <textarea className="messages-voice-caption" rows={1} value={body} disabled={busy}
+        maxLength={4000} aria-label="Voice note caption" onChange={(event) => setBody(event.target.value)} />}
       {emojiOpen && <div className="messages-emoji-picker" role="group" aria-label="Choose an emoji">
         {CHAT_EMOJI.map((emoji) => <button type="button" key={emoji} onClick={() => insertEmoji(emoji)} aria-label={`Insert ${emoji}`}>{emoji}</button>)}
       </div>}
-      <div className="messages-compose-row">
+      <div className="messages-compose-row" data-recording={voiceActive ? 'true' : 'false'}>
         <input ref={imageRef} type="file" accept="image/*,video/*" hidden disabled={busy}
           onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ''; }} />
         <input ref={fileRef} type="file" hidden disabled={busy}
           onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ''; }} />
-        <div className="messages-input-shell">
+        {voiceDraft && <div className="messages-voice-draft">
+          <button type="button" className="messages-icon-button" disabled={busy} aria-label="Delete voice note"
+            onClick={() => { setPending(null); setLocalError(null); }}><Trash2 size={21} /></button>
+          <div className="messages-voice-draft-player">
+            {draftUrl ? <VoiceNote key={draftUrl} url={draftUrl} durationMs={pending.durationMs} compact disabled={busy} />
+              : <Loader2 size={18} className="animate-spin" aria-label="Preparing preview" />}
+          </div>
+        </div>}
+        {!voiceActive && !voiceDraft && <div className="messages-input-shell">
           <button type="button" className="messages-icon-button" disabled={busy} aria-label="Choose emoji" aria-expanded={emojiOpen}
             onClick={() => { setEmojiOpen((value) => !value); setAttachOpen(false); }}><Smile size={21} /></button>
           <textarea ref={textRef} rows={1} value={body} disabled={busy} maxLength={4000}
@@ -885,120 +797,19 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
               </div>
             </>}
           </div>
-        </div>
-        {canSend ? <button type="submit" className="messages-send" disabled={busy} aria-label="Send">
+        </div>}
+        {canSend ? <button type="submit" className="messages-send" disabled={busy} aria-label={voiceDraft ? 'Send voice note' : 'Send'}>
           {busy ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
-        </button> : <VoiceButton disabled={busy || Boolean(pending)}
-          onRecorded={(file, durationMs) => setPending({ file, kind: 'voice', durationMs })} onError={setLocalError} />}
+        </button> : <VoiceRecorder disabled={busy}
+          onActiveChange={(active) => { setVoiceActive(active); if (active) { setAttachOpen(false); setEmojiOpen(false); } }}
+          onRecorded={(file, durationMs, { sendImmediately = false } = {}) => {
+            const draft = { file, kind: 'voice', durationMs };
+            setPending(draft);
+            if (sendImmediately) submit(null, draft);
+          }} onError={setLocalError} />}
       </div>
-      <p className="messages-composer-hint">{busy ? 'Sending…' : 'Enter to send · Shift+Enter for a new line'}</p>
+      {!voiceActive && <p className="messages-composer-hint">{busy ? 'Sending…' : voiceDraft ? 'Listen before sending' : 'Enter to send · Shift+Enter for a new line'}</p>}
     </form>
-  );
-}
-
-/**
- * Hold to record, press again to stop.
- *
- * MediaRecorder's supported container differs by browser — Chrome and Android want webm/opus,
- * Safari and iOS produce mp4/aac — so the type is asked for rather than assumed. Getting this wrong
- * does not throw; it produces a file the other person's browser silently refuses to play.
- *
- * The microphone stream is stopped on every exit path. A page that keeps the mic open leaves the
- * recording indicator lit, which people reasonably read as being listened to.
- */
-function VoiceButton({ disabled, onRecorded, onError }) {
-  const [recording, setRecording] = useState(false);
-  const [seconds, setSeconds] = useState(0);
-  const recorderRef = useRef(null);
-  const chunksRef = useRef([]);
-  const startedRef = useRef(0);
-  const timerRef = useRef(null);
-
-  const stopStream = useCallback(() => {
-    recorderRef.current?.stream?.getTracks?.().forEach((t) => t.stop());
-    recorderRef.current = null;
-    clearInterval(timerRef.current);
-    timerRef.current = null;
-  }, []);
-
-  // Unmounting mid-recording must not leave the microphone live.
-  useEffect(() => stopStream, [stopStream]);
-
-  const start = async () => {
-    onError(null);
-    try {
-      if (typeof MediaRecorder === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-        throw new Error('This browser cannot record audio. You can still attach an audio file.');
-      }
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/aac']
-        .find((t) => MediaRecorder.isTypeSupported?.(t));
-
-      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data?.size) chunksRef.current.push(e.data); };
-      rec.onstop = () => {
-        const type = rec.mimeType || mimeType || 'audio/webm';
-        const blob = new Blob(chunksRef.current, { type });
-        const ext = type.includes('mp4') || type.includes('aac') ? 'm4a' : 'webm';
-        const durationMs = Date.now() - startedRef.current;
-        stopStream();
-        setRecording(false);
-        setSeconds(0);
-        if (blob.size > 0) {
-          onRecorded(new File([blob], `voice-note.${ext}`, { type }), durationMs);
-        }
-      };
-
-      recorderRef.current = rec;
-      startedRef.current = Date.now();
-      rec.start();
-      setRecording(true);
-      setSeconds(0);
-      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
-    } catch (err) {
-      stopStream();
-      setRecording(false);
-      onError(
-        err?.name === 'NotAllowedError'
-          ? new Error('Microphone access was refused. Allow it in your browser settings to send a voice note.')
-          : err
-      );
-    }
-  };
-
-  const stop = () => {
-    try { recorderRef.current?.stop(); }
-    catch { stopStream(); setRecording(false); }
-  };
-
-  if (recording) {
-    return (
-      <button
-        type="button" onClick={stop} aria-label="Stop recording"
-        className="shrink-0 h-11 px-3 inline-flex items-center gap-1.5 rounded-xl border border-red-300 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 active:bg-red-100 dark:active:bg-red-950/50 transition-colors cursor-pointer"
-      >
-        {/* A dot that pulses says "recording" faster than any label, and the clock says how long
-            for. Both live inside one 44px control so stopping is the easy thing to hit. */}
-        <span className="relative grid place-items-center">
-          <span className="absolute h-3 w-3 rounded-full bg-red-500/40 animate-ping" />
-          <Square size={12} className="relative" />
-        </span>
-        <span className="font-mono text-2xs tabular-nums">
-          {formatVoiceDuration(seconds * 1000)}
-        </span>
-      </button>
-    );
-  }
-
-  return (
-    <button
-      type="button" onClick={start} disabled={disabled}
-      aria-label="Record a voice note" title="Voice note"
-      className="messages-voice"
-    >
-      <Mic size={20} />
-    </button>
   );
 }
 

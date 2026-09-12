@@ -1,0 +1,33 @@
+.voice-recorder { flex: 1; min-width: 0; color: var(--chat-text); }
+.voice-recorder-meter { display: flex; align-items: center; gap: 10px; min-height: 50px; padding: 4px 14px; border: 1px solid var(--chat-border); border-radius: 26px; background: var(--chat-surface); }
+.voice-recorder-mic { flex-shrink: 0; color: #e5484d; animation: voice-recording-pulse 1.25s ease-in-out infinite; }
+.voice-recorder-time { min-width: 38px; flex-shrink: 0; font-size: 14px; font-variant-numeric: tabular-nums; }
+.voice-recorder-wave { display: flex; align-items: center; justify-content: flex-end; gap: 3px; flex: 1; min-width: 0; height: 32px; overflow: hidden; color: var(--chat-muted); }
+.voice-recorder-wave span { flex: 1 0 2px; max-width: 4px; border-radius: 3px; background: currentColor; transition: height .1s linear; }
+.voice-recorder-actions { display: flex; align-items: center; gap: 8px; padding-top: 10px; }
+.voice-recorder-status { flex: 1; min-width: 0; font-size: 12px; color: var(--chat-muted); }
+.voice-recorder-pause { display: grid; place-items: center; flex: 0 0 44px; height: 44px; padding: 0; border: 1.5px solid #e5484d; border-radius: 50%; color: #e5484d; background: transparent; }
+.voice-recorder-pause:hover { background: #e5484d12; }
+.voice-recorder-delete:hover { color: #e5484d; }
+.voice-recorder[data-paused="true"] .voice-recorder-mic { animation: none; opacity: .5; }
+.voice-recorder[data-paused="true"] .voice-recorder-wave { opacity: .5; }
+.voice-recorder-permission { display: flex; align-items: center; gap: 10px; min-height: 50px; padding-left: 12px; color: var(--chat-muted); font-size: 13px; }
+.voice-recorder-permission > span { flex: 1; min-width: 0; }
+.voice-recorder-permission > svg { flex-shrink: 0; }
+.messages-voice-draft { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.messages-voice-draft-player { flex: 1; min-width: 0; padding: 5px 12px; border: 1px solid var(--chat-border); border-radius: 26px; background: var(--chat-surface); }
+.messages-voice-draft .messages-icon-button { width: 36px; flex-basis: 36px; }
+.messages-voice-caption { width: 100%; min-height: 40px; max-height: 100px; margin-bottom: 8px; padding: 10px 14px; border: 1px solid var(--chat-border); border-radius: 18px; background: var(--chat-surface); color: var(--chat-text); font: inherit; font-size: 14px; resize: vertical; }
+.messages-compose-row[data-recording="true"] { align-items: center; }
+@keyframes voice-recording-pulse { 50% { opacity: .35; } }
+@media (max-width: 420px) {
+  .voice-recorder-actions { gap: 5px; }
+  .voice-recorder-meter { padding-inline: 10px; }
+  .voice-recorder-status { font-size: 11px; }
+  .messages-voice-draft { gap: 4px; }
+  .messages-voice-draft-player { padding-inline: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-recorder-mic { animation: none; }
+  .voice-recorder-wave span { transition: none; }
+}

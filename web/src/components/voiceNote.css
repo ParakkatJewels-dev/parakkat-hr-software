@@ -1,0 +1,81 @@
+.voice-note {
+  --voice-ink: var(--chat-muted, #667781);
+  --voice-fill: var(--chat-accent, #168779);
+  --voice-rest: color-mix(in srgb, var(--chat-muted, #667781) 38%, transparent);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 42px;
+  align-items: center;
+  column-gap: 8px;
+  width: 290px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 0 1px;
+  color: var(--voice-ink);
+}
+.voice-note[data-own="true"] {
+  --voice-ink: #f0faf6;
+  --voice-fill: #fff;
+  --voice-rest: #ffffff59;
+}
+.voice-note[data-compact="true"] { width: 100%; }
+.voice-note > audio { display: none; }
+.voice-note-toggle {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  margin-top: -12px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--voice-ink);
+  cursor: pointer;
+  transition: background .15s, transform .15s;
+}
+.voice-note-toggle:hover, .voice-note-rate:hover { background: color-mix(in srgb, var(--voice-ink) 12%, transparent); }
+.voice-note-toggle:active { transform: scale(.94); }
+.voice-note-toggle:focus-visible, .voice-note-rate:focus-visible { outline: 2px solid var(--voice-fill); outline-offset: 2px; }
+.voice-note-toggle:disabled, .voice-note-rate:disabled { opacity: .5; cursor: default; }
+.voice-note[data-playing="false"] .voice-note-toggle .lucide-play { margin-left: 3px; }
+.voice-note-body { min-width: 0; }
+.voice-note-waveform { position: relative; height: 42px; border-radius: 5px; }
+.voice-note-waveform:has(.voice-note-range:focus-visible) { outline: 2px solid var(--voice-fill); outline-offset: 2px; }
+.voice-note-wave { position: absolute; inset: 1px 5px; width: calc(100% - 10px); height: 40px; pointer-events: none; }
+.voice-note-wave-rest { fill: var(--voice-rest); }
+.voice-note-wave-played { fill: var(--voice-fill); clip-path: inset(0 calc(100% - var(--voice-progress, 0%)) 0 0); }
+.voice-note-range { position: absolute; inset: 0; width: 100%; height: 42px; padding: 0; margin: 0; appearance: none; -webkit-appearance: none; outline: none; border: 0; border-radius: 0; background: transparent; cursor: pointer; touch-action: pan-y; }
+/* Global form styles include !important dark backgrounds. This range is a transparent hit area
+   over the waveform, so it must keep its own surface in both themes and while focused. */
+.voice-note .voice-note-range,
+.voice-note .voice-note-range:focus {
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.voice-note-range::-webkit-slider-runnable-track { height: 42px; background: transparent; border: 0; }
+.voice-note-range::-webkit-slider-thumb { width: 10px; height: 10px; margin-top: 16px; appearance: none; -webkit-appearance: none; border: 0; border-radius: 50%; background: var(--voice-fill); box-shadow: 0 0 0 2px color-mix(in srgb, var(--voice-fill) 12%, transparent); }
+.voice-note-range::-moz-range-track { height: 42px; background: transparent; border: 0; }
+.voice-note-range::-moz-range-progress { background: transparent; }
+.voice-note-range::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: var(--voice-fill); }
+.voice-note-range:disabled { cursor: default; }
+.voice-note-details { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px; font-size: 10px; line-height: 15px; font-variant-numeric: tabular-nums; }
+.voice-note-time { white-space: nowrap; }
+.voice-note-length { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.voice-note-rate { display: grid; place-items: center; width: 42px; min-height: 44px; margin-top: -12px; padding: 0; border: 0; border-radius: 20px; background: transparent; color: var(--voice-ink); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; cursor: pointer; }
+.voice-note-failed { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; margin: 5px 0 2px; font-size: 11px; line-height: 1.5; color: var(--voice-ink); }
+.voice-note-failed svg { flex-shrink: 0; }
+.voice-note-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.voice-note-spinner { animation: voice-note-spin .8s linear infinite; }
+@keyframes voice-note-spin { to { transform: rotate(360deg); } }
+@media (max-width: 400px) {
+  .voice-note { column-gap: 4px; grid-template-columns: 40px minmax(0, 1fr) 40px; }
+  .voice-note-toggle, .voice-note-rate { width: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-note-toggle { transition: none; }
+  .voice-note-spinner { animation-duration: 2s; }
+}
