@@ -122,6 +122,43 @@ test('counts only active recording time and waits for final data before producin
   assert.deepEqual(h.changes, ['requesting', 'recording', 'paused', 'recording', 'stopping', 'idle']);
 });
 
+test('publishes integer milliseconds for fractional browser timing in preview and direct send', async t => {
+  for (const sendImmediately of [false, true]) {
+    await t.test(sendImmediately ? 'direct send' : 'preview', async () => {
+      const h = setup();
+      await start(h);
+      h.at(6191.5999999996275);
+      assert.equal(h.session.elapsedMs(), 6191.5999999996275);
+      assert.equal(h.session.finish(sendImmediately), true);
+      h.recordings[0].data();
+      h.recordings[0].stopped();
+      assert.equal(h.files.length, 1);
+      assert.equal(h.files[0].duration, 6192);
+      assert.deepEqual(h.files[0].detail, { sendImmediately });
+      assert.deepEqual(h.errors, []);
+    });
+  }
+});
+
+test('rounds the combined active duration once after fractional pause and resume segments', async () => {
+  const h = setup();
+  await start(h);
+  h.at(1000.4);
+  assert.equal(h.session.pause(), true);
+  h.at(5000);
+  assert.equal(h.session.elapsedMs(), 1000.4);
+  assert.equal(h.session.resume(), true);
+  h.at(6000.4);
+  assert.equal(h.session.pause(), true);
+  assert.ok(Math.abs(h.session.elapsedMs() - 2000.8) < 0.000001);
+  h.at(9000);
+  assert.equal(h.session.finish(), true);
+  h.recordings[0].data();
+  h.recordings[0].stopped();
+  assert.equal(h.files[0].duration, 2001, 'rounding each active segment would incorrectly produce 2000 ms');
+  assert.deepEqual(h.files[0].detail, { sendImmediately: false });
+});
+
 test('cancelling pending permission releases a late stream without disturbing a newer recording', async () => {
   const h = setup();
   const oldStart = h.session.start();

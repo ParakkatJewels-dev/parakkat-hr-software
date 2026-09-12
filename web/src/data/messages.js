@@ -191,7 +191,8 @@ export function useSendMessage() {
       storage_path: media?.path ?? null,
       mime_type: media?.mimeType ?? null,
       byte_size: media?.byteSize ?? null,
-      duration_ms: media?.durationMs ?? null,
+      // Also normalize retained uploads when retrying a draft made before the recorder fix.
+      duration_ms: Number.isFinite(media?.durationMs) ? Math.round(media.durationMs) : null,
       reply_to: replyTo,
     });
     if (error) throw error;

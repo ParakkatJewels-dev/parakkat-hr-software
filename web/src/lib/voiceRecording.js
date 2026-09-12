@@ -118,7 +118,8 @@ export function createVoiceRecording(
     release(recording);
     current = null;
     change('idle');
-    if (!disposed) onReady?.(file, durationMs, { sendImmediately });
+    // Keep fractional timing internally, but persist only whole milliseconds.
+    if (!disposed) onReady?.(file, Math.round(durationMs), { sendImmediately });
   }
 
   async function start() {
