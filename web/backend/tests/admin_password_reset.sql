@@ -105,9 +105,6 @@ set request.jwt.claim.sub = '30000000-0000-0000-0000-000000000002';
 select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),null)$q$, '22023', '8 characters');
 select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),'short!')$q$, '22023', '8 characters');
 select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),'12345678')$q$, '22023', 'only numbers');
-select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),'RA.MESH!2480')$q$, '22023', 'name or email name');
-select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),'kumar!2480')$q$, '22023', 'name or email name');
-select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),'Work-Alias!42')$q$, '22023', 'name or email name');
 select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),repeat('a',73))$q$, '22023', '72 UTF-8 bytes');
 select audit_password.expect_error($q$select public.admin_set_user_password(audit_password.id(3,3),repeat('é',37))$q$, '22023', '72 UTF-8 bytes');
 reset role;
@@ -174,3 +171,22 @@ begin
   assert (select count(*) = 4 from public.audit_log where action = 'PASSWORD_RESET'), 'exactly successful resets audited';
 end $$;
 select 'PASS: super-admin-only unlinked resets, SSO protection and preservation of account identity, grants and bans' as result;
+
+-- 0132 removes identity restrictions through the real RPC, including normalized name parts,
+-- the full name, the email's local part (username), and the full email address.
+set role authenticated;
+set request.jwt.claim.sub = '30000000-0000-0000-0000-000000000002';
+do $$ declare _password text;
+begin
+  foreach _password in array array['RA.MESH!2480', 'kumar!2480', 'Ramesh Kumar', 'work.alias', 'work.alias@audit.invalid'] loop
+    perform public.admin_set_user_password(audit_password.id(3,3), _password);
+  end loop;
+end $$;
+reset role;
+do $$ begin
+  assert (select encrypted_password = extensions.crypt('work.alias@audit.invalid', encrypted_password)
+    from auth.users where id = audit_password.id(3,3)), 'full email is accepted and stored as a working password hash';
+  assert (select must_change_password from public.profiles where user_id = audit_password.id(3,3)), 'identity-based temporary passwords still require replacement';
+  assert (select count(*) = 9 from public.audit_log where action = 'PASSWORD_RESET'), 'all five name/email passwords succeeded and were audited';
+end $$;
+select 'PASS: administrator password resets accept names, usernames, email prefixes and full email addresses' as result;

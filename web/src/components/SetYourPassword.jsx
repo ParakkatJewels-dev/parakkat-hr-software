@@ -26,7 +26,7 @@ const INPUT =
   'focus:ring-2 focus:ring-brand/20 transition-colors';
 
 export default function SetYourPassword({ recovery = false }) {
-  const { user, employee, signOut, reloadAccess, finishRecovery } = useAuth();
+  const { user, signOut, reloadAccess, finishRecovery } = useAuth();
   const [pw, setPw] = useState('');
   const [confirm, setConfirm] = useState('');
   const [show, setShow] = useState(false);
@@ -35,7 +35,7 @@ export default function SetYourPassword({ recovery = false }) {
 
   // Checked as they type so nothing is refused only at the end — but the message under the field
   // only appears once they have started, so an untouched form is not already complaining.
-  const problem = passwordProblem(pw, { name: employee?.full_name, email: user?.email });
+  const problem = passwordProblem(pw);
   const mismatch = confirm.length > 0 && pw !== confirm;
   const ready = !problem && !mismatch && confirm.length > 0;
 
@@ -94,7 +94,7 @@ export default function SetYourPassword({ recovery = false }) {
             {/* The rules are shown up front rather than as errors after the fact. */}
             <ul id="pw-rules" className="space-y-0.5 pt-1">
               {RULES.map((rule) => {
-                const met = pw.length > 0 && rule.ok(pw, { name: employee?.full_name, email: user?.email });
+                const met = pw.length > 0 && rule.ok(pw);
                 return (
                   <li key={rule.id} className={`flex items-center gap-1.5 text-2xs ${
                     met ? 'text-brand-ink dark:text-brand-ink' : 'text-neutral-400'

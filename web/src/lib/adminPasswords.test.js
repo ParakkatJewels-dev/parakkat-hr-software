@@ -4,10 +4,11 @@ import { temporaryPasswordProblem, setManagedUserPassword } from './adminPasswor
 
 const target = { employee_name: 'Sample Employee', email: 'person@example.test' };
 
-test('temporary passwords use the target identity, confirmation and UTF-8 byte limit', () => {
+test('temporary passwords allow target names and emails while enforcing confirmation and length limits', () => {
   assert.equal(temporaryPasswordProblem('MapleRiver!42', 'MapleRiver!42', target), null);
-  assert.match(temporaryPasswordProblem('SampleRiver!42', 'SampleRiver!42', target), /person's name/);
-  assert.match(temporaryPasswordProblem('PersonRiver!42', 'PersonRiver!42', target), /person's name/);
+  assert.equal(temporaryPasswordProblem('SampleRiver!42', 'SampleRiver!42', target), null);
+  assert.equal(temporaryPasswordProblem('PersonRiver!42', 'PersonRiver!42', target), null);
+  assert.equal(temporaryPasswordProblem(target.email, target.email, target), null);
   assert.match(temporaryPasswordProblem('MapleRiver!42', 'MapleRiver!43', target), /do not match/);
   assert.match(temporaryPasswordProblem('short', 'short', target), /At least 8/);
   assert.match(temporaryPasswordProblem('12345678', '12345678', target), /Not only numbers/);

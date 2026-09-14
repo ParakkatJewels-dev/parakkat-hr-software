@@ -4,6 +4,7 @@ export const fixture = accountFixtures(525);
 export const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 export const period = today.slice(0, 7);
 export const mobileFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-mobile');
+export const chatFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-chat');
 fixture.org.departments = fixture.org.branches.map((b, i) => ({ id: `dept-${i + 1}`,
   entity_id: b.entity_id, branch_id: b.id, branch_name: b.name, name: `Department ${i + 1}`, is_active: true }));
 fixture.org.designations = [{ id: 'designation-1', title: 'Sales Associate', grade: 'A', is_active: true }];
@@ -134,4 +135,57 @@ if (mobileFixtures) {
   tables.conversation_members.push(...fixture.employees.slice(0, 2).map((employee) => ({
     conversation_id: direct.id, employee_id: employee.id, employee, role: 'member', joined_at: stamp,
   })));
+}
+
+// Explicit synthetic chat preview; the standard and phone audit fixtures above stay unchanged.
+if (chatFixtures) {
+  ['QA Reviewer', 'Asha Nair · QA', 'Ravi Menon · QA', 'Neha Shah · QA', 'Arun Das · QA', 'Maya Joseph · QA', 'Deepa Roy · QA', 'Kiran Rao · QA']
+    .forEach((name, index) => { fixture.employees[index].full_name = name; fixture.users[index].employee_name = name; });
+  const me = fixture.employees[0];
+  const now = Date.now();
+  const when = (minutes) => new Date(now - minutes * 60_000).toISOString();
+  // Three earlier pages are required to reach message 10; the default fixture remains 250.
+  tables.messages = Array.from({ length: 650 }, (_, index) => ({
+    id: `message-${String(index + 1).padStart(4, '0')}`, conversation_id: conversation.id,
+    sender_id: fixture.employees[1].id, sender: fixture.employees[1], kind: 'text',
+    body: `Synthetic message ${index + 1}`, created_at: when(681 - index),
+  }));
+  Object.assign(conversation, { last_body: 'Synthetic message 650', last_message_at: when(32) });
+  for (const member of tables.conversation_members.filter((row) => row.conversation_id === conversation.id)) member.joined_at = when(1440);
+  const makeConversation = (id, memberIndices, title, bodies, options = {}) => {
+    const people = [me, ...memberIndices.map((index) => fixture.employees[index])];
+    const rows = bodies.map((item, index) => ({ id: `${id}-message-${String(index + 1).padStart(3, '0')}`, conversation_id: id,
+      sender_id: item.own ? me.id : people[1].id, sender: item.own ? me : people[1], kind: 'text',
+      body: item.body, created_at: when((options.minutes ?? 1) + bodies.length - index), ...item,
+      reply_to: item.reply ? `${id}-message-${String(item.reply).padStart(3, '0')}` : null }));
+    const last = rows.at(-1);
+    const chat = { id, kind: title ? 'group' : 'direct', title: title ?? null, created_by: me.id, created_at: when(1440),
+      request_status: 'accepted', last_message_at: last?.created_at ?? when(options.minutes ?? 1),
+      last_body: last?.body ?? '', last_kind: last?.kind ?? 'text', last_sender_id: last?.sender_id,
+      last_message_id: last?.id, last_message_created_at: last?.created_at, unread_count: options.unread ?? 0 };
+    for (const table of ['conversations', 'my_conversations', 'conversation_overview']) tables[table].push(chat);
+    tables.conversation_members.push(...people.map((employee, index) => ({ conversation_id: id, employee_id: employee.id, employee,
+      role: index === 0 ? 'owner' : 'member', joined_at: when(1440), last_read_at: when(0), last_delivered_at: when(0) })));
+    tables.messages.push(...rows);
+  };
+  makeConversation('qa-chat-asha', [1], null, [
+    { body: 'Hi! Is the handover ready?' }, { own: true, body: 'Yes 👍' },
+    { body: 'Great, thank you.' }, { own: true, body: 'See you at 4.' },
+  ], { unread: 2 });
+  makeConversation('qa-chat-operations', [2, 3, 4], 'Branch operations · QA', [
+    { body: 'Please review the opening checklist before tomorrow’s shift. The updated checklist includes stock counts, customer follow-ups and the branch handover notes.' },
+    { own: true, body: 'I have checked the stock counts. Customer follow-ups are complete too.', reply: 1 },
+    { body: 'Thanks. We can use this sample guide: https://example.com/branch-handover' },
+    { own: true, body: 'I will share the final checklist with the team.' },
+  ], { minutes: 12 });
+  makeConversation('qa-chat-ravi', [2], null, [
+    { body: 'Here is the sample shift roster.', kind: 'file', mime_type: 'application/pdf', storage_path: 'qa-media/sample-shift-roster.pdf', byte_size: 48128 },
+    { own: true, body: 'Received, thank you!', reply: 1 },
+  ], { minutes: 28 });
+  makeConversation('qa-chat-neha', [3], null, [{ body: 'Can we move the team meeting to 3:30?' }, { own: true, body: 'That works for me.' }], { minutes: 45 });
+  makeConversation('qa-chat-planning', [4, 5, 6], 'Weekly planning · QA', [{ body: 'Tomorrow’s agenda is ready.' }, { own: true, body: 'Added my notes.' }], { minutes: 75, unread: 4 });
+  makeConversation('qa-chat-maya', [5], null, [{ body: 'The sample onboarding document is ready for review.' }], { minutes: 125 });
+  makeConversation('qa-chat-deepa', [6], null, [{ own: true, body: 'Welcome to the QA workspace!' }], { minutes: 160 });
+  tables.chat_preferences = [{ conversation_id: 'qa-chat-asha', is_pinned: true, is_favourite: true }];
+  tables.chat_typing = [];
 }

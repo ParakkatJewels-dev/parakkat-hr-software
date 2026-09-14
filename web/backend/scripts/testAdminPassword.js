@@ -15,7 +15,7 @@ module.exports = function testAdminPassword({ run, connection, directory }) {
         "insert into public.shifts(code,name,start_time,end_time) values ('GN','Synthetic configured baseline','09:00','17:30');",
       ] : []),
       `\\i ${quote(join(migrations, file))}`,
-      ...(file.startsWith('0131_') ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0131|0132)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     `\\i ${quote(join(backend, 'tests', 'admin_password_reset.sql'))}`,
   ].join('\n'));

@@ -58,7 +58,7 @@ export default function ManagePasswordDialog({ target, currentUserId, onClose, o
     setError('');
     if (method === 'temporary') {
       if (self) return;
-      const problem = temporaryPasswordProblem(password, confirm, target);
+      const problem = temporaryPasswordProblem(password, confirm);
       if (problem) { setError(problem); return; }
     }
     setBusy(true);
@@ -115,7 +115,7 @@ export default function ManagePasswordDialog({ target, currentUserId, onClose, o
                   {show ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              <p id={`${id}-rules`} className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">At least {MIN_LENGTH} characters · Not the person’s name or email · Not only numbers · Up to 72 bytes (special characters may use more than one)</p>
+              <p id={`${id}-rules`} className="text-xs leading-relaxed text-neutral-500 dark:text-neutral-400">At least {MIN_LENGTH} characters · Not only numbers · Up to 72 bytes (special characters may use more than one)</p>
             </div>
             <div className="space-y-1.5">
               <label htmlFor={`${id}-confirm`} className="block text-sm font-semibold text-neutral-700 dark:text-neutral-200">Confirm temporary password</label>

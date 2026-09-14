@@ -4,15 +4,12 @@
 // conversation, and the thread is the screen until you come back. A phone showing a 40%-wide
 // conversation list beside a 60%-wide thread gives you two things too narrow to use.
 //
-// What is deliberately NOT here:
-//   * Typing indicators. Delivery and seen receipts use server-validated reading positions.
-//   * Live calls. Different project — WebRTC, signalling, and relay servers that cost money every
-//     month whether anybody calls or not.
+// The chat list, message history and composer each keep their own place as the layout changes.
 import React, { useState, useMemo, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   MessageSquare, Send, Plus, X, Search, Loader2, ArrowLeft, Users, Paperclip, Image as ImageIcon,
-  Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Settings, Inbox, Check, CheckCheck,
+  Trash2, Download, FileText, AlertTriangle, UserPlus, PenLine, Smile, ChevronDown, Reply, ArrowDown, Eye, ChevronsUpDown, Settings, Inbox, Check, CheckCheck, Pin, PinOff, Star, Copy, ExternalLink,
 } from 'lucide-react';
 import {
   useConversations, useMessages, useSendMessage, useDeleteMessage, useMarkRead,
@@ -21,13 +18,17 @@ import {
   useMessagingPeople, useRespondToMessageRequest,
 } from '../data/messages';
 import { useEmployees } from '../data/employees';
+import { useChatPreferences, useSetChatPreference } from '../data/chatPreferences';
+import { useChatSearch } from '../data/chatSearch';
+import { useChatTyping, useInboxTyping } from '../lib/useChatTyping';
+import ChatMenu from './ChatMenu';
 import { useAuth } from '../auth/AuthContext';
 import {
   conversationName, previewOf, sortConversations, groupByDay, showsSender, isMine, hasUnread,
   others, filterConversations, replyPreviewOf,
 } from '../lib/conversations';
 import { humanDbError } from '../lib/dbErrors';
-import { relativeTime, istToday } from '../lib/dates';
+import { istToday } from '../lib/dates';
 import { btnClass } from './ui/Btn';
 import Avatar from './ui/Avatar';
 import IconInput from './ui/IconInput';
@@ -73,7 +74,12 @@ export default function Messages() {
   const { employee, isSuperAdmin } = useAuth();
   const me = employee?.id ?? null;
   const { data, isLoading, error } = useConversations();
-  const conversations = useMemo(() => sortConversations(data?.conversations ?? []), [data]);
+  const preferences = useChatPreferences();
+  const setPreference = useSetChatPreference();
+  const conversations = useMemo(() => {
+    const byId = new Map((preferences.data ?? []).map((item) => [item.conversation_id, item]));
+    return sortConversations((data?.conversations ?? []).map((chat) => ({ ...chat, ...byId.get(chat.id) })));
+  }, [data, preferences.data]);
 
   const [openId, setOpenId] = useState(null);
   const [composing, setComposing] = useState(false);   // the new-conversation panel
@@ -112,6 +118,7 @@ export default function Messages() {
   const { data: employeesForWatching = [] } = useEmployees({ enabled: isSuperAdmin });
   const watched = useEmployeeConversations(watchingId, { enabled: Boolean(watchingId) });
   const monitoring = Boolean(watchingId) && watchingId !== me;
+  const { typingByConversation } = useInboxTyping({ me, enabled: !monitoring });
   const loadingConversations = monitoring ? watched.isLoading : isLoading;
   const conversationError = monitoring ? watched.error : error;
 
@@ -122,6 +129,8 @@ export default function Messages() {
   const open = shown.find((c) => c.id === openId) ?? null;
   const inboxOwner = monitoring ? watchingId : me;
   const requestCount = shown.filter((c) => isIncomingRequest(c, inboxOwner) && hasRequestMessage(c)).length;
+  const unreadCount = shown.filter((c) => belongsInChatSection(c, inboxOwner, 'all') && hasUnread(c)).length;
+  const changePreference = (conversation, values) => setPreference.mutate({ conversationId: conversation.id, ...values });
 
   // Filtered from the watched person's side when watching, so a search for a name matches the
   // people THEY talk to rather than the people the administrator talks to.
@@ -212,12 +221,19 @@ export default function Messages() {
               aria-label="Search conversations" placeholder="Search or start a new chat" />
           </label>
           <div className="messages-list-filters" aria-label="Filter chats">
-            {[['all', 'Chats'], ['unread', 'Unread'], ['groups', 'Groups'], ['requests', 'Requests']].map(([value, label]) => (
+            {[['all', 'All'], ['unread', 'Unread'], ...(!monitoring ? [['favourites', 'Favourites']] : []), ['groups', 'Groups']].map(([value, label]) => (
               <button type="button" key={value} aria-pressed={chatFilter === value} onClick={() => setChatFilter(value)}>{label}
-                {value === 'requests' && requestCount > 0 && <span className="messages-request-count">{requestCount > 99 ? '99+' : requestCount}</span>}
+                {value === 'unread' && unreadCount > 0 && <span className="messages-request-count">{unreadCount > 99 ? '99+' : unreadCount}</span>}
               </button>
             ))}
           </div>
+          {(requestCount > 0 || chatFilter === 'requests') && <button type="button" className="messages-requests-link"
+            aria-pressed={chatFilter === 'requests'} onClick={() => setChatFilter(chatFilter === 'requests' ? 'all' : 'requests')}>
+            <Inbox size={17} />Message requests <span>{requestCount}</span>
+          </button>}
+          {!monitoring && (preferences.error || setPreference.error) && <p role="alert" className="messages-chat-error">
+            {humanDbError(preferences.error || setPreference.error)}
+          </p>}
 
           <div className="messages-conversation-list">
             {loadingConversations && <ConversationSkeleton />}
@@ -229,7 +245,7 @@ export default function Messages() {
             {!loadingConversations && !conversationError && visible.length === 0 && (
               <div className="px-1 py-6 text-center">
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                  {query ? 'No chats match your search.' : chatFilter === 'unread' ? 'You’re all caught up.' : chatFilter === 'groups' ? 'No group chats yet.' : chatFilter === 'requests' ? 'No message requests. New messages from other branches will appear here.' : 'No conversations yet.'}
+                  {query ? 'No chats match your search.' : chatFilter === 'unread' ? 'You’re all caught up.' : chatFilter === 'favourites' ? 'Add chats to your favourites from their chat menu.' : chatFilter === 'groups' ? 'No group chats yet.' : chatFilter === 'requests' ? 'No message requests. New messages from other branches will appear here.' : 'No conversations yet.'}
                 </p>
                 {!query && !monitoring && chatFilter !== 'requests' && (
                   <button
@@ -249,6 +265,9 @@ export default function Messages() {
                 me={monitoring ? watchingId : me}
                 active={c.id === openId}
                 onOpen={() => setOpenId(c.id)}
+                onPreference={monitoring ? undefined : (values) => changePreference(c, values)}
+                preferenceBusy={setPreference.isPending}
+                typingIds={monitoring ? [] : typingByConversation[c.id]}
               />
             ))}
           </div>
@@ -265,13 +284,15 @@ export default function Messages() {
               receiptsPaused={composing}
               onBack={() => setOpenId(null)}
               onRequestAccepted={() => setChatFilter('all')}
+              onPreference={monitoring ? undefined : (values) => changePreference(open, values)}
+              preferenceBusy={setPreference.isPending}
             />
           ) : (
             <div className="messages-welcome">
               <span className="messages-welcome-icon"><MessageSquare size={42} /></span>
               <h2>Your team, one conversation away</h2>
               <p>Choose a chat to share messages, photos, files and voice notes.</p>
-              <button type="button" className="messages-new-chat" onClick={() => setComposing(true)}><Plus size={16} />New conversation</button>
+              {!monitoring && <button type="button" className="messages-new-chat" onClick={() => setComposing(true)}><Plus size={16} />New conversation</button>}
             </div>
           )}
         </section>
@@ -374,11 +395,12 @@ function WatchPicker({ employees, watchingId, open, onToggle, onPick }) {
 
 /* ------------------------------------------------------------------ the list -- */
 
-function ConversationRow({ conversation, me, active, onOpen }) {
+function ConversationRow({ conversation, me, active, onOpen, onPreference, preferenceBusy, typingIds = [] }) {
   const name = conversationName(conversation, me);
   const unread = hasUnread(conversation);
 
   return (
+    <div className={`conversation-row-container ${active ? 'is-active' : ''}`}>
     <button
       type="button"
       onClick={onOpen}
@@ -393,14 +415,18 @@ function ConversationRow({ conversation, me, active, onOpen }) {
             {name}
           </span>
           <span className="conversation-row-time">
-            {conversation.last_message_at ? relativeTime(conversation.last_message_at) : ''}
+            {conversation.last_message_at ? (groupByDay([{ created_at: conversation.last_message_at }])[0]?.day === istToday()
+              ? clockOf(conversation.last_message_at)
+              : new Date(conversation.last_message_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })) : ''}
           </span>
         </span>
         <span className="conversation-row-bottom">
-          <span className="conversation-row-preview">
-            {conversation.last_sender_id === me && !conversation.last_deleted && <MessageTicks conversation={conversation}
+          <span className={`conversation-row-preview ${typingIds.length ? 'messages-typing' : ''}`}>
+            {!typingIds.length && conversation.last_sender_id === me && !conversation.last_deleted && <MessageTicks conversation={conversation}
               message={{ id: conversation.last_message_id, sender_id: me, created_at: conversation.last_message_created_at ?? conversation.last_message_at }} />}
-            {previewOf(conversation, me)}
+            {typingIds.length ? (conversation.kind === 'group'
+              ? `${conversation.members?.find((member) => member.employee_id === typingIds[0])?.employee?.full_name || 'Someone'}${typingIds.length > 1 ? ' and others are' : ' is'} typing…`
+              : 'typing…') : previewOf(conversation, me)}
           </span>
           {conversation.request_status === 'pending' && <span className="conversation-request-label">{isIncomingRequest(conversation, me) ? 'Request' : 'Pending'}</span>}
           {conversation.request_status === 'declined' && <span className="conversation-request-label">Declined</span>}
@@ -412,10 +438,23 @@ function ConversationRow({ conversation, me, active, onOpen }) {
               {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
             </span>
           )}
+          {conversation.is_pinned && <span className="conversation-row-indicators" title="Pinned chat"><Pin size={13} aria-label="Pinned chat" /></span>}
         </span>
       </span>
     </button>
+    {onPreference && <ChatMenu className="conversation-row-menu-button" label={`Chat menu for ${name}`} disabled={preferenceBusy}
+      items={preferenceItems(conversation, onPreference)} />}
+    </div>
   );
+}
+
+function preferenceItems(conversation, onPreference) {
+  return [
+    { label: conversation.is_pinned ? 'Unpin chat' : 'Pin chat', icon: conversation.is_pinned ? PinOff : Pin,
+      onClick: () => onPreference({ isPinned: !conversation.is_pinned }) },
+    { label: conversation.is_favourite ? 'Remove from favourites' : 'Add to favourites', icon: Star,
+      onClick: () => onPreference({ isFavourite: !conversation.is_favourite }) },
+  ];
 }
 
 function MessageTicks({ message, conversation }) {
@@ -430,7 +469,7 @@ function MessageTicks({ message, conversation }) {
 
 /* ---------------------------------------------------------------- the thread -- */
 
-export function Thread({ conversation, me, onBack, readOnly = false, receiptsPaused = false, onRequestAccepted }) {
+export function Thread({ conversation, me, onBack, readOnly = false, receiptsPaused = false, onRequestAccepted, onPreference, preferenceBusy }) {
   const { data: rawMessages = [], isLoading, error, hasOlder, loadOlder, isLoadingOlder } = useMessages(conversation.id);
   const messages = useMemo(() => rawMessages.map((message) => ({ ...message,
     sender: message.sender ?? conversation.members?.find((member) => member.employee_id === message.sender_id)?.employee,
@@ -440,6 +479,17 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
   const maySend = canSendToConversation(conversation, me);
   const markRead = useMarkRead();
   const [managing, setManaging] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [jumpId, setJumpId] = useState(null);
+  const jumpIdRef = useRef(null);
+  const jumpPageRef = useRef(null);
+  const [highlightedId, setHighlightedId] = useState(null);
+  const [jumpError, setJumpError] = useState('');
+  const searchButtonRef = useRef(null);
+  const { typingIds, setTyping } = useChatTyping({ conversationId: conversation.id, me,
+    enabled: !readOnly && Boolean(conversation.members?.some((member) => member.employee_id === me))
+      && (!conversation.request_status || conversation.request_status === 'accepted'),
+  });
   const settingsButtonRef = useRef(null);
   const closeSettings = useCallback(() => {
     setManaging(false);
@@ -453,10 +503,12 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
   const olderScrollRef = useRef(null);
   const name = conversationName(conversation, me);
   const isGroup = conversation.kind === 'group';
+  const typingNames = typingIds.map((id) => conversation.members?.find((member) => member.employee_id === id)?.employee?.full_name || 'Someone');
+  const typingText = typingNames.length ? (isGroup ? `${typingNames.slice(0, 2).join(', ')}${typingNames.length > 2 ? ' and others' : ''} ${typingNames.length === 1 ? 'is' : 'are'} typing…` : 'typing…') : '';
   const days = useMemo(() => groupByDay(messages), [messages]);
   const byId = useMemo(() => new Map(messages.map((message) => [message.id, message])), [messages]);
   useVisibleMessageReceipts({ conversationId: conversation.id, messages, me, viewportRef, markRead,
-    enabled: !readOnly && !receiptsPaused && !managing && !isLoading && !error && (!conversation.request_status || conversation.request_status === 'accepted'),
+    enabled: !readOnly && !receiptsPaused && !managing && !searching && !jumpId && !isLoading && !error && (!conversation.request_status || conversation.request_status === 'accepted'),
   });
   const respond = async (accept) => {
     try {
@@ -467,6 +519,10 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
   };
 
   const jumpToLatest = useCallback(() => {
+    jumpIdRef.current = null;
+    jumpPageRef.current = null;
+    setJumpId(null);
+    setJumpError('');
     const viewport = viewportRef.current;
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
     followLatestRef.current = true;
@@ -481,7 +537,7 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
     const previous = olderScrollRef.current;
     const viewport = viewportRef.current;
     if (!previous || !viewport || previous.firstId === messages[0]?.id) return;
-    viewport.scrollTop = previous.top + viewport.scrollHeight - previous.height;
+    if (!jumpIdRef.current) viewport.scrollTop = previous.top + viewport.scrollHeight - previous.height;
     olderScrollRef.current = null;
   }, [messages]);
   const loadEarlier = () => {
@@ -491,10 +547,49 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
     followLatestRef.current = false;
     loadOlder();
   };
+  const jumpToMessage = (id) => {
+    if (!id) return;
+    followLatestRef.current = false;
+    jumpIdRef.current = id;
+    jumpPageRef.current = null;
+    setJumpError('');
+    setJumpId(id);
+    setSearching(false);
+  };
+  useEffect(() => {
+    if (!jumpId || isLoading || isLoadingOlder) return;
+    const node = [...(timelineRef.current?.querySelectorAll('[data-message-id]') ?? [])]
+      .find((element) => element.dataset.messageId === jumpId);
+    if (node) {
+      node.scrollIntoView({ block: 'center' });
+      setHighlightedId(jumpId);
+      jumpIdRef.current = null;
+      jumpPageRef.current = null;
+      setJumpId(null);
+      setAwayFromBottom(true);
+    } else if (error || !hasOlder) {
+      setJumpError(error ? 'Could not load that message. Please try again.' : 'That message is no longer available.');
+      jumpIdRef.current = null;
+      jumpPageRef.current = null;
+      setJumpId(null);
+    } else {
+      const pageKey = `${jumpId}:${messages[0]?.id ?? 'empty'}`;
+      if (jumpPageRef.current === pageKey) return;
+      jumpPageRef.current = pageKey;
+      const viewport = viewportRef.current;
+      if (viewport) olderScrollRef.current = { top: viewport.scrollTop, height: viewport.scrollHeight, firstId: messages[0]?.id };
+      loadOlder();
+    }
+  }, [jumpId, messages, isLoading, isLoadingOlder, hasOlder, error, loadOlder]);
+  useEffect(() => {
+    if (!highlightedId) return;
+    const timeout = setTimeout(() => setHighlightedId(null), 4000);
+    return () => clearTimeout(timeout);
+  }, [highlightedId]);
   // Media can finish loading after the message row. Follow it only while reading the latest chat.
   useEffect(() => {
     const observer = new ResizeObserver(() => {
-      if (followLatestRef.current) jumpToLatest();
+      if (!jumpIdRef.current && followLatestRef.current) jumpToLatest();
     });
     if (timelineRef.current) observer.observe(timelineRef.current);
     if (viewportRef.current) observer.observe(viewportRef.current);
@@ -505,13 +600,19 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
     <div className="messages-chat">
       <header className="messages-chat-header" inert={managing || undefined} aria-hidden={managing || undefined}>
         <button type="button" onClick={onBack} aria-label="Back to conversations" className="messages-icon-button messages-back"><ArrowLeft size={21} /></button>
+        <button className="messages-chat-identity" type="button" onClick={() => setManaging(true)} aria-label={`View ${isGroup ? 'group' : 'contact'} details`}>
         <ConversationAvatar conversation={conversation} me={me} />
         <div className="messages-chat-heading">
           <h2>{name}</h2>
-          <p>{isGroup ? `${conversation.members?.length ?? 0} members · ${others(conversation, me).map((member) => member.employee?.full_name).filter(Boolean).join(', ')}` : others(conversation, me)[0]?.employee?.branch?.code ? `Direct message · ${others(conversation, me)[0].employee.branch.code}` : 'Direct message'}</p>
+          <p className={typingText ? 'messages-typing' : undefined}>{typingText || (isGroup ? `${conversation.members?.length ?? 0} members · ${others(conversation, me).map((member) => member.employee?.full_name).filter(Boolean).join(', ')}` : others(conversation, me)[0]?.employee?.branch?.code ? `Direct message · ${others(conversation, me)[0].employee.branch.code}` : 'Direct message')}</p>
         </div>
-        <button ref={settingsButtonRef} type="button" onClick={() => setManaging(true)} aria-label="Chat settings"
-          aria-expanded={managing} className="messages-icon-button"><Settings size={21} /></button>
+        </button>
+        <div className="messages-chat-header-actions">
+          <button ref={searchButtonRef} type="button" onClick={() => setSearching(!searching)} aria-label="Search messages" aria-expanded={searching} className="messages-icon-button"><Search size={20} /></button>
+          <button ref={settingsButtonRef} type="button" onClick={() => setManaging(true)} aria-label="Chat settings"
+            aria-expanded={managing} className="messages-icon-button"><Settings size={20} /></button>
+          {onPreference && <ChatMenu label="Conversation menu" disabled={preferenceBusy} items={preferenceItems(conversation, onPreference)} />}
+        </div>
       </header>
       {managing && <ConversationSettings conversation={conversation} me={me} readOnly={readOnly}
         onClose={closeSettings} />}
@@ -531,9 +632,14 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
           {request.error && <p role="alert" className="messages-chat-error">{humanDbError(request.error)}</p>}
         </div>
       </div>}
+      {(jumpId || jumpError) && <div className="messages-jump-status" role={jumpError ? 'alert' : 'status'}>
+        <span>{jumpError || 'Finding message…'}</span><button type="button" onClick={() => { jumpIdRef.current = null; jumpPageRef.current = null; setJumpId(null); setJumpError(''); }}>Dismiss</button>
+      </div>}
+      <div className={`messages-thread-layout ${searching ? 'is-searching' : ''}`}>
       <div className="messages-chat-history">
         <div className="messages-chat-scroll" ref={viewportRef} role="region" aria-label="Message history" tabIndex={0}
           onScroll={(event) => {
+            if (jumpIdRef.current) { followLatestRef.current = false; setAwayFromBottom(true); return; }
             const node = event.currentTarget;
             const near = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
             followLatestRef.current = near;
@@ -553,6 +659,7 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
                 <p className="messages-date"><span>{dayLabel(day)}</span></p>
                 {rows.map((message, index) => <MessageBubble key={message.id} message={message} me={me} readOnly={readOnly} conversation={conversation} canReply={maySend}
                   quote={byId.get(message.reply_to)} onReply={() => setReplyId(message.id)}
+                  onJumpToQuote={() => jumpToMessage(message.reply_to)} highlighted={message.id === highlightedId}
                   withSender={showsSender(message, rows[index - 1] ?? null, { kind: conversation.kind })}
                   endsRun={index === rows.length - 1 || rows[index + 1].sender_id !== message.sender_id || showsSender(rows[index + 1], message, { kind: 'group' })} />)}
               </div>
@@ -560,6 +667,9 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
           </div>
         </div>
         {awayFromBottom && <button type="button" className="messages-jump-latest" onClick={jumpToLatest} aria-label="Jump to latest messages"><ArrowDown size={20} /></button>}
+      </div>
+      {searching && <ConversationSearch conversation={conversation} me={me} onPick={(message) => jumpToMessage(message.id)}
+        onClose={() => { setSearching(false); searchButtonRef.current?.focus(); }} />}
       </div>
       {/* messages_insert asks app.is_conversation_member, so an administrator reading somebody
           else's conversation is refused by the database anyway. Offering a box that will reject
@@ -572,7 +682,7 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
         {incomingRequest ? 'Accept this request to reply.' : 'This request is closed.'}
       </p> : (
       <Composer conversationId={conversation.id} replyTo={byId.get(replyId)} me={me} onCancelReply={() => setReplyId(null)}
-        onSent={() => { setReplyId(null); jumpToLatest(); }} />
+        onTyping={setTyping} onSent={() => { setReplyId(null); jumpToLatest(); }} />
       )}
       </div>
     </div>
@@ -581,24 +691,62 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
 
 /* --------------------------------------------------------------- one message -- */
 
-function MessageBubble({ message, me, withSender, endsRun, quote, onReply, conversation, canReply = true, readOnly = false }) {
+function ConversationSearch({ conversation, me, onPick, onClose }) {
+  const [query, setQuery] = useState('');
+  const [term, setTerm] = useState('');
+  useEffect(() => {
+    const timeout = setTimeout(() => setTerm(query.trim()), 250);
+    return () => clearTimeout(timeout);
+  }, [query]);
+  const results = useChatSearch(conversation.id, term);
+  const waiting = query.trim() !== term || (Boolean(term) && results.isLoading);
+  return <aside className="messages-search-panel" aria-label="Search in conversation" onKeyDown={(event) => {
+    if (event.key === 'Escape') { event.stopPropagation(); onClose(); }
+  }}>
+    <div className="messages-chat-search">
+      <button type="button" className="messages-icon-button" onClick={onClose} aria-label="Close message search"><ArrowLeft size={20} /></button>
+      <input autoFocus type="search" aria-label="Search this conversation" placeholder="Search in conversation" maxLength={4000}
+        value={query} onChange={(event) => setQuery(event.target.value)} />
+    </div>
+    <div className="messages-search-results">
+      {!query.trim() && <p>Find a message in this conversation.</p>}
+      {waiting && <ConversationSkeleton rows={3} compact label="Searching messages" />}
+      {!waiting && results.error && <p role="alert" className="messages-chat-error">{humanDbError(results.error)}</p>}
+      {!waiting && !results.error && term && <p className="messages-chat-search-count" role="status">
+        {results.data.length ? `${results.data.length}${results.hasNextPage ? '+' : ''} results` : 'No messages found.'}
+      </p>}
+      {!waiting && !results.error && results.data.map((message) => <button className="messages-search-result" type="button" key={message.id}
+        onClick={() => onPick(message)}>
+        <strong>{message.sender_id === me ? 'You' : conversation.members?.find((member) => member.employee_id === message.sender_id)?.employee?.full_name || 'Colleague'}</strong>
+        <small>{new Date(message.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })} · {clockOf(message.created_at)}</small>
+        <p>{message.body}</p>
+      </button>)}
+      {!waiting && results.hasNextPage && <button type="button" className={btnClass('ghost')} disabled={results.isFetchingNextPage}
+        onClick={() => results.fetchNextPage()}>{results.isFetchingNextPage ? 'Loading results…' : 'More results'}</button>}
+    </div>
+  </aside>;
+}
+
+function MessageBubble({ message, me, withSender, endsRun, quote, onReply, onJumpToQuote, highlighted, conversation, canReply = true, readOnly = false }) {
   const mine = isMine(message, me);
   const [showActions, setShowActions] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [copyStatus, setCopyStatus] = useState('');
   const remove = useDeleteMessage();
   const isMedia = message.kind !== 'text';
 
   return (
-    <div className="message-bubble-row" data-message-id={message.id} data-own={mine} data-ends-run={endsRun}>
+    <div className="message-bubble-row" data-message-id={message.id} data-own={mine} data-ends-run={endsRun} data-highlighted={highlighted || undefined}>
       <div className="message-bubble-wrap">
         {message.deleted_at ? <p className="message-deleted"><Trash2 size={12} />Message deleted</p> : <>
           <div className={`message-bubble ${isMedia ? 'message-bubble-media' : ''}`}>
             {withSender && !mine && <p className="message-sender">{message.sender?.full_name || 'Unknown'}</p>}
-            {message.reply_to && <blockquote className="message-quote">
+            {message.reply_to && <button type="button" className="message-quote" onClick={onJumpToQuote} aria-label="Go to replied message">
               <strong>{quote ? (isMine(quote, me) ? 'You' : quote.sender?.full_name || 'Unknown') : 'Earlier message'}</strong>
               <span>{replyPreviewOf(quote)}</span>
-            </blockquote>}
+            </button>}
             {isMedia && <MediaBubble message={message} mine={mine} />}
+            {!isMedia && <MessageLinkCard body={message.body} />}
             {(message.body || !isMedia) && <p className="message-text">{messageLinkParts(message.body).map((part, index) => part.type === 'link'
               ? <a key={index} href={part.href} target="_blank" rel="noopener noreferrer">{part.text}</a>
               : <React.Fragment key={index}>{part.text}</React.Fragment>)}</p>}
@@ -612,8 +760,13 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply, conve
           </div>
           {!readOnly && showActions && <div className="message-actions">
             {canReply && <button type="button" onClick={() => { onReply(); setShowActions(false); }}><Reply size={14} />Reply</button>}
+            {message.body && <button type="button" onClick={async () => {
+              try { await navigator.clipboard.writeText(message.body); setCopyStatus('Message copied'); setShowActions(false); }
+              catch { setCopyStatus('Could not copy. Select the message text to copy it.'); }
+            }}><Copy size={14} />Copy</button>}
             {mine && <button type="button" onClick={() => setConfirming(true)}><Trash2 size={13} />Delete</button>}
           </div>}
+          {copyStatus && <p className="messages-copy-status" role="status">{copyStatus}</p>}
         </>}
       </div>
       {confirming && <ConfirmDialog title="Delete this message?" confirmLabel="Delete" busy={remove.isPending}
@@ -629,6 +782,18 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply, conve
       </ConfirmDialog>}
     </div>
   );
+}
+
+function MessageLinkCard({ body }) {
+  const link = messageLinkParts(body).find((part) => part.type === 'link');
+  if (!link) return null;
+  let url;
+  try { url = new URL(link.href); } catch { return null; }
+  if (!['http:', 'https:'].includes(url.protocol)) return null;
+  return <a href={url.href} target="_blank" rel="noopener noreferrer" className="message-link-card">
+    <ExternalLink size={22} aria-hidden="true" />
+    <span><strong>{url.hostname.replace(/^www\./, '')}</strong><small>{url.pathname === '/' ? 'Open website' : url.pathname}</small></span>
+  </a>;
 }
 
 /** A photo, a clip, a voice note or a file — fetched through a signed URL, because the bucket is private. */
@@ -672,9 +837,9 @@ function MediaBubble({ message, mine }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className={`flex items-center gap-2 rounded-xl px-2 py-1.5 ${mine ? 'bg-white/15' : 'bg-white dark:bg-neutral-900'}`}
+      className="message-file-card"
     >
-      <FileText size={14} className="shrink-0" />
+      <span className="message-file-icon">{message.mime_type === 'application/pdf' ? 'PDF' : <FileText size={25} />}</span>
       <span className="min-w-0 flex-1">
         <span className="messages-file-name">
           {message.storage_path?.split('/').pop()?.replace(/^\d+-\w+-/, '') ?? 'File'}
@@ -704,7 +869,7 @@ const MAX_BYTES = 25 * 1024 * 1024;   // matches the bucket's limit in 0115
 
 const CHAT_EMOJI = ['😀', '😊', '👍', '🙏', '✅', '🎉', '👏', '💡', '📌', '👀', '❤️', '🚀'];
 
-function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
+function Composer({ conversationId, replyTo, me, onCancelReply, onSent, onTyping }) {
   const [body, setBody] = useState('');
   const [pending, setPending] = useState(null);
   const [localError, setLocalError] = useState(null);
@@ -725,7 +890,7 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
   const voiceDraft = pending?.kind === 'voice';
 
   useEffect(() => {
-    if (!voiceDraft || !pending?.file) { setDraftUrl(null); return; }
+    if (!pending?.file) { setDraftUrl(null); return; }
     const url = URL.createObjectURL(pending.file);
     setDraftUrl(url);
     return () => URL.revokeObjectURL(url);
@@ -752,6 +917,7 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
     const next = body.slice(0, start) + emoji + body.slice(end);
     if (next.length > 4000) return;
     setBody(next);
+    onTyping?.(Boolean(next.trim()));
     setEmojiOpen(false);
     requestAnimationFrame(() => { input?.focus(); input?.setSelectionRange(start + emoji.length, start + emoji.length); });
   };
@@ -765,6 +931,7 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
     setLocalError(null);
     setAttachOpen(false);
     setEmojiOpen(false);
+    onTyping?.(false);
     try {
       if (attachment) {
         // Retain an uploaded object on a failed send, so retrying doesn't create duplicate files.
@@ -778,12 +945,15 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
       setBody('');
       if (textRef.current) textRef.current.style.height = 'auto';
       onSent();
+      textRef.current?.focus();
     } catch { /* keep the draft and display the error */ }
     finally { postingRef.current = false; setSending(false); }
   };
 
   return (
     <form onSubmit={submit} className="messages-composer" aria-label="Write a message"
+      onDragOver={(event) => { if (!busy && !voiceActive && event.dataTransfer.types.includes('Files')) event.preventDefault(); }}
+      onDrop={(event) => { if (!busy && !voiceActive && event.dataTransfer.files.length) { event.preventDefault(); pick(event.dataTransfer.files[0]); } }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') { setAttachOpen(false); setEmojiOpen(false); }
       }}>
@@ -793,7 +963,7 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
         <button type="button" className="messages-icon-button" disabled={busy} onClick={onCancelReply} aria-label="Cancel reply"><X size={18} /></button>
       </div>}
       {pending && !voiceDraft && <div className="messages-pending-file">
-        <Paperclip size={20} />
+        {pending.kind === 'image' && draftUrl ? <img className="messages-pending-thumbnail" src={draftUrl} alt="Attachment preview" /> : <Paperclip size={20} />}
         <div><strong>{pending.file.name}</strong><small>{readableSize(pending.file.size)} · Ready to send</small></div>
         <button type="button" className="messages-icon-button" disabled={busy} onClick={() => setPending(null)} aria-label="Remove attachment"><X size={18} /></button>
       </div>}
@@ -816,22 +986,10 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
               : <MessageMediaSkeleton kind="voice" label="Preparing voice note preview" />}
           </div>
         </div>}
-        {!voiceActive && !voiceDraft && <div className="messages-input-shell">
-          <button type="button" className="messages-icon-button" disabled={busy} aria-label="Choose emoji" aria-expanded={emojiOpen}
-            onClick={() => { setEmojiOpen((value) => !value); setAttachOpen(false); }}><Smile size={21} /></button>
-          <textarea ref={textRef} rows={1} value={body} disabled={busy} maxLength={4000}
-            aria-label="Message" placeholder={pending ? 'Add a caption…' : 'Type a message'}
-            onChange={(event) => {
-              setBody(event.target.value);
-              event.target.style.height = 'auto';
-              event.target.style.height = `${Math.min(event.target.scrollHeight, 128)}px`;
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); }
-            }} />
+        {!voiceActive && !voiceDraft && <>
           <div className="messages-attach-control">
             <button type="button" className="messages-icon-button" disabled={busy} aria-label="Attach a photo, video or file" aria-expanded={attachOpen}
-              onClick={() => { setAttachOpen((value) => !value); setEmojiOpen(false); }}><Paperclip size={21} /></button>
+              onClick={() => { setAttachOpen((value) => !value); setEmojiOpen(false); }}><Plus size={23} /></button>
             {attachOpen && <>
               <button type="button" aria-label="Close attachment menu" onClick={() => setAttachOpen(false)} className="messages-menu-dismiss" />
               <div className="messages-attachment-menu">
@@ -841,7 +999,24 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
               </div>
             </>}
           </div>
-        </div>}
+        <div className="messages-input-shell">
+          <button type="button" className="messages-icon-button" disabled={busy} aria-label="Choose emoji" aria-expanded={emojiOpen}
+            onClick={() => { setEmojiOpen((value) => !value); setAttachOpen(false); }}><Smile size={21} /></button>
+          <textarea ref={textRef} rows={1} value={body} disabled={busy} maxLength={4000}
+            aria-label="Message" placeholder={pending ? 'Add a caption…' : 'Type a message'}
+            onChange={(event) => {
+              setBody(event.target.value);
+              onTyping?.(Boolean(event.target.value.trim()));
+              event.target.style.height = 'auto';
+              event.target.style.height = `${Math.min(event.target.scrollHeight, 128)}px`;
+            }}
+            onBlur={() => onTyping?.(false)}
+            onPaste={(event) => { if (event.clipboardData.files.length) { event.preventDefault(); pick(event.clipboardData.files[0]); } }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); submit(); }
+            }} />
+
+        </div></>}
         {canSend ? <button type="submit" className="messages-send" disabled={busy} aria-label={voiceDraft ? 'Send voice note' : 'Send'}>
           {busy ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
         </button> : <VoiceRecorder disabled={busy}

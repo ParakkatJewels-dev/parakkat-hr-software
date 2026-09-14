@@ -63,7 +63,8 @@ test('recovery form identifies the account and is not confused with a temporary-
 test('forced and voluntary changes display the same password rules', () => {
   for (const Component of [SetYourPassword, ChangePassword]) {
     const html = render(Component);
-    for (const label of ['At least 8 characters', 'Not your own name', 'Not only numbers']) assert.ok(html.includes(label));
+    for (const label of ['At least 8 characters', 'Not only numbers']) assert.ok(html.includes(label));
+    assert.doesNotMatch(html, /Not your own name|Not the person’s name or email/);
   }
 });
 test('super admin can manage passwords directly from collapsed account rows', () => {

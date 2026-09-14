@@ -32,6 +32,12 @@ installed Supabase Auth SDK with synthetic sessions. Desktop, 390px and 320px br
 verified dialog padding, scrolling, keyboard focus and visibility above navigation. Frontend changes need a deployment; a full
 hosted email-to-password-change flow has not been performed on a real account.
 
+The subsequent password-policy update removes the name, username and email restriction from
+all frontend forms and the administrator validator. Migration `0132_allow_names_in_passwords.sql`
+is applied to the hosted database. The eight-character minimum, numeric-only restriction and
+administrator bcrypt byte limit remain. Focused frontend tests, the isolated password RPC suite
+and the production build pass; the updated frontend still requires deployment.
+
 ## Findings fixed in this change
 
 | Issue | Fix |

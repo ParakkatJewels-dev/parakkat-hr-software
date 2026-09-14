@@ -33,6 +33,17 @@ test('search does not expose a deleted message body', () => {
   assert.deepEqual(filterConversations([chat], { query: 'team' }), [chat]);
 });
 
+test('pins stay above recent chats and favourites combine with conversation search', () => {
+  const chats = [conv({ id: 'recent', last_message_at: '2026-09-14', is_favourite: true }),
+    conv({ id: 'pinned', last_message_at: '2026-09-10', is_pinned: true, is_favourite: true, kind: 'group', title: 'Store team' }),
+    conv({ id: 'ordinary', last_message_at: '2026-09-13' })];
+  const sorted = sortConversations(chats);
+  assert.deepEqual(sorted.map(chat => chat.id), ['pinned', 'recent', 'ordinary']);
+  assert.deepEqual(filterConversations(sorted, { filter: 'favourites' }).map(chat => chat.id), ['pinned', 'recent']);
+  assert.deepEqual(filterConversations(sorted, { filter: 'favourites', query: 'store' }).map(chat => chat.id), ['pinned']);
+  assert.equal(chats[0].id, 'recent', 'sorting preserves the original array');
+});
+
 test('reply previews use text or media labels without revealing deleted content', () => {
   assert.equal(replyPreviewOf({ body: '  Please check this  ', kind: 'text' }), 'Please check this');
   for (const [kind, label] of Object.entries({ image: 'Photo', video: 'Video', voice: 'Voice note', file: 'File' })) {

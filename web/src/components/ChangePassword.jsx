@@ -2,11 +2,9 @@ import React, { useState } from 'react';
 import { KeyRound, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { btnClass } from './ui/Btn';
-import { useAuth } from '../auth/AuthContext';
 import { passwordProblem, RULES } from '../lib/passwordRules';
 
 export default function ChangePassword() {
-  const { user, employee } = useAuth();
   const [pw, setPw] = useState('');
   const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
@@ -16,7 +14,7 @@ export default function ChangePassword() {
     e.preventDefault();
     if (busy) return;
     setMsg(null);
-    const problem = passwordProblem(pw, { name: employee?.full_name, email: user?.email });
+    const problem = passwordProblem(pw);
     if (problem) return setMsg({ err: problem.label });
     if (pw !== confirm) return setMsg({ err: 'Passwords do not match.' });
     setBusy(true);

@@ -117,6 +117,7 @@ root task without requesting returned rows, while it remains unable to read or u
 ## Administrator password reset
 
 Apply `0131_admin_password_reset.sql` before using the temporary-password action in Administration.
+Apply `0132_allow_names_in_passwords.sql` to allow names, usernames and email addresses in passwords.
 The authenticated RPC `admin_set_user_password(_user_id uuid, _password text)` returns `void`.
 It permits super admins, or an `rbac.manage` holder whose scope includes the employee and whose
 rank exceeds the target's. Unlinked logins require a super admin. Self-service password changes
@@ -134,7 +135,23 @@ hosted Auth tables (`auth.users`, `auth.identities`, `auth.sessions`, `auth.refr
 `auth.one_time_tokens`). Its token cleanup mirrors
 [Supabase Auth's password update implementation](https://github.com/supabase/auth/blob/master/internal/models/user.go).
 Only existing email identities are eligible. Passwords require at least eight characters, cannot
-contain the person's name/email name or only numbers, and cannot exceed bcrypt's 72 UTF-8 bytes.
-The password-administration suite replays every migration, repeats `0131` to check safe reruns,
+contain only numbers, and cannot exceed bcrypt's 72 UTF-8 bytes. Names, usernames and email
+addresses are allowed.
+The password-administration suite replays every migration, repeats `0131` and `0132` to check safe reruns,
 and exercises these rules and RBAC boundaries using synthetic identities. It checks stored
 bcrypt compatibility and SQL behavior; it does not run a hosted Auth sign-in or send a recovery email.
+
+## Chat preferences, search and typing
+
+Migrations `0133_chat_preferences.sql` and `0134_chat_typing.sql` support the updated Messages
+screen. Pins and favourites belong to the signed-in employee and persist across devices; an
+administrator monitoring a conversation cannot view or change someone else's preferences.
+`search_chat_messages` searches the authorized conversation's full, non-deleted history with
+literal text matching and timestamp/ID pagination. It uses the same read permissions as the thread.
+
+Typing shares only a boolean and server timestamps through `set_chat_typing`. Both writes and
+Realtime reads require membership in an accepted conversation. Updates are throttled, expire
+after six seconds, and clear on send or loss of focus. Draft text is never transmitted by this
+feature. The SQL test runner covers preference isolation, full-history search and typing access;
+frontend tests cover pagination and the typing publisher's lifecycle. The optional `?qa-chat`
+browser fixture exercises these controls entirely in memory.

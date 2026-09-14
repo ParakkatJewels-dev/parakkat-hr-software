@@ -199,7 +199,8 @@ test('security retains labelled password fields and shared password requirements
     assert.equal(attribute(input, 'autoComplete'), 'new-password');
     assert.ok(has(input, 'required'));
   }
-  for (const label of ['At least 8 characters', 'Not your own name', 'Not only numbers', 'Update password']) {
+  for (const label of ['At least 8 characters', 'Not only numbers', 'Update password']) {
     assert.ok(text(security).includes(label));
   }
+  assert.ok(!text(security).includes('Not your own name'));
 });

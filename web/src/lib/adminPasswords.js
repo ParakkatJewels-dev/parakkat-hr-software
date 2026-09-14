@@ -2,12 +2,12 @@ import { MIN_LENGTH, passwordProblem } from './passwordRules.js';
 
 export const MAX_TEMPORARY_PASSWORD_BYTES = 72;
 
-export function temporaryPasswordProblem(password, confirm, target) {
+export function temporaryPasswordProblem(password, confirm) {
   // PostgreSQL counts Unicode characters, whereas String.length counts UTF-16 code units.
   if ([...password].length < MIN_LENGTH) return `At least ${MIN_LENGTH} characters`;
   if (new TextEncoder().encode(password).length > MAX_TEMPORARY_PASSWORD_BYTES) return 'Use a password of at most 72 bytes (special characters may use more than one).';
-  const problem = passwordProblem(password, { name: target.employee_name, email: target.email });
-  if (problem) return problem.id === 'not-name' ? "Do not use this person's name or email in the password." : problem.label;
+  const problem = passwordProblem(password);
+  if (problem) return problem.label;
   if (password !== confirm) return 'Passwords do not match.';
   return null;
 }

@@ -46,10 +46,12 @@ try {
       ...(file.startsWith('0129_') ? ['\\set message_requests_seed on', `\\i ${quote(messageTests)}`] : []),
       `\\i ${quote(join(migrations, file))}`,
       // This migration promises safe reruns; enforce that before running API assertions.
-      ...(file.startsWith('0129_') ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0129|0133|0134)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     '\\set message_requests_seed off',
     `\\i ${quote(messageTests)}`,
+    `\\i ${quote(join(backend, 'tests', 'chat_preferences.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'chat_typing.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, messageDatabase]);
   const messageOutput = run('psql', [...connection, '-d', messageDatabase, '-q', '-f', messageBootstrap]);

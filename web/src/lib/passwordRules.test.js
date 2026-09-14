@@ -1,41 +1,30 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { containsOwnName, passwordProblem, RULES, MIN_LENGTH } from './passwordRules.js';
+import { passwordProblem, RULES, MIN_LENGTH } from './passwordRules.js';
 
 const RAMESH = { name: 'Ramesh Kumar', email: 'ramesh.kumar@parakkatjewels.com' };
 
-test('the provisioned default itself is refused — the whole point of the gate', () => {
-  // {employee_name}{last 4 of phone}
-  assert.equal(containsOwnName('Ramesh4821', RAMESH), true);
-  assert.equal(containsOwnName('RameshKumar4821', RAMESH), true);
-  assert.ok(passwordProblem('Ramesh4821', RAMESH), 'must not be accepted as a new password');
-});
-
-test('punctuation and case do not smuggle the name past', () => {
-  for (const attempt of ['R-a-m-e-s-h-2024', 'ramesh.kumar!!', 'RAMESH_9999', '  Ramesh  1234']) {
-    assert.equal(containsOwnName(attempt, RAMESH), true, attempt);
+test('names and usernames are allowed in a replacement password', () => {
+  for (const password of ['Ramesh4821', 'RameshKumar4821', 'kumar12345', 'rameshkumar1']) {
+    assert.equal(passwordProblem(password, RAMESH), null, password);
   }
 });
 
-test('either half of the name is enough to catch it', () => {
-  assert.equal(containsOwnName('kumar12345', RAMESH), true);
-  assert.equal(containsOwnName('Ramesh!!!!', RAMESH), true);
+test('names are allowed regardless of punctuation and case', () => {
+  for (const attempt of ['R-a-m-e-s-h-2024', 'ramesh.kumar!!', 'RAMESH_9999', '  Ramesh  1234']) {
+    assert.equal(passwordProblem(attempt, RAMESH), null, attempt);
+  }
 });
 
-test('the email local part is blocked too', () => {
-  assert.equal(containsOwnName('rameshkumar1', RAMESH), true);
+test('email local parts and complete Gmail addresses are allowed', () => {
+  assert.equal(passwordProblem(RAMESH.email, RAMESH), null);
+  assert.equal(passwordProblem('ramesh.kumar@gmail.com', RAMESH), null);
 });
 
 test('a genuinely different password passes', () => {
   for (const good of ['thrissur-monsoon-7', 'BlueKettle22', 'p0lishing-wheel']) {
-    assert.equal(containsOwnName(good, RAMESH), false, good);
     assert.equal(passwordProblem(good, RAMESH), null, good);
   }
-});
-
-test('a short name fragment is not blocked, or half the dictionary would be', () => {
-  // "Li" is two characters — blocking every password containing "li" is unusable.
-  assert.equal(containsOwnName('quality-wheel-9', { name: 'Li Wu' }), false);
 });
 
 test('length is enforced, and is the first thing reported on an empty field', () => {
@@ -52,8 +41,7 @@ test('an all-numeric password is refused — that is what a phone number is', ()
 
 test('the rules work when we know nothing about the person', () => {
   assert.equal(passwordProblem('somethinglong', {}), null);
-  assert.equal(containsOwnName('anything', {}), false);
-  assert.equal(containsOwnName('anything', { name: null, email: undefined }), false);
+  assert.equal(passwordProblem('anything', { name: null, email: undefined }), null);
 });
 
 test('every rule has an id, a label and a predicate that tolerates junk', () => {

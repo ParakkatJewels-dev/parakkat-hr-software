@@ -11,6 +11,9 @@ document.body.appendChild(panel);
 if (new URL(window.location.href).searchParams.has('qa-mobile')) {
   panel.querySelector('p').textContent = 'Isolated phone fixtures. Routine ticks save in memory only; all other writes and external connections are blocked.';
 }
+if (new URL(window.location.href).searchParams.has('qa-chat')) {
+  panel.querySelector('p').textContent = 'Isolated chat fixtures. Synthetic messages and chat preferences save in memory only; external connections and other writes are blocked.';
+}
 for (const role of [...ROLE_NAMES, 'unassigned']) {
   const option = document.createElement('option');
   option.value = role; option.textContent = role; option.selected = role === qaRole;
@@ -100,7 +103,7 @@ document.getElementById('qa-sweep').onclick = async (event) => {
     if (main && main.scrollWidth > main.clientWidth + 2) issues.push(`content overflow ${main.scrollWidth}/${main.clientWidth}px`);
     output.textContent += `${issues.length ? 'FAIL' : 'PASS'} ${route}${denied ? (expectsDeniedScreen(route) ? ' [denied as expected]' : ' [unexpected denial]') : ''} (${Math.round(performance.now() - started)}ms)${issues.length ? ': ' + issues.join('; ') : ''}\n`;
   }
-  output.textContent += `\nQueries: ${qaState.reads}; blocked writes: ${qaState.mutations}.\nTimes include test settling; these are not production latency measurements.`;
+  output.textContent += `\nQueries: ${qaState.reads}; attempted writes: ${qaState.mutations}.\nTimes include test settling; these are not production latency measurements.`;
   event.target.disabled = false;
 };
 document.getElementById('qa-fail').onclick = () => {

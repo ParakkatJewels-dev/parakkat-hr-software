@@ -68,10 +68,12 @@ export function previewOf(conversation, myEmployeeId) {
   return mine && conversation?.kind === 'group' ? `You: ${text}` : text;
 }
 
-/** Most recently active first — the only order a conversation list is ever wanted in. */
+/** Pinned chats stay first; recent activity orders each section. */
 export function sortConversations(list = []) {
   return [...(list ?? [])].sort((a, b) =>
-    String(b?.last_message_at ?? '').localeCompare(String(a?.last_message_at ?? ''))
+    Number(Boolean(b?.is_pinned)) - Number(Boolean(a?.is_pinned))
+    || String(b?.last_message_at ?? '').localeCompare(String(a?.last_message_at ?? ''))
+    || String(a?.id ?? '').localeCompare(String(b?.id ?? ''))
   );
 }
 
@@ -138,6 +140,7 @@ export function filterConversations(list = [], { query = '', filter = 'all', me 
   return list.filter((conversation) =>
     (filter !== 'unread' || hasUnread(conversation))
     && (filter !== 'groups' || conversation.kind === 'group')
+    && (filter !== 'favourites' || conversation.is_favourite === true)
     && (!needle || conversationName(conversation, me).toLowerCase().includes(needle)
       || (!conversation.last_deleted && String(conversation.last_body ?? '').toLowerCase().includes(needle)))
   );

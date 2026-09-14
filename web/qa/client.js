@@ -1,11 +1,11 @@
 // This deliberately small adapter tests rendering and controls, not Supabase/RLS semantics.
 // Unknown mutations fail closed; fixtures never connect to a database or send email.
-import { fixture, tables, mobileFixtures } from './fixtures.js';
+import { fixture, tables, mobileFixtures, chatFixtures } from './fixtures.js';
 import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from './roles.js';
 import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib/passwordRecovery.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
-const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
@@ -34,13 +34,27 @@ class Query {
   limit(n) { this.size = n; return this; }
   single() { this.one = true; return this; }
   maybeSingle() { this.one = true; return this; }
-  insert() { this.write = true; return this; }
+  insert(payload) { this.write = true; this.operation = 'insert'; this.payload = payload; return this; }
   update() { this.write = true; return this; }
   delete() { this.write = true; this.operation = 'delete'; return this; }
   upsert(payload) { this.write = true; this.operation = 'upsert'; this.payload = payload; return this; }
   then(resolve, reject) {
     qaState.reads += 1;
     if (this.write) qaState.mutations += 1;
+    if (this.write && chatFixtures && !qaState.failReads && this.table === 'messages' && this.operation === 'insert'
+        && !new URL(window.location.href).searchParams.has('qa-block-write')) {
+      const message = this.payload;
+      const chat = tables.conversations.find((row) => row.id === message?.conversation_id);
+      const validReply = !message?.reply_to || tables.messages.some((row) => row.id === message.reply_to && row.conversation_id === chat?.id);
+      if (chat && message.sender_id === fixture.employees[0].id && message.kind === 'text'
+          && typeof message.body === 'string' && message.body.trim() && message.body.length <= 4000 && validReply) {
+        const created = { ...message, id: `qa-sent-${tables.messages.length + 1}`, sender: fixture.employees[0], created_at: new Date().toISOString() };
+        tables.messages.push(created);
+        Object.assign(chat, { last_message_at: created.created_at, last_message_created_at: created.created_at,
+          last_body: created.body, last_kind: 'text', last_sender_id: created.sender_id, last_message_id: created.id });
+        return Promise.resolve({ data: [created], error: null }).then(resolve, reject);
+      }
+    }
     // The explicit phone fixture may complete/reopen its own synthetic routines in memory.
     // This is only a UI state check; database permissions are covered by the SQL suite.
     if (this.write && mobileFixtures && !qaState.failReads && this.table === 'routine_ticks'
@@ -84,6 +98,40 @@ export const supabase = {
   },
   rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    if (chatFixtures && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {
+      const chat = tables.conversations.find((row) => row.id === args._conversation_id);
+      const ownMember = chat && tables.conversation_members.some((member) => member.conversation_id === chat.id && member.employee_id === fixture.employees[0].id);
+      if (name === 'set_chat_preference' && ownMember) {
+        const saved = tables.chat_preferences.find((row) => row.conversation_id === chat.id)
+          ?? { conversation_id: chat.id, is_pinned: false, is_favourite: false };
+        for (const [arg, field] of [['_is_pinned', 'is_pinned'], ['_is_favourite', 'is_favourite']]) {
+          if (typeof args[arg] === 'boolean') saved[field] = args[arg];
+        }
+        if (!tables.chat_preferences.includes(saved)) tables.chat_preferences.push(saved);
+        qaState.mutations += 1;
+        return Promise.resolve({ data: [{ ...saved }], error: null });
+      }
+      if (name === 'search_chat_messages' && ownMember) {
+        const query = String(args._query ?? '').trim().toLowerCase();
+        const cursor = args._before_at && args._before_id;
+        if (Boolean(args._before_at) !== Boolean(args._before_id)) return Promise.resolve({ data: null, error: { message: 'Both search cursor fields are required.' } });
+        const found = query ? tables.messages.filter((row) => row.conversation_id === chat.id && !row.deleted_at
+          && String(row.body ?? '').toLowerCase().includes(query)
+          && (!cursor || row.created_at < args._before_at || (row.created_at === args._before_at && row.id < args._before_id)))
+          .sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id))
+          .slice(0, Math.max(1, Math.min(51, args._limit ?? 51))) : [];
+        qaState.reads += 1;
+        return Promise.resolve({ data: found, error: null });
+      }
+      if (name === 'set_chat_typing' && ownMember && typeof args._typing === 'boolean') {
+        const own = tables.chat_typing.find((row) => row.conversation_id === chat.id && row.employee_id === fixture.employees[0].id)
+          ?? { id: `qa-typing-${chat.id}`, conversation_id: chat.id, employee_id: fixture.employees[0].id };
+        Object.assign(own, { is_typing: args._typing, updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + (args._typing ? 6000 : 0)).toISOString() });
+        if (!tables.chat_typing.includes(own)) tables.chat_typing.push(own);
+        qaState.mutations += 1;
+        return Promise.resolve({ data: null, error: null });
+      }
+    }
     if (name === 'messaging_directory') {
       const query = String(args._query ?? '').trim().toLowerCase();
       return new Query(fixture.employees.filter((employee) => employee.id !== fixture.employees[0].id)
@@ -115,7 +163,9 @@ export const supabase = {
     updateUser: async () => ({ error: { message: 'QA mode: password writes are intentionally blocked.' } }),
   },
   realtime: { setAuth() {} }, channel: () => emptyChannel, removeChannel() {},
-  storage: { from: () => ({ createSignedUrl: async () => ({ data: null, error: null }),
+  storage: { from: (bucket) => ({ createSignedUrl: async (path) => chatFixtures && bucket === 'chat-media' && path === 'qa-media/sample-shift-roster.pdf'
+    ? { data: { signedUrl: 'data:text/plain;charset=utf-8,Synthetic%20QA%20shift%20roster.%20No%20employee%20data.' }, error: null }
+    : { data: null, error: null },
     createSignedUrls: async () => ({ data: [], error: null }) }) },
   functions: { invoke: async () => ({ error: { message: 'QA mode: external functions are intentionally blocked.' } }) },
 };
