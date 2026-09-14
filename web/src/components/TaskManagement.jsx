@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
-  ListChecks, Plus, X, Loader2, AlertTriangle, Flag,
+  ListChecks, Plus, X, AlertTriangle, Flag,
   CalendarClock, User, Search, PenLine, ShieldAlert, HandHelping,
   CheckSquare, Square, ArrowDownWideNarrow,
 } from 'lucide-react';
@@ -35,6 +35,7 @@ import { humanDbError } from '../lib/dbErrors';
 import TaskDetail from './TaskDetail';
 import TaskRoutine from './TaskRoutine';
 import TaskTodo from './TaskTodo';
+import { TaskListSkeleton } from './TaskSkeletons';
 import { useTaskCommentCounts } from '../data/taskComments';
 import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
@@ -450,7 +451,7 @@ export default function TaskManagement() {
       ) : effectiveView === 'routine' ? (
         <TaskRoutine employees={employees} />
       ) : isLoading ? (
-        <div className="flex justify-center py-16 text-[var(--work-accent)]"><Loader2 size={24} className="animate-spin" /></div>
+        <TaskListSkeleton />
       ) : error && tasks.length === 0 ? (
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300">
           <AlertTriangle size={16} className="shrink-0 mt-0.5" />

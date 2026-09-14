@@ -2,6 +2,7 @@
 // an HR manager granted at branch scope sees that branch; an entity admin, their entity; a super
 // admin, everything.
 import React from 'react';
+import { SkeletonForm } from '../ui/Skeleton';
 import {
   Activity, UserPlus, DoorOpen, Briefcase, ReceiptText, FolderOpen,
   Fingerprint, ShieldCheck, ScrollText, Building2, Network, HandHelping, ArrowRight, Clock3,
@@ -556,7 +557,7 @@ export function CrossDeptRequests({ onNavigate }) {
       onAction={() => onNavigate?.('tasks/requests')}
     >
       {isLoading ? (
-        <EmptyNote>Loading…</EmptyNote>
+        <SkeletonForm fields={4} label="Loading department requests" />
       ) : totals.total === 0 ? (
         <EmptyNote>No department has asked another for help yet.</EmptyNote>
       ) : (

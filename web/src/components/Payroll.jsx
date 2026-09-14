@@ -200,7 +200,7 @@ function PayslipDetail({ payslip }) {
   const deductions = lines.filter((l) => l.kind === 'deduction');
   const employer = lines.filter((l) => l.kind === 'employer');
 
-  if (isLoading) return <p className="pt-3 text-xs text-neutral-400">Loading breakdown…</p>;
+  if (isLoading) return <SkeletonRows rows={3} compact avatar={false} label="Loading breakdown" className="pt-3" />;
 
   const Col = ({ title, rows, total, tone }) => (
     <div>

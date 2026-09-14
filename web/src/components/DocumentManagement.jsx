@@ -4,6 +4,7 @@
 // upload anywhere in the application, and the footnote at the bottom of this screen said so. Now the
 // file is stored — privately, and reached only through a signed link that expires in a minute.
 import React, { useMemo, useRef, useState } from 'react';
+import { Skeleton } from './ui/Skeleton';
 import {
   FolderOpen, Plus, ShieldAlert, Loader2, AlertTriangle, FileText, FilePlus,
   Download, Trash2, Link2, Upload, Search, X, SearchX, Users, Building2,
@@ -339,7 +340,17 @@ export default function DocumentManagement() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>
+          <div className="people-document-grid" role="status" aria-label="Loading documents">
+            {Array.from({ length: 6 }, (_, i) => <div key={i} className="people-document-card" aria-hidden="true">
+              <Skeleton className="h-9 w-9 rounded-xl shrink-0" />
+              <div className="flex-1 space-y-2 min-w-0">
+                <Skeleton className={`h-3 ${i % 2 ? 'w-3/4' : 'w-1/2'}`} />
+                <Skeleton className="h-2.5 w-2/3" />
+              </div>
+              <Skeleton className="h-8 w-8 rounded-lg shrink-0" />
+            </div>)}
+            <span className="sr-only">Loading documents…</span>
+          </div>
         ) : error ? (
           <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
         ) : scoped.length === 0 ? (

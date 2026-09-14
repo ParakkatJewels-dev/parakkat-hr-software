@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { SkeletonRows } from './ui/Skeleton';
 import {
   AlertTriangle,
   Armchair,
@@ -7,7 +8,6 @@ import {
   Car,
   KeyRound,
   Laptop,
-  Loader2,
   Monitor,
   Package,
   Smartphone,
@@ -65,9 +65,7 @@ export default function MyAssets() {
           <span>Your login is not linked to an employee profile yet.</span>
         </div>
       ) : isLoading ? (
-        <div className="premium-card flex justify-center py-10 text-brand-ink">
-          <Loader2 size={22} className="animate-spin" />
-        </div>
+        <SkeletonRows rows={4} label="Loading your assets" />
       ) : error ? (
         <div className="premium-card flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300" role="alert">
           <AlertTriangle size={15} className="mt-0.5 shrink-0" />

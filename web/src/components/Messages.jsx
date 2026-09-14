@@ -40,6 +40,7 @@ import VoiceRecorder from './VoiceRecorder';
 import { isIncomingRequest, hasRequestMessage, belongsInChatSection, canSendToConversation } from '../lib/messageRequests';
 import { messageDeliveryStatus } from '../lib/messageReceipts';
 import { useVisibleMessageReceipts } from '../lib/useVisibleMessageReceipts';
+import { ConversationSkeleton, MessageThreadSkeleton, MessageMediaSkeleton } from './messagingSkeletons';
 import './messages.css';
 
 const INPUT =
@@ -111,6 +112,8 @@ export default function Messages() {
   const { data: employeesForWatching = [] } = useEmployees({ enabled: isSuperAdmin });
   const watched = useEmployeeConversations(watchingId, { enabled: Boolean(watchingId) });
   const monitoring = Boolean(watchingId) && watchingId !== me;
+  const loadingConversations = monitoring ? watched.isLoading : isLoading;
+  const conversationError = monitoring ? watched.error : error;
 
   const shown = monitoring
     ? sortConversations(watched.data ?? [])
@@ -217,17 +220,13 @@ export default function Messages() {
           </div>
 
           <div className="messages-conversation-list">
-            {isLoading && (
-              <p className="flex items-center gap-2 text-xs text-neutral-400 px-1 py-3">
-                <Loader2 size={13} className="animate-spin" /> Loading conversations…
-              </p>
-            )}
-            {error && (
+            {loadingConversations && <ConversationSkeleton />}
+            {conversationError && (
               <p className="flex items-start gap-2 text-xs text-rose-600 dark:text-rose-400 px-1 py-3">
-                <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {humanDbError(error)}
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" /> {humanDbError(conversationError)}
               </p>
             )}
-            {!isLoading && visible.length === 0 && (
+            {!loadingConversations && !conversationError && visible.length === 0 && (
               <div className="px-1 py-6 text-center">
                 <p className="text-xs text-neutral-500 dark:text-neutral-400">
                   {query ? 'No chats match your search.' : chatFilter === 'unread' ? 'You’re all caught up.' : chatFilter === 'groups' ? 'No group chats yet.' : chatFilter === 'requests' ? 'No message requests. New messages from other branches will appear here.' : 'No conversations yet.'}
@@ -541,7 +540,7 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
             setAwayFromBottom(!near);
           }}>
           <div className="messages-timeline" ref={timelineRef}>
-            {isLoading && <p className="messages-chat-notice" role="status"><Loader2 size={16} className="animate-spin" />Loading messages…</p>}
+            {isLoading && <MessageThreadSkeleton />}
             {error && <p className="messages-chat-error" role="alert">{humanDbError(error)}</p>}
             {hasOlder && <button type="button" className={btnClass('ghost') + ' mx-auto'}
               onClick={loadEarlier} disabled={isLoadingOlder}>
@@ -636,13 +635,7 @@ function MessageBubble({ message, me, withSender, endsRun, quote, onReply, conve
 function MediaBubble({ message, mine }) {
   const { data: url, isLoading, error } = useMediaUrl(message.storage_path);
 
-  if (isLoading) {
-    return (
-      <p className={`flex items-center gap-1.5 text-2xs ${mine ? 'text-white/80' : 'text-neutral-500'}`}>
-        <Loader2 size={11} className="animate-spin" /> Loading…
-      </p>
-    );
-  }
+  if (isLoading) return <MessageMediaSkeleton kind={message.kind} />;
   if (error || !url) {
     return (
       <p className={`flex items-center gap-1.5 text-2xs ${mine ? 'text-white/80' : 'text-neutral-500'}`}>
@@ -820,7 +813,7 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent }) {
             onClick={() => { setPending(null); setLocalError(null); }}><Trash2 size={21} /></button>
           <div className="messages-voice-draft-player">
             {draftUrl ? <VoiceNote key={draftUrl} url={draftUrl} durationMs={pending.durationMs} compact disabled={busy} />
-              : <Loader2 size={18} className="animate-spin" aria-label="Preparing preview" />}
+              : <MessageMediaSkeleton kind="voice" label="Preparing voice note preview" />}
           </div>
         </div>}
         {!voiceActive && !voiceDraft && <div className="messages-input-shell">
@@ -962,7 +955,7 @@ export function NewConversation({ me, onClose, onOpened }) {
         )}
 
         <div className="messages-new-conversation-people flex-1 min-h-0 overflow-y-auto -mx-1 px-1 divide-y divide-neutral-150 dark:divide-neutral-850/60">
-          {loadingEmployees ? <p role="status" className="py-6 text-center text-xs text-neutral-500">Loading people…</p> : !employeeError && results.length === 0 && (
+          {loadingEmployees ? <ConversationSkeleton rows={5} compact label="Loading people" /> : !employeeError && results.length === 0 && (
             <p className="py-6 text-center text-xs text-neutral-500">{query.trim() ? 'Nobody matches that.' : 'No colleagues available to message yet.'}</p>
           )}
           {peoplePager.slice.map((e) => {

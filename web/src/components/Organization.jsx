@@ -1,3 +1,4 @@
+import { SkeletonPage } from './ui/Skeleton';
 import React, { useState, useMemo } from 'react';
 import {
   Plus, Pencil, Power, Loader2, Network, X, Search, Trash2,
@@ -245,7 +246,7 @@ export default function Organization() {
     } catch { /* error handled in modal */ }
   };
 
-  if (isLoading) return <div className="p-12 text-neutral-400 flex justify-center"><Loader2 className="animate-spin" size={24} /></div>;
+  if (isLoading) return <SkeletonPage label="Loading organization structure" />;
   if (error) return <div className="p-8 text-sm text-red-600 border border-red-200 mt-8 max-w-2xl mx-auto">{error.message}</div>;
 
   return (

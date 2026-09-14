@@ -98,3 +98,46 @@ export function tickedBy(item, { unknownLabel = 'Someone' } = {}) {
     at: item.completed_at,
   };
 }
+
+/**
+ * Who this step is FOR — the name on it BEFORE the work (0130).
+ *
+ * The counterpart to tickedBy, and deliberately a different column: `assigned_to` is the intention,
+ * `completed_by` is the record. They usually agree and the interesting cases are when they do not.
+ *
+ * Null for a step nobody is named on, which is most of them: a line anyone on the task can pick up
+ * is a perfectly good line. Same embedded-read caveat as tickedBy — the name falls back rather than
+ * the ownership silently disappearing for a viewer who cannot read that employee row.
+ */
+export function ownerOf(item, { unknownLabel = 'Someone' } = {}) {
+  if (!item?.assigned_to) return null;
+  return {
+    name: item.owner?.full_name || unknownLabel,
+    employeeId: item.assigned_to,
+    code: item.owner?.employee_code ?? null,
+  };
+}
+
+/**
+ * May this person tick this line?
+ *
+ * MIRRORS app.tg_checklist_tick_guard (0130) branch for branch, the same way statusFromChecklist
+ * mirrors the rollup trigger. The database is the authority; this exists so the screen can grey out
+ * a checkbox instead of offering one that fails, and so the rule is testable without a database.
+ *
+ *   * A step with an owner is that person's alone — a manager on the task cannot tick it for them.
+ *     Ticking writes a name into completed_by, and that name should never be a polite fiction.
+ *   * A step with no owner keeps 0114's rule exactly: anybody on the task may tick it.
+ *
+ * `onTask` is whether this person is one of the task's assignees — isAssignedTo in taskBoard.js,
+ * which the caller has already worked out for the task as a whole.
+ *
+ * Note what this does NOT decide: whether the owner can be CHANGED. Anyone who may edit the task
+ * may reassign a line or clear its owner, which is the escape hatch for a step owned by somebody on
+ * leave. Reassigning is visible on the row; ticking on somebody's behalf would not be.
+ */
+export function canTickItem(item, employeeId, { onTask = false } = {}) {
+  if (!employeeId) return false;
+  const owner = item?.assigned_to ?? null;
+  return owner ? owner === employeeId : Boolean(onTask);
+}

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { routineForDay, routineProgress, teamRoutineSummary } from './routines.js';
+import {
+  routineForDay, routineProgress, teamRoutineSummary, filterTeamRoutine, stillOwing,
+} from './routines.js';
 
 const item = (o) => ({ id: o.id, employee_id: o.emp ?? 'e1', title: o.title ?? o.id,
   sort_order: o.sort ?? 0, is_active: o.active !== false,
@@ -84,4 +86,75 @@ test('nobody with a routine is left off the board', () => {
 test('an empty team is not a crash', () => {
   assert.deepEqual(teamRoutineSummary([], [], TODAY), []);
   assert.deepEqual(teamRoutineSummary(undefined, undefined, TODAY), []);
+});
+
+// ------------------------------------------------- searching the head's board ----
+
+// Anand has two duties and one tick (50%), Bindu one and one (finished), Zara one and none (0%).
+const CODED = [
+  item({ id:'a1', emp:'anand', name:'Anand', sort:1 }),
+  item({ id:'a2', emp:'anand', name:'Anand', sort:2 }),
+  item({ id:'b1', emp:'bindu', name:'Bindu', sort:1 }),
+  item({ id:'z1', emp:'zara',  name:'Zara',  sort:1 }),
+].map((i) => ({ ...i, employee: { ...i.employee, employee_code: `P-${i.employee_id.slice(0, 2)}` } }));
+const BOARD = teamRoutineSummary(CODED, [tick('a1', TODAY, 'anand'), tick('b1', TODAY, 'bindu')], TODAY);
+
+const names = (groups) => groups.map((g) => g.employee.full_name);
+
+test('searching finds a person by name', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { query: 'bindu' })), ['Bindu']);
+});
+
+test('searching finds a person by employee code', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { query: 'P-za' })), ['Zara']);
+});
+
+test('search is case-insensitive and ignores surrounding space', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { query: '  ANAND ' })), ['Anand']);
+});
+
+test('every word must match, so each one typed narrows the list', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { query: 'anand P-an' })), ['Anand']);
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { query: 'anand bindu' })), []);
+});
+
+test('an empty search is not a filter', () => {
+  assert.equal(filterTeamRoutine(BOARD, { query: '   ' }).length, 3);
+  assert.equal(filterTeamRoutine(BOARD, {}).length, 3);
+});
+
+test('"still owing" hides the people who have finished', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { status: 'owing' })), ['Zara', 'Anand']);
+});
+
+test('"finished" shows only the people who are done', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { status: 'finished' })), ['Bindu']);
+});
+
+test('the search and the status filter both apply', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { query: 'bindu', status: 'owing' })), []);
+  assert.deepEqual(names(filterTeamRoutine(BOARD, { query: 'bindu', status: 'finished' })), ['Bindu']);
+});
+
+test('filtering keeps each card describing that person’s WHOLE day', () => {
+  // The trap this function exists to avoid: narrowing the duties instead of the people would show
+  // Anand as "1 of 1" when he has two duties and has done one of them.
+  const [anand] = filterTeamRoutine(BOARD, { query: 'anand' });
+  assert.deepEqual([anand.done, anand.total, anand.pct], [1, 2, 50]);
+  assert.equal(anand.list.length, 2);
+});
+
+test('filtering does not reorder — the furthest behind stays first', () => {
+  assert.deepEqual(names(filterTeamRoutine(BOARD, {})), ['Zara', 'Anand', 'Bindu']);
+});
+
+test('an empty board filters to nothing rather than crashing', () => {
+  assert.deepEqual(filterTeamRoutine([], { query: 'x' }), []);
+  assert.deepEqual(filterTeamRoutine(undefined, {}), []);
+});
+
+test('the count on the filter is how many people still owe something', () => {
+  assert.equal(stillOwing(BOARD), 2);
+  assert.equal(stillOwing([]), 0);
+  assert.equal(stillOwing(undefined), 0);
 });

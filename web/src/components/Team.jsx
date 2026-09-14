@@ -9,9 +9,10 @@
 // So: one screen, two verbs, and a database function behind each (migration 0099). Nothing here
 // reaches Easy Time Pro — that integration is read-only towards the terminal by construction, so a
 // correction made here changes nothing on any biometric reader.
+import { SkeletonPage, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useDeferredValue, useMemo } from 'react';
 import {
-  Users, UserPlus, UserMinus, Search, Loader2, AlertTriangle, History, X, Building2,
+  Users, UserPlus, UserMinus, Search, AlertTriangle, History, X, Building2,
 } from 'lucide-react';
 import {
   useMyDepartments, useDepartmentMembers, useAssignableEmployees,
@@ -57,7 +58,7 @@ export default function Team() {
   const memberPager = usePagination(filteredMembers, 25, null, `${departmentId}:${deferredSearch}`);
 
   if (loadingDepts) {
-    return <div className="page-shell flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
+    return <SkeletonPage label="Loading your teams" />;
   }
 
   if (deptError) {
@@ -178,7 +179,7 @@ export default function Team() {
         {membersError ? (
           <p role="alert" className="premium-card text-sm text-red-700 dark:text-red-300">Could not load team members: {membersError.message}</p>
         ) : loadingMembers ? (
-          <div className="flex justify-center py-12 text-brand-ink"><Loader2 size={20} className="animate-spin" /></div>
+          <SkeletonRows rows={6} compact label="Loading team members" />
         ) : filteredMembers.length === 0 ? (
           <div className="premium-card p-10 text-center text-xs text-neutral-500 space-y-1.5">
             <p className="font-semibold text-neutral-700 dark:text-neutral-300">{memberSearch.trim() ? 'No team members match your search.' : 'Nobody in this department yet.'}</p>
@@ -283,7 +284,7 @@ function AddToTeam({ department, busy, onClose, onPick }) {
       {error ? (
         <p role="alert" className="text-sm text-red-700 dark:text-red-300">Could not load people: {error.message}</p>
       ) : isLoading ? (
-        <div className="flex justify-center py-8 text-brand-ink"><Loader2 size={18} className="animate-spin" /></div>
+        <SkeletonRows rows={4} compact label="Loading people to add" />
       ) : candidates.length === 0 ? (
         <p className="text-xs text-neutral-500 py-4 text-center">
           {q.trim() ? `Nobody active matches “${q.trim()}” in this company.` : 'Everyone in this company is already on your team.'}
@@ -335,7 +336,7 @@ function MoveHistory({ departmentId }) {
   const { data: moves = [], isLoading, error } = useDepartmentMoves(departmentId);
   // This list only ever grows — it is the record to reconcile against once Easy Time Pro is fixed.
   const pager = usePagination(moves, 10, null, departmentId);
-  if (isLoading) return null;
+  if (isLoading) return <SkeletonRows rows={3} compact avatar={false} label="Loading team changes" />;
   return (
     <section className="premium-card space-y-2">
       <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500">

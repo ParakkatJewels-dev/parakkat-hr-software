@@ -1,6 +1,7 @@
 // The signed-in person's profile: identity and key facts, contact details, then HR information.
 // Only the phone number is self-service; update_my_profile accepts exactly that field.
 import React, { useEffect, useId, useMemo, useState } from 'react';
+import { SkeletonRows } from './ui/Skeleton';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -107,7 +108,7 @@ function MyAssets({ employeeId }) {
   const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
 
   if (isLoading) {
-    return <p className="profile-note"><Loader2 size={12} className="animate-spin" /> Loading…</p>;
+    return <SkeletonRows rows={3} compact label="Loading your assets" />;
   }
   if (error) return <p className="profile-error" role="alert">{error.message}</p>;
   if (!assets.length) return <p className="profile-note">Nothing is signed out to you.</p>;
@@ -157,13 +158,16 @@ export function ProfileMenuHeader({ onOpenMenu, menuOpen = false }) {
 
 function ProfileLoading({ onOpenMenu, menuOpen }) {
   return (
-    <div className="page-shell user-profile animate-fade-in" aria-label="Loading profile">
+    <div className="page-shell user-profile animate-fade-in">
       <ProfileMenuHeader onOpenMenu={onOpenMenu} menuOpen={menuOpen} />
-      <div className="profile-hero skeleton" />
-      <div className="profile-layout" aria-hidden="true">
-        <div className="profile-card profile-contact skeleton" />
-        <div className="profile-card profile-details skeleton" />
-        <div className="profile-card profile-account skeleton" />
+      <div className="grid gap-5" role="status" aria-label="Loading profile">
+        <div className="profile-hero skeleton" aria-hidden="true" />
+        <div className="profile-layout" aria-hidden="true">
+          <div className="profile-card profile-contact skeleton" />
+          <div className="profile-card profile-details skeleton" />
+          <div className="profile-card profile-account skeleton" />
+        </div>
+        <span className="sr-only">Loading profile…</span>
       </div>
     </div>
   );

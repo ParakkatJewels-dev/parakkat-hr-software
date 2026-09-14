@@ -14,7 +14,7 @@
 // permission; for anybody else every query below simply returns nothing.
 import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import {
-  Search, Loader2, Users, ChevronRight, ShieldAlert, ArrowLeft, FileText, Image as ImageIcon, Video, Mic,
+  Search, Users, ChevronRight, ShieldAlert, ArrowLeft, FileText, Image as ImageIcon, Video, Mic,
 } from 'lucide-react';
 import { useEmployees } from '../data/employees';
 import { useEmployeeConversations, useMessages, useMediaUrl } from '../data/messages';
@@ -24,6 +24,7 @@ import { relativeTime, istToday } from '../lib/dates';
 import Avatar from './ui/Avatar';
 import Pagination, { usePagination } from './ui/Pagination';
 import { btnClass } from './ui/Btn';
+import { ConversationSkeleton, MessageThreadSkeleton, MessageMediaSkeleton } from './messagingSkeletons';
 import './chatMonitor.css';
 
 const clockOf = (iso) => {
@@ -116,7 +117,7 @@ export default function ChatMonitor() {
             />
           </label>
           <div className="chat-monitor-scroll">
-            {loadingPeople && <p className="chat-monitor-note"><Loader2 size={14} className="animate-spin" /> Loading…</p>}
+            {loadingPeople && <ConversationSkeleton compact label="Loading people" />}
             {!loadingPeople && people.length === 0 && <p className="chat-monitor-note">Nobody matches that.</p>}
             {peoplePager.slice.map((e) => (
               <button
@@ -149,11 +150,11 @@ export default function ChatMonitor() {
           </header>
           <div className="chat-monitor-scroll">
             {!person && <p className="chat-monitor-note">Pick somebody on the left.</p>}
-            {person && conversations.isLoading && <p className="chat-monitor-note"><Loader2 size={14} className="animate-spin" /> Loading…</p>}
+            {person && conversations.isLoading && <ConversationSkeleton compact />}
             {person && conversations.error && (
               <p className="chat-monitor-note chat-monitor-error">{humanDbError(conversations.error)}</p>
             )}
-            {person && conversations.data?.length === 0 && (
+            {person && !conversations.isLoading && !conversations.error && conversations.data?.length === 0 && (
               <p className="chat-monitor-note">{person.full_name} has no conversations.</p>
             )}
             {conversationPager.slice.map((c) => {
@@ -198,7 +199,7 @@ export default function ChatMonitor() {
           </header>
           <div className="chat-monitor-scroll chat-monitor-history" ref={historyRef}>
             {!conversation && <p className="chat-monitor-note">Pick a conversation.</p>}
-            {conversation && messages.isLoading && <p className="chat-monitor-note"><Loader2 size={14} className="animate-spin" /> Loading…</p>}
+            {conversation && messages.isLoading && <MessageThreadSkeleton />}
             {conversation && messages.error && (
               <p role="alert" className="chat-monitor-note chat-monitor-error">{humanDbError(messages.error)}</p>
             )}
@@ -206,7 +207,7 @@ export default function ChatMonitor() {
               disabled={messages.isLoadingOlder} className={btnClass('ghost') + ' mx-auto my-2'}>
               {messages.isLoadingOlder ? 'Loading older messages…' : 'Load older messages'}
             </button>}
-            {conversation && messages.data?.length === 0 && (
+            {conversation && !messages.isLoading && !messages.error && messages.data?.length === 0 && (
               <p className="chat-monitor-note">Nothing was ever said here.</p>
             )}
             {groupByDay(messages.data ?? []).map(({ day, messages: rows }) => (
@@ -268,7 +269,7 @@ function MonitorMedia({ message }) {
   const Icon = MEDIA_ICON[message.kind] ?? FileText;
   const label = MEDIA_LABEL[message.kind] ?? 'Attachment';
 
-  if (isLoading) return <p className="chat-monitor-attachment"><Loader2 size={13} className="animate-spin" /> {label}…</p>;
+  if (isLoading) return <MessageMediaSkeleton kind={message.kind} label={`Loading ${label.toLowerCase()}`} />;
   if (!url) return <p className="chat-monitor-attachment"><Icon size={13} /> {label} (unavailable)</p>;
 
   if (message.kind === 'image') {

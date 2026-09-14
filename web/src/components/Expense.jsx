@@ -1,5 +1,6 @@
+import { SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo } from 'react';
-import { FileText, Check, Ban, Loader2, AlertTriangle, Plus } from 'lucide-react';
+import { FileText, Check, Ban, AlertTriangle, Plus } from 'lucide-react';
 import { useExpenses, useAddExpense, useSetExpenseStatus } from '../data/expenses';
 import { useAuth } from '../auth/AuthContext';
 import FormSection, { Field, FIELD } from './ui/FormSection';
@@ -217,7 +218,7 @@ export default function Expense() {
               <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Claim History
             </h3>
             {isLoading ? (
-              <div className="flex justify-center py-10 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>
+              <SkeletonRows rows={4} avatar={false} label="Loading expense claims" />
             ) : error ? (
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
             ) : visibleExpenses.length === 0 ? (

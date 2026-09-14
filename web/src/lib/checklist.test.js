@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isItemDone, sortItems, checklistProgress, statusFromChecklist, nextPosition, tickedBy,
+  ownerOf, canTickItem,
 } from './checklist.js';
 
 // An item, with only the fields the screen actually reads.
@@ -158,4 +159,62 @@ test('a tick by somebody the viewer cannot read still shows as done', () => {
   const by = tickedBy(done({ completer: null }));
   assert.equal(by.name, 'Someone');
   assert.equal(by.employeeId, 'emp-1');
+});
+
+// ------------------------------------------------------------ who it is for ----
+
+test('a step names who it is for, separately from who ticked it', () => {
+  const who = ownerOf(item({ assigned_to: 'emp-9', owner: { id: 'emp-9', full_name: 'Anand', employee_code: 'P021' } }));
+  assert.equal(who.name, 'Anand');
+  assert.equal(who.employeeId, 'emp-9');
+  assert.equal(who.code, 'P021');
+});
+
+test('most steps belong to nobody in particular', () => {
+  assert.equal(ownerOf(item()), null);
+  assert.equal(ownerOf(null), null);
+});
+
+test('an owner the viewer cannot read is still an owner', () => {
+  // Same hole as tickedBy: the embedded employee read is empty outside the viewer's scope. Losing
+  // the name is survivable; silently showing the line as unowned would invite the wrong person to
+  // tick it and then be refused by the database.
+  const who = ownerOf(item({ assigned_to: 'emp-9', owner: null }));
+  assert.equal(who.name, 'Someone');
+  assert.equal(who.employeeId, 'emp-9');
+});
+
+// ------------------------------------------------------------- who may tick ----
+//
+// These mirror app.tg_checklist_tick_guard (migration 0130) branch for branch. The database is the
+// authority; if these and the trigger ever disagree, the trigger is right and this is the bug.
+
+test('an unowned step keeps 0114’s rule — anybody on the task may tick it', () => {
+  assert.equal(canTickItem(item(), 'emp-1', { onTask: true }), true);
+  assert.equal(canTickItem(item(), 'emp-1', { onTask: false }), false);
+});
+
+test('an owned step is that person’s alone', () => {
+  const owned = item({ assigned_to: 'emp-9' });
+  assert.equal(canTickItem(owned, 'emp-9', { onTask: true }), true);
+  // On the task, and still refused: ticking writes a name into completed_by, and it must not be
+  // possible to put that name on somebody else's effort.
+  assert.equal(canTickItem(owned, 'emp-1', { onTask: true }), false);
+});
+
+test('the owner may tick even before the board thinks they are on the task', () => {
+  // 0130 puts the owner on the task as it names them, so onTask is true by the next refetch. In the
+  // window before that the owner is still the owner — the trigger asks assigned_to, not membership.
+  assert.equal(canTickItem(item({ assigned_to: 'emp-9' }), 'emp-9', { onTask: false }), true);
+});
+
+test('an account with no employee record ticks nothing', () => {
+  assert.equal(canTickItem(item(), null, { onTask: true }), false);
+  assert.equal(canTickItem(item({ assigned_to: 'emp-9' }), undefined, { onTask: true }), false);
+});
+
+test('clearing the owner hands the step back to everyone on the task', () => {
+  // The escape hatch for a step owned by somebody on leave, which would otherwise hold the whole
+  // task open — the rollup only closes a task when every line is ticked.
+  assert.equal(canTickItem(item({ assigned_to: null }), 'emp-1', { onTask: true }), true);
 });

@@ -1,3 +1,4 @@
+import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { ShieldCheck, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Eye } from 'lucide-react';
 import { useAuditLog } from '../data/audit';
@@ -202,7 +203,7 @@ function UsersAccess() {
   };
 
   if (isLoading) {
-    return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
+    return <SkeletonRows rows={6} label="Loading users" />;
   }
   if (error) {
     return (
@@ -938,7 +939,7 @@ function RolesMatrix() {
   const [editing, setEditing] = useState(null); // role object, or {} for a new role
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  if (isLoading) return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>;
+  if (isLoading) return <SkeletonRows rows={5} avatar={false} label="Loading roles and permissions" />;
   if (error) return <p className="text-xs text-amber-600">{error.message}</p>;
 
   // The editor REPLACES the list rather than appending to it.
@@ -1280,14 +1281,14 @@ function AuditLogs() {
           aria-label="Filter the audit log"
         />
         <span className="text-xs text-neutral-400 tabular-nums shrink-0">
-          {isFetching ? 'Loading…' : `${pager.count.toLocaleString()} matching entries`}
+          {isFetching ? <Skeleton as="span" className="inline-block h-3 w-28" /> : `${pager.count.toLocaleString()} matching entries`}
         </span>
       </div>
       <p className="text-xs text-neutral-500">Search all audit entries visible to you, including older history.</p>
       {error && <div role="alert"><ErrorLine msg={error.message} /></div>}
 
       <div className="premium-card px-4">
-        {isLoading ? <div role="status" className="flex justify-center gap-2 py-10 text-brand-ink"><Loader2 size={20} className="animate-spin" /> Loading audit entries…</div> : error ? null : shown.length === 0 ? (
+        {isLoading ? <SkeletonRows rows={6} compact avatar={false} label="Loading audit entries" /> : error ? null : shown.length === 0 ? (
           <p className="text-base text-neutral-500 py-10 text-center">{options.search ? `Nothing matches “${options.search}”.` : 'No audit entries visible to you yet.'}</p>
         ) : (
           <ul className="divide-y divide-neutral-100 dark:divide-neutral-850/60">

@@ -9,11 +9,13 @@
 // head sees their team, ordered so the people who still owe something are at the top — a completion
 // board is read to find who has NOT finished.
 import React, { useState } from 'react';
-import { CheckSquare, Square, Loader2, AlertTriangle, Plus, X, Trash2, PenLine } from 'lucide-react';
+import { CheckSquare, Square, AlertTriangle, Plus, X, Trash2, PenLine, Search } from 'lucide-react';
 import {
   useRoutineItems, useRoutineTicks, useSetRoutineTick, useSaveRoutineItem, useRetireRoutineItem,
 } from '../data/routines';
-import { routineForDay, routineProgress, teamRoutineSummary } from '../lib/routines';
+import {
+  routineForDay, routineProgress, teamRoutineSummary, filterTeamRoutine, stillOwing,
+} from '../lib/routines';
 import { useIstToday } from '../lib/useIstToday';
 import { humanDbError } from '../lib/dbErrors';
 import { usePermissions } from '../auth/usePermissions';
@@ -21,6 +23,7 @@ import { useAuth } from '../auth/AuthContext';
 import { btnClass } from './ui/Btn';
 import FormSection from './ui/FormSection';
 import Pagination, { usePagination } from './ui/Pagination';
+import { SkeletonRows } from './ui/Skeleton';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
@@ -42,11 +45,23 @@ export default function TaskRoutine({ employees = [] }) {
   const mineProgress = routineProgress(mine);
   const team = teamRoutineSummary(items, ticks, today);
   const others = team.filter((g) => g.employeeId !== employee?.id);
-  // Ten people per page. Each card is a whole checklist, so this is already a long scroll.
-  const teamPager = usePagination(others, 10);
+  // Find one person, or narrow to who has not finished.
+  //
+  // "Has Anand done his checks" is the question this view exists to answer, and at 163 staff the
+  // only way to ask it was to scroll for the name. The sort already floats the people still owing
+  // something, but floating is not filtering once the board is three pages long. Both rules live in
+  // lib/routines.js so they can be tested without a browser.
+  const [teamQuery, setTeamQuery] = useState('');
+  const [teamStatus, setTeamStatus] = useState('all');
+  const visibleTeam = filterTeamRoutine(others, { query: teamQuery, status: teamStatus });
+  const owing = stillOwing(others);
+  // Ten people per page. Each card is a whole checklist, so this is already a long scroll. The
+  // filter is part of the reset key: narrowing while on page four of the old list would otherwise
+  // land on an empty page instead of on the matches.
+  const teamPager = usePagination(visibleTeam, 10, null, `${teamQuery}:${teamStatus}`);
   const mutationError = humanDbError(setTick.error || retire.error, 'routine_ticks');
 
-  if (isLoading || ticksLoading) return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>;
+  if (isLoading || ticksLoading) return <SkeletonRows rows={5} avatar={false} label="Loading daily routines" />;
 
   if (error || ticksError) {
     return (
@@ -119,31 +134,87 @@ export default function TaskRoutine({ employees = [] }) {
       {seesTeam && others.length > 0 && (
         <section className="space-y-2.5">
           <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 px-1">
-            The team today <span className="font-mono opacity-70">· {others.length}</span>
+            The team today{' '}
+            <span className="font-mono opacity-70">
+              · {visibleTeam.length === others.length ? others.length : `${visibleTeam.length} of ${others.length}`}
+            </span>
           </h2>
-          {/* Paged by PERSON, never by duty: a card is one person's whole day, and splitting one
-              across a page boundary would show half a checklist and a progress bar that disagrees
-              with it. Fifty people at ten duties each is five hundred rows in one screen. */}
-          {teamPager.slice.map((g) => (
-            <div key={g.employeeId} className="premium-card space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-bold text-sm text-neutral-800 dark:text-slate-100">
-                  {g.employee?.full_name ?? 'Someone'}
-                  <span className="font-mono text-2xs text-neutral-500"> · {g.employee?.employee_code}</span>
-                </span>
-                <Progress {...g} />
-              </div>
-              <div className="divide-y divide-neutral-100 dark:divide-neutral-900/60">
-                {g.list.map((i) => (
-                  <DutyRow key={i.id} item={i} today={today} onTick={setTick} compact
-                    canEdit={canDefine}
-                    onEdit={() => setEditing({ id: i.id, employeeId: i.employee_id, title: i.title, detail: i.detail, sortOrder: i.sort_order })}
-                    onRetire={() => retire.mutate(i.id)} />
-                ))}
-              </div>
+
+          {/* The same toolbar vocabulary as the task board above it — one search box, one narrowing
+              select, and a way out of both. A head moving between the two tabs should not have to
+              learn a second set of controls for the same job. */}
+          <div className="work-toolbar">
+            <label className="work-search">
+              <Search size={16} />
+              <input
+                type="search"
+                value={teamQuery}
+                onChange={(e) => { setTeamQuery(e.target.value); teamPager.setPage(1); }}
+                aria-label="Search the team by name or employee code"
+                placeholder="Search a person by name or code…"
+              />
+            </label>
+            <div className="work-filters">
+              <label className="work-filter"><span>Show</span>
+                <select
+                  value={teamStatus}
+                  onChange={(e) => { setTeamStatus(e.target.value); teamPager.setPage(1); }}
+                  aria-label="Filter the team by whether they have finished today"
+                >
+                  <option value="all">Everyone</option>
+                  {/* Counted, because "who still owes something" is the whole reason to open this. */}
+                  <option value="owing">Still to do{owing > 0 ? ` · ${owing}` : ''}</option>
+                  <option value="finished">Finished</option>
+                </select>
+              </label>
+              {(teamQuery || teamStatus !== 'all') && (
+                <button
+                  type="button" className="work-button"
+                  onClick={() => { setTeamQuery(''); setTeamStatus('all'); teamPager.setPage(1); }}
+                >
+                  <X size={13} />Clear
+                </button>
+              )}
             </div>
-          ))}
-          <Pagination {...teamPager} noun="people" />
+          </div>
+
+          {visibleTeam.length === 0 ? (
+            <p className="premium-card p-6 text-center text-xs text-neutral-500">
+              {teamQuery.trim()
+                ? `Nobody on your team matches “${teamQuery.trim()}”${
+                    teamStatus === 'owing' ? ' and still owes something'
+                    : teamStatus === 'finished' ? ' and has finished' : ''}.`
+                : teamStatus === 'finished'
+                ? 'Nobody has finished their routine yet today.'
+                : 'Everybody has finished their routine today.'}
+            </p>
+          ) : (
+            <>
+              {/* Paged by PERSON, never by duty: a card is one person's whole day, and splitting one
+                  across a page boundary would show half a checklist and a progress bar that disagrees
+                  with it. Fifty people at ten duties each is five hundred rows in one screen. */}
+              {teamPager.slice.map((g) => (
+                <div key={g.employeeId} className="premium-card space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-sm text-neutral-800 dark:text-slate-100">
+                      {g.employee?.full_name ?? 'Someone'}
+                      <span className="font-mono text-2xs text-neutral-500"> · {g.employee?.employee_code}</span>
+                    </span>
+                    <Progress {...g} />
+                  </div>
+                  <div className="divide-y divide-neutral-100 dark:divide-neutral-900/60">
+                    {g.list.map((i) => (
+                      <DutyRow key={i.id} item={i} today={today} onTick={setTick} compact
+                        canEdit={canDefine}
+                        onEdit={() => setEditing({ id: i.id, employeeId: i.employee_id, title: i.title, detail: i.detail, sortOrder: i.sort_order })}
+                        onRetire={() => retire.mutate(i.id)} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <Pagination {...teamPager} noun="people" />
+            </>
+          )}
         </section>
       )}
 

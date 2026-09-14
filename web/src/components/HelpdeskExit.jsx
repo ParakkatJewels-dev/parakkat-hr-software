@@ -1,3 +1,4 @@
+import { SkeletonRows } from './ui/Skeleton';
 import React, { useMemo, useState } from 'react';
 import { HelpCircle, MailOpen, Plus, X, Loader2, AlertTriangle, DoorOpen } from 'lucide-react';
 import { useTickets, useAddTicket, useSetTicketStatus } from '../data/tickets';
@@ -145,7 +146,7 @@ export default function HelpdeskExit() {
                 <HelpCircle size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Support Tickets
               </h3>
               {isLoading ? (
-                <div className="flex justify-center py-8 text-brand-ink"><Loader2 size={20} className="animate-spin" /></div>
+                <SkeletonRows rows={4} avatar={false} label="Loading support tickets" />
               ) : error ? (
                 <div className="flex items-start gap-2 text-amber-700 dark:text-amber-300 py-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
               ) : tickets.length === 0 ? (

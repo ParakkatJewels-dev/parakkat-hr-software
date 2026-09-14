@@ -5,6 +5,7 @@
 // through the same hooks — so every widget here ALSO filters client-side to the signed-in
 // employee. That filter is presentational, not a security boundary.
 import React, { useState } from 'react';
+import { Skeleton, SkeletonForm, SkeletonRows } from '../ui/Skeleton';
 import {
   Clock, CalendarDays, ReceiptText, LifeBuoy, ListChecks, Wallet, CheckCircle2,
   ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Fingerprint, Check, Loader2 } from 'lucide-react';
@@ -57,7 +58,7 @@ export function EmployeeTodayHero({ onNavigate }) {
   });
 
   const punchState = (() => {
-    if (isLoading) return { title: 'Loading today', detail: 'Checking your attendance status.', tone: 'neutral', action: 'Open attendance' };
+    if (isLoading) return { tone: 'neutral', action: 'Open attendance' };
     if (!row) return { title: 'Ready to start', detail: 'No attendance record for today yet.', tone: 'amber', action: 'Open attendance' };
     if (row.is_missing_punch) return { title: 'Punch needs attention', detail: 'One punch looks incomplete today.', tone: 'amber', action: 'Regularize' };
     if (row.check_in && !row.check_out) return { title: 'You are checked in', detail: `Started at ${fmtTime(row.check_in)}.`, tone: 'green', action: 'View day' };
@@ -86,15 +87,25 @@ export function EmployeeTodayHero({ onNavigate }) {
           <span>My workspace</span>
           <span>{dateLabel}</span>
         </div>
-        <h1>{punchState.title}</h1>
-        <p>{punchState.detail}</p>
+        {isLoading ? (
+          <div className="space-y-3" role="status" aria-label="Loading today’s attendance">
+            <Skeleton className="h-8 w-3/4" />
+            <Skeleton className="h-4 w-5/6" />
+            <span className="sr-only">Loading today’s attendance…</span>
+          </div>
+        ) : <>
+          <h1>{punchState.title}</h1>
+          <p>{punchState.detail}</p>
+        </>}
       </div>
 
       <div className="employee-today-metrics">
         {metrics.map((m) => (
           <button key={m.label} type="button" onClick={() => onNavigate?.(m.tab)}>
             <span>{m.label}</span>
-            <strong>{m.value}</strong>
+            {isLoading && (m.label === 'Check-in' || m.label === 'Worked')
+              ? <Skeleton as="span" className="block h-6 w-4/5" />
+              : <strong>{m.value}</strong>}
           </button>
         ))}
       </div>
@@ -126,7 +137,7 @@ export function PunchCard({ onNavigate }) {
   return (
     <Widget title="Today" icon={Clock} action="Attendance" onAction={() => onNavigate?.('attendance')}>
       {isLoading ? (
-        <EmptyNote>Loading…</EmptyNote>
+        <SkeletonForm fields={3} label="Loading today’s attendance" />
       ) : !row ? (
         <EmptyNote>No attendance record for today yet.</EmptyNote>
       ) : (
@@ -326,7 +337,7 @@ export function MyTasks({ onNavigate }) {
   return (
     <Widget title="My Tasks" className="home-work-widget" icon={CheckCircle2} badge={mine.length || null} action="All tasks" onAction={openTasks}>
       {(error || updateTask.error) && <p role="alert" className="home-work-error">{humanDbError(updateTask.error || error, 'tasks')}</p>}
-      {isLoading ? <EmptyNote>Loading your tasks…</EmptyNote> : mine.length === 0 && !error ? (
+      {isLoading ? <SkeletonRows rows={3} compact avatar={false} label="Loading your tasks" /> : mine.length === 0 && !error ? (
         <EmptyNote>No open tasks. Enjoy the calm.</EmptyNote>
       ) : (
         <div className="home-work-list">
@@ -397,7 +408,7 @@ export function MyRoutineToday({ onNavigate }) {
         <p>{humanDbError(error, 'routine_ticks')}</p>
         {(itemsQuery.error || ticksQuery.error) && <button type="button" onClick={() => { itemsQuery.refetch(); ticksQuery.refetch(); }}>Try again</button>}
       </div>}
-      {loading ? <EmptyNote>Loading today's routine…</EmptyNote> : <>
+      {loading ? <SkeletonRows rows={3} compact avatar={false} trailing={false} label="Loading today’s routine" /> : <>
         <p className="home-routine-note">{fmtDay(today)} · {progress.total - progress.done} remaining</p>
         <div className="home-routine-list">
           {items.filter(item => !item.done).slice(0, 6).map(item => (

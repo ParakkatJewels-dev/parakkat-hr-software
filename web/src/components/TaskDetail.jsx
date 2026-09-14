@@ -9,7 +9,7 @@
 import React, { useRef, useState } from 'react';
 import {
   MessageSquare, Paperclip, Send, Trash2, Link2, FileText, Download, Loader2, Plus, X,
-  CornerDownRight, ListTodo, Square, CheckSquare,
+  CornerDownRight, ListTodo, Square, CheckSquare, User, UserPlus,
 } from 'lucide-react';
 import { useTaskComments, useAddTaskComment, useDeleteTaskComment } from '../data/taskComments';
 import {
@@ -21,15 +21,20 @@ import { humanDbError } from '../lib/dbErrors';
 import { relativeTime } from '../lib/dates';
 import { btnClass } from './ui/Btn';
 import Avatar from './ui/Avatar';
+import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import {
   buildThread, mentionFor, replyToggleLabel, threadingAvailable,
 } from '../lib/commentThread';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 import {
   useChecklist, useAddChecklistItem, useToggleChecklistItem, useDeleteChecklistItem,
+  useAssignSubtask,
 } from '../data/taskChecklist';
-import { checklistProgress, isItemDone, sortItems, tickedBy } from '../lib/checklist';
-import { isAssignedTo } from '../lib/taskBoard';
+import {
+  canTickItem, checklistProgress, isItemDone, ownerOf, sortItems, tickedBy,
+} from '../lib/checklist';
+import { assigneesOf, isAssignedTo } from '../lib/taskBoard';
+import { useEmployees } from '../data/employees';
 import { usePermissions } from '../auth/usePermissions';
 import { messageLinkParts } from '../lib/messageLinks';
 
@@ -50,11 +55,12 @@ export default function TaskDetail({ task, open }) {
 
   if (!open) return null;
 
-  // Two different questions, and 0114's policies answer them differently.
-  //   * Ticking writes YOUR NAME onto a line as the person who did the work, so it is for the
-  //     people actually on the task and nobody else — task_checklist_update asks only
-  //     app.is_task_assignee.
-  //   * Writing the list is editing the task, which a manager may do.
+  // Two different questions, and the policies answer them differently.
+  //   * Ticking writes YOUR NAME onto a line as the person who did the work. For an unowned step
+  //     that is anyone on the task (0114); for a step with an owner it is that person alone (0130).
+  //     Per-item, so it is decided by canTickItem down in the row and not once up here.
+  //   * Writing the list — adding steps, removing them, naming who each is for — is editing the
+  //     task, which a manager may do.
   // Offered generously here on purpose: the database is the authority, and a button that is
   // occasionally refused with a clear message beats one that is missing when it should be there.
   const mine = isAssignedTo(task, employee?.id);
@@ -63,10 +69,11 @@ export default function TaskDetail({ task, open }) {
   return (
     <div className="mt-3 pt-3 border-t border-neutral-150 dark:border-neutral-850/60 space-y-4">
       <Checklist
-        taskId={task.id}
+        task={task}
         rows={checklist.data ?? []}
         loading={checklist.isLoading}
-        canTick={mine}
+        onTask={mine}
+        myEmployeeId={employee?.id ?? null}
         canEdit={canEditList}
       />
       <Thread
@@ -96,16 +103,21 @@ export default function TaskDetail({ task, open }) {
  * Ticking the last line closes the task, from the database (app.tg_task_checklist_rollup), not from
  * here. lib/checklist.js mirrors that rule for the screen; the trigger is what actually decides.
  */
-function Checklist({ taskId, rows, loading, canTick, canEdit }) {
+function Checklist({ task, rows, loading, onTask, myEmployeeId, canEdit }) {
+  const taskId = task.id;
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
+  // Which step has its "who is this for" picker open. One at a time: these sit inside an already
+  // expanded card, and two open pickers is a column of search boxes where a list should be.
+  const [assigning, setAssigning] = useState(null);
   const add = useAddChecklistItem();
   const toggle = useToggleChecklistItem();
   const remove = useDeleteChecklistItem();
+  const assign = useAssignSubtask();
 
   const items = sortItems(rows);
   const { total, done, percent } = checklistProgress(items);
-  const error = add.error || toggle.error || remove.error;
+  const error = add.error || toggle.error || remove.error || assign.error;
 
   const submit = (e) => {
     e.preventDefault();
@@ -147,25 +159,38 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
       )}
 
       {loading && (
-        <p className="flex items-center gap-1.5 text-2xs text-neutral-400">
-          <Loader2 size={11} className="animate-spin" /> Loading subtasks…
-        </p>
+        <div className="space-y-3 py-1" role="status" aria-label="Loading subtasks">
+          {[0, 1, 2].map((index) => (
+            <div key={index} className="flex items-center gap-2" aria-hidden="true">
+              <Skeleton className="h-4 w-4 rounded shrink-0" />
+              <Skeleton className={index === 1 ? 'h-3 w-1/2' : 'h-3 w-2/3'} />
+            </div>
+          ))}
+        </div>
       )}
 
       {items.map((item) => {
         const isDone = isItemDone(item);
         const by = tickedBy(item);
+        const owner = ownerOf(item);
+        // Per item, because an owned step is its owner's alone while an unowned one belongs to
+        // everybody on the task. canTickItem mirrors 0130's trigger; the database still decides.
+        const mayTick = canTickItem(item, myEmployeeId, { onTask });
+        const tickHint = mayTick ? undefined
+          : owner ? `${owner.name} is doing this one. Reassign it if it has to move.`
+          : 'Only the people assigned to this task can tick its subtasks';
+        const mineToDo = owner?.employeeId && owner.employeeId === myEmployeeId;
         return (
           <div key={item.id} className="checklist-row flex items-start gap-2">
             <button
               type="button"
-              disabled={!canTick || toggle.isPending}
+              disabled={!mayTick || toggle.isPending}
               onClick={() => toggle.mutate({ taskId, itemId: item.id, done: !isDone })}
               aria-pressed={isDone}
               aria-label={`${isDone ? 'Untick' : 'Tick'} "${item.title}"`}
-              title={canTick ? undefined : 'Only the people assigned to this task can tick its subtasks'}
+              title={tickHint}
               className={`mt-0.5 shrink-0 transition-colors ${
-                canTick ? 'cursor-pointer hover:text-[var(--work-accent)]' : 'cursor-not-allowed opacity-60'
+                mayTick ? 'cursor-pointer hover:text-[var(--work-accent)]' : 'cursor-not-allowed opacity-60'
               } ${isDone ? 'text-[var(--work-accent)]' : 'text-neutral-400 dark:text-neutral-500'}`}
             >
               {isDone ? <CheckSquare size={15} /> : <Square size={15} />}
@@ -179,11 +204,58 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
               }`}>
                 {item.title}
               </p>
-              {/* The whole point of the feature: not that it is done, but who did it. */}
-              {by && (
-                <p className="text-2xs text-neutral-400 dark:text-neutral-500 mt-0.5">
-                  {by.name} · {relativeTime(by.at)}
-                </p>
+
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
+                {/* Who it is FOR. A chip rather than a line of text because it is the control as
+                    well as the label — the same press that reads it is the one that changes it. */}
+                {owner ? (
+                  <button
+                    type="button"
+                    disabled={!canEdit}
+                    onClick={() => setAssigning((cur) => (cur === item.id ? null : item.id))}
+                    aria-label={canEdit ? `Change who "${item.title}" is for — currently ${owner.name}` : `For ${owner.name}`}
+                    title={canEdit ? 'Change who this subtask is for' : undefined}
+                    className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-2xs font-semibold transition-colors ${
+                      mineToDo
+                        ? 'border-[var(--work-accent)]/30 bg-[var(--work-selected)] text-[var(--work-accent)]'
+                        : 'border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 text-neutral-600 dark:text-neutral-300'
+                    } ${canEdit ? 'cursor-pointer hover:border-[var(--work-accent)]/40' : 'cursor-default'}`}
+                  >
+                    <User size={9} aria-hidden="true" />
+                    {mineToDo ? 'Me' : owner.name}
+                  </button>
+                ) : canEdit ? (
+                  <button
+                    type="button"
+                    onClick={() => setAssigning((cur) => (cur === item.id ? null : item.id))}
+                    aria-label={`Choose who "${item.title}" is for`}
+                    className="inline-flex items-center gap-1 text-2xs font-semibold text-neutral-400 dark:text-neutral-500 hover:text-[var(--work-accent)] transition-colors cursor-pointer"
+                  >
+                    <UserPlus size={10} aria-hidden="true" /> Assign
+                  </button>
+                ) : null}
+
+                {/* And who actually did it. Named only when that is somebody other than the owner —
+                    "Anand · Anand ticked it" is one name too many for a line this small. */}
+                {by && (
+                  <span className="text-2xs text-neutral-400 dark:text-neutral-500">
+                    {by.employeeId === owner?.employeeId ? 'ticked' : `${by.name} ticked`} {relativeTime(by.at)}
+                  </span>
+                )}
+              </div>
+
+              {assigning === item.id && (
+                <OwnerPicker
+                  task={task}
+                  item={item}
+                  myEmployeeId={myEmployeeId}
+                  busy={assign.isPending}
+                  onClose={() => setAssigning(null)}
+                  onPick={(employeeId) => assign.mutate(
+                    { taskId, itemId: item.id, employeeId },
+                    { onSuccess: () => setAssigning(null) }
+                  )}
+                />
               )}
             </div>
 
@@ -234,6 +306,136 @@ function Checklist({ taskId, rows, loading, canTick, canEdit }) {
   );
 }
 
+/**
+ * Who a step is for.
+ *
+ * The people already on the task come first and need no typing: handing a step to somebody already
+ * carrying the work is the ordinary case, and a search box would be three keystrokes in the way of
+ * it. The search underneath reaches everybody else this person may put work on.
+ *
+ * Nothing here worries about whether the chosen person can SEE the task, because 0130 makes it
+ * moot — naming somebody adds them to the task in the same write, and the notification follows.
+ */
+function OwnerPicker({ task, item, myEmployeeId, busy, onClose, onPick }) {
+  const { data: employees = [] } = useEmployees();
+  const { can } = usePermissions();
+  const [q, setQ] = useState('');
+
+  /*
+   * The same question the composer asks before putting somebody on an EXISTING task, and
+   * deliberately not the one it asks for a NEW one. tasks_update has a WITH CHECK, so the row must
+   * still be yours AFTER the change — task.update/task.manage on them, never task.create. The two
+   * coincide for the seeded roles and come apart the moment anybody defines a custom one.
+   */
+  const mayHold = (e) => {
+    const scope = {
+      entityId: e.entity_id, zoneId: e.zone_id, branchId: e.branch_id,
+      deptId: e.department_id, employeeId: e.id,
+    };
+    return can('task.update', scope) || can('task.manage', scope);
+  };
+
+  const onTaskPeople = assigneesOf(task).map((row) => ({
+    id: row.id,
+    name: row.employee?.full_name ?? 'Assignee not visible',
+  }));
+
+  const needle = q.trim().toLowerCase();
+  const found = needle
+    ? employees
+        .filter((e) => (e.full_name || '').toLowerCase().includes(needle)
+          || (e.employee_code || '').toLowerCase().includes(needle))
+        .filter((e) => !onTaskPeople.some((p) => p.id === e.id))
+        .filter(mayHold)
+        .slice(0, 6)
+    : [];
+
+  const pick = (id) => { if (!busy) onPick(id); };
+
+  return (
+    <div className="mt-1.5 rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950 p-2 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-2xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          Who is this subtask for?
+        </span>
+        <button
+          type="button" onClick={onClose} disabled={busy} aria-label="Close"
+          className="text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+        >
+          <X size={12} />
+        </button>
+      </div>
+
+      {onTaskPeople.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {onTaskPeople.map((p) => (
+            <button
+              key={p.id} type="button" onClick={() => pick(p.id)} disabled={busy}
+              aria-pressed={p.id === item.assigned_to}
+              className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-2xs font-semibold cursor-pointer transition-colors ${
+                p.id === item.assigned_to
+                  ? 'border-[var(--work-accent)]/40 bg-[var(--work-selected)] text-[var(--work-accent)]'
+                  : 'border-neutral-200 dark:border-neutral-850 bg-white dark:bg-neutral-900 text-neutral-700 dark:text-neutral-300 hover:border-[var(--work-accent)]/40'
+              }`}
+            >
+              <User size={9} aria-hidden="true" />
+              {p.id === myEmployeeId ? 'Me' : p.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <input
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        disabled={busy}
+        aria-label="Search for somebody else to do this subtask"
+        placeholder="Or search anyone else by name or code…"
+        className={INPUT + ' text-xs'}
+      />
+
+      {needle && found.length === 0 && (
+        <p className="text-2xs text-neutral-500">
+          Nobody else matches that, or giving them work is outside your scope.
+        </p>
+      )}
+
+      {found.length > 0 && (
+        <div className="max-h-32 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-850 divide-y divide-neutral-150 dark:divide-neutral-850/60">
+          {found.map((e) => (
+            <button
+              key={e.id} type="button" onClick={() => pick(e.id)} disabled={busy}
+              className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-left bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-900/60 cursor-pointer"
+            >
+              <span className="font-semibold text-neutral-800 dark:text-neutral-200 truncate">{e.full_name}</span>
+              <span className="font-mono text-2xs text-neutral-500 shrink-0">
+                {e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* The way out of a step owned by somebody on leave, which would otherwise hold the whole
+          task open — the rollup closes a task only once every line is ticked. */}
+      {item.assigned_to && (
+        <button
+          type="button" onClick={() => pick(null)} disabled={busy}
+          className="text-2xs font-semibold text-neutral-500 dark:text-neutral-400 hover:text-[var(--work-accent)] cursor-pointer"
+        >
+          Clear the name — anyone on the task can do it
+        </button>
+      )}
+
+      <p className="text-2xs text-neutral-400">
+        {busy
+          ? 'Saving…'
+          : 'Only the person named can tick it. They join the task if they are not on it already.'}
+      </p>
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------------- files -- */
 
 function Attachments({ rows, loading, myUserId }) {
@@ -259,7 +461,7 @@ function Attachments({ rows, loading, myUserId }) {
       {error && <p role="alert" className="text-2xs text-red-600 dark:text-red-300">{error}</p>}
 
       {loading ? (
-        <Loader2 size={14} className="animate-spin text-[var(--work-accent)]" />
+        <SkeletonRows rows={2} compact avatar={false} label="Loading shared files" />
       ) : rows.length === 0 ? (
         <p className="text-2xs text-neutral-400">No files shared yet.</p>
       ) : (
@@ -399,7 +601,7 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
       </h4>
 
       {loading ? (
-        <Loader2 size={14} className="animate-spin text-[var(--work-accent)]" />
+        <SkeletonRows rows={3} compact trailing={false} label="Loading task conversation" />
       ) : thread.length === 0 ? (
         <p className="text-2xs text-neutral-400">Nothing said yet. If it is blocked, this is where to say why.</p>
       ) : (

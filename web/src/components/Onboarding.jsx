@@ -1,5 +1,6 @@
+import { Skeleton } from './ui/Skeleton';
 import React, { useMemo, useState } from 'react';
-import { UserCheck, Clock, Calendar, Loader2, AlertTriangle, CheckCircle2, Users } from 'lucide-react';
+import { UserCheck, Clock, Calendar, AlertTriangle, CheckCircle2, Users } from 'lucide-react';
 import { useOnboarding, useUpdateOnboarding } from '../data/onboarding';
 import PageHeader from './ui/PageHeader';
 import Pagination, { usePagination } from './ui/Pagination';
@@ -47,7 +48,38 @@ export default function Onboarding() {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={24} className="animate-spin" /></div>
+        <div className="space-y-5" role="status" aria-label="Loading onboarding checklists">
+          <div className="people-insight-grid">
+            {Array.from({ length: 4 }, (_, index) => (
+              <div key={index} className="people-insight-card space-y-3">
+                <Skeleton className="h-3 w-24 max-w-full" />
+                <Skeleton className="h-6 w-12" />
+                <Skeleton className="h-2.5 w-28 max-w-full" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="premium-card space-y-4">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-9 w-full rounded-xl" />
+              {Array.from({ length: 3 }, (_, index) => <Skeleton key={index} className="h-28 w-full rounded-xl" />)}
+            </div>
+            <div className="premium-card lg:col-span-2 space-y-5">
+              <Skeleton className="h-5 w-48 max-w-full" />
+              <Skeleton className="h-3 w-64 max-w-full" />
+              {Array.from({ length: 5 }, (_, index) => (
+                <div key={index} className="flex items-center gap-3 py-2">
+                  <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-2/3" />
+                    <Skeleton className="h-2.5 w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <span className="sr-only">Loading onboarding checklists…</span>
+        </div>
       ) : error ? (
         <div className="premium-card p-5 flex items-start gap-3 text-xs text-amber-700 dark:text-amber-300"><AlertTriangle size={16} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
       ) : list.length === 0 ? (

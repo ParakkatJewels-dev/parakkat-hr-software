@@ -4,6 +4,7 @@
 // and do not match employee_code, so until a code is mapped to a person their punches sit in
 // raw_punches unattached. This is where that gets resolved — confirming a suggested match also
 // adopts the historical punches and recomputes the affected dates.
+import { SkeletonTable } from './ui/Skeleton';
 import React, { useMemo, useState } from 'react';
 import {
   Clock, CalendarDays, Fingerprint, Activity, Loader2, Plus, Trash2, Check, X,
@@ -269,7 +270,7 @@ function MappingTab() {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          <SkeletonTable rows={6} columns={6} label="Loading device mappings" />
         ) : mappings.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">
             Nothing here. If this is the first run, pull the roster from BioTime above.
@@ -537,7 +538,7 @@ function ShiftsTab() {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          <SkeletonTable rows={5} columns={8} label="Loading shifts" />
         ) : (
           <div className="table-scroll">
             <table className="premium-table w-full text-xs">
@@ -658,7 +659,7 @@ function HolidaysTab() {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          <SkeletonTable rows={5} columns={5} label="Loading holidays" />
         ) : holidays.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">No holidays defined for {activeYear}.</div>
         ) : (
@@ -784,7 +785,7 @@ function LeaveTypesTab() {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          <SkeletonTable rows={5} columns={7} label="Loading leave types" />
         ) : (
           <div className="table-scroll">
             <table className="premium-table w-full text-xs">

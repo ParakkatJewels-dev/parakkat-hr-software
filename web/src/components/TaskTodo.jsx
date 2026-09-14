@@ -13,6 +13,7 @@ import TaskListRow, { TaskListColumns } from './TaskListRow';
 import TaskDetail from './TaskDetail';
 import Pagination, { usePagination } from './ui/Pagination';
 import ConfirmDialog from './ui/ConfirmDialog';
+import { TaskListSkeleton } from './TaskSkeletons';
 
 export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowProps }) {
   const { employee } = useAuth();
@@ -136,7 +137,7 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
         <input type="search" value={query} aria-label="Search my tasks" placeholder="Search my tasks…"
           onChange={(event) => { setQuery(event.target.value); openPager.setPage(1); closedPager.setPage(1); }} />
       </label>
-      {loading ? <div className="work-empty" role="status"><Loader2 size={22} className="animate-spin" aria-label="Loading tasks" /></div>
+      {loading ? <TaskListSkeleton />
         : !openRows.length ? <div className="work-empty">
           <strong>{query ? 'No active tasks match your search.' : loadError ? 'Your tasks could not be loaded.' : 'Your list is clear.'}</strong>
           <p>{query ? 'Try another search or check your finished tasks below.' : 'Add a task above. Tasks assigned by your team also appear here.'}</p>

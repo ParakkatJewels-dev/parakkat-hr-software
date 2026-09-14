@@ -19,6 +19,7 @@
 // own payslips and conclude the opposite of the truth. So this reports access rather than
 // pretending to be them, which is the question that was actually being asked.
 import React, { useMemo, useState } from 'react';
+import { SkeletonRows } from './ui/Skeleton';
 import {
   X, ShieldAlert, Eye, KeyRound, ChevronRight, Layers, UserRound, AlertTriangle,
   EyeOff, Loader2, Info,
@@ -275,6 +276,9 @@ function ScreensTab({ user, sections, hidden, isSuperAdmin, loading, error, pend
         the one locked out by it — the database refuses this too, not just the interface.
       </Empty>
     );
+  }
+  if (loading) {
+    return <SkeletonRows rows={6} compact avatar={false} label="Loading screen access" />;
   }
   if (sections.length === 0) {
     return <Empty>This login sees no screens at all — it can sign in and go nowhere.</Empty>;

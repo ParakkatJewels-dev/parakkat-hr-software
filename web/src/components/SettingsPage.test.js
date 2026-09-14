@@ -163,6 +163,12 @@ test('workspace configuration is read-only to employees and editable only to sup
 test('account data loading or failure cannot overwrite a saved phone', () => {
   for (const profileState of ['loading', 'error']) {
     const account = panel(render({ profileState }).html, 'Account').html;
+    if (profileState === 'loading') {
+      assert.ok(openings(account).some(tag => attribute(tag, 'role') === 'status' && attribute(tag, 'aria-label') === 'Loading your account details'));
+      assert.equal(openings(account).filter(tag => /^<input\b/.test(tag)).length, 0);
+      assert.equal(saveButtons(account).length, 0);
+      continue;
+    }
     assert.ok(has(inputFor(account, 'Phone'), 'disabled'));
     assert.equal(saveButtons(account).length, 1);
     assert.ok(saveButtons(account).every(button => has(button, 'disabled')));
@@ -173,6 +179,12 @@ test('account data loading or failure cannot overwrite a saved phone', () => {
 test('workspace data loading or failure keeps administrator writes disabled', () => {
   for (const workspaceState of ['loading', 'error']) {
     const section = panel(render({ isSuperAdmin: true, workspaceState }).html, 'Workspace').html;
+    if (workspaceState === 'loading') {
+      assert.ok(openings(section).some(tag => attribute(tag, 'role') === 'status' && attribute(tag, 'aria-label') === 'Loading workspace settings'));
+      assert.equal(openings(section).filter(tag => /^<input\b/.test(tag)).length, 0);
+      assert.equal(saveButtons(section).length, 0);
+      continue;
+    }
     for (const label of ['Company Name', 'Company Domain', 'Default Locale']) assert.ok(has(inputFor(section, label), 'disabled'));
     assert.ok(saveButtons(section).every(button => has(button, 'disabled')));
     if (workspaceState === 'error') assert.ok(openings(section).some(tag => attribute(tag, 'role') === 'alert'));

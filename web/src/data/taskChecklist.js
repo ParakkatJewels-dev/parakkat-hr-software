@@ -13,23 +13,37 @@ import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 import { nextPosition } from '../lib/checklist';
+import { withSchemaFallback, isMissingSchema } from '../lib/pendingMigration';
 
-const ITEM_FIELDS =
+// The list as 0114 shaped it: what the step is, and who ticked it.
+const ITEM_FIELDS_BASE =
   'id, task_id, title, position, completed_by, completed_at, created_by, created_at, ' +
   'completer:employees!task_checklist_items_completed_by_fkey(id, full_name, employee_code)';
+
+// 0130 adds who the step is FOR, which is a different column and a different question from who
+// ticked it. Asked for separately because the migration ships apart from this client and PostgREST
+// rejects the WHOLE query when one column in it is unknown — the hole pendingMigration.js exists
+// for, and the one that once took the entire comment thread down.
+const ITEM_FIELDS = `${ITEM_FIELDS_BASE}, assigned_to, ` +
+  'owner:employees!task_checklist_items_assigned_to_fkey(id, full_name, employee_code)';
 
 /** The list for one task. Only fetched once somebody opens it. */
 export function useChecklist(taskId, { enabled = true } = {}) {
   return useQuery({
     enabled: enabled && Boolean(taskId),
     queryKey: ['task-checklist', taskId],
-    queryFn: () => fetchCollection(() => supabase
-        .from('task_checklist_items')
-        .select(ITEM_FIELDS)
-        .eq('task_id', taskId)
-        .order('position', { ascending: true })
-        .order('created_at', { ascending: true })
-        .order('id')),
+    queryFn: () => {
+      const read = (fields) => () => fetchCollection(() => supabase
+          .from('task_checklist_items')
+          .select(fields)
+          .eq('task_id', taskId)
+          .order('position', { ascending: true })
+          .order('created_at', { ascending: true })
+          .order('id'));
+      // Without 0130 the list still loads and still ticks; every step simply reads as belonging to
+      // nobody in particular, which is exactly how it behaved before the column existed.
+      return withSchemaFallback(read(ITEM_FIELDS), read(ITEM_FIELDS_BASE));
+    },
   });
 }
 
@@ -108,5 +122,37 @@ export function useDeleteChecklistItem() {
       .select('id');
     if (error) throw error;
     if (!data?.length) throw new Error('That step could not be removed. Your access may have changed.');
+  });
+}
+
+/**
+ * Name somebody on a step, or take the name off it.
+ *
+ * One write, not two. 0130's trigger puts the owner on the TASK as well when they are not already
+ * on it — being handed a line you cannot open would be no gift — so the junction row, the "you were
+ * added to a task" notification and the ownership all follow from this single update.
+ *
+ * `employeeId` of null clears the owner, which is the escape hatch: a step belonging to somebody on
+ * leave would otherwise hold the whole task open, because the rollup only closes a task once every
+ * line is ticked. Anyone who may edit the task may do this; only the owner may TICK.
+ */
+export function useAssignSubtask() {
+  return useChecklistMutation(async ({ itemId, employeeId }) => {
+    const { data, error } = await supabase
+      .from('task_checklist_items')
+      .update({ assigned_to: employeeId ?? null })
+      .eq('id', itemId)
+      .select('id');
+    if (error) {
+      // The column is the whole feature, so unlike a read there is nothing to degrade to. Say which
+      // migration is missing rather than surfacing PostgREST's "could not find the column".
+      if (isMissingSchema(error)) {
+        throw new Error('Naming somebody on a subtask needs migration 0130_a_subtask_has_an_owner.sql. Apply it and try again.');
+      }
+      throw error;
+    }
+    if (!data?.length) {
+      throw new Error('That subtask could not be reassigned. Your access may have changed.');
+    }
   });
 }

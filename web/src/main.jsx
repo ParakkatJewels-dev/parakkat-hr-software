@@ -6,7 +6,8 @@ import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-d
 import { QueryClient } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
-import { Loader2, ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
+import { ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
+import { SkeletonApp } from './components/ui/Skeleton';
 import './index.css';
 import App from './App.jsx';
 import Login from './pages/Login.jsx';
@@ -160,14 +161,6 @@ function SessionBoundary() {
   return <SessionQueries key={scope ?? 'unresolved'} scope={scope} userId={user?.id} owner={owner}>
     <AppErrorBoundary><RootRoutes /></AppErrorBoundary>
   </SessionQueries>;
-}
-
-function FullScreenLoader() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 text-brand-ink">
-      <Loader2 size={28} className="animate-spin" />
-    </div>
-  );
 }
 
 function FullScreenError({ error }) {
@@ -324,7 +317,7 @@ function AuthedApp() {
       <button onClick={signOut} className="text-sm text-brand-ink">Sign out</button>
     </div>
   );
-  if (access === null) return <FullScreenLoader />; // access still resolving
+  if (access === null) return <SkeletonApp />; // access still resolving
   if (mustChangePassword) return <SetYourPassword />;
   const hasAccess = isSuperAdmin || (assignments?.length ?? 0) > 0;
   return hasAccess ? <App /> : <NoAccess />;
@@ -333,7 +326,7 @@ function AuthedApp() {
 // Top-level auth gate: unauthenticated users only ever see /login.
 function RootRoutes() {
   const { session, loading, sessionError, passwordRecovery, recoveryRequested, finishRecovery } = useAuth();
-  if (loading) return <FullScreenLoader />;
+  if (loading) return <SkeletonApp />;
   if (sessionError) return <FullScreenError error={sessionError} />;
   // Recovery is independent of roles and of whether a first-login password change is required.
   if (passwordRecovery) return <SetYourPassword recovery />;

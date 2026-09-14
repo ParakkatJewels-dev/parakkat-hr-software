@@ -5,6 +5,7 @@
 // reusing them keeps the two detail screens looking like one product; the `emp-` prefix is a
 // naming debt worth paying off the next time both are touched.
 import React, { useMemo, useState } from 'react';
+import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import {
   ArrowLeft, Pencil, Package, Laptop, Smartphone, Monitor, KeyRound, Car, Armchair,
   Calendar, Landmark, MapPin, ShieldCheck, History, UserRound, Undo2, UserPlus,
@@ -126,7 +127,7 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
         />
       </div>
       {isLoading ? (
-        <p className="asset-picker-note"><Loader2 size={12} className="animate-spin" /> Loading people…</p>
+        <SkeletonRows rows={4} compact avatar={false} trailing={false} label="Loading people" />
       ) : matches.length === 0 ? (
         <p className="asset-picker-note">Nobody matches “{q.trim()}”.</p>
       ) : (
@@ -194,7 +195,36 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
   };
 
   if (isLoading) {
-    return <div className="asset-detail-loading"><Loader2 size={22} className="animate-spin" /></div>;
+    return (
+      <section className="emp-profile animate-fade-in" role="status" aria-label="Loading asset details">
+        <div className="emp-hero" aria-hidden="true">
+          <Skeleton className="h-4 w-20" />
+          <div className="emp-hero-id">
+            <Skeleton className="h-20 w-20 rounded-2xl shrink-0" />
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-7 w-1/2" />
+              <Skeleton className="h-3 w-2/3" />
+              <Skeleton className="h-6 w-32 rounded-full" />
+            </div>
+          </div>
+        </div>
+        <div className="emp-layout" aria-hidden="true">
+          <div className="emp-main">
+            {[8, 5].map((fields) => <div className="emp-section space-y-5" key={fields}>
+              <Skeleton className="h-4 w-32" />
+              <div className="emp-field-grid">
+                {Array.from({ length: fields }, (_, i) => <div className="space-y-2" key={i}>
+                  <Skeleton className="h-2.5 w-20" />
+                  <Skeleton className={`h-4 ${i % 2 ? 'w-2/3' : 'w-1/2'}`} />
+                </div>)}
+              </div>
+            </div>)}
+          </div>
+          <div className="emp-rail"><Skeleton className="h-64 w-full rounded-2xl" /></div>
+        </div>
+        <span className="sr-only">Loading asset details…</span>
+      </section>
+    );
   }
   if (error || !asset) {
     return (
@@ -396,7 +426,7 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
             )}
 
             {historyLoading ? (
-              <p className="emp-doc-note"><Loader2 size={13} className="animate-spin" /> Loading history…</p>
+              <SkeletonRows rows={3} compact avatar={false} label="Loading asset history" />
             ) : history.length === 0 ? (
               <div className="emp-empty">
                 <History size={20} />

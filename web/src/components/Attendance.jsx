@@ -4,6 +4,7 @@
 // there is no punch button here any more, because punching happens at the terminal. What this
 // screen does is show what the engine concluded, surface the exceptions HR must act on, and let
 // people raise a correction when the device missed something.
+import { Skeleton, SkeletonRows, SkeletonTable } from './ui/Skeleton';
 import React, { useMemo, useState } from 'react';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
@@ -89,7 +90,7 @@ function AttendanceStatusControl({ row }) {
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone = 'neutral', onClick, active = false }) {
+function Kpi({ icon: Icon, label, value, tone = 'neutral', onClick, active = false, loading = false }) {
   const tones = {
     neutral: 'text-neutral-800 dark:text-neutral-100',
     green: 'text-emerald-600 dark:text-emerald-400',
@@ -106,7 +107,9 @@ function Kpi({ icon: Icon, label, value, tone = 'neutral', onClick, active = fal
         <Icon size={13} />
         {label}
       </div>
-      <div className={`mt-2 text-2xl font-black font-mono ${tones[tone]}`}>{value}</div>
+      <div className={`mt-2 text-2xl font-black font-mono ${tones[tone]}`}>
+        {loading ? <Skeleton as="span" className="inline-block h-7 w-12 align-middle" /> : value}
+      </div>
     </Tag>
   );
 }
@@ -127,7 +130,7 @@ function MyAttendanceHero({ employee, onOpenCalendar, onFixAttendance }) {
   const today = todayIso();
   const [year, month] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
   const { data: rows = [], isLoading } = useAttendanceSummary(today);
-  const { data: monthRows = [] } = useMonthlyAttendance(employee?.id, year, month);
+  const { data: monthRows = [], isLoading: monthLoading } = useMonthlyAttendance(employee?.id, year, month);
   const row = rows.find((r) => r.employee?.id === employee?.id);
 
   const monthSummary = monthRows.reduce(
@@ -142,7 +145,6 @@ function MyAttendanceHero({ employee, onOpenCalendar, onFixAttendance }) {
   );
 
   const state = (() => {
-    if (isLoading) return { title: 'Checking today', detail: 'Loading your attendance record.', tone: 'neutral' };
     if (!row) return { title: 'No punch recorded yet', detail: 'Your day will appear here after the terminal syncs.', tone: 'amber' };
     if (row.is_missing_punch) return { title: 'Fix attendance', detail: 'A punch is missing from today. Raise a correction if the terminal missed it.', tone: 'amber' };
     if (row.check_in && !row.check_out) return { title: 'You are checked in', detail: `Started at ${fmtTime(row.check_in)}.`, tone: 'green' };
@@ -151,28 +153,36 @@ function MyAttendanceHero({ employee, onOpenCalendar, onFixAttendance }) {
   })();
 
   return (
-    <section className="premium-card self-service-hero" data-tone={state.tone}>
+    <section className="premium-card self-service-hero" data-tone={isLoading ? 'neutral' : state.tone}>
       <div className="self-service-hero-copy">
         <span className="self-service-eyebrow">My attendance</span>
+        {isLoading ? (
+          <div className="space-y-3 py-2" role="status" aria-label="Loading your attendance">
+            <Skeleton className="h-6 w-52 max-w-full" />
+            <Skeleton className="h-3 w-72 max-w-full" />
+            <span className="sr-only">Loading your attendance…</span>
+          </div>
+        ) : <>
         <h2>{state.title}</h2>
         <p>{state.detail}</p>
+        </>}
       </div>
       <div className="self-service-hero-stats">
         <button type="button" onClick={onOpenCalendar}>
           <span>Today in</span>
-          <strong>{row?.check_in ? fmtTime(row.check_in) : '—'}</strong>
+          <strong>{isLoading ? <Skeleton as="span" className="inline-block h-5 w-12 align-middle" /> : row?.check_in ? fmtTime(row.check_in) : '—'}</strong>
         </button>
         <button type="button" onClick={onOpenCalendar}>
           <span>Worked</span>
-          <strong>{row?.worked_minutes ? fmtMinutes(row.worked_minutes) : '—'}</strong>
+          <strong>{isLoading ? <Skeleton as="span" className="inline-block h-5 w-12 align-middle" /> : row?.worked_minutes ? fmtMinutes(row.worked_minutes) : '—'}</strong>
         </button>
         <button type="button" onClick={onOpenCalendar}>
           <span>Present</span>
-          <strong>{monthSummary.present}</strong>
+          <strong>{monthLoading ? <Skeleton as="span" className="inline-block h-5 w-8 align-middle" /> : monthSummary.present}</strong>
         </button>
         <button type="button" onClick={onFixAttendance}>
           <span>Issues</span>
-          <strong>{monthSummary.late + monthSummary.missing + monthSummary.absent}</strong>
+          <strong>{monthLoading ? <Skeleton as="span" className="inline-block h-5 w-8 align-middle" /> : monthSummary.late + monthSummary.missing + monthSummary.absent}</strong>
         </button>
       </div>
       <div className="self-service-hero-actions">
@@ -335,17 +345,17 @@ function TodayView({ workDate, setWorkDate }) {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Every tile sets a filter the predicate actually implements — the keys come from
             FLAG_FILTERS or from a real status value, never from a label typed by hand. */}
-        <Kpi icon={Users} label="Roster" value={summary.total}
+        <Kpi icon={Users} label="Roster" value={summary.total} loading={isLoading}
           onClick={() => setAttendanceFilter(ALL_ROWS)} active={attendanceFilter === ALL_ROWS} />
-        <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green"
+        <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green" loading={isLoading}
           onClick={() => setAttendanceFilter('Checked in')} active={attendanceFilter === 'Checked in'} />
-        <Kpi icon={Clock} label="Still on site" value={summary.stillIn} tone="green"
+        <Kpi icon={Clock} label="Still on site" value={summary.stillIn} tone="green" loading={isLoading}
           onClick={() => setAttendanceFilter('On site now')} active={attendanceFilter === 'On site now'} />
-        <Kpi icon={AlertTriangle} label="Late" value={summary.late} tone="amber"
+        <Kpi icon={AlertTriangle} label="Late" value={summary.late} tone="amber" loading={isLoading}
           onClick={() => setAttendanceFilter('Late arrivals')} active={attendanceFilter === 'Late arrivals'} />
-        <Kpi icon={XCircle} label="Absent" value={summary.absent} tone="red"
+        <Kpi icon={XCircle} label="Absent" value={summary.absent} tone="red" loading={isLoading}
           onClick={() => setAttendanceFilter('Absent')} active={attendanceFilter === 'Absent'} />
-        <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber"
+        <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber" loading={isLoading}
           onClick={() => setAttendanceFilter('Missing punch')} active={attendanceFilter === 'Missing punch'} />
       </div>
 
@@ -429,9 +439,7 @@ function TodayView({ workDate, setWorkDate }) {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400">
-            <Loader2 className="animate-spin" size={18} />
-          </div>
+          <SkeletonTable rows={6} columns={9} label="Loading daily attendance" />
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">
             No attendance rows for {workDate}.
@@ -598,7 +606,14 @@ function CalendarView({ employeeId, employeeName }) {
         </div>
 
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          <div className="space-y-1.5" aria-hidden="true">
+            <div className="grid grid-cols-7 gap-1.5">
+              {Array.from({ length: 7 }, (_, index) => <Skeleton key={index} className="h-3 w-8 mx-auto max-w-full" />)}
+            </div>
+            <div className="grid grid-cols-7 gap-1.5">
+              {cells.map((date, index) => date ? <Skeleton key={date} className="aspect-square rounded-xl" /> : <div key={`pad-${index}`} />)}
+            </div>
+          </div>
         ) : (
           <>
             <div className="grid grid-cols-7 gap-1.5 mb-1.5">
@@ -705,7 +720,7 @@ function CalendarView({ employeeId, employeeName }) {
         </div>
 
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          <SkeletonTable rows={6} columns={6} label="Loading monthly attendance" />
         ) : data.length === 0 ? (
           <div className="p-8 text-center text-xs text-neutral-500">No attendance rows computed for this month yet.</div>
         ) : (
@@ -871,7 +886,7 @@ export function ExceptionsView() {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+          <SkeletonTable rows={6} columns={7} label="Loading attendance exceptions" />
         ) : error ? null : matching.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">{search.trim() || issue !== 'All exceptions' ? 'No exceptions match your filters.' : 'No exceptions in this range.'}</div>
         ) : (
@@ -1072,7 +1087,7 @@ export function RegularizationsView({ employee, canApprove }) {
             My requests
           </h3>
           {mineError ? <ErrorNote error={mineError} /> : loadingMine ? (
-            <p role="status" className="text-xs text-neutral-500">Loading your requests…</p>
+            <SkeletonRows rows={3} compact avatar={false} label="Loading your requests" />
           ) : mine.length === 0 ? (
             <p className="text-xs text-neutral-500">Nothing raised yet.</p>
           ) : (
@@ -1103,7 +1118,7 @@ export function RegularizationsView({ employee, canApprove }) {
           </div>
 
           {queueError ? <ErrorNote error={queueError} /> : isLoading ? (
-            <div className="p-10 flex justify-center text-neutral-400"><Loader2 className="animate-spin" size={18} /></div>
+            <SkeletonTable rows={5} columns={reviewing ? 6 : 5} label="Loading attendance corrections" />
           ) : matching.length === 0 ? (
             <div className="p-10 text-center text-xs text-neutral-500">{search.trim() ? 'No requests match your search.' : reviewing ? 'Nothing waiting for approval.' : 'No correction requests yet.'}</div>
           ) : (

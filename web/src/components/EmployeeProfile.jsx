@@ -6,6 +6,7 @@
 // the quick actions, and a section index, so a long page stays one jump away from any answer.
 // Shows only real record data — nothing estimated or mocked.
 import React, { useState, useEffect, useRef } from 'react';
+import { SkeletonForm, SkeletonRows } from './ui/Skeleton';
 import {
   ArrowLeft, Pencil, Mail, Phone, Copy, Check, Calendar, Building2, MapPin, Layers,
   Briefcase, Award, ShieldAlert, ExternalLink, KeyRound, UserRound, HeartPulse,
@@ -104,7 +105,7 @@ function DocumentsSection({ employeeId }) {
   };
 
   if (isLoading) {
-    return <p className="emp-doc-note"><Loader2 size={13} className="animate-spin" /> Loading documents…</p>;
+    return <SkeletonRows rows={3} compact label="Loading employee documents" />;
   }
 
   if (error) {
@@ -180,7 +181,7 @@ function EmployeeAssetsSection({ employeeId, onOpenAsset }) {
   const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
 
   if (isLoading) {
-    return <p className="emp-doc-note"><Loader2 size={13} className="animate-spin" /> Loading assets…</p>;
+    return <SkeletonRows rows={3} compact label="Loading employee assets" />;
   }
   if (error) {
     return (
@@ -452,7 +453,7 @@ export default function ProfileDrawer({ emp: initialEmp, onClose, onEdit, onGran
       label: 'Compensation',
       icon: Award,
       body: payQuery.isLoading ? (
-        <p className="emp-doc-note"><Loader2 size={13} className="animate-spin" /> Loading compensation…</p>
+        <SkeletonForm fields={6} label="Loading compensation" />
       ) : salary ? (
         <div className="emp-pay">
           {grossAnnual != null && (

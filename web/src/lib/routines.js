@@ -56,3 +56,35 @@ export function teamRoutineSummary(items, ticks, onDate) {
       return (a.employee?.full_name || '').localeCompare(b.employee?.full_name || '');
     });
 }
+
+/**
+ * Narrow the head's board: find one person, or show only who still owes something.
+ *
+ * Filters the SUMMARY and never the duties inside it. Filtering the items first would be the
+ * obvious implementation and quietly wrong: somebody with three duties who has done one would show
+ * a card reading "1 of 1", because the two ticked-off lines were removed before the counting. A
+ * person's progress has to describe their whole day or it describes nothing.
+ *
+ * Words, not a phrase, and every word must match — same rule as searchTasks in taskBoard.js, so
+ * "anand p021" narrows rather than widens and the two boards behave the same way under the same
+ * typing. Name and code only: routine_items embeds nothing else about a person.
+ *
+ * This searches a LIST that RLS has already settled, and can only ever remove rows from it. A
+ * search must never be the thing that decides who sees what, and this one structurally cannot be.
+ */
+export function filterTeamRoutine(groups, { query = '', status = 'all' } = {}) {
+  const terms = String(query ?? '').toLowerCase().split(/\s+/).filter(Boolean);
+  return (groups ?? []).filter((group) => {
+    if (status === 'owing' && group.complete) return false;
+    if (status === 'finished' && !group.complete) return false;
+    if (terms.length === 0) return true;
+    const hay = [group.employee?.full_name, group.employee?.employee_code]
+      .filter(Boolean).join(' \u0000 ').toLowerCase();
+    return terms.every((term) => hay.includes(term));
+  });
+}
+
+/** How many people on the board still owe something — the number worth putting on the filter. */
+export function stillOwing(groups) {
+  return (groups ?? []).filter((g) => !g.complete).length;
+}

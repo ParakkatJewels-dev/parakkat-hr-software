@@ -5825,6 +5825,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 /* ---- Skeleton placeholder ------------------------------------------------ */
 /* Reserves the space the real content will occupy, so nothing jumps when it arrives. */
+@layer components {
 .skeleton {
   background: linear-gradient(90deg, var(--surface-muted) 25%, var(--surface-subtle) 37%, var(--surface-muted) 63%);
   background-size: 400% 100%;
@@ -5834,6 +5835,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .dark .skeleton {
   background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 37%, rgba(255,255,255,0.04) 63%);
   background-size: 400% 100%;
+}
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
 }
 @keyframes skeleton-sheen {
   0% { background-position: 100% 50%; }

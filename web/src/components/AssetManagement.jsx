@@ -4,9 +4,10 @@
 // rather than sitting beside it, so a phone gets one thing at a time and the filters and page you
 // had are still there when you come back.
 import React, { useState, useMemo, useCallback } from 'react';
+import { SkeletonRows } from './ui/Skeleton';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  Package, Laptop, Smartphone, Monitor, KeyRound, Car, Armchair, Loader2, AlertTriangle,
+  Package, Laptop, Smartphone, Monitor, KeyRound, Car, Armchair, AlertTriangle,
   Plus, Search, X, SearchX, ChevronRight, Boxes,
 } from 'lucide-react';
 import {
@@ -388,7 +389,7 @@ export default function AssetManagement() {
         </div>
 
         {isLoading ? (
-          <div className="flex justify-center py-10 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>
+          <SkeletonRows rows={6} compact label="Loading assets" />
         ) : error ? (
           <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3">
             <AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span>

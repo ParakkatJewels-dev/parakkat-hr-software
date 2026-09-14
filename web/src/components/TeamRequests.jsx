@@ -10,7 +10,7 @@
 // exists because you asked for it stays readable to you, even though it lives on another team.
 import React, { useState, useDeferredValue } from 'react';
 import {
-  HandHelping, Send, Check, X, Loader2, AlertTriangle, Search, ArrowRight, Clock,
+  HandHelping, Send, Check, X, AlertTriangle, Search, ArrowRight, Clock,
 } from 'lucide-react';
 import {
   useHelpRequests, useDepartments, useDepartmentPeople,
@@ -27,6 +27,7 @@ import FormSection from './ui/FormSection';
 import IconInput from './ui/IconInput';
 import Pagination, { usePagination } from './ui/Pagination';
 import Avatar from './ui/Avatar';
+import { SkeletonRows } from './ui/Skeleton';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 
 const INPUT =
@@ -62,7 +63,7 @@ export default function TeamRequests({ myDepartments = [] }) {
   const mutationError = respond.error || cancel.error;
 
   if (isLoading) {
-    return <div className="flex justify-center py-16 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>;
+    return <SkeletonRows rows={4} avatar={false} label="Loading team requests" />;
   }
 
   if (error) {
@@ -334,7 +335,7 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
       />
 
       {isLoading ? (
-        <div className="flex justify-center py-4 text-brand-ink"><Loader2 size={16} className="animate-spin" /></div>
+        <SkeletonRows rows={4} compact trailing={false} label="Loading team members" />
       ) : (
         <>
         {/* department_people caps at 50 in SQL (0101). Say so, or a head concludes the person they

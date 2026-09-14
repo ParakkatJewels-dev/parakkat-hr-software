@@ -1,3 +1,4 @@
+import { SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo } from 'react';
 import { Calendar, FileText, X, Loader2, AlertTriangle, CheckCircle2, Clock, Plus } from 'lucide-react';
 import { useHolidays } from '../data/holidays';
@@ -258,7 +259,7 @@ export default function Leave() {
             </h3>
 
             {isLoading ? (
-              <div className="flex justify-center py-10 text-brand-ink"><Loader2 size={22} className="animate-spin" /></div>
+              <SkeletonRows rows={4} avatar={false} label="Loading leave requests" />
             ) : error ? (
               <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3">
                 <AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span>

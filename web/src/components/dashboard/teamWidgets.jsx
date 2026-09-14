@@ -2,6 +2,7 @@
 // RLS scopes every query to the manager's grant (their branch / department / zone), so these
 // widgets never filter for security — only for presentation (pending first, today only, etc.).
 import React, { useState } from 'react';
+import { SkeletonForm } from '../ui/Skeleton';
 import {
   Users, CalendarDays, LifeBuoy, Laptop, Check, Ban, Loader2, CalendarRange, ListChecks,
 } from 'lucide-react';
@@ -37,7 +38,7 @@ export function TeamAttendanceToday({ onNavigate }) {
       onAction={() => onNavigate?.('attendance')}
     >
       {isLoading ? (
-        <EmptyNote>Loading…</EmptyNote>
+        <SkeletonForm fields={6} label="Loading team attendance" />
       ) : summary.total === 0 ? (
         <EmptyNote>No attendance rows for today yet.</EmptyNote>
       ) : (

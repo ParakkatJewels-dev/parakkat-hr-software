@@ -20,6 +20,7 @@ import {
   useMarkAllNotificationsRead,
 } from '../data/notifications';
 import Pagination, { usePagination } from './ui/Pagination';
+import { Skeleton, SkeletonRows } from './ui/Skeleton';
 
 /** Midnight-based buckets: "today" has to mean the calendar day, not the last 24 hours. */
 function bucketOf(iso) {
@@ -60,9 +61,9 @@ export default function Notifications({ onNavigate }) {
       <div className="mobile-list-row flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">Notifications</h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+          {isLoading ? <Skeleton className="h-3 w-52 mt-1.5" /> : <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
             {unread.length > 0 ? `${unread.length} unread` : 'Everything here has been read.'} · Latest 40 notifications
-          </p>
+          </p>}
         </div>
         {unread.length > 0 && (
           <button
@@ -83,7 +84,7 @@ export default function Notifications({ onNavigate }) {
         </div>
       )}
 
-      {isLoading ? null : notifications.length === 0 ? (
+      {isLoading ? <SkeletonRows rows={6} trailing={false} label="Loading notifications" /> : notifications.length === 0 ? (
         <div className="premium-card"><EmptyState /></div>
       ) : (
         groups.map(([label, items]) => (

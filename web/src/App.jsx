@@ -11,6 +11,7 @@ import {
 // Import components
 import Dashboard from './components/Dashboard';
 import InstallPrompt from './components/InstallPrompt';
+import { SkeletonPage } from './components/ui/Skeleton';
 const Directory = lazy(() => import('./components/Directory'));
 const EmployeeImport = lazy(() => import('./components/EmployeeImport'));
 const EmployeeAttendanceDetail = lazy(() => import('./components/EmployeeAttendanceDetail'));
@@ -1024,7 +1025,7 @@ export default function App() {
             </strong>
           </div>
           <div ref={routeStageRef} className="route-stage" data-route={location.pathname}>
-            <Suspense fallback={<div className="page-shell py-24 flex justify-center text-neutral-400 text-xs">Loading…</div>}>
+            <Suspense fallback={<SkeletonPage />}>
             {(() => {
               if (!canViewTab(activeTab)) {
                 return <AccessDenied />;

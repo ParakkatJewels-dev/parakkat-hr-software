@@ -1,3 +1,4 @@
+import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import React, { useMemo, useState } from 'react';
 import { Briefcase, Users, Plus, Award, ChevronRight, X, User, Loader2, AlertTriangle } from 'lucide-react';
 import { useJobs, useCandidates, useAddJob, useSetCandidateStage } from '../data/recruitment';
@@ -91,17 +92,28 @@ export default function Recruitment() {
           <div className="premium-card people-board space-y-4">
             <div className="people-panel-head">
               <span><Users size={15} /> Candidate pipeline</span>
-              <em>{candidatesLoading ? 'Loading candidates…' : `${matchingCandidates.length} matching profiles`}</em>
+              <em>{candidatesLoading ? <Skeleton as="span" className="inline-block h-3 w-28" /> : `${matchingCandidates.length} matching profiles`}</em>
             </div>
-            <div className="people-kanban-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="people-kanban-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3" role={candidatesLoading ? 'status' : undefined} aria-label={candidatesLoading ? 'Loading candidate pipeline' : undefined}>
               {STAGES.map((stage) => {
                 const list = matchingCandidates.filter((c) => c.stage === stage);
                 return (
                   <div key={stage} className="people-kanban-column">
                     <div className="people-kanban-head">
                       <span>{stage}</span>
-                      <b>{list.length}</b>
+                      <b>{candidatesLoading ? <Skeleton as="span" className="inline-block h-3 w-4" /> : list.length}</b>
                     </div>
+                    {candidatesLoading ? (
+                      <div className="space-y-2">
+                        {Array.from({ length: 3 }, (_, index) => (
+                          <div key={index} className="people-candidate-card space-y-3">
+                            <Skeleton className="h-3 w-3/4" />
+                            <Skeleton className="h-2.5 w-1/2" />
+                            <Skeleton className="h-6 w-12 ml-auto rounded-lg" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
                     <PagedCollection items={list} pageSize={8} noun={`${stage.toLowerCase()} candidates`} resetKey={`${search}:${company}`} disabled={moveCand.isPending}>
                     {(pageRows) => <div className="space-y-2">
                       {pageRows.map((can) => (
@@ -130,9 +142,11 @@ export default function Recruitment() {
                       )}
                     </div>}
                     </PagedCollection>
+                    )}
                   </div>
                 );
               })}
+              {candidatesLoading && <span className="sr-only">Loading candidate pipeline…</span>}
             </div>
           </div>
         </div>
@@ -164,7 +178,7 @@ export default function Recruitment() {
                 <span><Briefcase size={15} /> Job openings</span>
               </div>
               {jobsLoading ? (
-                <div className="flex justify-center py-8 text-brand-ink"><Loader2 size={20} className="animate-spin" /></div>
+                <SkeletonRows rows={3} avatar={false} label="Loading job openings" />
               ) : jobsError ? (
                 <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{jobsError.message}</span></div>
               ) : matchingJobs.length === 0 ? (

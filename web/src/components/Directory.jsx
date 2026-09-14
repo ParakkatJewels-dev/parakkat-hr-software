@@ -22,7 +22,7 @@ import ProfileDrawer from './EmployeeProfile';
 import GrantAccessPanel, { grantableRoles, randomPassword } from './GrantAccessPanel';
 import { useAuth } from '../auth/AuthContext';
 import { useGrantAppAccess } from '../data/admin';
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonForm, SkeletonRows } from './ui/Skeleton';
 import FilterSelect from './ui/FilterSelect';
 import { btnClass } from './ui/Btn';
 import Pagination from './ui/Pagination';
@@ -376,7 +376,7 @@ export default function Directory() {
     return (
       <div className="page-shell space-y-5">
         <Header status="Loading employees…" />
-        <SkeletonRows rows={8} />
+        <SkeletonRows rows={8} label="Loading employees" />
       </div>
     );
   }
@@ -442,10 +442,7 @@ export default function Directory() {
         </div>
 
         {isEdit && editEmployeeQuery.isLoading ? (
-          <div className="premium-card p-5 flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-            <Loader2 size={14} className="animate-spin text-brand-ink" />
-            Loading the private fields for this employee…
-          </div>
+          <SkeletonForm fields={10} className="premium-card p-5" label="Loading employee details" />
         ) : editEmployeeQuery.error ? (
           <div className="premium-card p-5 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" />
@@ -2029,9 +2026,7 @@ function ExistingEmployeeDocuments({
 }) {
   if (isLoading) {
     return (
-      <p className="emp-doc-note">
-        <Loader2 size={13} className="animate-spin" /> Loading saved documents...
-      </p>
+      <SkeletonRows rows={3} compact label="Loading saved documents" />
     );
   }
 

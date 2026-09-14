@@ -4,6 +4,7 @@
 // are managed by HR. Workspace settings are editable by super admins only — everyone else sees
 // them read-only (RLS enforces this server-side too).
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { SkeletonForm } from './ui/Skeleton';
 import {
   UserRound,
   Building2,
@@ -167,9 +168,10 @@ function MyProfileCard() {
           No employee record is linked to this login, so there is no profile to edit here. Profiles
           are linked in Administration → Users &amp; Access.
         </p>
+      ) : employeeQuery.isLoading ? (
+        <SkeletonForm fields={6} label="Loading your account details" />
       ) : (
         <>
-          {employeeQuery.isLoading && <p className="settings-card-notice" role="status">Loading your account details…</p>}
           {employeeQuery.isError && <div className="settings-card-notice" role="alert">
             <p>Your account details could not be loaded.</p>
             <ActionButton onClick={() => employeeQuery.refetch()}>Try again</ActionButton>
@@ -391,7 +393,7 @@ function WorkspaceCard() {
           </span>
         )}
       </div>
-      {settingsQuery.isLoading && <p className="settings-card-notice" role="status">Loading workspace settings…</p>}
+      {settingsQuery.isLoading ? <SkeletonForm fields={3} label="Loading workspace settings" /> : <>
       {settingsQuery.isError && <div className="settings-card-notice" role="alert">
         <p>Workspace settings could not be loaded.</p>
         <ActionButton onClick={() => settingsQuery.refetch()}>Try again</ActionButton>
@@ -415,6 +417,7 @@ function WorkspaceCard() {
           )}
         </div>
       )}
+      </>}
     </div>
   );
 }
