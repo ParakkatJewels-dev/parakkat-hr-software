@@ -5,6 +5,17 @@ export const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata'
 export const period = today.slice(0, 7);
 export const mobileFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-mobile');
 export const chatFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-chat');
+export const developerFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-developer');
+const developerNow = Date.now();
+const developerDate = days => new Date(developerNow + days * 86400000).toISOString();
+export const developerFixture = {
+  settings: { enabled: false, updated_at: developerDate(-3) },
+  keys: developerFixtures ? [
+    { id: 'qa-key-reporting', name: 'QA reporting dashboard', key_prefix: 'qa_sample_reporting_', scopes: ['employees:read', 'organization:read'], entity_id: null, created_at: developerDate(-7), expires_at: developerDate(83), last_used_at: developerDate(-1), revoked_at: null },
+    { id: 'qa-key-attendance', name: 'QA attendance export', key_prefix: 'qa_sample_attendance_', scopes: ['attendance:read'], entity_id: 'company-1', created_at: developerDate(-40), expires_at: developerDate(-10), last_used_at: developerDate(-11), revoked_at: null },
+    { id: 'qa-key-revoked', name: 'QA retired integration', key_prefix: 'qa_sample_retired_', scopes: ['employees:read'], entity_id: null, created_at: developerDate(-60), expires_at: developerDate(30), last_used_at: null, revoked_at: developerDate(-2) },
+  ] : [],
+};
 fixture.org.departments = fixture.org.branches.map((b, i) => ({ id: `dept-${i + 1}`,
   entity_id: b.entity_id, branch_id: b.id, branch_name: b.name, name: `Department ${i + 1}`, is_active: true }));
 fixture.org.designations = [{ id: 'designation-1', title: 'Sales Associate', grade: 'A', is_active: true }];

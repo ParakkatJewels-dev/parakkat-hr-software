@@ -151,6 +151,7 @@ export const OVERSIGHT_NAV = [
       // entity_admin and super_admin hold. Gating on rbac.manage handed the tab to four more
       // roles, all of whom then saw a permanently empty screen.
       { id: 'admin-audit', label: 'Audit Log', perm: 'audit.read' },
+      { id: 'admin-developer', label: 'Developer Settings', perm: null, superOnly: true },
       // superOnly, not a permission: reading other people's conversations is the one power that
       // belongs to the account that owns the system and to nobody it can delegate to. Gating it on
       // rbac.manage would hand it to every entity admin, and app.can_read_conversation would then

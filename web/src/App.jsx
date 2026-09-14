@@ -30,6 +30,7 @@ const MyAssets = lazy(() => import('./components/MyAssets'));
 const DocumentManagement = lazy(() => import('./components/DocumentManagement'));
 const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
 const Administration = lazy(() => import('./components/Administration'));
+const DeveloperSettings = lazy(() => import('./components/DeveloperSettings'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
 const Messages = lazy(() => import('./components/Messages'));
 const ChatMonitor = lazy(() => import('./components/ChatMonitor'));
@@ -1081,6 +1082,8 @@ export default function App() {
                 return <Administration view="roles" />;
               case 'admin-audit':
                 return <Administration view="logs" />;
+              case 'admin-developer':
+                return <DeveloperSettings />;
               case 'settings':
                 // The role switch used to live here. It is on the header chip now — the thing it
                 // changes — so Settings is preferences and nothing else. See ui/RoleSwitcher.

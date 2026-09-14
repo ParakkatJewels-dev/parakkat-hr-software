@@ -29,6 +29,9 @@ HR_Software/
 Web app: `cd web && npm run dev`. Attendance service: `cd services/attendance && npm run dev`.
 Mobile: from the repo root, `npm run android` / `npm run ios` (see [MOBILE.md](MOBILE.md)).
 
+Integration API keys: **Administration → Developer Settings** (super admins).
+See [Developer API](web/backend/DEVELOPER_API.md) for Vercel runtime setup and endpoints.
+
 ## Attendance
 
 Attendance is sourced from **ZKTeco face-recognition terminals via BioTime**, not from a punch

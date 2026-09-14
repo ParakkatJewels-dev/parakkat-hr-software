@@ -109,6 +109,7 @@ const ROUTES = [
   ['directory', MANAGERS], ['employee-import', MANAGERS], ['team', MANAGERS], ['attendance-person', MANAGERS],
   ['assets', MANAGERS], ['reports', MANAGERS], ['administration', MANAGERS], ['admin-roles', MANAGERS],
   ['organization', ['super_admin', 'entity_admin']], ['admin-audit', ['super_admin', 'entity_admin']],
+  ['admin-developer', ['super_admin']],
   ['attendance-admin', PAYROLL], ['recruitment', PAYROLL], ['onboarding', PAYROLL], ['admin-chats', ['super_admin']],
   ['leave', KEYS], ['payroll', KEYS], ['messages', KEYS], ['tasks', KEYS], ['performance', KEYS],
 ];

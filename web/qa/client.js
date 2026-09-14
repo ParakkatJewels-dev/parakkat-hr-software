@@ -1,11 +1,11 @@
 // This deliberately small adapter tests rendering and controls, not Supabase/RLS semantics.
 // Unknown mutations fail closed; fixtures never connect to a database or send email.
-import { fixture, tables, mobileFixtures, chatFixtures } from './fixtures.js';
+import { fixture, tables, mobileFixtures, chatFixtures, developerFixtures, developerFixture } from './fixtures.js';
 import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from './roles.js';
 import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib/passwordRecovery.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
-const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${developerFixtures ? '-developer' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
@@ -13,6 +13,7 @@ const emptyChannel = { on() { return this; }, subscribe() { return this; }, unsu
 class Query {
   constructor(rows, table) { this.rows = rows; this.table = table; this.filters = []; this.orders = []; this.start = 0; this.size = Infinity; }
   select(_fields, options = {}) { this.head = options.head; return this; }
+  abortSignal() { return this; }
   eq(k, v) { this.filters.push((r) => String(r[k]) === String(v)); return this; }
   neq(k, v) { this.filters.push((r) => r[k] !== v); return this; }
   gte(k, v) { this.filters.push((r) => r[k] >= v); return this; }
@@ -98,6 +99,29 @@ export const supabase = {
   },
   rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    if (qaRole === 'super_admin' && name === 'get_developer_settings') return new Query([{ ...developerFixture.settings }]).single();
+    if (qaRole === 'super_admin' && name === 'list_developer_api_keys') return new Query(developerFixture.keys.map(key => ({ ...key })));
+    if (developerFixtures && qaRole === 'super_admin' && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {
+      if (name === 'set_developer_settings' && typeof args._enabled === 'boolean') {
+        Object.assign(developerFixture.settings, { enabled: args._enabled, updated_at: new Date().toISOString() });
+        qaState.mutations += 1;
+        return new Query([{ ...developerFixture.settings }]).single();
+      }
+      if (name === 'create_developer_api_key' && typeof args._name === 'string' && args._name.trim() && args._name.length <= 80
+          && Array.isArray(args._scopes) && args._scopes.length && args._scopes.every(scope => ['employees:read', 'organization:read', 'attendance:read'].includes(scope))
+          && (!args._entity_id || fixture.org.entities.some(entity => entity.id === args._entity_id)) && [30, 90, 365].includes(args._expires_in_days)) {
+        const key = { id: `qa-key-created-${developerFixture.keys.length}`, name: args._name.trim(), key_prefix: 'qa_nonfunctional_',
+          scopes: [...args._scopes], entity_id: args._entity_id ?? null, created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + args._expires_in_days * 86400000).toISOString(), last_used_at: null, revoked_at: null };
+        developerFixture.keys.unshift(key); qaState.mutations += 1;
+        // This synthetic string is deliberately unusable by the real API. Only metadata is retained.
+        return new Query([{ api_key: `qa_nonfunctional_${key.id}_synthetic_only`, key: { ...key } }]).single();
+      }
+      if (name === 'revoke_developer_api_key') {
+        const key = developerFixture.keys.find(key => key.id === args._key_id);
+        if (key) { key.revoked_at = new Date().toISOString(); qaState.mutations += 1; return new Query([]).single(); }
+      }
+    }
     if (chatFixtures && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {
       const chat = tables.conversations.find((row) => row.id === args._conversation_id);
       const ownMember = chat && tables.conversation_members.some((member) => member.conversation_id === chat.id && member.employee_id === fixture.employees[0].id);

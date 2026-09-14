@@ -416,6 +416,16 @@ test('the route guard refuses it too, not just the menu', () => {
   assert.equal(canSeeTab(tab, predicatesFor(permsFor('entity_admin'))), false, 'typing the URL must not work');
 });
 
+test('Developer Settings and its direct route belong only to super admins', () => {
+  const tab = OVERSIGHT_NAV.find((s) => s.id === 'admin').tabs.find((t) => t.id === 'admin-developer');
+  assert.ok(tab);
+  for (const role of ['entity_admin', 'hr_manager', 'zonal_manager', 'branch_manager', 'dept_head', 'employee']) {
+    assert.ok(!screensFor(role).includes(tab.id), `${role} must not see developer settings`);
+    assert.equal(canSeeTab(tab, predicatesFor(permsFor(role))), false, `${role} must not open its URL`);
+  }
+  assert.equal(canSeeTab(tab, predicatesFor([], { isSuperAdmin: true, hasEmployee: false })), true);
+});
+
 test('predicatesFor reports whether this is a super admin', () => {
   assert.equal(predicatesFor([]).isSuperAdmin, false);
   assert.equal(predicatesFor([], { isSuperAdmin: true }).isSuperAdmin, true);

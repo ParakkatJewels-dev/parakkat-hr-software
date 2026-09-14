@@ -21,7 +21,7 @@ create table auth.users (
   email_confirmed_at timestamptz, created_at timestamptz, updated_at timestamptz,
   raw_app_meta_data jsonb, raw_user_meta_data jsonb,
   confirmation_token text, recovery_token text, email_change_token_new text, email_change text,
-  last_sign_in_at timestamptz, phone text, banned_until timestamptz,
+  last_sign_in_at timestamptz, phone text, banned_until timestamptz, deleted_at timestamptz,
   confirmation_sent_at timestamptz, recovery_sent_at timestamptz,
   email_change_token_current text, email_change_sent_at timestamptz,
   phone_change_token text, phone_change_sent_at timestamptz,

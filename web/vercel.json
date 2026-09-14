@@ -72,6 +72,7 @@
     }
   ],
   "rewrites": [
+    { "source": "/api/v1/:resource", "destination": "/api/v1/[resource]?resource=:resource" },
     { "source": "/dashboard", "destination": "/index.html" },
     { "source": "/dashboard/:path*", "destination": "/index.html" },
     { "source": "/directory", "destination": "/index.html" },
@@ -113,6 +114,8 @@
     { "source": "/admin-roles/:path*", "destination": "/index.html" },
     { "source": "/admin-audit", "destination": "/index.html" },
     { "source": "/admin-audit/:path*", "destination": "/index.html" },
+    { "source": "/admin-developer", "destination": "/index.html" },
+    { "source": "/admin-developer/:path*", "destination": "/index.html" },
     { "source": "/settings", "destination": "/index.html" },
     { "source": "/settings/:path*", "destination": "/index.html" }
   ]

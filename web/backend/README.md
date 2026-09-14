@@ -155,3 +155,11 @@ after six seconds, and clear on send or loss of focus. Draft text is never trans
 feature. The SQL test runner covers preference isolation, full-history search and typing access;
 frontend tests cover pagination and the typing publisher's lifecycle. The optional `?qa-chat`
 browser fixture exercises these controls entirely in memory.
+
+## Developer Settings and integration API keys
+
+Super admins can enable the read-only integration API and create scoped, expiring keys in
+Administration → Developer Settings. Keys can be restricted to one company and revoked immediately.
+Migration `0135_developer_api_keys.sql` stores only key hashes and enforces all API access in SQL;
+the Vercel function exposes employee directory, organization and daily attendance endpoints.
+See [Developer API](DEVELOPER_API.md) for deployment, request examples and access controls.

@@ -136,7 +136,7 @@ function SessionQueries({ children, scope, userId, owner }) {
     persister: resources.persister,
     maxAge: 24 * 60 * 60_000,
     buster: `${CACHE_VERSION}:${scope}`,
-    dehydrateOptions: { shouldDehydrateQuery: (q) => Boolean(scope) && q.state.status === 'success' },
+    dehydrateOptions: { shouldDehydrateQuery: (q) => Boolean(scope) && q.meta?.persist !== false && q.state.status === 'success' },
   }}>{children}</PersistQueryClientProvider>;
 }
 

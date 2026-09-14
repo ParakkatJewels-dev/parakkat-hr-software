@@ -14,6 +14,9 @@ if (new URL(window.location.href).searchParams.has('qa-mobile')) {
 if (new URL(window.location.href).searchParams.has('qa-chat')) {
   panel.querySelector('p').textContent = 'Isolated chat fixtures. Synthetic messages and chat preferences save in memory only; external connections and other writes are blocked.';
 }
+if (new URL(window.location.href).searchParams.has('qa-developer')) {
+  panel.querySelector('p').textContent = 'Isolated developer fixtures. API settings and unusable sample keys save in memory only; external connections and other writes are blocked.';
+}
 for (const role of [...ROLE_NAMES, 'unassigned']) {
   const option = document.createElement('option');
   option.value = role; option.textContent = role; option.selected = role === qaRole;
@@ -38,7 +41,7 @@ const routes = ['dashboard', 'directory', 'employee-import', 'organization', 'at
   'performance/mine', 'performance/team', 'assets', 'my-assets', 'documents/employee',
   'documents/company', 'recruitment', 'onboarding', 'helpdesk', 'reports/attendance',
   'reports/leave', 'reports/expenses', 'reports/headcount',
-  'administration', 'admin-roles', 'admin-audit', 'admin-chats', 'profile', 'notifications', 'settings'];
+  'administration', 'admin-roles', 'admin-audit', 'admin-chats', 'admin-developer', 'profile', 'notifications', 'settings'];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 document.getElementById('qa-sweep').onclick = async (event) => {
   event.target.disabled = true;

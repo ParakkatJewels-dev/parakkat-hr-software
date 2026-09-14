@@ -58,7 +58,7 @@ export function expectsDeniedScreen(route) {
   const screen = route.split('/')[0];
   if (qaRole === 'unassigned') return true;
   if (qaRole === 'super_admin') return false;
-  if (screen === 'admin-chats') return true;
+  if (['admin-chats', 'admin-developer'].includes(screen)) return true;
   if (['organization', 'admin-audit'].includes(screen)) return qaRole !== 'entity_admin';
   if (['attendance-admin', 'recruitment', 'onboarding'].includes(screen)) return !['entity_admin', 'hr_manager'].includes(qaRole);
   if (['directory', 'employee-import', 'attendance-person', 'team', 'assets', 'reports', 'administration', 'admin-roles'].includes(screen)) return qaRole === 'employee';
