@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Layered component styles must follow Tailwind so its base reset stays below them. */
+@import "./components/ui/skeleton.css";
 
 .paged-collection { min-width: 0; container: collection / inline-size; }
 .directory-overview-toggle {

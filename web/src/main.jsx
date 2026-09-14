@@ -1,3 +1,5 @@
+// Establish Tailwind's layer order before loading any component styles.
+import './index.css';
 import { Component, StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // HashRouter (not BrowserRouter): the native webview serves from a local origin where
@@ -8,7 +10,6 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
 import { SkeletonApp } from './components/ui/Skeleton';
-import './index.css';
 import App from './App.jsx';
 import Login from './pages/Login.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';

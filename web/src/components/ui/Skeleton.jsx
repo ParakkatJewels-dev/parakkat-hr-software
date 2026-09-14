@@ -4,7 +4,6 @@
 // jumps when data lands. A skeleton keeps the shape, which reads as faster even at identical
 // speed. The shimmer is disabled under prefers-reduced-motion (see index.css).
 import React from 'react';
-import './skeleton.css';
 
 export function Skeleton({ className = '', style, as: Component = 'div' }) {
   return <Component className={`skeleton ${className}`} style={style} aria-hidden="true" />;
