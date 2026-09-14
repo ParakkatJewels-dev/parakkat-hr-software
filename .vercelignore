@@ -1,0 +1,15 @@
+# Run Vercel CLI from the repository root; the linked project builds web/.
+# Only the web product and its serverless API are deployment inputs.
+/*
+!web
+
+# Database tooling, QA fixtures and local data never belong in a web deployment.
+/web/backend
+/web/qa
+/web/scripts
+**/*.test.js
+**/.env*
+**/*.log
+**/node_modules
+/web/dist
+/web/.vercel

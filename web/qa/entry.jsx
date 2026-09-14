@@ -3,6 +3,14 @@ import { ROLE_NAMES, qaRole, roleMode, expectsDeniedScreen, qaExpectedCounts, qa
 import { setChosenRole } from '../src/lib/viewRole.js';
 import '../src/main.jsx';
 
+if (new URL(window.location.href).searchParams.has('qa-clipboard-blocked')) {
+  // Browser automation may replace clipboard APIs and bypass the document Permissions-Policy.
+  // Keep this explicit local fixture deterministic without changing browser or product settings.
+  Object.defineProperty(navigator.clipboard, 'writeText', { configurable: true, value: async () => {
+    throw new DOMException('QA simulated clipboard denial', 'NotAllowedError');
+  } });
+}
+
 const panel = document.createElement('details');
 panel.id = 'qa-panel';
 panel.style.cssText = 'position:fixed;right:4px;bottom:78px;z-index:99999;max-width:calc(100vw - 8px);max-height:65vh;overflow:auto;background:#fff;color:#111;border:2px solid #b45309;border-radius:8px;padding:8px;font:12px/1.5 sans-serif;box-shadow:0 2px 15px #0003';

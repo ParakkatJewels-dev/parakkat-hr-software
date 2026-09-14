@@ -33,11 +33,21 @@ function DeveloperWorkspace() {
   const keys = useDeveloperKeys();
   const org = useVisibleOrg();
   const [showCreate, setShowCreate] = useState(false);
+  const [replacement, setReplacement] = useState(null);
   const [created, setCreated] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const createPanel = useRef(null);
+  useEffect(() => {
+    if (!showCreate) return undefined;
+    const frame = requestAnimationFrame(() => {
+      createPanel.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      createPanel.current?.querySelector('input')?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [showCreate, replacement?.id]);
   const enabled = settings.data?.enabled === true;
   const changeEnabled = async next => {
     if (busy) return;
@@ -93,14 +103,16 @@ function DeveloperWorkspace() {
 
         <section className="premium-card developer-key-section" aria-labelledby="developer-keys-title">
           <div className="developer-section-heading"><div><h2 id="developer-keys-title"><KeyRound size={18} /> API keys</h2><p>Give each integration its own key and access level.</p></div>
-            <button type="button" className={btnClass('primary')} disabled={showCreate || Boolean(created) || Boolean(keys.error) || keys.isLoading} onClick={() => { setShowCreate(true); setNotice(''); setError(''); }}><Plus size={16} /> Create key</button>
+            <button type="button" className={btnClass('primary')} disabled={showCreate || Boolean(created) || Boolean(keys.error) || keys.isLoading} onClick={() => { setReplacement(null); setShowCreate(true); setNotice(''); setError(''); }}><Plus size={16} /> Create key</button>
           </div>
-          {showCreate && <CreateKeyForm entities={org.data?.entities ?? []} orgError={org.error} orgLoading={org.isLoading} onClose={() => setShowCreate(false)} onCreated={result => {
+          <p className="developer-copy-note">Full keys are shown only once, immediately after creation. If you did not save a key, create a replacement to get a new one you can copy.</p>
+          {showCreate && <div ref={createPanel} className="scroll-mt-4"><CreateKeyForm key={replacement?.id ?? 'new'} initialKey={replacement} entities={org.data?.entities ?? []} orgError={org.error} orgLoading={org.isLoading} onClose={() => setShowCreate(false)} onCreated={result => {
             setCreated(result); setShowCreate(false);
             queryClient.setQueryData(developerKeysKey(user?.id), current => [result.key, ...(current ?? []).filter(key => key.id !== result.key.id)]);
             keys.refetch();
-          }} />}
-          {keys.isLoading ? <SkeletonRows rows={3} avatar={false} label="Loading API keys" /> : keys.error ? <div className="developer-empty"><FormError message="API keys could not be loaded." /><button type="button" className={btnClass('ghost')} onClick={() => keys.refetch()}>Try again</button></div> : keys.data?.length ? <div className="developer-key-list">{keys.data.map(key => <KeyRow key={key.id} item={key} entity={org.data?.entities?.find(entity => entity.id === key.entity_id)} onRevoke={() => openConfirm({ type: 'revoke', key })} />)}</div> : <div className="developer-empty"><span className="developer-empty-icon"><KeyRound size={25} /></span><h3>No API keys yet</h3><p>Create a key for your first integration. Choose what it can read and when it expires.</p></div>}
+          }} /></div>}
+          {keys.isLoading ? <SkeletonRows rows={3} avatar={false} label="Loading API keys" /> : keys.error ? <div className="developer-empty"><FormError message="API keys could not be loaded." /><button type="button" className={btnClass('ghost')} onClick={() => keys.refetch()}>Try again</button></div> : keys.data?.length ? <div className="developer-key-list">{keys.data.map(key => <KeyRow key={key.id} item={key} entity={org.data?.entities?.find(entity => entity.id === key.entity_id)} secret={created?.key.id === key.id ? created.api_key : null}
+            replacementDisabled={showCreate || Boolean(created)} onReplace={() => { setReplacement(key); setShowCreate(true); setNotice(''); setError(''); }} onRevoke={() => openConfirm({ type: 'revoke', key })} />)}</div> : <div className="developer-empty"><span className="developer-empty-icon"><KeyRound size={25} /></span><h3>No API keys yet</h3><p>Create a key for your first integration. Choose what it can read and when it expires.</p></div>}
         </section>
       </div>
       <GettingStarted />
@@ -109,17 +121,18 @@ function DeveloperWorkspace() {
   </div>;
 }
 
-export function CreateKeyForm({ entities, orgError, orgLoading, onClose, onCreated }) {
+export function CreateKeyForm({ entities, orgError, orgLoading, initialKey = null, onClose, onCreated }) {
   const id = useId();
-  const [name, setName] = useState('');
-  const [scopes, setScopes] = useState(['employees:read']);
-  const [entityId, setEntityId] = useState('');
+  const [name, setName] = useState(initialKey ? `${[...initialKey.name].slice(0, 66).join('')} (replacement)` : '');
+  const [scopes, setScopes] = useState(initialKey ? [...initialKey.scopes] : ['employees:read']);
+  const [entityId, setEntityId] = useState(initialKey?.entity_id ?? '');
   const [expiresInDays, setExpiresInDays] = useState(90);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const missingCompany = Boolean(entityId && !orgLoading && !entities.some(entity => entity.id === entityId));
   const submit = async event => {
     event.preventDefault();
-    if (busy) return;
+    if (busy || orgError || orgLoading || missingCompany) return;
     if (!name.trim()) { setError('Give this key a name.'); return; }
     if (!scopes.length) { setError('Choose at least one type of data this key can read.'); return; }
     setError(''); setBusy(true);
@@ -127,18 +140,18 @@ export function CreateKeyForm({ entities, orgError, orgLoading, onClose, onCreat
     catch (err) { setError(err.message || 'Could not create this key. Please try again.'); }
     finally { setBusy(false); }
   };
-  return <FormSection title="Create API key" subtitle="Creating a key does not enable API access." icon={KeyRound} onClose={busy ? undefined : onClose} onSubmit={submit} submitLabel={busy ? 'Creating…' : 'Create API key'} busy={busy} error={error} disabled={Boolean(orgError) || orgLoading}>
+  return <FormSection title={initialKey ? 'Create replacement key' : 'Create API key'} subtitle={initialKey ? 'Copy the new key into your integration, then revoke the old key when you are ready.' : 'Creating a key does not enable API access.'} icon={KeyRound} onClose={busy ? undefined : onClose} onSubmit={submit} submitLabel={busy ? 'Creating…' : initialKey ? 'Create replacement key' : 'Create API key'} busy={busy} error={error} disabled={Boolean(orgError) || orgLoading || missingCompany}>
+    {initialKey && <p className="developer-replacement-note">This creates a separate key. It does not revoke <strong>{initialKey.name}</strong> or enable API access.</p>}
     <Field label="Key name" htmlFor={`${id}-name`} required><input id={`${id}-name`} className="developer-input" autoComplete="off" placeholder="e.g. Reporting dashboard" required maxLength={80} value={name} onChange={event => setName(event.target.value)} disabled={busy} /></Field>
     <fieldset className="developer-scopes" disabled={busy}><legend>Data access</legend><p>Each permission allows reading only.</p>{API_KEY_SCOPES.map(scope => <label key={scope.key} className="developer-scope-choice"><input type="checkbox" checked={scopes.includes(scope.key)} onChange={event => setScopes(current => event.target.checked ? [...current, scope.key] : current.filter(key => key !== scope.key))} /><span><strong>{scope.label}</strong><small>{scope.description}</small></span></label>)}</fieldset>
-    <div className="developer-form-grid"><Field label="Company" htmlFor={`${id}-company`}><select id={`${id}-company`} className="developer-input" value={entityId} onChange={event => setEntityId(event.target.value)} disabled={busy || orgLoading || Boolean(orgError)}><option value="">All companies</option>{entities.map(entity => <option key={entity.id} value={entity.id}>{entity.name || entity.code}</option>)}</select></Field>
+    <div className="developer-form-grid"><Field label="Company" htmlFor={`${id}-company`}><select id={`${id}-company`} className="developer-input" value={entityId} onChange={event => setEntityId(event.target.value)} disabled={busy || orgLoading || Boolean(orgError)}><option value="">All companies</option>{missingCompany && <option value={entityId} disabled>Original company unavailable</option>}{entities.map(entity => <option key={entity.id} value={entity.id}>{entity.name || entity.code}</option>)}</select></Field>
       <Field label="Expires after" htmlFor={`${id}-expiry`}><select id={`${id}-expiry`} className="developer-input" value={expiresInDays} onChange={event => setExpiresInDays(Number(event.target.value))} disabled={busy}>{API_KEY_EXPIRY_DAYS.map(days => <option key={days} value={days}>{days} days</option>)}</select></Field></div>
     {orgError && <FormError message="Company choices could not be loaded. Reload the page before creating a key." />}
+    {missingCompany && !orgError && <FormError message="The original company is no longer available. Choose a company before creating this replacement." />}
   </FormSection>;
 }
 
 export function CreatedKey({ value, name, onDone }) {
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState('');
   const input = useRef(null);
   const panel = useRef(null);
   const id = useId();
@@ -151,30 +164,52 @@ export function CreatedKey({ value, name, onDone }) {
     });
     return () => cancelAnimationFrame(frame);
   }, []);
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(value); setCopied(true); setCopyError(''); }
-    catch { setCopyError('Copy is unavailable. Select the key and copy it manually.'); input.current?.focus(); input.current?.select(); }
-  };
   return <section ref={panel} className="premium-card developer-created scroll-mt-4" aria-labelledby={`${id}-title`}>
     <div className="developer-section-heading"><div><h2 id={`${id}-title`}><Check size={18} /> Key created</h2><p><strong>{name}</strong> is ready. Copy this key now; you will not be able to see it again.</p></div></div>
     <label className="sr-only" htmlFor={`${id}-secret`}>Your new API key</label>
-    <div className="developer-secret-row"><input ref={input} id={`${id}-secret`} readOnly value={value} autoComplete="off" spellCheck="false" className="developer-input developer-secret" /><button type="button" className={btnClass('ghost')} onClick={copy}>{copied ? <Check size={16} /> : <Copy size={16} />}{copied ? 'Copied' : 'Copy key'}</button></div>
+    <div className="developer-secret-row"><input ref={input} id={`${id}-secret`} readOnly value={value} autoComplete="off" spellCheck="false" className="developer-input developer-secret" /><CopyValue value={value} label="Copy key" ariaLabel="Copy new API key" manualLabel="Full API key" tone="primary" /></div>
     <p className="developer-key-hint">Keep it in your integration’s secret storage. Anyone with this key can read its allowed data.</p>
-    {copyError && <FormError message={copyError} />}
-    {copied && <span role="status" className="sr-only">API key copied.</span>}
-    <button type="button" className={btnClass('primary')} onClick={onDone}>Done, hide key <ChevronRight size={15} /></button>
+    <button type="button" className={btnClass('ghost')} onClick={onDone}>Done, hide key <ChevronRight size={15} /></button>
   </section>;
 }
 
-export function KeyRow({ item, entity, onRevoke }) {
+export function KeyRow({ item, entity, secret = null, onRevoke, onReplace, replacementDisabled = false }) {
   const state = developerKeyStatus(item);
   const status = state[0].toUpperCase() + state.slice(1);
   return <article className="developer-key-row">
     <div className="developer-key-title"><div><h3>{item.name}</h3><code>{item.key_prefix}••••••••</code></div><span className="developer-status" data-status={status.toLowerCase()}>{status}</span></div>
     <div className="developer-key-scopes">{item.scopes.map(scope => <span key={scope}>{API_KEY_SCOPES.find(option => option.key === scope)?.label || scope}</span>)}</div>
     <dl className="developer-key-meta"><div><dt>Company</dt><dd>{item.entity_id ? entity?.name || entity?.code || 'Selected company' : 'All companies'}</dd></div><div><dt>Created</dt><dd>{dateLabel(item.created_at)}</dd></div><div><dt>Expires</dt><dd>{dateLabel(item.expires_at)}</dd></div><div><dt>Last used</dt><dd>{dateLabel(item.last_used_at)}</dd></div></dl>
-    {status !== 'Revoked' && <button type="button" className={`${btnClass('ghost')} developer-revoke`} onClick={onRevoke} aria-label={`Revoke key ${item.name}`}><Trash2 size={14} /> Revoke key</button>}
+    <>
+      {!secret && <p className="developer-saved-key-note">The full key was shown only when it was created.</p>}
+      <div className="developer-key-actions">{secret ? <CopyValue value={secret} label="Copy key" ariaLabel={`Copy key for ${item.name}`} manualLabel={`Full API key for ${item.name}`} tone="primary" /> : <button type="button" className={btnClass('ghost')} disabled={replacementDisabled} onClick={onReplace} aria-label={`Create replacement for ${item.name}`}><Plus size={14} /> Create replacement</button>}
+        {status !== 'Revoked' && <button type="button" className={`${btnClass('ghost')} developer-revoke`} onClick={onRevoke} aria-label={`Revoke key ${item.name}`}><Trash2 size={14} /> Revoke key</button>}</div>
+    </>
   </article>;
+}
+
+export function CopyValue({ value, label, ariaLabel = label, manualLabel = label, tone = 'ghost' }) {
+  const [copied, setCopied] = useState(false);
+  const [manual, setManual] = useState(false);
+  const selection = useRef(null);
+  const id = useId();
+  useEffect(() => {
+    if (!manual) return;
+    selection.current?.focus(); selection.current?.select();
+  }, [manual]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true); setManual(false);
+    } catch {
+      setCopied(false); setManual(true);
+      selection.current?.focus(); selection.current?.select();
+    }
+  };
+  return <div className="developer-copy-control"><button type="button" className={btnClass(tone)} aria-label={ariaLabel} onClick={copy}>{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? 'Copied' : label}</button>
+    {copied && <span role="status" className="sr-only">Copied to clipboard.</span>}
+    {manual && <div className="developer-copy-fallback"><p role="status">Clipboard access is unavailable. The full value is selected below; copy it manually.</p><label htmlFor={id} className="sr-only">{manualLabel}</label><textarea ref={selection} id={id} className="developer-input developer-secret" readOnly value={value} autoComplete="off" spellCheck="false" rows={3} /></div>}
+  </div>;
 }
 
 export function GettingStarted() {
@@ -188,9 +223,9 @@ export function GettingStarted() {
   const example = `curl '${base}/employees?limit=50&offset=0' \\\n  -H 'Authorization: Bearer YOUR_API_KEY'`;
   return <aside className="premium-card developer-guide" aria-labelledby="developer-guide-title"><h2 id="developer-guide-title"><Code2 size={18} /> Getting started</h2>
     <p>Send requests from your server or integration using an active API key.</p>
-    <h3>Base URL</h3><code className="developer-code">{base}</code>
-    <h3>Authentication</h3><p>Add this request header:</p><code className="developer-code">Authorization: Bearer YOUR_API_KEY</code>
-    <h3>Example request</h3><pre className="developer-code"><code>{example}</code></pre>
+    <div className="developer-guide-heading"><h3>Base URL</h3><CopyValue value={base} label="Copy" ariaLabel="Copy base URL" manualLabel="Base URL" /></div><code className="developer-code">{base}</code>
+    <div className="developer-guide-heading"><h3>Authentication</h3><CopyValue value="Authorization: Bearer YOUR_API_KEY" label="Copy" ariaLabel="Copy authentication header" manualLabel="Authentication header" /></div><p>Add this request header:</p><code className="developer-code">Authorization: Bearer YOUR_API_KEY</code>
+    <div className="developer-guide-heading"><h3>Example request</h3><CopyValue value={example} label="Copy" ariaLabel="Copy example request" manualLabel="Example request" /></div><pre className="developer-code"><code>{example}</code></pre>
     <h3>Read endpoints</h3><dl className="developer-endpoints"><div><dt><code>GET /employees</code></dt><dd>Work directory</dd></div><div><dt><code>GET /organization</code></dt><dd>Companies, locations and departments</dd></div><div><dt><code>GET /attendance</code></dt><dd>Include <code>from=YYYY-MM-DD</code> and <code>to=YYYY-MM-DD</code>, up to 31 days per request.</dd></div></dl>
     <h3>Pages and limits</h3><p>Use <code>limit</code> and <code>offset</code> to page through results. The default page has 50 records; the maximum is 100.</p><p>Each key allows up to 60 requests per minute. Revoking a key stops its access immediately.</p>
   </aside>;

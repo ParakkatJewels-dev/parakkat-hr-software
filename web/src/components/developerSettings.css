@@ -70,6 +70,21 @@
 .developer-secret { font-family: var(--font-mono, monospace); font-size: 12px; }
 .developer-secret-row > button { flex-shrink: 0; }
 .developer-key-hint { margin: 10px 0 18px; font-size: 12px !important; }
+.developer-copy-note { margin: -5px 0 22px; padding: 12px 14px; border-radius: var(--radius-control); background: var(--surface-subtle); font-size: 12px !important; }
+.developer-saved-key-note { margin: 14px 0 9px; font-size: 12px !important; }
+.developer-key-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; }
+.developer-key-actions .developer-revoke { margin-left: 0; }
+.developer-copy-control { min-width: 0; }
+.developer-copy-control:has(.developer-copy-fallback) { flex-basis: 100%; width: 100%; }
+.developer-copy-fallback { margin-top: 9px; }
+.developer-copy-fallback p { margin: 0 0 8px; font-size: 12px !important; }
+.developer-copy-fallback textarea { resize: vertical; overflow-wrap: anywhere; }
+.developer-secret-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+.developer-secret-row:has(.developer-copy-fallback) { grid-template-columns: minmax(0, 1fr); }
+.developer-secret-row .developer-copy-control > button { min-height: 43px; }
+.developer-guide-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 8px; }
+.developer-guide-heading h3 { margin: 0; }
+.developer-guide-heading .developer-copy-control > button { padding: 5px 8px; min-height: 30px; font-size: 11px; }
 .developer-notice { display: flex; align-items: center; gap: 8px; padding: 12px 15px; margin: 0; border-radius: var(--radius-control); color: var(--accent-ink); background: color-mix(in srgb, var(--accent) 9%, transparent); font-size: 13px; }
 .developer-restricted { display: grid; justify-items: center; padding: 40px 24px !important; text-align: center; gap: 12px; }
 @media (max-width: 1279px) { .developer-layout { grid-template-columns: minmax(0, 1fr); } .developer-guide { max-width: none; } }
@@ -92,7 +107,8 @@
   .developer-form-grid { grid-template-columns: minmax(0, 1fr); }
   .developer-input { font-size: 16px; }
   .developer-secret { font-size: 12px; }
-  .developer-secret-row { flex-wrap: wrap; }
+  .developer-secret-row { grid-template-columns: minmax(0, 1fr); }
+  .developer-secret-row .developer-copy-control > button { width: 100%; }
   .developer-secret-row > button { width: 100%; }
   .developer-layout, .developer-main { gap: 16px; }
 }

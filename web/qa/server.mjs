@@ -14,11 +14,20 @@ const server = await createServer({
   define: { 'import.meta.env.VITE_BUILD_ID': JSON.stringify('isolated-qa') },
   plugins: [{
     name: 'isolated-qa', enforce: 'pre',
+    configureServer(qaServer) {
+      qaServer.middlewares.use((request, response, next) => {
+        // A document-only fixture for exercising manual-copy UI without changing browser settings.
+        if (new URL(request.url, 'http://127.0.0.1:5174').searchParams.has('qa-clipboard-blocked')) {
+          response.setHeader('Permissions-Policy', 'clipboard-write=()');
+        }
+        next();
+      });
+    },
     resolveId(id) {
       if (/\/supabaseClient(?:\.js)?$/.test(id)) return resolve(root, 'qa/client.js');
     },
     transformIndexHtml(html) {
-      return html.replace(/src="\/src\/main\.jsx[^\"]*"/, 'src="/qa/entry.jsx"')
+      return html.replace(/src="\/src\/main\.jsx[^"]*"/, 'src="/qa/entry.jsx"')
         .replace('<head>', '<head><meta http-equiv="Content-Security-Policy" content="connect-src \'self\' ws://127.0.0.1:5174; form-action \'self\';">');
     },
   }, react(), tailwindcss()],

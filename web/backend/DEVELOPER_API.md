@@ -2,8 +2,11 @@
 
 Super admins manage integration access at **Administration → Developer Settings**. API access
 starts disabled. Create a named key, select its read permissions and company, copy the key once,
-then enable API access when the integration is ready. The app never displays a saved key again.
-Create a replacement key and revoke the old key when rotating credentials.
+then enable API access when the integration is ready. **Copy key** is available in the creation
+panel and beside the new key until you hide it. If clipboard access is unavailable, the app
+selects the complete key for manual copying. The app never displays a saved key again.
+Use **Create replacement** beside a saved key to prefill its permissions and company, copy the
+new key into your integration, then revoke the old key. Replacement does not revoke it automatically.
 
 ## Deployment
 

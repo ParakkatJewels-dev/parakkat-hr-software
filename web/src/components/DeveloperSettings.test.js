@@ -77,13 +77,43 @@ test('the one-time key view explains loss on dismiss and labels manual copy fall
   assert.match(html, /Your new API key/);
   assert.match(html, /readOnly=""[^>]*value="synthetic-key-only"/);
   assert.match(html, /Copy key/);
+  assert.match(html, /aria-label="Copy new API key"/);
   assert.match(html, /Done, hide key/);
+});
+
+test('fresh key rows expose a copy action while saved rows explain replacement without copying a prefix', () => {
+  const fresh = render({ Component: KeyRow, props: { item: metadata, secret: 'synthetic-full-key', onRevoke() {}, onReplace() {} } });
+  assert.match(fresh, /aria-label="Copy key for Reporting dashboard"/);
+  assert.doesNotMatch(fresh, /Create replacement/);
+  const saved = render({ Component: KeyRow, props: { item: metadata, onRevoke() {}, onReplace() {} } });
+  assert.match(saved, /The full key was shown only when it was created/);
+  assert.match(saved, /aria-label="Create replacement for Reporting dashboard"/);
+  assert.doesNotMatch(saved, /aria-label="Copy key/);
+});
+
+test('replacement preserves access and company, uses a distinct name, and does not imply automatic revocation', () => {
+  const html = render({ Component: CreateKeyForm, props: { initialKey: { ...metadata, scopes: ['attendance:read'] }, entities: [{ id: 'company-1', name: 'Sample Company' }], onClose() {}, onCreated() {} } });
+  assert.match(html, /value="Reporting dashboard \(replacement\)"/);
+  assert.match(html, /<option value="company-1" selected="">Sample Company/);
+  assert.match(html, /<option value="90" selected="">90 days/);
+  assert.match(html, /type="checkbox" checked=""\/><span><strong>Attendance/);
+  assert.match(html, /does not revoke/);
+  assert.match(html, /then revoke the old key when you are ready/);
+});
+
+test('an unavailable original company does not silently broaden a replacement to all companies', () => {
+  const html = render({ Component: CreateKeyForm, props: { initialKey: metadata, entities: [], onClose() {}, onCreated() {} } });
+  assert.match(html, /Original company unavailable/);
+  assert.match(html, /Choose a company before creating this replacement/);
+  assert.match(html, /<option value="company-1" disabled="" selected=""/);
+  assert.match(html, /type="submit" disabled=""/);
 });
 
 test('revoked keys have no revoke action and invalid or elapsed expiry is not active', () => {
   const renderRow = item => render({ Component: KeyRow, props: { item, onRevoke() {} } });
   const revoked = renderRow({ ...metadata, revoked_at: '2026-01-02T00:00:00Z' });
   assert.match(revoked, /Revoked/); assert.doesNotMatch(revoked, /Revoke key/);
+  assert.match(revoked, /Create replacement/); assert.doesNotMatch(revoked, /Copy key/);
   for (const expires_at of ['2000-01-01T00:00:00Z', null, 'invalid']) {
     assert.match(renderRow({ ...metadata, expires_at }), /data-status="expired"/);
   }
@@ -94,4 +124,5 @@ test('getting started names supported endpoints, header, pagination and rate lim
   assert.match(html, /No API keys yet/);
   for (const detail of ['/api/v1', 'Authorization: Bearer YOUR_API_KEY', 'GET /employees', 'GET /organization',
     'GET /attendance', 'from=YYYY-MM-DD', 'to=YYYY-MM-DD', '50 records', 'maximum is 100', '60 requests per minute']) assert.ok(html.includes(detail), detail);
+  for (const label of ['Copy base URL', 'Copy authentication header', 'Copy example request']) assert.ok(html.includes(`aria-label="${label}"`));
 });
