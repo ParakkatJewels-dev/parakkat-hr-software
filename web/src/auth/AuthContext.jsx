@@ -2,12 +2,9 @@
 // Holds the Supabase session and the current user's scoped access (roles/permissions/employee),
 // fetched via the get_my_access() RPC. Screens read this instead of the old cosmetic role toggle.
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { supabase, passwordRecoveryCapture } from '../lib/supabaseClient';
 import { createAccessLoader } from '../lib/accessLoader';
-import { isRecoveryUrl, recoveryUser, rememberRecovery, clearRecoveryUrl } from '../lib/passwordRecovery';
-
-// Capture before Supabase consumes the URL fragment. A URL marker alone never authorizes a reset.
-const arrivedForRecovery = typeof window !== 'undefined' && isRecoveryUrl(window.location.href);
+import { clearRecoveryUrl } from '../lib/passwordRecovery';
 
 export const AuthContext = createContext(null);
 
@@ -21,16 +18,14 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [accessState, setAccessState] = useState({ userId: null, data: null, error: null, loading: false });
   const [sessionError, setSessionError] = useState(null);
-  const [recoveryId, setRecoveryId] = useState(recoveryUser);
-  const [recoveryRequested, setRecoveryRequested] = useState(arrivedForRecovery);
+  const [recovery, setRecovery] = useState(() => passwordRecoveryCapture.state.snapshot(null));
   const [loading, setLoading] = useState(true); // initial session resolution
   const loader = useMemo(() => createAccessLoader(() => supabase.rpc('get_my_access'), setAccessState), []);
   const loadAccess = useCallback(() => loader.load(), [loader]);
   const access = accessState.userId === session?.user?.id ? accessState.data : null;
   const finishRecovery = useCallback(() => {
-    rememberRecovery(null);
-    setRecoveryId(null);
-    setRecoveryRequested(false);
+    passwordRecoveryCapture.state.clear();
+    setRecovery(passwordRecoveryCapture.state.snapshot(null));
     clearRecoveryUrl();
   }, []);
 
@@ -38,33 +33,33 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     let active = true;
     let receivedEvent = false;
+    let initialized = false;
+    let latestSession = null;
     const accept = (s) => {
       loader.setUser(s?.user?.id ?? null);
       setSession(s ?? null);
+      setRecovery(passwordRecoveryCapture.state.snapshot(s));
       setSessionError(null);
-      setLoading(false);
+      if (initialized) setLoading(false);
     };
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       if (!active) return;
       receivedEvent = true;
-      if (event === 'PASSWORD_RECOVERY' && s?.user) {
-        rememberRecovery(s.user.id);
-        setRecoveryId(s.user.id);
-        setRecoveryRequested(true);
-      } else if (event === 'SIGNED_OUT') {
-        finishRecovery();
-      } else if (recoveryUser() && recoveryUser() !== s?.user?.id) {
-        rememberRecovery(null);
-        setRecoveryId(null);
-      }
+      latestSession = s;
+      if (event === 'SIGNED_OUT') finishRecovery();
       accept(s);
     });
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active || receivedEvent) return;
+    passwordRecoveryCapture.ready.then(() => supabase.auth.getSession()).then(({ data, error }) => {
+      if (!active) return;
       if (error) throw error;
-      accept(data.session);
+      initialized = true;
+      if (!receivedEvent) {
+        latestSession = data.session;
+        passwordRecoveryCapture.state.observe('INITIAL_SESSION', latestSession);
+      }
+      accept(latestSession);
     }).catch((err) => {
-      if (!active || receivedEvent) return;
+      if (!active) return;
       setSessionError(err);
       setLoading(false);
     });
@@ -149,8 +144,8 @@ export function AuthProvider({ children }) {
     accessLoading: accessState.loading,
     accessError: accessState.userId === session?.user?.id ? accessState.error : null,
     sessionError,
-    passwordRecovery: Boolean(session?.user?.id && recoveryId === session.user.id),
-    recoveryRequested,
+    passwordRecovery: recovery.passwordRecovery,
+    recoveryRequested: recovery.recoveryRequested,
     finishRecovery,
     signIn,
     signOut,

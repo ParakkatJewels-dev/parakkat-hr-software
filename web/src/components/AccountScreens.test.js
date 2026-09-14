@@ -6,7 +6,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createServer } from 'vite';
 
-let server, AuthContext, Login, ForgotPassword, SetYourPassword, ChangePassword, Administration;
+let server, AuthContext, Login, ForgotPassword, SetYourPassword, ChangePassword, Administration, ManagePasswordDialog;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
@@ -15,6 +15,7 @@ before(async () => {
   ({ default: SetYourPassword } = await server.ssrLoadModule('/src/components/SetYourPassword.jsx'));
   ({ default: ChangePassword } = await server.ssrLoadModule('/src/components/ChangePassword.jsx'));
   ({ default: Administration } = await server.ssrLoadModule('/src/components/Administration.jsx'));
+  ({ default: ManagePasswordDialog } = await server.ssrLoadModule('/src/components/ManagePasswordDialog.jsx'));
 });
 after(async () => { await server?.close(); });
 
@@ -65,16 +66,42 @@ test('forced and voluntary changes display the same password rules', () => {
     for (const label of ['At least 8 characters', 'Not your own name', 'Not only numbers']) assert.ok(html.includes(label));
   }
 });
-test('super admin sees a reset action on every account and a link action on unlinked accounts', () => {
+test('super admin can manage passwords directly from collapsed account rows', () => {
   const html = render(Administration);
-  for (const user of users) assert.ok(html.includes(`Send password reset to ${user.email}`));
+  for (const user of users) assert.ok(html.includes(`Manage password for ${user.email}`));
+  const summaries = [...html.matchAll(/<summary\b[\s\S]*?<\/summary>/g)].map(([summary]) => summary);
+  assert.equal(summaries.filter((summary) => summary.includes('Manage password for ')).length, users.length);
   assert.match(html, /Link employee/);
 });
 test('delegated admin sees user actions only below their rank, in their scope', () => {
   const html = render(Administration, {}, { isSuperAdmin: false, rank: 40,
     assignments: [{ role: 'branch_manager', scope_type: 'branch', scope_id: 'b1' }],
     permissions: [{ permission: 'rbac.manage', scope_type: 'branch', scope_id: 'b1' }] });
-  assert.match(html, /Send password reset to staff@example.test/);
+  assert.match(html, /Manage password for staff@example.test/);
   assert.match(html, /Delete the login for Sample Employee/);
-  assert.doesNotMatch(html, /Send password reset to senior@example.test|Delete the login for Sample Senior|Send password reset to unlinked@example.test|Link employee/);
+  assert.doesNotMatch(html, /Manage password for senior@example.test|Delete the login for Sample Senior|Manage password for unlinked@example.test|Link employee/);
+});
+
+test('password dialog identifies the target and offers temporary and email reset options', () => {
+  const html = render(ManagePasswordDialog, { target: users[0], currentUserId: 'viewer', onClose() {}, onSuccess() {} });
+  assert.match(html, /role="dialog" aria-modal="true"/);
+  assert.match(html, /staff@example.test/);
+  for (const label of ['Set temporary password', 'Send reset email', 'Confirm temporary password', 'Show passwords', 'next sign-in', '72 bytes']) assert.ok(html.includes(label), label);
+  assert.equal((html.match(/autoComplete="new-password"/g) ?? []).length, 2);
+});
+
+test('own-account password dialog offers the existing security settings and email recovery without a temporary password form', () => {
+  const html = render(ManagePasswordDialog, { target: users[0], currentUserId: users[0].user_id, onClose() {}, onSuccess() {} });
+  assert.match(html, /href="\/settings"/);
+  assert.match(html, /Open Settings → Security to change your password/);
+  assert.match(html, /Send reset email/);
+  assert.doesNotMatch(html, /Set temporary password|autoComplete="new-password"/);
+});
+
+test('delegated administrators keep their own password entry while peers remain protected', () => {
+  const html = render(Administration, {}, { user: { id: 'senior', email: 'senior@example.test' }, isSuperAdmin: false, rank: 60,
+    assignments: [{ role: 'hr_manager', scope_type: 'branch', scope_id: 'b1' }],
+    permissions: [{ permission: 'rbac.manage', scope_type: 'branch', scope_id: 'b1' }] });
+  assert.match(html, /Manage password for senior@example.test/);
+  assert.doesNotMatch(html, /Delete the login for Sample Senior/);
 });

@@ -1,6 +1,14 @@
 // Single shared Supabase client for the whole app.
 // Imported only by the data-access hooks in src/data and by src/auth — never by screens directly.
 import { createClient } from '@supabase/supabase-js';
+import { createPasswordRecoveryState, capturePasswordRecovery } from './passwordRecovery';
+
+let recoveryStorage;
+try { recoveryStorage = globalThis.sessionStorage; } catch { /* Storage may be blocked. */ }
+const recoveryState = createPasswordRecoveryState({
+  href: typeof window === 'undefined' ? undefined : window.location.href,
+  storage: recoveryStorage,
+});
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -29,3 +37,5 @@ export const supabase = createClient(
     },
   }
 );
+
+export const passwordRecoveryCapture = capturePasswordRecovery(supabase.auth, recoveryState);

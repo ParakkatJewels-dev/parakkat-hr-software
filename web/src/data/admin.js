@@ -2,9 +2,11 @@
 // Listing users uses a SECURITY DEFINER RPC (browser can't read auth.users). Assign/revoke go
 // straight to role_assignments — RLS + the escalation guard enforce who may grant what, where.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { revokeRole, createManagedUser, refreshUserAdministration } from '../lib/adminUsers';
 import { requestPasswordReset, passwordRecoveryRedirect } from '../lib/passwordRecovery';
+import { setManagedUserPassword } from '../lib/adminPasswords';
 
 export function useManagedUsers() {
   return useQuery({
@@ -203,4 +205,14 @@ export function useSendPasswordReset() {
     mutationFn: (email) => requestPasswordReset(supabase.auth, email,
       passwordRecoveryRedirect(window.location.href, import.meta.env.VITE_PUBLIC_APP_URL)),
   });
+}
+
+// A direct callback keeps the secret out of React Query's mutation variables/cache.
+export function useSetManagedUserPassword() {
+  const qc = useQueryClient();
+  return useCallback(async (payload) => {
+    await setManagedUserPassword(supabase, payload);
+    // The password has already changed; a background refresh failure must not invite a repeat.
+    void refreshUserAdministration(qc).catch(() => {});
+  }, [qc]);
 }

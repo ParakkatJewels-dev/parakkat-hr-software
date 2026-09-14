@@ -2,6 +2,7 @@
 // Unknown mutations fail closed; fixtures never connect to a database or send email.
 import { fixture, tables, mobileFixtures } from './fixtures.js';
 import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from './roles.js';
+import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib/passwordRecovery.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
 const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
@@ -101,6 +102,7 @@ export const supabase = {
     return Promise.resolve({ data: null, error: { message: `QA mode: ${name} is intentionally blocked.` } });
   },
   auth: {
+    initialize: async () => ({ error: null }),
     getSession: async () => ({ data: { session }, error: null }),
     getUser: async () => ({ data: { user }, error: null }),
     onAuthStateChange(cb) { listeners.add(cb); return { data: { subscription: { unsubscribe: () => listeners.delete(cb) } } }; },
@@ -117,3 +119,6 @@ export const supabase = {
     createSignedUrls: async () => ({ data: [], error: null }) }) },
   functions: { invoke: async () => ({ error: { message: 'QA mode: external functions are intentionally blocked.' } }) },
 };
+
+export const passwordRecoveryCapture = capturePasswordRecovery(supabase.auth,
+  createPasswordRecoveryState({ href: window.location.href }));

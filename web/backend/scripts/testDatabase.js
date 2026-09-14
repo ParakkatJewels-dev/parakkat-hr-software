@@ -54,6 +54,7 @@ try {
   run('createdb', [...connection, messageDatabase]);
   const messageOutput = run('psql', [...connection, '-d', messageDatabase, '-q', '-f', messageBootstrap]);
   console.log(messageOutput.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
+  require('./testAdminPassword')({ run, connection, directory });
   require('./testRoleMatrix')({ run, connection: ['-h', directory, '-U', 'audit_owner'], directory });
 } catch (error) {
   console.error(error.message);

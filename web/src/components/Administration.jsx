@@ -7,7 +7,7 @@ import { useVisibleOrg, useScopeCoverage } from '../data/org';
 import { useEmployees } from '../data/employees';
 import {
   useManagedUsers, useRoles, useRolesWithPermissions, useAssignRole, useRevokeRole, useLinkEmployee,
-  usePermissionCatalog, useSaveRole, useDeleteRole, useSetSuperAdmin, useCreateUser, useDeleteLogin, useSendPasswordReset,
+  usePermissionCatalog, useSaveRole, useDeleteRole, useSetSuperAdmin, useCreateUser, useDeleteLogin,
 } from '../data/admin';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
@@ -18,7 +18,7 @@ import { btnClass } from './ui/Btn';
 import UserAccessPanel from './UserAccessPanel';
 import Pagination, { usePagination } from './ui/Pagination';
 import { canManageUser, assignmentScope, employeeScope, hasAssignment } from '../lib/adminUsers';
-import { RESET_REQUEST_MESSAGE } from '../lib/passwordRecovery';
+import ManagePasswordDialog from './ManagePasswordDialog';
 import { MIN_LENGTH } from '../lib/passwordRules';
 import UsersDirectory from './UsersDirectory';
 import { paginationWindow } from '../lib/pagination';
@@ -122,7 +122,6 @@ function UsersAccess() {
   const createUser = useCreateUser();
   const setSuper = useSetSuperAdmin();
   const deleteLogin = useDeleteLogin();
-  const resetPassword = useSendPasswordReset();
   const { user: me, rank: myRank, assignments } = useAuth();
   const myRoles = assignments ?? [];
 
@@ -158,8 +157,8 @@ function UsersAccess() {
   const [showGrant, setShowGrant] = useState(false);
   const [grantForUser, setGrantForUser] = useState(null); // employee whose login gains a role
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
-  const [resetFor, setResetFor] = useState(null);
-  const [resetNotice, setResetNotice] = useState('');
+  const [passwordFor, setPasswordFor] = useState(null);
+  const [passwordNotice, setPasswordNotice] = useState('');
   const [confirmSuper, setConfirmSuper] = useState(null);
   // "What can this person actually reach?" — the question this screen could not answer, because it
   // is organised by role and the question is about a person. See UserAccessPanel.
@@ -235,10 +234,16 @@ function UsersAccess() {
       {setSuper.error && <ErrorLine msg={setSuper.error.message} />}
       {rolesError && <ErrorLine msg={`Could not load roles: ${rolesError.message}`} />}
       {employeesError && <ErrorLine msg={`Could not load employee links: ${employeesError.message}`} />}
-      {resetNotice && <p role="status" className="rounded-xl bg-brand/10 px-4 py-3 text-sm text-brand-ink">{resetNotice}</p>}
+      {passwordNotice && <p role="status" className="rounded-xl bg-brand/10 px-4 py-3 text-sm text-brand-ink">{passwordNotice}</p>}
 
       <UsersDirectory users={users} employees={employees} org={orgList} roles={roles}
-        busy={assign.isPending || revoke.isPending || link.isPending || setSuper.isPending || deleteLogin.isPending || resetPassword.isPending}
+        busy={assign.isPending || revoke.isPending || link.isPending || setSuper.isPending || deleteLogin.isPending || Boolean(passwordFor)}
+        accountActions={(u) => u.email && (u.user_id === me?.id || mayManage(u)) && (
+          <button type="button" className="users-password-button" aria-label={`Manage password for ${u.email}`} aria-haspopup="dialog"
+            onClick={(event) => { event.preventDefault(); event.stopPropagation(); setPasswordNotice(''); setPasswordFor(u); }}>
+            <KeyRound size={13} aria-hidden="true" /> Password
+          </button>
+        )}
         actions={<>
           {isSuperAdmin && <button onClick={() => setShowInvite(true)} className={BTN_GHOST} title="Create a standalone login"><Plus size={13} /> Create login</button>}
           <button onClick={() => setShowGrant(true)} className={BTN}><UserPlus size={14} /> Give app access</button>
@@ -367,13 +372,6 @@ function UsersAccess() {
               )}
 
               <div className="mobile-list-actions ml-auto flex items-center gap-2">
-                {u.email && mayManage(u) && (
-                  <button className={btnClass('ghost', 'sm')} onClick={() => {
-                    resetPassword.reset(); setResetNotice(''); setResetFor(u);
-                  }} aria-label={`Send password reset to ${u.email}`}>
-                    <KeyRound size={13} /> Reset password
-                  </button>
-                )}
                 <button
                   onClick={() => setInspecting(u)}
                   className={btnClass('ghost', 'sm')}
@@ -443,20 +441,10 @@ function UsersAccess() {
         />
       )}
 
-      {resetFor && (
-        <ConfirmDialog title="Send a password reset link?" confirmLabel="Send reset email" tone="primary"
-          busy={resetPassword.isPending} error={resetPassword.error?.message}
-          onCancel={() => { if (!resetPassword.isPending) setResetFor(null); }}
-          onConfirm={async () => {
-            try {
-              await resetPassword.mutateAsync(resetFor.email);
-              setResetNotice(RESET_REQUEST_MESSAGE);
-              setResetFor(null);
-            } catch { /* shown in the dialog */ }
-          }}>
-          <p>A reset link will be requested for <strong className="break-all">{resetFor.email}</strong>.</p>
-          <p>Their current password stays unchanged until they use the link. Your own password will not change.</p>
-        </ConfirmDialog>
+      {passwordFor && (
+        <ManagePasswordDialog key={passwordFor.user_id} target={passwordFor} currentUserId={me?.id}
+          onClose={() => setPasswordFor(null)}
+          onSuccess={(notice) => { setPasswordNotice(notice); setPasswordFor(null); }} />
       )}
 
       {confirmSuper && (

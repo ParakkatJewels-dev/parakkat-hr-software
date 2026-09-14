@@ -3,6 +3,35 @@
 This is a focused source-code and isolated-test audit, not a certification of the live Supabase
 project. No production passwords, employee links, roles, or email settings were changed.
 
+## Follow-up — 14 September 2026
+
+The original rollout notes below describe the 10 September work. The recovery follow-up found
+the hosted Site URL still set to `http://localhost:3000`, with no allowed redirect URLs. It is
+now `https://parakkat-hr-software.vercel.app/`, with the exact recovery redirect
+`https://parakkat-hr-software.vercel.app/?auth=recovery` saved in the allowlist. A deliberately
+invalid-token probe now returns the expected expired-link error at the production URL instead
+of localhost. This verifies routing without sending an email or changing an account.
+
+The client also captures Supabase's verified `PASSWORD_RECOVERY` event immediately after client
+creation. React's later subscription can miss that event because the SDK only replays
+`INITIAL_SESSION`. Recovery state is bound to both the user and Auth session; a different session
+or rejected callback cannot reuse an earlier reset. Callback query parameters remain available
+to the Auth client before normal route conversion.
+
+Administration → Users & Access now has a visible **Password** action on eligible account rows.
+It offers an email reset or a temporary password through migration `0131_admin_password_reset.sql`.
+Temporary resets enforce seniority and employee scope in the database, require replacement at
+the next sign-in, revoke sessions and refresh tokens, and record an audit event without secrets.
+The caller's own account links to Settings → Security instead of using the administrator RPC.
+The hosted migration tracker and function definition were verified to include `0131`.
+
+Validation: all 798 frontend tests and the production build passed. The isolated database suite
+passed with 134 migrations and 1,163 existing role/RLS assertions, plus dedicated reset policy,
+identity preservation, token revocation and audit checks. Recovery regressions exercise the
+installed Supabase Auth SDK with synthetic sessions. Desktop, 390px and 320px browser checks
+verified dialog padding, scrolling, keyboard focus and visibility above navigation. Frontend changes need a deployment; a full
+hosted email-to-password-change flow has not been performed on a real account.
+
 ## Findings fixed in this change
 
 | Issue | Fix |

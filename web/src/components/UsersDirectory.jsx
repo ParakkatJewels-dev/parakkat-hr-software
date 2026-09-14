@@ -6,7 +6,7 @@ import './users-directory.css';
 
 const EMPTY_FILTERS = { search: '', company: '', branch: '', role: '', status: '', sort: 'name' };
 
-export default function UsersDirectory({ users, employees, org, roles, actions, busy = false, children }) {
+export default function UsersDirectory({ users, employees, org, roles, actions, accountActions, busy = false, children }) {
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const filterId = useId();
@@ -36,7 +36,7 @@ export default function UsersDirectory({ users, employees, org, roles, actions, 
 
       <section className="users-workspace" aria-label="User account directory">
         <div className="users-workspace-heading">
-          <div><h2>Account directory</h2><p>Find a person, check their company, then expand their account to manage access.</p></div>
+          <div><h2>Account directory</h2><p>Find a person to manage their password, or expand their account to manage access.</p></div>
           <div className="users-create-actions">{actions}</div>
         </div>
         <div className="users-filter-panel">
@@ -111,7 +111,10 @@ export default function UsersDirectory({ users, employees, org, roles, actions, 
                 <span className="users-account-status"><span className={`users-status ${row.hasRole ? 'is-configured' : 'is-pending'}`}><i aria-hidden="true" />{row.hasRole ? 'Role assigned' : 'Needs a role'}</span>
                   {!row.employee_id && <small>Not linked</small>}
                 </span>
-                <span className="users-manage-label">Manage <ChevronDown size={15} aria-hidden="true" /></span>
+                <span className="users-row-actions">
+                  {accountActions?.(row)}
+                  <span className="users-manage-label">Manage <ChevronDown size={15} aria-hidden="true" /></span>
+                </span>
               </summary>
               <div className="users-expanded">{children(row)}</div>
             </details>

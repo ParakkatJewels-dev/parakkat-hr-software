@@ -76,7 +76,7 @@ redirect/email setup.
 
 Run `npm test` in this directory with PostgreSQL tools (`initdb`, `pg_ctl`, `createdb`, `psql`)
 on `PATH`. The runner creates its own temporary cluster and private UNIX socket, executes the
-account-integrity, workflow and standard-role suites, then removes the cluster. It never reads `.env` files or
+account-integrity, workflow, messaging, password-administration and standard-role suites, then removes the cluster. It never reads `.env` files or
 connects to the hosted application. The workflow suite loads the real foundational migrations,
 permission functions and RLS, then checks atomic shift replacement, rollback after a conflicting
 date range, preservation of future assignments, branch/company restrictions, assignment-only roles
@@ -113,3 +113,28 @@ custom/multiple role combinations or all legitimate HR scope variants. Hosted au
 PostgREST transport, Storage HTTP and Realtime are not started by these PostgreSQL tests. The
 existing `0113` exception is tested explicitly: a linked login without a role may insert a personal
 root task without requesting returned rows, while it remains unable to read or update that task.
+
+## Administrator password reset
+
+Apply `0131_admin_password_reset.sql` before using the temporary-password action in Administration.
+The authenticated RPC `admin_set_user_password(_user_id uuid, _password text)` returns `void`.
+It permits super admins, or an `rbac.manage` holder whose scope includes the employee and whose
+rank exceeds the target's. Unlinked logins require a super admin. Self-service password changes
+continue through Supabase Auth; the administrator RPC refuses the caller's own account.
+
+A successful reset installs a bcrypt temporary password, sets `profiles.must_change_password`,
+clears pending authentication tokens and deletes the target's refresh tokens and sessions in one
+transaction. It preserves the account's email, employee link, roles, metadata, MFA factors,
+confirmation and ban status. It sends no email. `audit_log` records `PASSWORD_RESET` with actor,
+target and organization scope, without storing the password or hash. Existing access JWTs remain
+valid until their normal expiry, as with Supabase sign-out.
+
+This follows the existing SQL Auth integration used by `admin_create_user`; it depends on the
+hosted Auth tables (`auth.users`, `auth.identities`, `auth.sessions`, `auth.refresh_tokens` and
+`auth.one_time_tokens`). Its token cleanup mirrors
+[Supabase Auth's password update implementation](https://github.com/supabase/auth/blob/master/internal/models/user.go).
+Only existing email identities are eligible. Passwords require at least eight characters, cannot
+contain the person's name/email name or only numbers, and cannot exceed bcrypt's 72 UTF-8 bytes.
+The password-administration suite replays every migration, repeats `0131` to check safe reruns,
+and exercises these rules and RBAC boundaries using synthetic identities. It checks stored
+bcrypt compatibility and SQL behavior; it does not run a hosted Auth sign-in or send a recovery email.

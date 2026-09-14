@@ -18,18 +18,11 @@ import SetYourPassword from './components/SetYourPassword.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import { initNative } from './mobile/native';
 import { installPreloadErrorHandler, registerServiceWorker } from './lib/pwa';
+import { normalizedHashRoute } from './lib/passwordRecovery';
 
 function normalizeHashRoute() {
-  const { pathname, search, hash } = window.location;
-  const cleanAppPath =
-    pathname !== '/' &&
-    pathname !== '/index.html' &&
-    !pathname.includes('.') &&
-    !pathname.startsWith('/api/');
-
-  if (!hash && cleanAppPath) {
-    window.history.replaceState(null, '', `/#${pathname}${search}`);
-  }
+  const route = normalizedHashRoute(window.location.href);
+  if (route) window.history.replaceState(null, '', route);
 }
 
 normalizeHashRoute();

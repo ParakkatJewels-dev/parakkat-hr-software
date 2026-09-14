@@ -212,8 +212,8 @@ for (const key of KEYS) {
       roles: [{ assignment_id: `assignment-${i}`, role_key: KEYS[i] ?? 'employee', scope_type: 'self' }] }));
     const html = render(Administration, actor(key), [[['employees'], [...people, ...targetPeople]], [['managed-users'], users]]);
     const expected = key === 'super_admin' ? users.length : key === 'employee' ? 0 : KEYS.filter((target) => matrix[target].rank < matrix[key].rank).length;
-    assert.equal(count(html, /Send password reset to /g), expected);
-    if (key !== 'super_admin') assert.doesNotMatch(html, /Send password reset to 7@example.test/);
+    assert.equal(count(html, /Manage password for /g), expected);
+    if (key !== 'super_admin') assert.doesNotMatch(html, /Manage password for 7@example.test/);
   });
 }
 

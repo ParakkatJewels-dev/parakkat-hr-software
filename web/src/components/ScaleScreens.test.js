@@ -52,7 +52,7 @@ function render(Component, seeds = [], props = {}, path = '/', authOverrides = {
 test('Users & Access mounts 25 account controls for 675 users, with all three companies and 27 pages', () => {
   const html = render(Administration);
   assert.equal((html.match(/<details class="users-account"/g) ?? []).length, 25);
-  assert.equal((html.match(/Send password reset to /g) ?? []).length, 25);
+  assert.equal((html.match(/Manage password for /g) ?? []).length, 25);
   for (const label of ['Sample Jewellery', 'Sample Manufacturing', 'Sample Retail', 'Search user accounts',
     'Go to account page', 'Page 1 of 27', 'of 675 accounts', 'Account status']) assert.ok(html.includes(label), label);
   assert.doesNotMatch(html, /employee675@example.test/);

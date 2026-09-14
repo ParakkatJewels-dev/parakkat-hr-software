@@ -21,11 +21,26 @@ create table auth.users (
   email_confirmed_at timestamptz, created_at timestamptz, updated_at timestamptz,
   raw_app_meta_data jsonb, raw_user_meta_data jsonb,
   confirmation_token text, recovery_token text, email_change_token_new text, email_change text,
-  last_sign_in_at timestamptz, phone text, banned_until timestamptz
+  last_sign_in_at timestamptz, phone text, banned_until timestamptz,
+  confirmation_sent_at timestamptz, recovery_sent_at timestamptz,
+  email_change_token_current text, email_change_sent_at timestamptz,
+  phone_change_token text, phone_change_sent_at timestamptz,
+  reauthentication_token text, reauthentication_sent_at timestamptz
 );
 create table auth.identities (
   id uuid primary key, provider_id text, user_id uuid references auth.users(id), identity_data jsonb,
   provider text, last_sign_in_at timestamptz, created_at timestamptz, updated_at timestamptz
+);
+-- Auth's session/token lifecycle is exercised by the administrator password-reset contracts.
+create table auth.sessions (
+  id uuid primary key, user_id uuid not null references auth.users(id) on delete cascade
+);
+create table auth.refresh_tokens (
+  id bigint generated always as identity primary key, user_id text,
+  session_id uuid references auth.sessions(id) on delete cascade
+);
+create table auth.one_time_tokens (
+  id uuid primary key, user_id uuid not null references auth.users(id) on delete cascade
 );
 create table storage.buckets (
   id text primary key, name text, public boolean default false, file_size_limit bigint,

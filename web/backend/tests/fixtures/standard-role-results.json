@@ -1,6 +1,6 @@
 {
   "source": "Actual PostgreSQL RLS and mutation results in an isolated cluster",
-  "migrationCount": 131,
+  "migrationCount": 134,
   "groups": {
     "shared": 12,
     "employee": 143,
