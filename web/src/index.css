@@ -438,6 +438,23 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .dark select option { background: var(--surface-elevated); color: #f4f6f5; }
 .dark .work-status select { border-color: transparent !important; background: transparent !important; color: inherit !important; }
 
+/* Compound controls put their surface and focus indicator on the wrapper. Keep the
+   native field clear in both themes, including when page-shell or dark-mode rules
+   would otherwise repaint it. Only direct fields opt in; buttons and options keep
+   their own styling. These resets also prevent a second border/ring inside searches. */
+.input-shell > :is(input, select, textarea),
+.dark .input-shell > :is(input, select, textarea) {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+:where(.input-shell):focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* Keep primary black→white swap buttons high-contrast in dark. */
 .dark [class~="bg-black"][class*="dark:bg-white"], .dark [class~="bg-black"][class*="dark:bg-neutral-100"] { background: #ffffff !important; border-color: #ffffff !important; color: #05130d !important; box-shadow: 0 8px 18px rgba(0, 0, 0, .28); }
 .dark [class~="bg-black"][class*="dark:bg-white"]:hover, .dark [class~="bg-black"][class*="dark:bg-neutral-100"]:hover { background: #e6e9e7 !important; transform: translateY(-1px); }
@@ -5496,17 +5513,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 /* One line, never two. A textarea's placeholder wraps like its text does, so a hint longer than the
    box broke onto a second line inside a one-row field and was sliced in half on a phone. */
 .task-message-input::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* The ROW is the focus indicator: .task-message-input-row:focus-within draws it around the whole
-   composer. The textarea was drawing a second ring of its own inside that one (tasks.css's
-   :focus-visible outline, offset 3px, plus index.css's textarea:focus shadow), and because a text
-   field always matches :focus-visible it appeared on every tap on a phone, as a box inside the box.
-   Three classes deep so it outranks `.work-page :is(…textarea):focus-visible`, which is 0,2,1. */
-.task-message-input-row .task-message-input:is(:focus, :focus-visible) { outline: none; box-shadow: none; }
-
-/* `.dark textarea` paints every textarea's background with !important, which gave this one a filled
-   panel inside the row in dark mode. The row owns the surface; the field is transparent on it. */
-.dark .task-message-input { background-color: transparent !important; }
 
 /* Key instructions describe a keyboard. On a touch screen Enter makes a new line (TaskDetail.jsx)
    and there is no Shift to hold, so that half of the hint is hidden rather than left there wrong. */

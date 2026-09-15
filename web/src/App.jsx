@@ -930,7 +930,7 @@ export default function App() {
         {/* Command Palette (Ctrl + K) Inline Tray */}
         {showCommandPalette && (
           <div className="bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-900 p-4 space-y-3 animate-fade-in transition-all">
-            <div className="command-palette-input max-w-2xl mx-auto flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5">
+            <div className="input-shell command-palette-input max-w-2xl mx-auto flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5">
               <Search size={14} className="text-neutral-450 shrink-0" />
               <input
                 type="text"
@@ -1160,7 +1160,7 @@ export default function App() {
               {heldRoles.length > 1 && <div className="profile-navigation-role"><span>Workspace view</span>
                 <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={setViewRole} />
               </div>}
-              <label className="profile-navigation-search"><Search size={18} aria-hidden="true" />
+              <label className="input-shell profile-navigation-search"><Search size={18} aria-hidden="true" />
                 <input type="search" aria-label="Search menu" placeholder="Search menu" value={menuSearch} onChange={event => setMenuSearch(event.target.value)} />
               </label>
               <nav aria-label="All sections">{menuSections.length ? renderMobileNavTree() : <p className="profile-navigation-empty" role="status">No sections match “{menuSearch}”.</p>}</nav>

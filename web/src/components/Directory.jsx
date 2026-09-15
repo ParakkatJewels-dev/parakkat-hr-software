@@ -750,7 +750,7 @@ export default function Directory() {
             <span>{activeFilterCount || '0'}</span>
           </button>
 
-          <div className="directory-sort-control flex items-center gap-2 bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl px-3 py-2">
+          <div className="directory-sort-control input-shell flex items-center gap-2 bg-neutral-50/50 dark:bg-charcoal-900/60 border border-neutral-200/80 dark:border-neutral-855 rounded-xl px-3 py-2">
             <ArrowUpDown size={12} className="text-neutral-450 shrink-0" />
             <label htmlFor="dir-sort" className="text-2xs font-bold uppercase tracking-wider text-neutral-400 shrink-0">
               Sort

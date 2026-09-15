@@ -688,7 +688,7 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
             </div>
           )}
 
-          <div className="task-message-input-row">
+          <div className="task-message-input-row input-shell">
             <button
               type="button"
               className="task-message-attach"

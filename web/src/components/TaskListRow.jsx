@@ -88,7 +88,7 @@ export default function TaskListRow({ task, actions, children }) {
           {people.length > 1 && <small>+{people.length - 1}</small>}
         </div>
         <div className={`work-row-date ${overdue ? 'work-overdue' : ''}`}><CalendarDays size={13} /><span>{task.due_date?.slice(0, 10) === actions.today ? 'Today' : date}</span></div>
-        <label className="work-status" data-status={tone(task.status)}>
+        <label className="work-status input-shell" data-status={tone(task.status)}>
           <StatusIcon size={15} className="work-status-icon" aria-hidden="true" />
           {canUpdate ? <select aria-label={`Status of ${task.title}`} value={task.status} disabled={actions.busy}
             onChange={(event) => changeStatus(event.target.value)}>

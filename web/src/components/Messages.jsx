@@ -215,7 +215,7 @@ export default function Messages() {
               }}
             />
           )}
-          <label className="messages-search">
+          <label className="messages-search input-shell">
             <Search size={18} aria-hidden="true" />
             <input type="search" value={query} onChange={(event) => setQuery(event.target.value)}
               aria-label="Search conversations" placeholder="Search or start a new chat" />
@@ -999,7 +999,7 @@ function Composer({ conversationId, replyTo, me, onCancelReply, onSent, onTyping
               </div>
             </>}
           </div>
-        <div className="messages-input-shell">
+        <div className="messages-input-shell input-shell">
           <button type="button" className="messages-icon-button" disabled={busy} aria-label="Choose emoji" aria-expanded={emojiOpen}
             onClick={() => { setEmojiOpen((value) => !value); setAttachOpen(false); }}><Smile size={21} /></button>
           <textarea ref={textRef} rows={1} value={body} disabled={busy} maxLength={4000}

@@ -41,7 +41,7 @@ export default function UsersDirectory({ users, employees, org, roles, actions, 
         </div>
         <div className="users-filter-panel">
           <div className="users-search-row">
-          <label className="users-search">
+          <label className="users-search input-shell">
             <Search size={17} aria-hidden="true" />
             <input value={filters.search} disabled={busy} onChange={(e) => update('search', e.target.value)}
               aria-label="Search user accounts" placeholder="Search name, email, employee code or company…" />

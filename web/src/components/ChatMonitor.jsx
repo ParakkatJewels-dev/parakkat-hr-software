@@ -106,7 +106,7 @@ export default function ChatMonitor() {
             <h2>People</h2>
             <span>{people.length}</span>
           </header>
-          <label className="chat-monitor-search">
+          <label className="chat-monitor-search input-shell">
             <Search size={16} aria-hidden="true" />
             <input
               type="search"

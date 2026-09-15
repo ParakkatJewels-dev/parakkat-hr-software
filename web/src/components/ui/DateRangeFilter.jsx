@@ -73,7 +73,7 @@ export default function DateRangeFilter({ preset, from, to, setPreset, setFrom, 
           onChange={(e) => e.target.value && setFrom(e.target.value)}
           className={dateInput}
         />
-        <span className="text-xs text-neutral-400">to</span>
+        <span className="shrink-0 text-xs text-neutral-400">to</span>
         <input
           type="date" value={to} min={from} aria-label="To"
           onChange={(e) => e.target.value && setTo(e.target.value)}

@@ -8,6 +8,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createServer } from 'vite';
 import { istToday } from '../lib/dates.js';
+import { rangeFor } from '../lib/dateRange.js';
 
 // Inputs come from a real replay of every production migration, not a mock permission matrix.
 // Expected visible behavior below is stated separately from navMap/usePermissions.
@@ -217,6 +218,58 @@ for (const key of KEYS) {
     if (key !== 'super_admin') assert.doesNotMatch(html, /Manage password for 7@example.test/);
   });
 }
+
+test('employee attendance overview shows their own summary and ledger without a person picker', async () => {
+  const { from, to } = rangeFor('month', istToday());
+  const ownDay = {
+    id: 'attendance-self', employee_id: 'self', work_date: to, status: 'Present', day_type: 'working',
+    check_in: `${to}T09:00:00+05:30`, check_out: `${to}T17:15:00+05:30`,
+    worked_minutes: 495, ot_minutes: 0, day_fraction: 1, punches: [],
+  };
+  const otherDay = { ...ownDay, id: 'attendance-inside', employee_id: 'inside', worked_minutes: 1234 };
+  const html = await renderApp(actor('employee'), '/attendance/overview', [
+    [['attendance', 'employee', 'self', from, to], [ownDay]],
+    [['attendance', 'employee', 'inside', from, to], [otherDay]],
+    [['attendance', 'day', to], [ownDay, otherDay]],
+  ]);
+  assert.doesNotMatch(html, /Access restricted/);
+  assert.match(html, /<h2[^>]*>Attendance overview<\/h2>/);
+  assert.match(html, /100%/);
+  assert.match(html, /1 of 1 working days/);
+  assert.match(html, /8h 15m/);
+  assert.match(html, /data-label="Status"[^]*?Present/);
+  assert.match(html, /aria-label="From"/);
+  assert.match(html, /aria-label="To"/);
+  assert.doesNotMatch(html, /id="att-person"|Search by name or employee code|Pick a person/);
+  assert.doesNotMatch(html, /Inside Worker|Outside Worker|20h 34m/);
+});
+
+test('employee attendance overview handles an unlinked employee without exposing a people search', async () => {
+  const html = await renderApp(actor('employee', { employee: null }), '/attendance/overview');
+  assert.match(html, /Your login is not linked to an employee record/);
+  assert.doesNotMatch(html, /id="att-person"|Search by name or employee code|Pick a person/);
+  assert.doesNotMatch(html, /Inside Worker|Outside Worker|Total hours/);
+});
+
+test('attendance overview reports a failed read without presenting it as an empty attendance record', async () => {
+  const { from, to } = rangeFor('month', istToday());
+  const html = await renderApp(actor('employee'), '/attendance/overview', [
+    [['attendance', 'employee', 'self', from, to], new Error('Connection unavailable')],
+  ]);
+  assert.match(html, /role="alert"/);
+  assert.match(html, /Couldn’t load attendance/);
+  assert.match(html, />Try again<\/button>/);
+  assert.doesNotMatch(html, /No attendance recorded in this range|Total hours|>Export<\/button>/);
+});
+
+test('attendance overview is offered in employee Time while manager By person remains separate', async () => {
+  const employee = await renderApp(actor('employee'), '/attendance/calendar');
+  assert.match(employee, />Overview<\/button>/);
+  assert.match(await renderApp(actor('employee'), '/attendance-person'), /Access restricted/);
+  const manager = await renderApp(actor('hr_manager'), '/attendance/overview');
+  assert.doesNotMatch(manager, /<h2[^>]*>Attendance overview<\/h2>|>Overview<\/button>/);
+  assert.match(await renderApp(actor('hr_manager'), '/attendance-person'), /id="att-person"/);
+});
 
 test('unlinked system login cannot open messaging or file personal leave/expenses/tasks', async () => {
   const auth = actor('super_admin', { employee: null });

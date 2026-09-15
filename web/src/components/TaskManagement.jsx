@@ -348,24 +348,24 @@ export default function TaskManagement() {
           <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => { setStatusFilter('Overdue'); pager.setPage(1); }} />
         </div>
         <div className="work-toolbar">
-          <label className="work-search">
+          <label className="work-search input-shell">
             <Search size={16} />
             <input type="search" value={query} onChange={(e) => { setQuery(e.target.value); pager.setPage(1); }}
               aria-label="Search tasks" placeholder="Search tasks, people or branches…" />
           </label>
           <div className="work-filters">
-            <label className="work-filter"><span>Status</span>
+            <label className="work-filter input-shell"><span>Status</span>
               <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); pager.setPage(1); }} aria-label="Filter tasks by status">
                 {['Active', 'All', 'To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled', 'Overdue'].map((s) => <option key={s} value={s}>{s === 'All' ? 'All statuses' : s}</option>)}
               </select>
             </label>
-            {peopleOnBoard.length > 1 && <label className="work-filter"><span>Assignee</span>
+            {peopleOnBoard.length > 1 && <label className="work-filter input-shell"><span>Assignee</span>
               <select value={personId} onChange={(e) => { setPersonId(e.target.value); pager.setPage(1); }} aria-label="Filter tasks by person">
                 <option value="">Everyone</option>
                 {peopleOnBoard.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </label>}
-            <label className="work-filter"><ArrowDownWideNarrow size={14} /><span className="sr-only">Sort</span>
+            <label className="work-filter input-shell"><ArrowDownWideNarrow size={14} /><span className="sr-only">Sort</span>
               <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); pager.setPage(1); }} aria-label="Sort tasks">
                 <option value="recommended">Recommended</option><option value="due">Due date</option><option value="priority">Priority</option><option value="newest">Newest first</option><option value="title">Title A–Z</option>
               </select>

@@ -41,7 +41,7 @@ const faults = [];
 window.addEventListener('error', (event) => faults.push(event.message));
 window.addEventListener('unhandledrejection', (event) => faults.push(String(event.reason)));
 const routes = ['dashboard', 'directory', 'employee-import', 'organization', 'attendance/today',
-  'attendance/exceptions', 'attendance/regularizations', 'attendance-person',
+  'attendance/overview', 'attendance/exceptions', 'attendance/regularizations', 'attendance-person',
   'attendance-admin/mapping', 'attendance-admin/shifts', 'attendance-admin/holidays',
   'attendance-admin/leaveTypes', 'attendance-admin/sync', 'leave', 'tasks/board',
   'tasks/todo', 'tasks/requests', 'tasks/routine', 'messages', 'team',
@@ -107,6 +107,11 @@ document.getElementById('qa-sweep').onclick = async (event) => {
       if (expected === 1 && (stage.querySelectorAll('.payslip-card').length > 1 || text.includes('Sample Employee 0002'))) issues.push('another employee payslip rendered');
     }
     if (qaRole === 'employee' && route === 'attendance/today' && !text.includes('My monthly calendar')) issues.push('employee can reach team attendance');
+    if (qaRole === 'employee' && route === 'attendance/overview') {
+      if (!text.includes('Attendance overview') || !text.includes('Total hours')) issues.push('attendance overview missing');
+      if (!stage.querySelector('td[data-label="Status"]')) issues.push('personal attendance ledger missing');
+      if (stage.querySelector('#att-person') || text.includes('Sample Employee 0002')) issues.push('other employees offered in personal attendance overview');
+    }
     if (route.startsWith('payroll/') && !['super_admin', 'entity_admin', 'hr_manager'].includes(qaRole)
       && ['Run Payroll', 'Salary Structures', 'Deductions & Allowances'].some((label) => Array.from(stage.querySelectorAll('button')).some((b) => b.textContent.trim() === label))) issues.push('manager payroll action exposed');
     if (faults.length > previousFaults) issues.push(...faults.slice(previousFaults));

@@ -44,9 +44,13 @@ const statusTone = (r) =>
 const fmtDate = (d) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
-export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }) {
-  const { data: employees = [] } = useEmployees();
-  const [employeeId, setEmployeeId] = useState(fixedId ?? '');
+export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee: fixedEmployee, onBack, embedded = false }) {
+  // Self-service supplies the signed-in employee. It needs neither a directory query
+  // nor a person picker, even when the account also holds a management role.
+  const { data: employees = [] } = useEmployees({ enabled: !fixedEmployee });
+  const [selectedId, setEmployeeId] = useState('');
+  const lockedId = fixedEmployee?.id ?? fixedId;
+  const employeeId = lockedId ?? selectedId;
   // Defaults to the current month: the period anyone asking about someone's attendance means
   // first, and the one payroll is run against.
   // Subscribed so switching the clock format repaints these times at once.
@@ -61,8 +65,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
   // question — Half Day, Missing Punch and Weekly Off have no entry in SHOW and were unreachable.
   const [status, setStatus] = useState('All statuses');
 
-  const person = employees.find((e) => e.id === employeeId) ?? null;
-  const { data: rows = [], isLoading, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
+  const person = fixedEmployee ?? employees.find((e) => e.id === employeeId) ?? null;
+  const { data: rows = [], isLoading, error, refetch, isFetching, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
 
   // Only the statuses this person actually has in the range, so the list never offers a dead end.
   const statusOptions = useMemo(() => {
@@ -125,9 +129,20 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
     URL.revokeObjectURL(url);
   };
 
+  const exportButton = !error && rows.length > 0 && (
+    <button onClick={exportCsv} className={btnClass('ghost')}>
+      <Download size={13} /> Export
+    </button>
+  );
+
   return (
-    <div className="page-shell space-y-4 animate-fade-in">
-      <PageHeader
+    <div className={`${embedded ? '' : 'page-shell '}space-y-4 animate-fade-in`}>
+      {embedded ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold text-neutral-900 dark:text-white">Attendance overview</h2>
+          {exportButton}
+        </div>
+      ) : <PageHeader
         eyebrow="Time & Attendance"
         icon={CalendarDays}
         title={person ? person.full_name : 'Attendance detail'}
@@ -139,11 +154,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
         }
         actions={
           <>
-            {rows.length > 0 && (
-              <button onClick={exportCsv} className={btnClass('ghost')}>
-                <Download size={13} /> Export
-              </button>
-            )}
+            {exportButton}
             {onBack && (
               <button onClick={onBack} className={btnClass('ghost')}>
                 <ArrowLeft size={13} /> Back
@@ -151,10 +162,10 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
             )}
           </>
         }
-      />
+      />}
 
       {/* ---- who ---------------------------------------------------------------------- */}
-      {!fixedId && (
+      {!lockedId && (
         <div className="premium-card">
           <label htmlFor="att-person" className="block text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-1">
             Person
@@ -212,7 +223,14 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, onBack }
             </div>
           </div>
 
-          {isLoading ? (
+          {error ? (
+            <div role="alert" className="premium-card space-y-2">
+              <p className="text-sm text-red-700 dark:text-red-300">Couldn’t load attendance. Please try again.</p>
+              <button type="button" onClick={() => refetch()} disabled={isFetching} className={btnClass('ghost')}>
+                {isFetching ? 'Retrying…' : 'Try again'}
+              </button>
+            </div>
+          ) : isLoading ? (
             <div className="premium-card"><SkeletonRows rows={6} /></div>
           ) : (
             <>

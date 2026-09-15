@@ -117,7 +117,7 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
 
   return (
     <div className="asset-picker">
-      <div className="asset-picker-search">
+      <div className="asset-picker-search input-shell">
         <Search size={14} />
         <input
           value={q}

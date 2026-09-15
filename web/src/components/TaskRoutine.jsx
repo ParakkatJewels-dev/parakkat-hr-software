@@ -144,7 +144,7 @@ export default function TaskRoutine({ employees = [] }) {
               select, and a way out of both. A head moving between the two tabs should not have to
               learn a second set of controls for the same job. */}
           <div className="work-toolbar">
-            <label className="work-search">
+            <label className="work-search input-shell">
               <Search size={16} />
               <input
                 type="search"
@@ -155,7 +155,7 @@ export default function TaskRoutine({ employees = [] }) {
               />
             </label>
             <div className="work-filters">
-              <label className="work-filter"><span>Show</span>
+              <label className="work-filter input-shell"><span>Show</span>
                 <select
                   value={teamStatus}
                   onChange={(e) => { setTeamStatus(e.target.value); teamPager.setPage(1); }}

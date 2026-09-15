@@ -132,7 +132,7 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
         {tasks.length ? 'Your list may be out of date. ' : 'Could not load tasks. '}{humanDbError(loadError, 'tasks')}
       </p>}
 
-      <label className="work-search">
+      <label className="work-search input-shell">
         <Search size={16} />
         <input type="search" value={query} aria-label="Search my tasks" placeholder="Search my tasks…"
           onChange={(event) => { setQuery(event.target.value); openPager.setPage(1); closedPager.setPage(1); }} />

@@ -9,7 +9,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
   CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
-  SlidersHorizontal, Fingerprint,
+  SlidersHorizontal, Fingerprint, TrendingUp,
 } from 'lucide-react';
 import {
   useAttendanceSummary, useMonthlyAttendance, useAttendanceExceptions,
@@ -30,6 +30,7 @@ import { useSyncHealth, DIAGNOSIS, forHumans, useQueuedExport, useQueuedRecomput
 import EmployeeLink from './ui/EmployeeLink';
 import { useUrlTab } from '../lib/useUrlTab';
 import { useFocusRow } from '../lib/useFocusRow';
+import EmployeeAttendanceDetail from './EmployeeAttendanceDetail';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -54,6 +55,7 @@ import { useFocusRow } from '../lib/useFocusRow';
 const TABS = [
   { id: 'today', label: 'Today', icon: Users, perm: 'attendance.read', scoped: true },
   { id: 'calendar', label: 'My monthly calendar', icon: CalendarDays, self: true },
+  { id: 'overview', label: 'Overview', icon: TrendingUp, self: true },
   { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle, perm: 'attendance.manage' },
   { id: 'regularizations', label: 'Regularizations', icon: CheckCircle2 },
 ];
@@ -1250,6 +1252,13 @@ export default function Attendance() {
         <TodayView workDate={workDate} setWorkDate={setWorkDate} />
       ) : null}
       {tab === 'calendar' ? <CalendarView employeeId={employee?.id} employeeName={employee?.full_name} /> : null}
+      {tab === 'overview' ? (
+        employee?.id ? <EmployeeAttendanceDetail employee={employee} embedded /> : (
+          <div role="status" className="premium-card text-sm text-neutral-500">
+            Your login is not linked to an employee record. Contact HR to view your attendance overview.
+          </div>
+        )
+      ) : null}
       {tab === 'exceptions' ? <ExceptionsView /> : null}
       {tab === 'regularizations' ? <RegularizationsView employee={employee} canApprove={canApprove} /> : null}
     </div>
