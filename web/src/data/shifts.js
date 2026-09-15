@@ -6,8 +6,7 @@ import { fetchCollection } from '../lib/fetchCollection';
 export function useShifts() {
   return useQuery({
     queryKey: ['shifts'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('shifts')
         .select(
           `id, entity_id, code, name, start_time, end_time, crosses_midnight,
@@ -15,10 +14,7 @@ export function useShifts() {
            full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes,
            is_default, is_active, entity:entities(id, code, name)`
         )
-        .order('code');
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('code').order('id')),
   });
 }
 

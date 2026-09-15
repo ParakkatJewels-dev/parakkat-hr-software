@@ -251,6 +251,8 @@ function useAcknowledgeMessages(seen) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['conversations'] });
       qc.invalidateQueries({ queryKey: ['admin-conversations'] });
+      qc.invalidateQueries({ queryKey: ['message-delivery'] });
+      if (seen) qc.invalidateQueries({ queryKey: ['notifications'] });
     },
   });
 }
@@ -265,20 +267,26 @@ export function useMarkDelivered() {
   return useAcknowledgeMessages(false);
 }
 
-/** Mount once in the authenticated app. Fetching inbox metadata acknowledges delivery, never seen. */
-export function useIncomingMessageDelivery() {
+/** Shared unread inbox snapshot. Reading this query has no receipt mutation side effects. */
+export function useMessageInbox() {
   const { employee } = useAuth();
-  const acknowledged = useRef(new Map());
-  const { mutateAsync: markDelivered } = useMarkDelivered();
-  const query = useQuery({
+  return useQuery({
     enabled: Boolean(employee?.id),
     queryKey: ['message-delivery', employee?.id],
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     queryFn: () => fetchCollection(() => supabase.from('my_conversations')
-      .select('id, last_incoming_message_id, last_incoming_message_created_at, last_delivered_at, last_delivered_message_id')
+      .select('id, unread_count, request_status, last_incoming_message_id, last_incoming_message_created_at, last_delivered_at, last_delivered_message_id')
       .order('id')),
   });
+}
+
+/** Mount once in the authenticated app. Fetching inbox metadata acknowledges delivery, never seen. */
+export function useIncomingMessageDelivery() {
+  const { employee } = useAuth();
+  const acknowledged = useRef(new Map());
+  const { mutateAsync: markDelivered } = useMarkDelivered();
+  const query = useMessageInbox();
 
   useEffect(() => {
     if (!employee?.id || !query.isSuccess) return;

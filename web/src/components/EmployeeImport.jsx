@@ -16,6 +16,7 @@ import { usePermissions } from '../auth/usePermissions';
 import { useQueryClient } from '@tanstack/react-query';
 import { detectLayout, extractPeople, planImport, runImport } from '../data/employeeImport';
 import PageHeader from './ui/PageHeader';
+import PagedCollection from './ui/PagedCollection';
 
 const STATUS_STYLE = {
   new: 'text-brand-ink dark:text-brand-ink',
@@ -81,6 +82,7 @@ export default function EmployeeImport({ onDone }) {
   }, [people, entityId, employees, org]);
 
   const entity = entities.find((e) => e.id === entityId);
+  const previewKey = useMemo(() => ({ rawRows, entityId }), [rawRows, entityId]);
 
   const doImport = async () => {
     if (!plan || !entity) return;
@@ -261,40 +263,7 @@ export default function EmployeeImport({ onDone }) {
                     </button>
                   </div>
 
-                  <div className="premium-card import-preview-card p-0 overflow-hidden">
-                    <div className="table-scroll">
-                      <table className="premium-table">
-                        <thead>
-                          <tr>
-                            <th className="w-16">Row</th>
-                            <th>Name</th>
-                            <th className="hidden sm:table-cell">Designation</th>
-                            <th className="hidden md:table-cell">Branch</th>
-                            <th className="w-44">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {plan.rows.map((r) => (
-                            <tr key={`${r._row}-${r.full_name}`}>
-                              <td data-label="Row" className="text-2xs font-mono text-neutral-400">{r._row}</td>
-                              <td data-label="Name" className="font-semibold text-neutral-900 dark:text-white">{r.full_name}</td>
-                              <td data-label="Designation" className="hidden sm:table-cell text-neutral-500">
-                                {r.designation || '—'}
-                                {r.newDesignation && <span className="ml-1.5 text-2xs text-brand-ink">new</span>}
-                              </td>
-                              <td data-label="Branch" className="hidden md:table-cell text-neutral-500">
-                                {r.branch || '—'}
-                                {r.newBranch && <span className="ml-1.5 text-2xs text-brand-ink">new</span>}
-                              </td>
-                              <td data-label="Status" className={`text-xs font-semibold ${STATUS_STYLE[r.status]}`}>
-                                {r.status === 'new' ? 'Will be created' : r.note}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  <ImportPreview rows={plan.rows} resetKey={previewKey} busy={busy} />
                 </>
               )}
             </>
@@ -332,5 +301,47 @@ export default function EmployeeImport({ onDone }) {
         </div>
       )}
     </div>
+  );
+}
+
+// Paging affects the review only; doImport always submits the complete plan.
+export function ImportPreview({ rows, resetKey, busy }) {
+  return (
+    <PagedCollection items={rows} pageSize={25} noun="import rows" resetKey={resetKey} disabled={busy}>
+      {(pageRows) => <div className="premium-card import-preview-card p-0 overflow-hidden">
+        <div className="table-scroll">
+          <table className="premium-table">
+            <thead>
+              <tr>
+                <th className="w-16">Row</th>
+                <th>Name</th>
+                <th className="hidden sm:table-cell">Designation</th>
+                <th className="hidden md:table-cell">Branch</th>
+                <th className="w-44">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pageRows.map((r) => (
+                <tr key={`${r._row}-${r.full_name}`}>
+                  <td data-label="Row" className="text-2xs font-mono text-neutral-400">{r._row}</td>
+                  <td data-label="Name" className="font-semibold text-neutral-900 dark:text-white">{r.full_name}</td>
+                  <td data-label="Designation" className="hidden sm:table-cell text-neutral-500">
+                    {r.designation || '—'}
+                    {r.newDesignation && <span className="ml-1.5 text-2xs text-brand-ink">new</span>}
+                  </td>
+                  <td data-label="Branch" className="hidden md:table-cell text-neutral-500">
+                    {r.branch || '—'}
+                    {r.newBranch && <span className="ml-1.5 text-2xs text-brand-ink">new</span>}
+                  </td>
+                  <td data-label="Status" className={`text-xs font-semibold ${STATUS_STYLE[r.status]}`}>
+                    {r.status === 'new' ? 'Will be created' : r.note}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>}
+    </PagedCollection>
   );
 }

@@ -10,7 +10,7 @@ import { istToday } from '../lib/dates.js';
 import { rangeFor } from '../lib/dateRange.js';
 
 let server, AuthContext, Administration, Onboarding, Recruitment, ReportTable, Pagination, Payroll,
-  RegularizationsView, ExceptionsView, Team, PeopleOverview, Performance, NewConversation, GroupPanel, ConversationSettings, Thread, ChatMonitor;
+  RegularizationsView, ExceptionsView, Team, PeopleOverview, Performance, NewConversation, GroupPanel, ConversationSettings, Thread, ChatMonitor, AttendanceAdmin;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
@@ -26,6 +26,7 @@ before(async () => {
   ({ default: Performance } = await server.ssrLoadModule('/src/components/Performance.jsx'));
   ({ NewConversation, GroupPanel, ConversationSettings, Thread } = await server.ssrLoadModule('/src/components/Messages.jsx'));
   ({ default: ChatMonitor } = await server.ssrLoadModule('/src/components/ChatMonitor.jsx'));
+  ({ default: AttendanceAdmin } = await server.ssrLoadModule('/src/components/AttendanceAdmin.jsx'));
 });
 after(async () => { await server?.close(); });
 
@@ -56,6 +57,40 @@ test('Users & Access mounts 25 account controls for 675 users, with all three co
   for (const label of ['Sample Jewellery', 'Sample Manufacturing', 'Sample Retail', 'Search user accounts',
     'Go to account page', 'Page 1 of 27', 'of 675 accounts', 'Account status']) assert.ok(html.includes(label), label);
   assert.doesNotMatch(html, /employee675@example.test/);
+});
+
+test('attendance setup pages growing terminal, shift, holiday and leave-type lists', () => {
+  const year = new Date().getFullYear();
+  const rows = Array.from({ length: 675 }, (_, i) => ({ id: `config-${i}`, code: `C${i}`,
+    name: `Config ${i}`, serial_number: `Terminal ${i}`, start_time: '09:00', end_time: '18:00',
+    weekly_offs: [0], holiday_date: `${year}-01-01` }));
+  const cases = [
+    ['mapping', [['devices'], rows], 'Serial', 10, 'terminals'],
+    ['shifts', [['shifts'], rows], 'Code', 10, 'shifts'],
+    ['holidays', [['holidays', 'calendar', year], rows], 'Date', 25, 'holidays'],
+    ['leaveTypes', [['leave-types'], rows], 'Code', 10, 'leave types'],
+  ];
+  for (const [route, seed, column, size, noun] of cases) {
+    const html = render(AttendanceAdmin, [seed, [['holiday-calendars'], [{ id: 'calendar', name: 'Calendar', is_default: true }]]], {}, `/attendance-admin/${route}`);
+    assert.equal((html.match(new RegExp(`data-label="${column}"`, 'g')) ?? []).length, size, route);
+    assert.match(html, new RegExp(`of 675 ${noun}`));
+    assert.match(html, /aria-label="Last page"/);
+  }
+});
+
+test('sync run and service request histories expose server totals and independent pagers', () => {
+  const stamp = new Date().toISOString();
+  const rows = Array.from({ length: 25 }, (_, i) => ({ id: `run-${i}`, kind: 'transactions', status: 'success',
+    started_at: stamp, records_fetched: i + 1, records_inserted: i + 1, records_skipped: 0 }));
+  const requests = rows.slice(0, 8).map(row => ({ ...row, kind: 'sync_transactions', status: 'done', requested_at: stamp }));
+  const html = render(AttendanceAdmin, [
+    [['sync-runs', 'page', 1, 25], { rows, count: 125 }],
+    [['service-commands', 'page', 1, 8], { rows: requests, count: 37 }],
+  ], {}, '/attendance-admin/sync');
+  assert.equal((html.match(/data-label="Started"/g) ?? []).length, 25);
+  assert.match(html, /of 125 sync runs/);
+  assert.match(html, /of 37 service requests/);
+  assert.equal((html.match(/aria-label="Last page"/g) ?? []).length, 2);
 });
 test('onboarding renders 10 hires with a reachable final page instead of 675 cards', () => {
   const data = Array.from({ length: 675 }, (_, i) => ({ id: `hire-${i}`, name: `Hire ${i}`, tasks: [], progress: 0 }));

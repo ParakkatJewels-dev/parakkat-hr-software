@@ -138,7 +138,9 @@
     "0132_allow_names_in_passwords.sql",
     "0133_chat_preferences.sql",
     "0134_chat_typing.sql",
-    "0135_developer_api_keys.sql"
+    "0135_developer_api_keys.sql",
+    "0136_complete_team_employee_picker.sql",
+    "0137_read_chat_notifications.sql"
   ],
   "roles": [
     {

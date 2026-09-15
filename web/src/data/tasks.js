@@ -25,8 +25,9 @@ const TASK_FIELDS_WITH_ASSIGNEES = `${TASK_FIELDS},
    assignees:task_assignees(employee_id, employee:employees!task_assignees_employee_id_fkey(id, full_name, employee_code, branch:branches(code))),
    checklist:task_checklist_items(id, completed_at, completed_by)`;
 
-export function useTasks() {
+export function useTasks({ enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['tasks'],
     queryFn: async () => {
       const read = (fields) => () => fetchCollection(() => supabase

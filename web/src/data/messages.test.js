@@ -31,7 +31,7 @@ registerHooks({
   },
 });
 
-const { useSendMessage, useStartDirect, useRespondToMessageRequest, useMarkRead, useMarkDelivered, useIncomingMessageDelivery } = await import('./messages.js');
+const { useSendMessage, useStartDirect, useRespondToMessageRequest, useMarkRead, useMarkDelivered, useMessageInbox, useIncomingMessageDelivery } = await import('./messages.js');
 
 test('sending or retrying uploaded voice notes inserts integer milliseconds', async () => {
   const inserted = [];
@@ -138,6 +138,49 @@ test('large fetched message sets stay within the server receipt batch limit', as
   await useMarkRead().mutationFn({ conversationId: 'room-1', messageIds: ids });
   assert.deepEqual(batches.map(batch => batch.length), [1000, 1000, 25]);
   assert.deepEqual(batches.flat(), ids);
+});
+
+test('acknowledging read messages refreshes global unread counts and synced notifications without waiting for realtime', async () => {
+  globalThis.messageTestInvalidations = [];
+  globalThis.messageTestDb = { async rpc() { return {}; } };
+  try {
+    await useMarkRead().mutateAsync({ conversationId: 'room-1', messageIds: ['message-1'] });
+    assert.ok(globalThis.messageTestInvalidations.some(key => key[0] === 'message-delivery'));
+    assert.ok(globalThis.messageTestInvalidations.some(key => key[0] === 'conversations'));
+    assert.ok(globalThis.messageTestInvalidations.some(key => key[0] === 'notifications'));
+    globalThis.messageTestInvalidations.length = 0;
+    await useMarkDelivered().mutateAsync({ conversationId: 'room-1', messageIds: ['message-1'] });
+    assert.ok(!globalThis.messageTestInvalidations.some(key => key[0] === 'notifications'), 'delivery does not change read notifications');
+  } finally {
+    delete globalThis.messageTestInvalidations;
+  }
+});
+
+test('the shared Home inbox query does not acknowledge message delivery or seen', async () => {
+  globalThis.messageTestEffects = [];
+  globalThis.messageTestDb = { rpc() { assert.fail('an inbox count must not acknowledge receipts'); } };
+  try {
+    const inbox = useMessageInbox();
+    assert.deepEqual(inbox.queryKey, ['message-delivery', 'employee-1']);
+    assert.equal(inbox.refetchInterval, 30_000);
+    assert.deepEqual(globalThis.messageTestEffects, []);
+  } finally {
+    delete globalThis.messageTestEffects;
+  }
+});
+
+test('the app delivery query also returns complete unread counts and request states for navigation badges', async () => {
+  const rows = Array.from({ length: 55 }, (_, index) => ({ id: `room-${index}`, unread_count: index,
+    request_status: index % 2 ? 'accepted' : 'pending' }));
+  globalThis.messageTestDb = { from(table) {
+    assert.equal(table, 'my_conversations');
+    return {
+      select(fields) { assert.ok(fields.includes('unread_count')); assert.ok(fields.includes('request_status')); return this; },
+      order(field) { assert.equal(field, 'id'); return this; },
+      async range(from, to) { return { data: rows.slice(from, Math.min(to + 1, from + 17)) }; },
+    };
+  } };
+  assert.deepEqual(await useIncomingMessageDelivery().queryFn(), rows, 'a low API row cap cannot hide badge counts');
 });
 
 test('the app delivery hook acknowledges new fetched inbox cursors once, never seen, and retries failed delivery', async () => {

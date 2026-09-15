@@ -1,4 +1,5 @@
-import { qaState } from './client.js';
+import { qaState, simulateChatActivity, simulateActionActivity } from './client.js';
+import { actionsFixtures, chatFixtures } from './fixtures.js';
 import { ROLE_NAMES, qaRole, roleMode, expectsDeniedScreen, qaExpectedCounts, qaExpectedDashboard } from './roles.js';
 import { setChosenRole } from '../src/lib/viewRole.js';
 import '../src/main.jsx';
@@ -19,8 +20,42 @@ document.body.appendChild(panel);
 if (new URL(window.location.href).searchParams.has('qa-mobile')) {
   panel.querySelector('p').textContent = 'Isolated phone fixtures. Routine ticks save in memory only; all other writes and external connections are blocked.';
 }
-if (new URL(window.location.href).searchParams.has('qa-chat')) {
+if (chatFixtures) {
   panel.querySelector('p').textContent = 'Isolated chat fixtures. Synthetic messages and chat preferences save in memory only; external connections and other writes are blocked.';
+  // Keep test controls away from the chat composer and its Send button on narrow screens.
+  Object.assign(panel.style, { top: '4px', left: '4px', right: 'auto', bottom: 'auto' });
+  const controls = document.createElement('div');
+  for (const [action, label] of [['incoming', 'Simulate incoming message'], ['delivered', 'Simulate peer delivery'], ['read', 'Simulate peer read'], ['typing', 'Simulate peer typing'], ['stop', 'Stop peer typing']]) {
+    const button = document.createElement('button');
+    button.textContent = label;
+    button.onclick = () => simulateChatActivity(action);
+    controls.appendChild(button);
+  }
+  panel.appendChild(controls);
+}
+if (actionsFixtures) {
+  panel.querySelector('p').textContent = 'Isolated Home actions fixtures. Synthetic task status, message receipts, notification reads and remote approval save in memory only. External connections and all other writes are blocked.';
+  const controls = document.createElement('div');
+  controls.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;max-width:420px';
+  const result = document.createElement('p');
+  result.setAttribute('role', 'status');
+  result.setAttribute('aria-label', 'QA action result');
+  for (const [action, label] of [
+    ['complete-overdue', 'Complete own overdue task'],
+    ['complete-today', 'Complete own due-today task'],
+    ['complete-assigned', 'Complete own newly assigned task'],
+    ['complete-self', 'Complete own personal to-do'],
+    ['approve-request', 'Approve sample leave request'],
+    ['partial-read', 'Read first unread Asha message'],
+    ['incoming', 'Add incoming message and notification'],
+  ]) {
+    const button = document.createElement('button');
+    button.textContent = label;
+    button.onclick = async () => { result.textContent = await simulateActionActivity(action); };
+    controls.appendChild(button);
+  }
+  panel.appendChild(controls);
+  panel.appendChild(result);
 }
 if (new URL(window.location.href).searchParams.has('qa-developer')) {
   panel.querySelector('p').textContent = 'Isolated developer fixtures. API settings and unusable sample keys save in memory only; external connections and other writes are blocked.';

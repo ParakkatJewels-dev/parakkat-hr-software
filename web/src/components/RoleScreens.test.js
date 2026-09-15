@@ -29,7 +29,7 @@ const org = { entities: ['a', 'b'].map((x) => ({ id: `entity-${x}`, name: `Compa
   zones: ['a', 'b'].map((x) => ({ id: `zone-${x}`, name: `Zone ${x}`, entity_id: `entity-${x}`, is_active: true })),
   branches: ['a', 'b'].map((x) => ({ id: `branch-${x}`, name: `Branch ${x}`, code: x.toUpperCase(), entity_id: `entity-${x}`, zone_id: `zone-${x}`, is_active: true })),
   departments: ['a', 'b'].map((x) => ({ id: `department-${x}`, name: `Department ${x}`, entity_id: `entity-${x}`, branch_id: `branch-${x}`, is_active: true })), designations: [] };
-let server, matrix, AuthContext, App, Leave, Expense, Payroll, Performance, TaskManagement, Directory, Administration, RegularizationsView, SyncTab, TeamKpis, ZonalKpis, HrKpis, EntityKpis, TodayPriorities, ApprovalsQueue, originalWindow, originalStorage;
+let server, matrix, AuthContext, App, Leave, Expense, Payroll, Performance, TaskManagement, Directory, Administration, RegularizationsView, SyncTab, TeamKpis, ZonalKpis, HrKpis, EntityKpis, ActionCenter, ApprovalsQueue, originalWindow, originalStorage;
 
 before(async () => {
   matrix = JSON.parse(await readFile(new URL('../test/standardRolePermissions.json', import.meta.url), 'utf8'));
@@ -45,7 +45,8 @@ before(async () => {
   ({ default: Administration } = await server.ssrLoadModule('/src/components/Administration.jsx'));
   ({ RegularizationsView } = await server.ssrLoadModule('/src/components/Attendance.jsx'));
   ({ SyncTab } = await server.ssrLoadModule('/src/components/AttendanceAdmin.jsx'));
-  ({ TeamKpis, ZonalKpis, HrKpis, EntityKpis, TodayPriorities } = await server.ssrLoadModule('/src/components/Dashboard.jsx'));
+  ({ TeamKpis, ZonalKpis, HrKpis, EntityKpis } = await server.ssrLoadModule('/src/components/Dashboard.jsx'));
+  ({ default: ActionCenter } = await server.ssrLoadModule('/src/components/dashboard/ActionCenter.jsx'));
   ({ ApprovalsQueue } = await server.ssrLoadModule('/src/components/dashboard/teamWidgets.jsx'));
   originalWindow = globalThis.window;
   originalStorage = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -76,6 +77,7 @@ function tree(Component, auth, seeds = [], path = '/', props = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false, retry: false, retryOnMount: false, staleTime: Infinity, gcTime: 0 } } });
   for (const [key, value] of [[['employees'], people], [['org', 'all'], org], [['roles'], roleRows()], [['managed-users'], []],
     [['leaves'], []], [['expenses'], []], [['goals'], []], [['tasks'], []], [['notifications'], []], [['my-departments'], []],
+    [['notifications', 'task-assignments'], []], [['message-delivery', auth.employee?.id], []],
     [['payroll-runs'], []], [['leave-types'], []], [['assets'], []], ...seeds]) {
     if (value instanceof Error) client.getQueryCache().build(client, { queryKey: key }).setState({ status: 'error', fetchStatus: 'idle', error: value });
     else client.setQueryData(key, value);
@@ -106,6 +108,58 @@ function records(kind) {
     category: 'Travel', amount: 100, expense_date: istToday(), reason: `${employee.full_name} request`, created_by: `author-${employee.id}` }));
 }
 const count = (html, pattern) => (html.match(pattern) ?? []).length;
+
+test('unread message counts appear in desktop and mobile navigation for the signed-in inbox', async () => {
+  const auth = actor('employee');
+  const html = await renderApp(auth, '/dashboard', [[['message-delivery', 'self'], [
+    { id: 'one', unread_count: 2 }, { id: 'two', unread_count: 3 },
+    { id: 'declined', unread_count: 9, request_status: 'declined' },
+  ]]]);
+  assert.match(html, /aria-label="Messages, 5 unread messages"/);
+  assert.match(html, /aria-label="Chat, 5 unread messages"/);
+  assert.ok(count(html, /class="unread-message-badge(?: unread-message-badge-corner)?"/g) >= 2);
+  const cleared = await renderApp(auth, '/dashboard', [[['message-delivery', 'self'], [{ id: 'one', unread_count: 0 }]]]);
+  assert.doesNotMatch(cleared, /class="unread-message-badge/);
+  assert.match(cleared, /aria-label="Chat"/);
+});
+
+test('large unread totals stay exact for screen readers while visible badges cap at 99+', async () => {
+  const html = await renderApp(actor('branch_manager'), '/dashboard', [[['message-delivery', 'self'], [{ unread_count: 125 }]]]);
+  assert.match(html, /aria-label="Messages, 125 unread messages"/);
+  assert.match(html, /aria-label="Chat, 125 unread messages"/);
+  assert.match(html, /class="unread-message-badge[^\"]*">99\+</);
+});
+
+test('Home uses live unread counts even when old chat notifications are still unread', () => {
+  const stale = { id: 'stale', type: 'message', title: 'New message', ref_id: 'read-chat', tab: 'messages', read_at: null };
+  const seeds = [[['notifications'], [stale]], [['message-delivery', 'self'], [{ id: 'read-chat', unread_count: 0 }]]];
+  const cleared = render(ActionCenter, actor('employee'), seeds);
+  assert.doesNotMatch(cleared, /New message|unread message|Needs attention/);
+  assert.match(cleared, /You’re all caught up/);
+  const incoming = render(ActionCenter, actor('employee'), [...seeds,
+    [['message-delivery', 'self'], [{ id: 'read-chat', unread_count: 0 }, { id: 'new-chat', unread_count: 7 }]],
+  ]);
+  assert.match(incoming, /You have 7 unread messages/);
+});
+
+test('Home distinguishes new assignments from due work, then clears finished work', () => {
+  const assigned = { id: 'new-task', employee_id: 'self', title: 'Review branch handover', status: 'To Do' };
+  const notice = { id: 'assignment', ref_id: assigned.id, type: 'task', title: 'New task assigned' };
+  const seeds = [[['tasks'], [assigned]], [['notifications', 'task-assignments'], [notice]]];
+  assert.match(render(ActionCenter, actor('employee'), seeds), /You have a new task/);
+  const due = render(ActionCenter, actor('employee'), [...seeds, [['tasks'], [{ ...assigned, due_date: istToday() }]]]);
+  assert.match(due, /1 task due today/);
+  assert.doesNotMatch(due, /You have a new task/);
+  const finished = render(ActionCenter, actor('employee'), [...seeds, [['tasks'], [{ ...assigned, status: 'Done' }]]]);
+  assert.doesNotMatch(finished, /Review branch handover|new task|task due/);
+});
+
+test('failed Home reads do not claim everything is caught up', () => {
+  const html = render(ActionCenter, actor('employee'), [[['message-delivery', 'self'], new Error('Offline')]]);
+  assert.match(html, /Some actions could not be refreshed/);
+  assert.doesNotMatch(html, /You’re all caught up/);
+});
+
 const ROUTES = [
   ['directory', MANAGERS], ['employee-import', MANAGERS], ['team', MANAGERS], ['attendance-person', MANAGERS],
   ['assets', MANAGERS], ['reports', MANAGERS], ['administration', MANAGERS], ['admin-roles', MANAGERS],
@@ -185,13 +239,13 @@ for (const key of KEYS) {
       assert.doesNotMatch(inbox, /Self Worker/);
       if (key !== 'super_admin') assert.doesNotMatch(inbox, /Outside Worker/);
     }
-    const priorities = render(TodayPriorities, auth, seeds, '/', { role: key });
+    const priorities = render(ActionCenter, auth, seeds);
     if (leaves) {
-      assert.match(priorities, new RegExp(`${leaves} punch correction${leaves > 1 ? 's' : ''} waiting`));
-      assert.match(priorities, new RegExp(`${leaves} leave request${leaves > 1 ? 's' : ''} need decision`));
+      assert.match(priorities, new RegExp(`${leaves} punch correction${leaves > 1 ? 's' : ''} awaiting your approval`));
+      assert.match(priorities, new RegExp(`${leaves} leave request${leaves > 1 ? 's' : ''} awaiting your approval`));
     }
-    if (expenses) assert.match(priorities, new RegExp(`${expenses} expense claim${expenses > 1 ? 's' : ''} pending`));
-    else assert.doesNotMatch(priorities, /expense claims? pending/);
+    if (expenses) assert.match(priorities, new RegExp(`${expenses} expense claim${expenses > 1 ? 's' : ''} awaiting your approval`));
+    else assert.doesNotMatch(priorities, /expense claims? awaiting your approval/);
   });
   test(`${key}: goals use per-row authority and personal tasks remain usable`, () => {
     const goals = records('goal').map((row) => ({ ...row, title: `${row.employee.full_name} goal`, status: 'Active', progress: 25 }));

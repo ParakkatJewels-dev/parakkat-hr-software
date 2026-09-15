@@ -5,8 +5,9 @@ import { supabase } from '../lib/supabaseClient';
 import { windowStartIso } from '../lib/dates';
 import { fetchCollection } from '../lib/fetchCollection';
 
-export function useTickets() {
+export function useTickets({ enabled = true } = {}) {
   return useQuery({
+    enabled,
     queryKey: ['tickets'],
     queryFn: () => fetchCollection(() => supabase
         .from('tickets')
@@ -17,7 +18,8 @@ export function useTickets() {
            entity_id, zone_id, branch_id, department_id, employee_id,
            employee:employees!tickets_employee_id_fkey(full_name, employee_code, branch:branches(code))`
         )
-        .gte('created_at', windowStartIso(180))
+        // An unresolved support request must never disappear because it has been waiting.
+        .or(`status.in.(Open,"In Progress","On Hold"),created_at.gte.${windowStartIso(180)}`)
         .order('created_at', { ascending: false }).order('id')),
   });
 }

@@ -37,6 +37,8 @@ import { assigneesOf, isAssignedTo } from '../lib/taskBoard';
 import { useEmployees } from '../data/employees';
 import { usePermissions } from '../auth/usePermissions';
 import { messageLinkParts } from '../lib/messageLinks';
+import Pagination, { usePagination } from './ui/Pagination';
+import { useReadTaskAssignment } from '../data/notifications';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
@@ -49,6 +51,7 @@ const readableSize = (bytes) =>
 export default function TaskDetail({ task, open }) {
   const { user, employee } = useAuth();
   const { canAny } = usePermissions();
+  useReadTaskAssignment(task.id, open);
   const checklist = useChecklist(task.id, { enabled: open });
   const comments = useTaskComments(task.id, { enabled: open });
   const attachments = useTaskAttachments(task.id, { enabled: open });
@@ -68,6 +71,9 @@ export default function TaskDetail({ task, open }) {
 
   return (
     <div className="mt-3 pt-3 border-t border-neutral-150 dark:border-neutral-850/60 space-y-4">
+      {(checklist.error || comments.error || attachments.error) && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
+        {humanDbError(checklist.error || comments.error || attachments.error)}
+      </p>}
       <Checklist
         task={task}
         rows={checklist.data ?? []}
@@ -116,6 +122,7 @@ function Checklist({ task, rows, loading, onTask, myEmployeeId, canEdit }) {
   const assign = useAssignSubtask();
 
   const items = sortItems(rows);
+  const pager = usePagination(items, 10, null, taskId);
   const { total, done, percent } = checklistProgress(items);
   const error = add.error || toggle.error || remove.error || assign.error;
 
@@ -169,7 +176,7 @@ function Checklist({ task, rows, loading, onTask, myEmployeeId, canEdit }) {
         </div>
       )}
 
-      {items.map((item) => {
+      {pager.slice.map((item) => {
         const isDone = isItemDone(item);
         const by = tickedBy(item);
         const owner = ownerOf(item);
@@ -272,6 +279,7 @@ function Checklist({ task, rows, loading, onTask, myEmployeeId, canEdit }) {
           </div>
         );
       })}
+      <Pagination {...pager} noun="subtasks" sizes={[10, 25, 50]} />
 
       {error && (
         <p className="text-2xs text-rose-600 dark:text-rose-400">{humanDbError(error)}</p>
@@ -347,8 +355,9 @@ function OwnerPicker({ task, item, myEmployeeId, busy, onClose, onPick }) {
           || (e.employee_code || '').toLowerCase().includes(needle))
         .filter((e) => !onTaskPeople.some((p) => p.id === e.id))
         .filter(mayHold)
-        .slice(0, 6)
     : [];
+  const peoplePager = usePagination(found, 6, null, `${task.id}:${needle}`);
+  const assigneePager = usePagination(onTaskPeople, 10, item.assigned_to, task.id);
 
   const pick = (id) => { if (!busy) onPick(id); };
 
@@ -368,7 +377,7 @@ function OwnerPicker({ task, item, myEmployeeId, busy, onClose, onPick }) {
 
       {onTaskPeople.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {onTaskPeople.map((p) => (
+          {assigneePager.slice.map((p) => (
             <button
               key={p.id} type="button" onClick={() => pick(p.id)} disabled={busy}
               aria-pressed={p.id === item.assigned_to}
@@ -384,6 +393,7 @@ function OwnerPicker({ task, item, myEmployeeId, busy, onClose, onPick }) {
           ))}
         </div>
       )}
+      <Pagination {...assigneePager} noun="task assignees" sizes={[10, 25, 50]} disabled={busy} />
 
       <input
         value={q}
@@ -402,7 +412,7 @@ function OwnerPicker({ task, item, myEmployeeId, busy, onClose, onPick }) {
 
       {found.length > 0 && (
         <div className="max-h-32 overflow-y-auto rounded-lg border border-neutral-200 dark:border-neutral-850 divide-y divide-neutral-150 dark:divide-neutral-850/60">
-          {found.map((e) => (
+          {peoplePager.slice.map((e) => (
             <button
               key={e.id} type="button" onClick={() => pick(e.id)} disabled={busy}
               className="w-full flex items-center justify-between gap-2 px-2 py-1.5 text-xs text-left bg-white dark:bg-neutral-900 hover:bg-neutral-100 dark:hover:bg-neutral-900/60 cursor-pointer"
@@ -415,6 +425,7 @@ function OwnerPicker({ task, item, myEmployeeId, busy, onClose, onPick }) {
           ))}
         </div>
       )}
+      <Pagination {...peoplePager} noun="matching people" sizes={[6, 12, 25]} disabled={busy} />
 
       {/* The way out of a step owned by somebody on leave, which would otherwise hold the whole
           task open — the rollup closes a task only once every line is ticked. */}
@@ -439,6 +450,7 @@ function OwnerPicker({ task, item, myEmployeeId, busy, onClose, onPick }) {
 /* -------------------------------------------------------------------- files -- */
 
 function Attachments({ rows, loading, myUserId }) {
+  const pager = usePagination(rows, 10);
   const remove = useRemoveTaskAttachment();
   const signed = useTaskFileUrl();
   const error = humanDbError(remove.error || signed.error, 'task_attachments');
@@ -466,7 +478,7 @@ function Attachments({ rows, loading, myUserId }) {
         <p className="text-2xs text-neutral-400">No files shared yet.</p>
       ) : (
         <ul className="space-y-1">
-          {rows.map((row) => (
+          {pager.slice.map((row) => (
             <li key={row.id} className="flex items-center justify-between gap-2 text-xs rounded-lg px-2 py-1.5 bg-neutral-50 dark:bg-neutral-950/40 border border-neutral-150 dark:border-neutral-850">
               <span className="flex items-center gap-2 min-w-0">
                 {row.kind === 'link' ? <Link2 size={12} className="text-[var(--work-accent)] shrink-0" /> : <FileText size={12} className="text-[var(--work-accent)] shrink-0" />}
@@ -504,6 +516,7 @@ function Attachments({ rows, loading, myUserId }) {
           ))}
         </ul>
       )}
+      {!loading && <Pagination {...pager} noun="shared files" sizes={[10, 25, 50]} />}
     </section>
   );
 }
@@ -526,6 +539,7 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
   // Which comment the box is currently answering, and which threads have their replies open.
   const [replyTo, setReplyTo] = useState(null);
   const [expanded, setExpanded] = useState(() => new Set());
+  const [postedId, setPostedId] = useState(null);
   const add = useAddTaskComment();
   const addFile = useAddTaskFile();
   const remove = useDeleteTaskComment();
@@ -540,6 +554,9 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
   const composerRef = useRevealOnOpen(Boolean(replyTo), { block: 'center', key: replyTo?.id ?? null });
 
   const thread = buildThread(rows);
+  const postedRoot = thread.find((comment) => comment.id === postedId || comment.replies.some((reply) => reply.id === postedId));
+  // Every successful post is a fresh focus request, including another reply to the same root.
+  const pager = usePagination(thread, 10, postedRoot?.id, `${taskId}:${postedId ?? ''}`);
   // 0110 may not be applied yet — the query falls back to the flat shape then. Offering Reply
   // would take somebody's answer and post it as a new top-level comment under a chip promising
   // otherwise, so the affordance is simply absent until the column exists.
@@ -583,7 +600,10 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
         await addFile.mutateAsync({ taskId, file: pendingFile });
         setPendingFile(null);
       }
-      if (text) await add.mutateAsync({ taskId, body: text, parentId: replyTo?.id ?? null });
+      if (text) {
+        const created = await add.mutateAsync({ taskId, body: text, parentId: replyTo?.id ?? null });
+        setPostedId(created?.[0]?.id ?? null);
+      }
       setBody('');
       setReplyTo(null);
       setFileError(null);
@@ -606,7 +626,7 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
         <p className="text-2xs text-neutral-400">Nothing said yet. If it is blocked, this is where to say why.</p>
       ) : (
         <ul className="space-y-3">
-          {thread.map((c) => (
+          {pager.slice.map((c) => (
             <li key={c.id} className="space-y-1.5">
               <CommentRow
                 comment={c}
@@ -627,22 +647,16 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
                     {replyToggleLabel(c.replies.length, expanded.has(c.id))}
                   </button>
 
-                  {expanded.has(c.id) && c.replies.map((r) => (
-                    <CommentRow
-                      key={r.id}
-                      comment={r}
-                      compact
-                      mine={r.author_user === myUserId}
-                      onReply={canReply ? () => startReply(r, c.id) : null}
-                      onDelete={() => remove.mutate(r.id)}
-                    />
-                  ))}
+                  {expanded.has(c.id) && <CommentReplies rows={c.replies} myUserId={myUserId}
+                    focusId={postedId} onReply={canReply ? (reply) => startReply(reply, c.id) : null}
+                    onDelete={(id) => remove.mutate(id)} />}
                 </div>
               )}
             </li>
           ))}
         </ul>
       )}
+      {!loading && <Pagination {...pager} noun="comment threads" sizes={[10, 25, 50]} />}
 
       {(attachmentsLoading || attachmentRows.length > 0) && (
         <Attachments rows={attachmentRows} loading={attachmentsLoading} myUserId={myUserId} />
@@ -758,6 +772,16 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
       </div>
     </section>
   );
+}
+
+function CommentReplies({ rows, myUserId, focusId, onReply, onDelete }) {
+  const pager = usePagination(rows, 10, focusId);
+  return <>
+    {pager.slice.map((reply) => <CommentRow key={reply.id} comment={reply} compact
+      mine={reply.author_user === myUserId} onReply={onReply ? () => onReply(reply) : null}
+      onDelete={() => onDelete(reply.id)} />)}
+    <Pagination {...pager} noun="replies" sizes={[10, 25, 50]} />
+  </>;
 }
 
 /** One remark: who said it, when, what, and the two things you can do about it. */

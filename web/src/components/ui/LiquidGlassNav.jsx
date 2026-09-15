@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { clamp, constrainLens, dragIntent, insideDock, nearestDestination, stepSpring } from './liquidGlassMotion.js';
+import UnreadMessageBadge, { unreadMessageLabel } from './UnreadMessageBadge';
 
 /** A small DOM-only spring: motion never rerenders the application or samples its content. */
 export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = false, isPwaInstalled = false }) {
@@ -284,7 +285,7 @@ export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = f
       return <button key={item.id} ref={node => { if (node) buttonsRef.current.set(item.id, node); else buttonsRef.current.delete(item.id); }}
         type="button" className={`mobile-bottom-nav-item${active ? ' mobile-bottom-nav-item-active' : ''}`}
         data-glass-destination={item.id} disabled={item.disabled}
-        aria-label={item.label} aria-current={active ? 'page' : undefined}
+        aria-label={unreadMessageLabel(item.label, item.unreadCount)} aria-current={active ? 'page' : undefined}
         aria-haspopup={item.id === 'menu' ? 'dialog' : undefined}
         aria-controls={item.id === 'menu' ? 'mobile-navigation' : undefined}
         aria-expanded={item.id === 'menu' ? menuOpen : undefined}
@@ -293,7 +294,9 @@ export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = f
           {item.avatarUrl && item.avatarUrl !== failedAvatar
             ? <img src={item.avatarUrl} alt="" draggable="false" onError={() => setFailedAvatar(item.avatarUrl)} />
             : item.initials || 'Me'}
-        </span></span> : <span className="mobile-bottom-nav-icon" aria-hidden="true">{Icon && <Icon size={20} />}</span>}
+        </span></span> : <span className="mobile-bottom-nav-icon" aria-hidden="true"><span className="nav-message-icon">
+          {Icon && <Icon size={20} />}<UnreadMessageBadge count={item.unreadCount} corner />
+        </span></span>}
         <span className="mobile-bottom-nav-label" aria-hidden="true">{item.label}</span>
       </button>;
     })}

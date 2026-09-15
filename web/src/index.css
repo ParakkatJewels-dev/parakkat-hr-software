@@ -4420,8 +4420,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
    The ≤640px rule further down already states its own `padding` shorthand, which includes this
    value; it stays authoritative there because it also carries the mobile nav's bottom clearance. */
 .app-main { padding-inline: var(--space-shell); }
-.page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
-.page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) {
+.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
+.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -4434,12 +4434,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   color: var(--surface-text);
   box-shadow: var(--shadow-card);
 }
-.page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1) h1,
-.page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) h2 { margin: 0; }
-.page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1) p,
-.page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) p { max-width: 46rem; margin-top: .25rem; font-size: .8125rem !important; line-height: 1.5; color: var(--surface-text-soft); }
-.dark .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
-.dark .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) { background: var(--surface-elevated); border-color: var(--surface-border); }
+.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) h1,
+.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) h2 { margin: 0; }
+.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) p,
+.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) p { max-width: 46rem; margin-top: .25rem; font-size: .8125rem !important; line-height: 1.5; color: var(--surface-text-soft); }
+.dark .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
+.dark .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) { background: var(--surface-elevated); border-color: var(--surface-border); }
 .page-shell .premium-card > h3,
 .page-shell .premium-card > div > h3 { color: #142720; }
 .dark .page-shell .premium-card > h3,
@@ -4876,8 +4876,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   --work-line: color-mix(in srgb, var(--surface-border-strong) 78%, transparent);
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h2) {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
   position: relative;
   overflow: hidden;
   align-items: flex-start;
@@ -4888,8 +4888,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   box-shadow: 0 1px 2px rgba(16, 32, 26, .035);
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h1)::before,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h2)::before {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1)::before,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2)::before {
   content: '';
   position: absolute;
   inset-block: .85rem;
@@ -4899,16 +4899,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   background: linear-gradient(180deg, var(--accent), var(--tone-blue));
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h1) h1,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h2) h2 {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) h1,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) h2 {
   display: flex;
   align-items: center;
   gap: .45rem;
   font-weight: 800 !important;
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h1) h1 svg,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h2) h2 svg {
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) h1 svg,
+.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) h2 svg {
   width: 1.05rem;
   height: 1.05rem;
   color: var(--accent-strong);
@@ -6490,8 +6490,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-column: 1 / -1;
   }
 
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) {
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
     padding: .7rem .8rem;
     flex-direction: column;
     align-items: flex-start;
@@ -6501,34 +6501,34 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       var(--surface-elevated);
   }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h2) {
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
     border-radius: var(--radius-sm);
     background: var(--surface-elevated);
     box-shadow: none;
   }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h1)::before,
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.emp-profile):not(.profile-hero):has(h2)::before {
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1)::before,
+  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2)::before {
     inset-block: .7rem;
     width: 2px;
   }
 
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1) p,
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) p {
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) p,
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) p {
     margin-top: .15rem;
     font-size: .75rem !important;
     line-height: 1.35;
   }
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1) > *,
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) > * {
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) > *,
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) > * {
     min-width: 0;
     width: 100%;
   }
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1) > button,
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1) > a,
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) > button,
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) > a {
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) > button,
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) > a,
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) > button,
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) > a {
     justify-content: center;
   }
   .page-header-actions {
@@ -8932,8 +8932,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     left: max(.45rem, calc(var(--mobile-nav-safe-left) + .2rem));
   }
 
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h1),
-  .page-shell > :first-child:not(.emp-profile):not(.profile-hero):has(h2) {
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
+  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
     padding: .75rem;
   }
 

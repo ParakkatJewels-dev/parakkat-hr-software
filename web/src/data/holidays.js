@@ -1,37 +1,32 @@
 // Holiday calendars and the holidays inside them.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
+import { fetchCollection } from '../lib/fetchCollection';
 
 export function useHolidayCalendars() {
   return useQuery({
     queryKey: ['holiday-calendars'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('holiday_calendars')
         .select('id, entity_id, code, name, is_default, is_active, entity:entities(id, code, name)')
-        .order('name');
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('name').order('id')),
   });
 }
 
 export function useHolidays(calendarId, year) {
   return useQuery({
     queryKey: ['holidays', calendarId ?? 'all', year],
-    queryFn: async () => {
+    queryFn: () => fetchCollection(() => {
       let query = supabase
         .from('holidays')
         .select('id, calendar_id, holiday_date, name, is_optional, calendar:holiday_calendars(id, name)')
-        .order('holiday_date');
+        .order('holiday_date').order('id');
 
       if (calendarId) query = query.eq('calendar_id', calendarId);
       if (year) query = query.gte('holiday_date', `${year}-01-01`).lte('holiday_date', `${year}-12-31`);
 
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
-    },
+      return query;
+    }),
   });
 }
 

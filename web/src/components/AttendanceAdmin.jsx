@@ -4,8 +4,8 @@
 // and do not match employee_code, so until a code is mapped to a person their punches sit in
 // raw_punches unattached. This is where that gets resolved — confirming a suggested match also
 // adopts the historical punches and recomputes the affected dates.
-import { SkeletonTable } from './ui/Skeleton';
-import React, { useMemo, useState } from 'react';
+import { SkeletonRows, SkeletonTable } from './ui/Skeleton';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Clock, CalendarDays, Fingerprint, Activity, Loader2, Plus, Trash2, Check, X,
   RefreshCw, AlertTriangle, Search, Server, Wifi, WifiOff, Download, Palmtree,
@@ -18,8 +18,8 @@ import {
   useRefreshSuggestions, useEmployeeSearch, LINK_STATUS_LABELS, LINK_STATUS_STYLES,
 } from '../data/devices';
 import {
-  useServiceStatus, useSyncState, useSyncRuns, useTriggerSync, useTriggerBackfill,
-  useSyncHealth, useServiceCommands, DIAGNOSIS, RUN_STATUS_STYLES, relativeTime,
+  useServiceStatus, useSyncState, useSyncRunPage, useTriggerSync, useTriggerBackfill,
+  useSyncHealth, useServiceCommandPage, DIAGNOSIS, RUN_STATUS_STYLES, relativeTime,
 } from '../data/syncStatus';
 import { useVisibleOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
@@ -28,6 +28,7 @@ import { useAuth } from '../auth/AuthContext';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useUrlTab } from '../lib/useUrlTab';
+import { paginationWindow } from '../lib/pagination';
 
 const TABS = [
   { id: 'mapping', label: 'Devices & mapping', icon: Fingerprint, perm: 'device.manage' },
@@ -219,7 +220,8 @@ function MappingTab() {
   const showBranchMapping = devices.length > 1 || devices.some((d) => d.branch_id);
 
   // Device mappings scale with headcount — 242 people means 242 rows to reconcile.
-  const pager = usePagination(mappings);
+  const pager = usePagination(mappings, 25, null, status);
+  const devicesPager = usePagination(devices, 10);
 
   const filters = [
     { id: 'unmatched', label: `Needs mapping (${counts?.unmatched ?? 0})` },
@@ -333,7 +335,7 @@ function MappingTab() {
                 </tr>
               </thead>
               <tbody>
-                {devices.map((d) => (
+                {devicesPager.slice.map((d) => (
                   <tr key={d.id}>
                     <td data-label="Serial" className="font-mono text-2xs">{d.serial_number}</td>
                     <td data-label="Name">{d.alias ?? '—'}</td>
@@ -375,6 +377,7 @@ function MappingTab() {
             </table>
           </div>
         )}
+        <Pagination {...devicesPager} noun="terminals" sizes={[10, 25, 50]} disabled={saveDevice.isPending} />
       </div>
     </div>
   );
@@ -399,6 +402,7 @@ function ShiftsTab() {
   const save = useSaveShift();
   const remove = useDeleteShift();
   const [form, setForm] = useState(null);
+  const pager = usePagination(shifts, 10, null, '');
 
   /**
    * Which company a new shift belongs to.
@@ -555,7 +559,7 @@ function ShiftsTab() {
                 </tr>
               </thead>
               <tbody>
-                {shifts.map((s) => (
+                {pager.slice.map((s) => (
                   <tr key={s.id}>
                     <td data-label="Code" className="font-mono font-bold">
                       {s.code}
@@ -585,6 +589,7 @@ function ShiftsTab() {
           </div>
         )}
         <Note error={remove.error} />
+        <Pagination {...pager} noun="shifts" sizes={[10, 25, 50]} disabled={save.isPending || remove.isPending} />
       </div>
     </div>
   );
@@ -605,6 +610,7 @@ function HolidaysTab() {
   const save = useSaveHoliday();
   const remove = useDeleteHoliday();
   const [form, setForm] = useState(null);
+  const pager = usePagination(holidays, 25, null, `${effectiveCalendar}:${activeYear}`);
 
   const submit = (e) => {
     e.preventDefault();
@@ -675,7 +681,7 @@ function HolidaysTab() {
                 </tr>
               </thead>
               <tbody>
-                {holidays.map((h) => (
+                {pager.slice.map((h) => (
                   <tr key={h.id}>
                     <td data-label="Date" className="font-mono">{h.holiday_date}</td>
                     <td data-label="Day" className="text-neutral-500">
@@ -700,6 +706,7 @@ function HolidaysTab() {
             </table>
           </div>
         )}
+        <Pagination {...pager} noun="holidays" sizes={[25, 50, 100]} disabled={save.isPending || remove.isPending} />
       </div>
     </div>
   );
@@ -719,6 +726,7 @@ function LeaveTypesTab() {
   const { data: types = [], isLoading } = useLeaveTypes();
   const save = useSaveLeaveType();
   const [form, setForm] = useState(null);
+  const pager = usePagination(types, 10, null, '');
 
   const submit = (e) => {
     e.preventDefault();
@@ -801,7 +809,7 @@ function LeaveTypesTab() {
                 </tr>
               </thead>
               <tbody>
-                {types.map((t) => (
+                {pager.slice.map((t) => (
                   <tr key={t.id}>
                     <td data-label="Code" className="font-mono font-bold" style={t.colour ? { color: t.colour } : undefined}>{t.code}</td>
                     <td data-label="Name">{t.name}</td>
@@ -818,6 +826,7 @@ function LeaveTypesTab() {
             </table>
           </div>
         )}
+        <Pagination {...pager} noun="leave types" sizes={[10, 25, 50]} disabled={save.isPending} />
       </div>
     </div>
   );
@@ -845,14 +854,31 @@ function summariseResult(r) {
 export function SyncTab() {
   const { error: statusError } = useServiceStatus();
   const { data: health } = useSyncHealth();
-  const { data: commands = [] } = useServiceCommands(6);
+  const [commandPage, setCommandPage] = useState(1);
+  const [commandSize, setCommandSize] = useState(8);
+  const commandHistory = useServiceCommandPage(commandPage, commandSize);
+  const commands = commandHistory.data?.rows ?? [];
+  const commandPager = paginationWindow(commandHistory.data?.count ?? 0, commandPage, commandSize);
   const { data: state = [] } = useSyncState();
-  const { data: runs = [] } = useSyncRuns(25);
+  const [runPage, setRunPage] = useState(1);
+  const [runSize, setRunSize] = useState(25);
+  const runHistory = useSyncRunPage(runPage, runSize);
+  const runs = runHistory.data?.rows ?? [];
+  const runPager = paginationWindow(runHistory.data?.count ?? 0, runPage, runSize);
+  useEffect(() => {
+    if (commandHistory.data && !commandHistory.isPlaceholderData && commandPage !== commandPager.page) setCommandPage(commandPager.page);
+  }, [commandHistory.data, commandHistory.isPlaceholderData, commandPage, commandPager.page]);
+  useEffect(() => {
+    if (runHistory.data && !runHistory.isPlaceholderData && runPage !== runPager.page) setRunPage(runPager.page);
+  }, [runHistory.data, runHistory.isPlaceholderData, runPage, runPager.page]);
   const dx = DIAGNOSIS[health?.level] ?? {
     label: 'Checking…', tone: 'text-neutral-400', chain: '', hint: '',
   };
   const trigger = useTriggerSync();
   const backfill = useTriggerBackfill();
+  useEffect(() => {
+    if (trigger.isSuccess || backfill.isSuccess) setCommandPage(1);
+  }, [trigger.isSuccess, backfill.isSuccess]);
 
   // Dates in IST, not toISOString() (UTC): between 00:00 and 05:30 IST the UTC date is yesterday.
   const [range, setRange] = useState(() => {
@@ -973,7 +999,13 @@ export function SyncTab() {
         <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
           Requests
         </h3>
-        {commands.length === 0 ? (
+        {commandHistory.error ? (
+          <div role="alert"><Note error={commandHistory.error} />
+            <button type="button" onClick={() => commandHistory.refetch()} disabled={commandHistory.isFetching} className={btnGhost}>Try again</button>
+          </div>
+        ) : commandHistory.isLoading || commandHistory.isPlaceholderData ? (
+          <SkeletonRows rows={3} label="Loading service requests" />
+        ) : commands.length === 0 ? (
           <p className="text-xs text-neutral-500">Nothing requested yet.</p>
         ) : (
           <ul className="space-y-1.5">
@@ -1002,13 +1034,22 @@ export function SyncTab() {
             })}
           </ul>
         )}
+        <Pagination {...commandPager} setPage={setCommandPage}
+          setPageSize={size => { setCommandSize(size); setCommandPage(1); }}
+          noun="service requests" sizes={[8, 25, 50]} initialPageSize={8} disabled={commandHistory.isFetching} />
       </div>
 
       <div className="premium-card overflow-hidden">
         <div className="p-4 pb-2">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">Recent sync runs</h3>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">Sync runs</h3>
         </div>
-        {runs.length === 0 ? (
+        {runHistory.error ? (
+          <div role="alert" className="p-4"><Note error={runHistory.error} />
+            <button type="button" onClick={() => runHistory.refetch()} disabled={runHistory.isFetching} className={btnGhost}>Try again</button>
+          </div>
+        ) : runHistory.isLoading || runHistory.isPlaceholderData ? (
+          <SkeletonTable rows={5} columns={8} label="Loading sync runs" />
+        ) : runs.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">No runs recorded yet.</div>
         ) : (
           <div className="table-scroll">
@@ -1044,6 +1085,9 @@ export function SyncTab() {
             </table>
           </div>
         )}
+        <Pagination {...runPager} setPage={setRunPage}
+          setPageSize={size => { setRunSize(size); setRunPage(1); }}
+          noun="sync runs" sizes={[25, 50, 100]} initialPageSize={25} disabled={runHistory.isFetching} />
       </div>
     </div>
   );

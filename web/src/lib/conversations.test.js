@@ -157,6 +157,15 @@ test('a missing or odd count does not make the badge NaN', () => {
   assert.equal(unreadTotal(undefined), 0);
 });
 
+test('unread badges include requests but exclude declined chats and invalid counts', () => {
+  assert.equal(unreadTotal([
+    { unread_count: 3, request_status: 'accepted' },
+    { unread_count: '2', request_status: 'pending' },
+    { unread_count: 7, request_status: 'declined' },
+    { unread_count: -1 }, { unread_count: Infinity }, { unread_count: 'broken' },
+  ]), 5);
+});
+
 test('hasUnread is about the count, not the loaded messages', () => {
   assert.equal(hasUnread(conv({ unread_count: 1 })), true);
   assert.equal(hasUnread(conv({ unread_count: 0 })), false);

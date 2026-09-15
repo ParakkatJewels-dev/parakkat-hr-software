@@ -6,7 +6,7 @@
 // read it. One boundary, not two.
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { fetchInCollection } from '../lib/fetchCollection';
+import { fetchCollection, fetchInCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 import { withSchemaFallback } from '../lib/pendingMigration';
 
@@ -42,16 +42,12 @@ export function useTaskComments(taskId, { enabled = true } = {}) {
     enabled: enabled && Boolean(taskId),
     queryKey: ['task-comments', taskId],
     queryFn: async () => {
-      const read = (fields) => async () => {
-        const { data, error } = await supabase
+      const read = (fields) => () => fetchCollection(() => supabase
           .from('task_comments')
           .select(fields)
           .eq('task_id', taskId)
           .order('created_at', { ascending: true })
-          .limit(500);
-        if (error) throw error;
-        return data ?? [];
-      };
+          .order('id'));
       return withSchemaFallback(
         read(`${COMMENT_FIELDS}, parent_id`),
         read(COMMENT_FIELDS)

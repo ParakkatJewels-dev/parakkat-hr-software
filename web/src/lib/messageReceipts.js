@@ -29,3 +29,35 @@ export function messageDeliveryStatus(message, conversation) {
   if (recipients.every((member) => receiptCoversMessage(member, message, 'delivered'))) return 'delivered';
   return 'sent';
 }
+
+/** Apply a server receipt event immediately, without losing names or moving a cursor backwards. */
+export function mergeConversationReceipts(data, receipt) {
+  if (!receipt?.conversation_id || !receipt.employee_id) return data;
+  const conversations = Array.isArray(data) ? data : data?.conversations;
+  if (!Array.isArray(conversations)) return data;
+  let changed = false;
+  const next = conversations.map((conversation) => {
+    if (conversation.id !== receipt.conversation_id) return conversation;
+    let memberChanged = false;
+    const members = conversation.members?.map((member) => {
+      if (member.employee_id !== receipt.employee_id) return member;
+      let nextMember = member;
+      for (const kind of ['delivered', 'read']) {
+        const at = `last_${kind}_at`, id = `last_${kind}_message_id`;
+        if (timestampMicros(receipt[at]) === null) continue;
+        if (timestampMicros(member[at]) !== null && !receiptCoversMessage(receipt, {
+          created_at: member[at], id: member[id],
+        }, kind)) continue;
+        if (member[at] === receipt[at] && member[id] === receipt[id]) continue;
+        nextMember = { ...nextMember, [at]: receipt[at], [id]: receipt[id] ?? null };
+      }
+      memberChanged ||= nextMember !== member;
+      return nextMember;
+    });
+    if (!memberChanged) return conversation;
+    changed = true;
+    return { ...conversation, members };
+  });
+  if (!changed) return data;
+  return Array.isArray(data) ? next : { ...data, conversations: next };
+}

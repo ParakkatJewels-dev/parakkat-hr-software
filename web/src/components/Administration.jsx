@@ -926,6 +926,7 @@ function RolesMatrix() {
   const deleteRole = useDeleteRole();
   const [editing, setEditing] = useState(null); // role object, or {} for a new role
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const pager = usePagination(roles, 10);
 
   if (isLoading) return <SkeletonRows rows={5} avatar={false} label="Loading roles and permissions" />;
   if (error) return <p className="text-xs text-amber-600">{error.message}</p>;
@@ -968,7 +969,7 @@ function RolesMatrix() {
         </p>
       )}
 
-      {roles.map((r) => (
+      {pager.slice.map((r) => (
         <RoleCard
           key={r.id}
           role={r}
@@ -977,6 +978,8 @@ function RolesMatrix() {
           onDelete={() => setConfirmDelete(r)}
         />
       ))}
+
+      <Pagination {...pager} noun="roles" sizes={[10, 25, 50]} disabled={deleteRole.isPending} />
 
       {confirmDelete && (
         <ConfirmDialog

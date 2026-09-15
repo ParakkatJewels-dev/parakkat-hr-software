@@ -22,6 +22,7 @@ import { todayIso } from '../data/attendance';
 import { currentSectionId } from '../lib/sectionSpy';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
+import PagedCollection from './ui/PagedCollection';
 
 const initials = (name) =>
   (name || '')
@@ -79,7 +80,7 @@ function Field({ label, value, mono }) {
 // through a freshly signed URL — view opens it inline, download asks for it under the name it was
 // uploaded with. The link is minted per click and never held, so it cannot outlive the permission
 // that produced it.
-function DocumentsSection({ employeeId }) {
+export function DocumentsSection({ employeeId }) {
   const { data: docs = [], isLoading, error } = useEmployeeDocuments(employeeId);
   const link = useDocumentLink();
   const [busy, setBusy] = useState(null);
@@ -127,8 +128,9 @@ function DocumentsSection({ employeeId }) {
 
   return (
     <>
-      <ul className="emp-doc-list">
-        {docs.map((doc) => {
+      <PagedCollection items={docs} noun="documents" resetKey={employeeId} disabled={Boolean(busy)}>
+        {(pageRows) => <ul className="emp-doc-list">
+        {pageRows.map((doc) => {
           const meta = [doc.category, doc.file_name, fileSize(doc.size_bytes)].filter(Boolean).join(' · ');
           const hasFile = Boolean(doc.storage_path || doc.url);
           return (
@@ -161,7 +163,8 @@ function DocumentsSection({ employeeId }) {
             </li>
           );
         })}
-      </ul>
+        </ul>}
+      </PagedCollection>
       {link.error && (
         <div className="emp-doc-error" role="alert">
           <AlertTriangle size={14} /> <span>{link.error.message}</span>
@@ -177,7 +180,7 @@ function DocumentsSection({ employeeId }) {
 // Each row opens that item's record in the asset register. Reading "Dell Latitude 5420" here and
 // then having to go to Assets and search for it again is the same lookup done twice by hand; the
 // register's detail page is where the serial, the warranty and the custody history already live.
-function EmployeeAssetsSection({ employeeId, onOpenAsset }) {
+export function EmployeeAssetsSection({ employeeId, onOpenAsset }) {
   const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
 
   if (isLoading) {
@@ -200,8 +203,9 @@ function EmployeeAssetsSection({ employeeId, onOpenAsset }) {
   }
 
   return (
-    <ul className="emp-doc-list">
-      {assets.map((a) => (
+    <PagedCollection items={assets} noun="assets" resetKey={employeeId}>
+      {(pageRows) => <ul className="emp-doc-list">
+      {pageRows.map((a) => (
         <li key={a.id} className={`emp-doc${onOpenAsset ? ' is-linked' : ''}`}>
           <span className="emp-doc-icon"><Package size={15} /></span>
           <span className="emp-doc-copy">
@@ -226,7 +230,8 @@ function EmployeeAssetsSection({ employeeId, onOpenAsset }) {
           </span>
         </li>
       ))}
-    </ul>
+      </ul>}
+    </PagedCollection>
   );
 }
 

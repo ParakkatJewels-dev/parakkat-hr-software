@@ -42,6 +42,7 @@ export default function TaskRoutine({ employees = [] }) {
   const [editing, setEditing] = useState(null);   // { id?, employeeId }
 
   const mine = routineForDay(items, ticks, employee?.id, today);
+  const minePager = usePagination(mine, 10, null, `${employee?.id}:${today}`);
   const mineProgress = routineProgress(mine);
   const team = teamRoutineSummary(items, ticks, today);
   const others = team.filter((g) => g.employeeId !== employee?.id);
@@ -120,13 +121,14 @@ export default function TaskRoutine({ employees = [] }) {
             </p>
           ) : (
             <div className="premium-card p-0 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-900/60">
-              {mine.map((i) => (
+              {minePager.slice.map((i) => (
                 <DutyRow key={i.id} item={i} today={today} onTick={setTick}
                   canEdit={canDefine} onEdit={() => setEditing({ id: i.id, employeeId: i.employee_id, title: i.title, detail: i.detail, sortOrder: i.sort_order })}
                   onRetire={() => retire.mutate(i.id)} />
               ))}
             </div>
           )}
+          <Pagination {...minePager} noun="my duties" sizes={[10, 25, 50]} />
         </section>
       )}
 
@@ -190,9 +192,8 @@ export default function TaskRoutine({ employees = [] }) {
             </p>
           ) : (
             <>
-              {/* Paged by PERSON, never by duty: a card is one person's whole day, and splitting one
-                  across a page boundary would show half a checklist and a progress bar that disagrees
-                  with it. Fifty people at ten duties each is five hundred rows in one screen. */}
+              {/* Each person retains one card and totals for their entire day. Long checklists
+                  page inside that card so one large routine cannot fill the team screen. */}
               {teamPager.slice.map((g) => (
                 <div key={g.employeeId} className="premium-card space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -202,14 +203,9 @@ export default function TaskRoutine({ employees = [] }) {
                     </span>
                     <Progress {...g} />
                   </div>
-                  <div className="divide-y divide-neutral-100 dark:divide-neutral-900/60">
-                    {g.list.map((i) => (
-                      <DutyRow key={i.id} item={i} today={today} onTick={setTick} compact
-                        canEdit={canDefine}
-                        onEdit={() => setEditing({ id: i.id, employeeId: i.employee_id, title: i.title, detail: i.detail, sortOrder: i.sort_order })}
-                        onRetire={() => retire.mutate(i.id)} />
-                    ))}
-                  </div>
+                  <TeamDuties group={g} today={today} onTick={setTick} canEdit={canDefine}
+                    onEdit={(i) => setEditing({ id: i.id, employeeId: i.employee_id, title: i.title, detail: i.detail, sortOrder: i.sort_order })}
+                    onRetire={(id) => retire.mutate(id)} />
                 </div>
               ))}
               <Pagination {...teamPager} noun="people" />
@@ -230,6 +226,17 @@ export default function TaskRoutine({ employees = [] }) {
       )}
     </div>
   );
+}
+
+function TeamDuties({ group, today, onTick, canEdit, onEdit, onRetire }) {
+  const pager = usePagination(group.list, 10, null, `${group.employeeId}:${today}`);
+  return <>
+    <div className="divide-y divide-neutral-100 dark:divide-neutral-900/60">
+      {pager.slice.map((item) => <DutyRow key={item.id} item={item} today={today} onTick={onTick} compact
+        canEdit={canEdit} onEdit={() => onEdit(item)} onRetire={() => onRetire(item.id)} />)}
+    </div>
+    <Pagination {...pager} noun="duties" sizes={[10, 25, 50]} />
+  </>;
 }
 
 function Progress({ done, total, complete, pct }) {

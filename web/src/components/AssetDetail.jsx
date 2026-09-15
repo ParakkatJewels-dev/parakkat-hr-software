@@ -19,6 +19,7 @@ import { useEmployees } from '../data/employees';
 import { usePermissions } from '../auth/usePermissions';
 import { spanLabel } from '../lib/assetSpan';
 import EmployeeLink from './ui/EmployeeLink';
+import Pagination, { usePagination } from './ui/Pagination';
 
 const categoryIcon = (asset) => {
   if (asset?.category === 'Software') return KeyRound;
@@ -82,7 +83,7 @@ function LicenceKey({ value }) {
  * branch — never a company — so handing a Parakkat Jewels laptop to a Parakkat Silver employee
  * looked identical to handing it to a colleague, and the asset's scope followed the holder.
  */
-function EmployeePicker({ value, onChange, ownerEntityId }) {
+export function EmployeePicker({ value, onChange, ownerEntityId }) {
   const { data: employees = [], isLoading } = useEmployees();
   const [q, setQ] = useState('');
 
@@ -91,14 +92,14 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
     const active = employees.filter(
       (e) => e.status !== 'Inactive' && (!ownerEntityId || e.entity_id === ownerEntityId),
     );
-    if (!term) return active.slice(0, 8);
+    if (!term) return active;
     return active
       .filter((e) =>
         e.full_name?.toLowerCase().includes(term)
         || e.employee_code?.toLowerCase().includes(term)
-        || e.branch?.name?.toLowerCase().includes(term))
-      .slice(0, 8);
+        || e.branch?.name?.toLowerCase().includes(term));
   }, [employees, q, ownerEntityId]);
+  const pager = usePagination(matches, 8, null, `${ownerEntityId ?? ''}:${q}`);
 
   const chosen = employees.find((e) => e.id === value);
 
@@ -116,7 +117,7 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
   }
 
   return (
-    <div className="asset-picker">
+    <div className="asset-picker paged-collection">
       <div className="asset-picker-search input-shell">
         <Search size={14} />
         <input
@@ -132,7 +133,7 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
         <p className="asset-picker-note">Nobody matches “{q.trim()}”.</p>
       ) : (
         <ul className="asset-picker-list">
-          {matches.map((e) => (
+          {pager.slice.map((e) => (
             <li key={e.id}>
               <button type="button" onClick={() => onChange(e.id)}>
                 <strong>{e.full_name}</strong>
@@ -142,6 +143,7 @@ function EmployeePicker({ value, onChange, ownerEntityId }) {
           ))}
         </ul>
       )}
+      <Pagination {...pager} noun="employees" sizes={[8, 16, 32]} />
     </div>
   );
 }
@@ -173,6 +175,7 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
 
   const open = history.find((h) => !h.returned_at) ?? null;
   const past = history.filter((h) => h.returned_at);
+  const historyPager = usePagination(history, 10, null, assetId);
 
   const reset = () => { setMode(null); setPick(null); setCondition(''); setNotes(''); assign.reset(); takeBack.reset(); };
 
@@ -433,53 +436,56 @@ export default function AssetDetail({ assetId, onBack, onEdit }) {
                 <p>Nobody has held this yet. Allocating it to someone starts its history.</p>
               </div>
             ) : (
-              <ol className="asset-timeline">
-                {history.map((h) => {
-                  const current = !h.returned_at;
-                  return (
-                    <li key={h.id} className={`asset-timeline-item${current ? ' is-current' : ''}`}>
-                      <span className="asset-timeline-mark"><UserRound size={13} /></span>
-                      <div className="asset-timeline-body">
-                        <div className="asset-timeline-who">
-                          <strong>
-                            <EmployeeLink
-                              employee={h.employee}
-                              name={h.employee?.full_name ?? 'Somebody no longer on record'}
-                            />
-                          </strong>
-                          {current && <span className="asset-timeline-now">Holding it now</span>}
-                        </div>
-                        <span className="asset-timeline-meta">
-                          {[h.employee?.employee_code, h.employee?.designation?.title,
-                            h.employee?.branch?.name || h.employee?.branch?.code]
-                            .filter(Boolean).join(' · ')}
-                        </span>
-                        <span className="asset-timeline-when">
-                          <Calendar size={11} />
-                          {fmtDate(h.assigned_at)} → {h.returned_at ? fmtDate(h.returned_at) : 'now'}
-                          {spanLabel(h.assigned_at, h.returned_at) ? ` · ${spanLabel(h.assigned_at, h.returned_at)}` : ''}
-                        </span>
-                        {(h.condition_out || h.condition_in) && (
-                          <span className="asset-timeline-condition">
-                            {h.condition_out ? `Out: ${h.condition_out}` : ''}
-                            {h.condition_out && h.condition_in ? ' · ' : ''}
-                            {h.condition_in ? `Back: ${h.condition_in}` : ''}
+              <div className="paged-collection">
+                <ol className="asset-timeline">
+                  {historyPager.slice.map((h) => {
+                    const current = !h.returned_at;
+                    return (
+                      <li key={h.id} className={`asset-timeline-item${current ? ' is-current' : ''}`}>
+                        <span className="asset-timeline-mark"><UserRound size={13} /></span>
+                        <div className="asset-timeline-body">
+                          <div className="asset-timeline-who">
+                            <strong>
+                              <EmployeeLink
+                                employee={h.employee}
+                                name={h.employee?.full_name ?? 'Somebody no longer on record'}
+                              />
+                            </strong>
+                            {current && <span className="asset-timeline-now">Holding it now</span>}
+                          </div>
+                          <span className="asset-timeline-meta">
+                            {[h.employee?.employee_code, h.employee?.designation?.title,
+                              h.employee?.branch?.name || h.employee?.branch?.code]
+                              .filter(Boolean).join(' · ')}
                           </span>
-                        )}
-                        {/* Who did the handing over, as they were named at the time. */}
-                        <span className="asset-timeline-actor">
-                          Allocated by {h.assigned_by_name || 'somebody no longer on record'}
-                          {h.returned_at
-                            ? ` · taken back by ${h.returned_by_name || 'somebody no longer on record'}`
-                            : ''}
-                        </span>
-                        {h.notes && <span className="asset-timeline-note">Out: {h.notes}</span>}
-                        {h.return_notes && <span className="asset-timeline-note">Back: {h.return_notes}</span>}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
+                          <span className="asset-timeline-when">
+                            <Calendar size={11} />
+                            {fmtDate(h.assigned_at)} → {h.returned_at ? fmtDate(h.returned_at) : 'now'}
+                            {spanLabel(h.assigned_at, h.returned_at) ? ` · ${spanLabel(h.assigned_at, h.returned_at)}` : ''}
+                          </span>
+                          {(h.condition_out || h.condition_in) && (
+                            <span className="asset-timeline-condition">
+                              {h.condition_out ? `Out: ${h.condition_out}` : ''}
+                              {h.condition_out && h.condition_in ? ' · ' : ''}
+                              {h.condition_in ? `Back: ${h.condition_in}` : ''}
+                            </span>
+                          )}
+                          {/* Who did the handing over, as they were named at the time. */}
+                          <span className="asset-timeline-actor">
+                            Allocated by {h.assigned_by_name || 'somebody no longer on record'}
+                            {h.returned_at
+                              ? ` · taken back by ${h.returned_by_name || 'somebody no longer on record'}`
+                              : ''}
+                          </span>
+                          {h.notes && <span className="asset-timeline-note">Out: {h.notes}</span>}
+                          {h.return_notes && <span className="asset-timeline-note">Back: {h.return_notes}</span>}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ol>
+                <Pagination {...historyPager} noun="custody records" sizes={[10, 25, 50]} />
+              </div>
             )}
           </article>
         </div>

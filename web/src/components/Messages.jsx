@@ -138,6 +138,7 @@ export default function Messages() {
     () => filterConversations(shown.filter((c) => belongsInChatSection(c, monitoring ? watchingId : me, chatFilter)), { query, filter: chatFilter, me: monitoring ? watchingId : me }),
     [shown, query, chatFilter, me, monitoring, watchingId]
   );
+  const conversationPager = usePagination(visible, 25, focusId, `${watchingId ?? me}:${chatFilter}:${query}`);
 
   /*
    * A login that is not a person.
@@ -258,7 +259,7 @@ export default function Messages() {
                 )}
               </div>
             )}
-            {visible.map((c) => (
+            {conversationPager.slice.map((c) => (
               <ConversationRow
                 key={c.id}
                 conversation={c}
@@ -270,6 +271,7 @@ export default function Messages() {
                 typingIds={monitoring ? [] : typingByConversation[c.id]}
               />
             ))}
+            <div className="paged-collection"><Pagination {...conversationPager} noun="conversations" sizes={[25, 50, 100]} /></div>
           </div>
         </aside>
 
@@ -302,7 +304,7 @@ export default function Messages() {
         <NewConversation
           me={me}
           onClose={() => setComposing(false)}
-          onOpened={(id) => { setComposing(false); setChatFilter('all'); setQuery(''); setOpenId(id); }}
+          onOpened={(id) => { setComposing(false); setChatFilter('all'); setQuery(''); conversationPager.setPage(1); setOpenId(id); }}
         />
       )}
     </div>
@@ -600,7 +602,8 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
     <div className="messages-chat">
       <header className="messages-chat-header" inert={managing || undefined} aria-hidden={managing || undefined}>
         <button type="button" onClick={onBack} aria-label="Back to conversations" className="messages-icon-button messages-back"><ArrowLeft size={21} /></button>
-        <button className="messages-chat-identity" type="button" onClick={() => setManaging(true)} aria-label={`View ${isGroup ? 'group' : 'contact'} details`}>
+        <button ref={settingsButtonRef} className="messages-chat-identity" type="button" onClick={() => setManaging(true)}
+          aria-label={`View ${isGroup ? 'group' : 'contact'} details`} aria-expanded={managing}>
         <ConversationAvatar conversation={conversation} me={me} />
         <div className="messages-chat-heading">
           <h2>{name}</h2>
@@ -609,9 +612,10 @@ export function Thread({ conversation, me, onBack, readOnly = false, receiptsPau
         </button>
         <div className="messages-chat-header-actions">
           <button ref={searchButtonRef} type="button" onClick={() => setSearching(!searching)} aria-label="Search messages" aria-expanded={searching} className="messages-icon-button"><Search size={20} /></button>
-          <button ref={settingsButtonRef} type="button" onClick={() => setManaging(true)} aria-label="Chat settings"
-            aria-expanded={managing} className="messages-icon-button"><Settings size={20} /></button>
-          {onPreference && <ChatMenu label="Conversation menu" disabled={preferenceBusy} items={preferenceItems(conversation, onPreference)} />}
+          <ChatMenu label="Conversation menu" items={[
+            { label: 'Chat settings', icon: Settings, onClick: () => setManaging(true) },
+            ...(onPreference ? preferenceItems(conversation, onPreference).map((item) => ({ ...item, disabled: preferenceBusy })) : []),
+          ]} />
         </div>
       </header>
       {managing && <ConversationSettings conversation={conversation} me={me} readOnly={readOnly}

@@ -26,6 +26,7 @@ import { SkeletonForm, SkeletonRows } from './ui/Skeleton';
 import FilterSelect from './ui/FilterSelect';
 import { btnClass } from './ui/Btn';
 import Pagination from './ui/Pagination';
+import PagedCollection from './ui/PagedCollection';
 import { exportEmployeeDirectory } from './directoryExport';
 import { istToday } from '../lib/dates';
 import { useMediaQuery } from '../lib/useMediaQuery';
@@ -1744,6 +1745,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         >
           {isEdit && (
             <ExistingEmployeeDocuments
+              employeeId={employee?.id}
               documents={existingDocuments}
               isLoading={existingDocumentsQuery.isLoading}
               error={existingDocumentsQuery.error}
@@ -2021,8 +2023,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   );
 }
 
-function ExistingEmployeeDocuments({
-  documents, isLoading, error, linkError, openingDocumentId, onOpen,
+export function ExistingEmployeeDocuments({
+  employeeId, documents, isLoading, error, linkError, openingDocumentId, onOpen,
 }) {
   if (isLoading) {
     return (
@@ -2045,8 +2047,9 @@ function ExistingEmployeeDocuments({
   return (
     <div className="space-y-2">
       <p className="section-title">Saved documents ({documents.length})</p>
-      <ul className="emp-doc-list">
-        {documents.map((doc) => {
+      <PagedCollection items={documents} noun="saved documents" resetKey={employeeId} disabled={Boolean(openingDocumentId)}>
+        {(pageRows) => <ul className="emp-doc-list">
+        {pageRows.map((doc) => {
           const meta = [doc.category, doc.file_name, fileSize(doc.size_bytes)]
             .filter(Boolean)
             .join(' · ');
@@ -2075,7 +2078,8 @@ function ExistingEmployeeDocuments({
             </li>
           );
         })}
-      </ul>
+        </ul>}
+      </PagedCollection>
       {linkError && (
         <div className="emp-doc-error" role="alert">
           <AlertTriangle size={14} /> <span>{linkError.message}</span>

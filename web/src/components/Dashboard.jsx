@@ -8,8 +8,7 @@ import React, { Suspense, lazy } from 'react';
 import {
   Users, Building2, CalendarDays, ReceiptText, LifeBuoy, Network, ListChecks,
   Clock, Target, UserCheck, Briefcase, Shield, BarChart3, DoorOpen, UserPlus,
-  Fingerprint, DollarSign, CalendarCheck2, ArrowRight,
-  AlertTriangle, CheckCircle2, Boxes, FolderOpen,
+  Fingerprint, DollarSign, CalendarCheck2, Boxes, FolderOpen,
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
@@ -25,8 +24,9 @@ import { useRegularizations } from '../data/regularizations';
 import { useManagedUsers } from '../data/admin';
 import { useAttendanceSummary, useMonthlyAttendance, todayIso } from '../data/attendance';
 import { useLeaveBalances } from '../data/leaveTypes';
-import { KpiRow, NotificationsStrip, HolidaysCard, QuickActions, inr } from './dashboard/shared';
+import { KpiRow, HolidaysCard, QuickActions, inr } from './dashboard/shared';
 import { useActionableApprovals } from './dashboard/useActionableApprovals';
+import ActionCenter from './dashboard/ActionCenter';
 import {
   EmployeeTodayHero, PunchCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, MyRoutineToday, EssSection,
 } from './dashboard/selfWidgets';
@@ -47,20 +47,6 @@ const HeadcountChart = (props) => (
     <LazyHeadcountChart {...props} />
   </Suspense>
 );
-
-const ROLE_TITLES = {
-  super_admin: 'System Overview',
-  entity_admin: 'Entity Command Center',
-  hr_manager: 'People Operations',
-  zonal_manager: 'Zone Overview',
-  branch_manager: 'My Branch Today',
-  dept_head: 'My Team',
-  employee: 'My Day',
-};
-
-// ROLE_TITLES stays: TodayPriorities still names the dashboard. The banner that used to sit above
-// the KPI row — "Role dashboard / System Overview / Company-wide health…" — is gone, along with the
-// descriptions and focus chips that only it used.
 
 /* ---------------------------------- per-role KPI rows ---------------------------------- */
 // Each KPI row is its own component so its queries only run for the preset that shows it.
@@ -263,173 +249,6 @@ function SuperKpis({ onNavigate }) {
   );
 }
 
-export function TodayPriorities({ role, onNavigate }) {
-  const { employee } = useAuth();
-  const { canBeyondSelf } = usePermissions();
-  const { summary } = useAttendanceSummary(todayIso());
-  const { data: leaves = [] } = useLeaves();
-  const { data: expenses = [] } = useExpenses();
-  const { data: regs = [] } = useRegularizations('Pending');
-  const { data: tickets = [] } = useTickets();
-  const { data: exits = [] } = useExits();
-  const { data: jobs = [] } = useJobs();
-
-  const myLeavePending = leaves.filter((l) => l.status === 'Pending' && l.employee?.id === employee?.id).length;
-  const myExpensePending = expenses.filter((e) => e.status === 'Pending' && e.employee?.id === employee?.id).length;
-  const myTickets = tickets.filter((t) => t.status !== 'Resolved' && t.employee?.id === employee?.id).length;
-  const approvals = useActionableApprovals({ leaves, expenses, regs });
-  const pendingLeaves = approvals.leaves.length;
-  const pendingExpenses = approvals.expenses.length;
-  const pendingPunches = approvals.punches.length;
-  const openTickets = tickets.filter((t) => t.status !== 'Resolved').length;
-  const exitsOpen = exits.filter((x) => x.status !== 'Completed' && x.status !== 'Cleared').length;
-  const openRoles = jobs.filter((j) => j.status === 'Open').length;
-  const dateLabel = new Date().toLocaleDateString('en-IN', {
-    timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'long',
-  });
-  const roleTitle = ROLE_TITLES[role] || 'Dashboard';
-
-  const items = [
-    pendingPunches > 0 && {
-      title: `${pendingPunches} punch correction${pendingPunches > 1 ? 's' : ''} waiting`,
-      detail: 'Resolve attendance exceptions before payroll cleanup.',
-      icon: Clock,
-      tone: 'violet',
-      tab: 'attendance',
-      weight: 10,
-    },
-    pendingLeaves > 0 && {
-      title: `${pendingLeaves} leave request${pendingLeaves > 1 ? 's' : ''} need decision`,
-      detail: 'Approve or reject pending leave before coverage is affected.',
-      icon: CalendarDays,
-      tone: 'amber',
-      tab: 'leave',
-      weight: 9,
-    },
-    pendingExpenses > 0 && {
-      title: `${pendingExpenses} expense claim${pendingExpenses > 1 ? 's' : ''} pending`,
-      detail: 'Review reimbursements and keep finance queues clean.',
-      icon: ReceiptText,
-      tone: 'orange',
-      tab: 'expense',
-      weight: 8,
-    },
-    summary.absent > 0 && canBeyondSelf('attendance.read') && {
-      title: `${summary.absent} absent today`,
-      detail: 'Check coverage and confirm whether leave or correction is needed.',
-      icon: AlertTriangle,
-      tone: 'red',
-      tab: 'attendance',
-      weight: 7,
-    },
-    summary.missingPunch > 0 && canBeyondSelf('attendance.read') && {
-      title: `${summary.missingPunch} missing punch${summary.missingPunch > 1 ? 'es' : ''}`,
-      detail: 'Clean up incomplete attendance records early.',
-      icon: Clock,
-      tone: 'violet',
-      tab: 'attendance',
-      weight: 6,
-    },
-    openTickets > 0 && role !== 'employee' && {
-      title: `${openTickets} open helpdesk ticket${openTickets > 1 ? 's' : ''}`,
-      detail: 'Keep employee support items moving.',
-      icon: LifeBuoy,
-      tone: 'blue',
-      tab: 'helpdesk',
-      weight: 5,
-    },
-    exitsOpen > 0 && ['hr_manager', 'entity_admin'].includes(role) && {
-      title: `${exitsOpen} exit clearance${exitsOpen > 1 ? 's' : ''} open`,
-      detail: 'Track pending separation tasks and handovers.',
-      icon: DoorOpen,
-      tone: 'red',
-      tab: 'helpdesk',
-      weight: 4,
-    },
-    openRoles > 0 && ['hr_manager', 'entity_admin', 'super_admin'].includes(role) && {
-      title: `${openRoles} open role${openRoles > 1 ? 's' : ''} in hiring`,
-      detail: 'Review active recruitment demand.',
-      icon: Briefcase,
-      tone: 'blue',
-      tab: 'recruitment',
-      weight: 3,
-    },
-    role === 'employee' && myLeavePending > 0 && {
-      title: `${myLeavePending} leave request${myLeavePending > 1 ? 's' : ''} awaiting approval`,
-      detail: 'Track the latest status from your leave page.',
-      icon: CalendarDays,
-      tone: 'amber',
-      tab: 'leave',
-      weight: 8,
-    },
-    role === 'employee' && myExpensePending > 0 && {
-      title: `${myExpensePending} expense claim${myExpensePending > 1 ? 's' : ''} awaiting approval`,
-      detail: 'Follow reimbursement progress from expenses.',
-      icon: ReceiptText,
-      tone: 'orange',
-      tab: 'expense',
-      weight: 7,
-    },
-    role === 'employee' && myTickets > 0 && {
-      title: `${myTickets} support ticket${myTickets > 1 ? 's' : ''} open`,
-      detail: 'Check replies or update your request.',
-      icon: LifeBuoy,
-      tone: 'blue',
-      tab: 'helpdesk',
-      weight: 6,
-    },
-  ]
-    .filter(Boolean)
-    .sort((a, b) => b.weight - a.weight)
-    .slice(0, 4);
-
-  if (items.length === 0) {
-    return (
-      <section className="premium-card dashboard-priority-center is-clear">
-        <div className="dashboard-priority-copy">
-          <span className="dashboard-priority-icon is-green"><CheckCircle2 size={16} /></span>
-          <div>
-            <div className="dashboard-priority-meta">
-              <span>{roleTitle}</span>
-              <span>{dateLabel}</span>
-            </div>
-            <h2>Today’s priorities are clear</h2>
-            <p>No urgent dashboard items in your current scope.</p>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  return (
-    <section className="premium-card dashboard-priority-center">
-      <div className="dashboard-priority-copy">
-        <span className="dashboard-priority-icon"><AlertTriangle size={16} /></span>
-        <div>
-          <div className="dashboard-priority-meta">
-            <span>{roleTitle}</span>
-            <span>{dateLabel}</span>
-          </div>
-          <h2>Today’s Priorities</h2>
-          <p>Resolve the few items most likely to affect attendance, approvals, or employee support.</p>
-        </div>
-      </div>
-      <div className="dashboard-priority-list">
-        {items.map(({ title, detail, icon: Icon, tone, tab }) => (
-          <button key={title} type="button" data-tone={tone} onClick={() => onNavigate?.(tab)}>
-            <span className="dashboard-priority-item-icon"><Icon size={14} /></span>
-            <span className="dashboard-priority-item-text">
-              <strong>{title}</strong>
-              <span>{detail}</span>
-            </span>
-            <ArrowRight size={13} />
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 /* ---------------------------------- role presets ---------------------------------- */
 
 function EmployeeDashboard({ onNavigate, actions }) {
@@ -457,7 +276,6 @@ function BranchManagerDashboard({ onNavigate, actions }) {
   return (
     <>
       <TeamKpis onNavigate={onNavigate} />
-      <TodayPriorities role="branch_manager" onNavigate={onNavigate} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <TeamAttendanceToday onNavigate={onNavigate} />
@@ -482,7 +300,6 @@ function DeptHeadDashboard({ onNavigate, actions }) {
   return (
     <>
       <TeamKpis onNavigate={onNavigate} />
-      <TodayPriorities role="dept_head" onNavigate={onNavigate} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <TeamAttendanceToday onNavigate={onNavigate} />
@@ -506,7 +323,6 @@ function ZonalManagerDashboard({ onNavigate, actions }) {
   return (
     <>
       <ZonalKpis onNavigate={onNavigate} />
-      <TodayPriorities role="zonal_manager" onNavigate={onNavigate} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <BranchComparison onNavigate={onNavigate} />
@@ -528,7 +344,6 @@ function HrManagerDashboard({ onNavigate, actions }) {
   return (
     <>
       <HrKpis onNavigate={onNavigate} />
-      <TodayPriorities role="hr_manager" onNavigate={onNavigate} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <TeamAttendanceToday onNavigate={onNavigate} />
@@ -557,7 +372,6 @@ function EntityAdminDashboard({ onNavigate, actions }) {
   return (
     <>
       <EntityKpis onNavigate={onNavigate} />
-      <TodayPriorities role="entity_admin" onNavigate={onNavigate} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <BranchComparison onNavigate={onNavigate} />
@@ -593,7 +407,6 @@ function SuperAdminDashboard({ onNavigate, actions }) {
   return (
     <>
       <SuperKpis onNavigate={onNavigate} />
-      <TodayPriorities role="super_admin" onNavigate={onNavigate} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-8">
           <EntityComparison onNavigate={onNavigate} />
@@ -674,7 +487,7 @@ export default function Dashboard({ onNavigate, viewRole }) {
 
   return (
     <div className="page-shell dashboard-shell space-y-5 animate-slide-up py-3" data-dashboard-role={role}>
-      <NotificationsStrip onNavigate={onNavigate} />
+      <ActionCenter onNavigate={onNavigate} />
       {role !== 'employee' && <MyRoutineToday onNavigate={onNavigate} />}
       <Preset onNavigate={onNavigate} actions={actions} />
     </div>

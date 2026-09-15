@@ -51,14 +51,10 @@ export function useAssignableEmployees(departmentId, query) {
   return useQuery({
     enabled: Boolean(departmentId),
     queryKey: ['assignable-employees', departmentId, q],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('assignable_employees', {
+    queryFn: () => fetchCollection(() => supabase.rpc('assignable_employees', {
         _department: departmentId,
         _q: q || null,
-      });
-      if (error) throw error;
-      return data ?? [];
-    },
+      }).order('full_name').order('id')),
   });
 }
 

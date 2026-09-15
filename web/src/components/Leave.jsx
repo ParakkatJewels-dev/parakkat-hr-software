@@ -101,6 +101,7 @@ export default function Leave() {
   // Real company holidays (Attendance Setup -> Holidays), not a hardcoded list.
   const currentYear = new Date().getFullYear();
   const { data: holidays = [] } = useHolidays(null, currentYear);
+  const holidayPager = usePagination(holidays, 10, null, currentYear);
   const { data: leaves = [], isLoading, error } = useLeaves();
   const { employee } = useAuth();
   const { can, canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
@@ -377,12 +378,12 @@ export default function Leave() {
               </form>
             </div>
           ) : (
-            <div className="premium-card space-y-4 animate-fade-in">
+            <div className="premium-card paged-collection space-y-4 animate-fade-in">
               <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
                 <Calendar size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Holiday Calendar
               </h3>
               <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-                {holidays.map((h) => {
+                {holidayPager.slice.map((h) => {
                   const [y, mo, d] = h.holiday_date.slice(0, 10).split('-').map(Number);
                   const dt = new Date(Date.UTC(y, mo - 1, d));
                   return (
@@ -407,6 +408,7 @@ export default function Leave() {
                   </p>
                 )}
               </div>
+              <Pagination {...holidayPager} noun="holidays" sizes={[10, 25, 50]} />
               {!canApply && (
                 <p className="text-xs text-neutral-400 border-t border-neutral-100 dark:border-neutral-900 pt-2.5">
                   Your login isn't linked to an employee record, so you can't submit leave for yourself. Link it in Administration → Users &amp; Access.

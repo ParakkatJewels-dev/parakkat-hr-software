@@ -1,54 +1,46 @@
-// What this application calls itself, which depends on who opened it.
-//
-// The sidebar said "HR SYSTEM" to everybody. For the people who run HR that is accurate; for the
-// 160-odd employees whose entire use of it is punching in, checking a payslip and asking for a
-// day off, it names somebody else's tool and reads as "you are in the wrong place". The app
-// already draws exactly this line — App.jsx hands an employee `essSections` under the heading
-// "My Workspace" while everyone else gets the oversight tree — so the title now agrees with the
-// screen underneath it instead of contradicting it.
-//
-// Each name states the SCOPE of what you are looking at, which is the honest difference between
-// these roles: a branch manager and a zonal manager see the same screens, differing only in how
-// much of the company appears in them.
+import { ROLE_PRIORITY } from './roles.js';
 
-/** The product, as distinct from the view of it. Used where the brand matters more than the role. */
-export const PRODUCT_NAME = 'Parakkat HR';
-
-/** The company, for the browser tab — where "Parakkat HR" next to "HR System" reads as a stutter. */
 export const ORG_NAME = 'Parakkat';
+export const PRODUCT_NAME = ORG_NAME;
 
-const BY_ROLE = {
-  employee: 'My Workspace',
-  dept_head: 'Department HR',
-  branch_manager: 'Branch HR',
-  zonal_manager: 'Zone HR',
-  hr_manager: 'HR System',
-  entity_admin: 'Company HR',
-  super_admin: 'HR Console',
+// One set of names for the app, install guidance, and public manifests. Every manifest keeps
+// the same id/start_url: these are views of one app, not separate permissions.
+export const APP_IDENTITIES = {
+  default: { name: PRODUCT_NAME, manifestHref: '/manifest.webmanifest' },
+  admin: { name: 'Parakkat Admin', manifestHref: '/manifests/admin.webmanifest' },
+  hr: { name: 'Parakkat HR', manifestHref: '/manifests/hr.webmanifest' },
+  manager: { name: 'Parakkat Manager', manifestHref: '/manifests/manager.webmanifest' },
+  employee: { name: 'Parakkat Employee', manifestHref: '/manifests/employee.webmanifest' },
 };
 
-/**
- * The name to show a holder of `role`.
- *
- * Falls back to the product name rather than to any single role's name: an unknown role means a
- * custom one somebody created, and calling that "My Workspace" would promise a self-service view
- * they may not have, while calling it "HR Console" would promise the opposite.
- */
-export function appNameFor(role) {
-  return BY_ROLE[role] ?? PRODUCT_NAME;
+const FAMILY_BY_ROLE = {
+  super_admin: 'admin',
+  entity_admin: 'admin',
+  hr_manager: 'hr',
+  zonal_manager: 'manager',
+  branch_manager: 'manager',
+  dept_head: 'manager',
+  employee: 'employee',
+};
+
+export function appIdentityFor(role) {
+  const family = Object.hasOwn(FAMILY_BY_ROLE, role) ? FAMILY_BY_ROLE[role] : 'default';
+  return APP_IDENTITIES[family];
 }
 
-/**
- * The browser tab.
- *
- * Role first, because that is what distinguishes one of this user's tabs from another; the company
- * trails it so a tab is still identifiable in a window full of unrelated ones. `screen` is the
- * section currently open, and is omitted on the dashboard where it would just repeat the name.
- */
+export function appNameFor(role) {
+  return appIdentityFor(role).name;
+}
+
+// Use actual assignments for the installed name. The optional workspace-view switch is only a
+// presentation preference. Unknown/custom roles get the neutral brand, not an employee label.
+export function appRoleFor(assignments, isSuperAdmin) {
+  if (isSuperAdmin) return 'super_admin';
+  const held = new Set((assignments ?? []).map(assignment => assignment.role));
+  return ROLE_PRIORITY.find(role => held.has(role)) ?? null;
+}
+
 export function documentTitleFor(role, screen) {
   const name = appNameFor(role);
-  // The fallback name already carries the company, so appending it again gives "Parakkat HR ·
-  // Parakkat". Every role-specific name needs the suffix; only this one already has it.
-  const base = name === PRODUCT_NAME ? name : `${name} · ${ORG_NAME}`;
-  return screen ? `${screen} · ${base}` : base;
+  return screen ? `${screen} · ${name}` : name;
 }

@@ -239,7 +239,7 @@ export default function Team() {
 }
 
 /** The picker. Deliberately search-first: the pool is everyone in the company, which is not a list. */
-function AddToTeam({ department, busy, onClose, onPick }) {
+export function AddToTeam({ department, busy, onClose, onPick }) {
   const [q, setQ] = useState('');
   // Not a FormSection, so it needs the reveal wired by hand: on a phone this opens below the fold
   // and the button looks like it did nothing.
@@ -291,13 +291,6 @@ function AddToTeam({ department, busy, onClose, onPick }) {
         </p>
       ) : (
         <>
-        {/* assignable_employees caps at 50 rows in SQL (0099). Paging through a capped list without
-            saying so is how somebody concludes a colleague is not in the system. */}
-        {candidates.length >= 50 && (
-          <p className="text-2xs text-amber-700 dark:text-amber-300">
-            Showing the first 50 matches. Type a name or code to narrow it down.
-          </p>
-        )}
         <div className="border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
           {pager.slice.map((c) => (
             <button

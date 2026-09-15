@@ -30,6 +30,13 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
   const [openDetail, setOpenDetail] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const board = useMemo(() => myBoard(tasks, me, { today }), [tasks, me, today]);
+  // Home and notification links open the assigned work, so its assignment can be acknowledged.
+  useEffect(() => {
+    if (focusId && tasks.some((task) => task.id === focusId)) {
+      setOpenDetail(focusId);
+      setQuery('');
+    }
+  }, [focusId, tasks]);
   const stats = useMemo(() => progress(tasks, me, { today }), [tasks, me, today]);
   // A notification must remain findable even when it points to finished work.
   const focusedClosed = board.closed.some((task) => task.id === focusId);

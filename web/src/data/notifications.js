@@ -1,11 +1,49 @@
 // Data hooks for in-app notifications. Rows are created only by DB triggers (migration 0023);
 // RLS scopes every query to the signed-in user's own notifications, and realtime.js invalidates
 // ['notifications'] the moment a new row streams in, so the bell updates live.
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { filterActionableNotifications, idsToMarkRead } from '../lib/actionableNotifications';
 import { notificationTarget } from '../lib/focusRow';
+import { fetchNotificationPage } from '../lib/notificationQuery';
+import { fetchCollection } from '../lib/fetchCollection';
+import { ASSIGNMENT_TITLES } from '../lib/dashboardActions';
+
+/** Assignment counts must cover the whole inbox, even beyond the bell's recent forty rows. */
+export function useUnreadTaskAssignments({ enabled = true } = {}) {
+  return useQuery({
+    enabled,
+    queryKey: ['notifications', 'task-assignments'],
+    queryFn: () => fetchCollection(() => supabase.from('notifications')
+      .select('id, type, title, ref_id, read_at, created_at')
+      .eq('type', 'task').in('title', ASSIGNMENT_TITLES).is('read_at', null)
+      .order('created_at', { ascending: false }).order('id')),
+  });
+}
+
+/** Opening a task's details acknowledges its assignment, wherever the task was opened. */
+export function useReadTaskAssignment(taskId, open) {
+  const query = useUnreadTaskAssignments({ enabled: Boolean(open && taskId) });
+  const { data = [] } = query;
+  const { mutate } = useMarkNotificationsRead();
+  const attempted = useRef(null);
+  const ids = data.filter((n) => n.ref_id === taskId).map((n) => n.id).sort();
+  const key = JSON.stringify(ids);
+  useEffect(() => {
+    if (!open || !taskId) { attempted.current = null; return; }
+    if (!query.isSuccess || key === '[]' || attempted.current?.key === key) return;
+    const attempt = { key };
+    attempted.current = attempt;
+    mutate(JSON.parse(key), {
+      onError: () => {
+        // Retry after a fresh assignment snapshot (or reopening details), not on mutation
+        // error renders. An older failure must not clear a newer task's in-flight attempt.
+        if (attempted.current === attempt) attempted.current = null;
+      },
+    });
+  }, [open, taskId, key, mutate, query.isSuccess, query.dataUpdatedAt]);
+}
 
 const REF_TABLES = {
   leave: 'leaves',
@@ -24,10 +62,19 @@ export function useNotifications() {
         .from('notifications')
         .select('id, type, title, body, tab, ref_id, read_at, created_at')
         .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(40);
       if (error) throw error;
       return data ?? [];
     },
+  });
+}
+
+export function useNotificationPage(page, pageSize) {
+  return useQuery({
+    queryKey: ['notifications', 'history', page, pageSize],
+    queryFn: () => fetchNotificationPage(supabase, { page, pageSize }),
+    placeholderData: (previous) => previous,
   });
 }
 

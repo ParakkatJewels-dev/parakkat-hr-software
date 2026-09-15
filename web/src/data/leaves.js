@@ -18,9 +18,9 @@ export function useLeaves({ enabled = true } = {}) {
            cancelled_dates, auto_cancelled_at, auto_cancellation_note,
            employee:employees!leaves_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
-        // Bounded: the whole table was fetched on every dashboard. Screens show recent activity;
-        // historical analysis goes through the Reports RPCs.
-        .gte('start_date', windowStartIso(180))
+        // Pending and held requests still need a decision, even after the history window.
+        // Only settled history ages out of operational lists and dashboard action counts.
+        .or(`status.in.(Pending,"On Hold"),start_date.gte.${windowStartIso(180)}`)
         .order('created_at', { ascending: false }).order('id')),
   });
 }

@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { apiGet, apiHealth } from '../lib/attendanceApi';
 import { diagnose } from '../lib/syncDiagnosis';
+import { fetchPage } from '../lib/fetchPage';
 
 /** Live view from the service. Fails soft — the service may simply not be running. */
 export function useServiceStatus() {
@@ -53,11 +54,35 @@ export function useSyncRuns(limit = 25) {
            records_fetched, records_inserted, records_skipped, unmatched_codes, error_message`
         )
         .order('started_at', { ascending: false })
+        .order('id', { ascending: false })
         .limit(limit);
       if (error) throw error;
       return data ?? [];
     },
     refetchInterval: 60_000,
+  });
+}
+
+// Full history is paged at the server; dashboard previews still use useSyncRuns.
+export function useSyncRunPage(page = 1, pageSize = 25) {
+  return useQuery({
+    queryKey: ['sync-runs', 'page', page, pageSize],
+    queryFn: () => fetchPage(() => supabase.from('sync_runs')
+      .select('id, kind, status, started_at, finished_at, duration_ms, pages_fetched, records_fetched, records_inserted, records_skipped, unmatched_codes, error_message', { count: 'exact' })
+      .order('started_at', { ascending: false }).order('id', { ascending: false }), { page, pageSize }),
+    placeholderData: previous => previous,
+    refetchInterval: 60_000,
+  });
+}
+
+export function useServiceCommandPage(page = 1, pageSize = 8) {
+  return useQuery({
+    queryKey: ['service-commands', 'page', page, pageSize],
+    queryFn: () => fetchPage(() => supabase.from('service_commands')
+      .select('id, kind, params, status, requested_at, finished_at, result, error_message', { count: 'exact' })
+      .order('requested_at', { ascending: false }).order('id', { ascending: false }), { page, pageSize }),
+    placeholderData: previous => previous,
+    refetchInterval: q => (q.state.data?.rows ?? []).some(c => c.status === 'pending' || c.status === 'running') ? 15_000 : 120_000,
   });
 }
 

@@ -29,6 +29,7 @@ import { useEmployee } from '../data/employees';
 import { useWorkspaceSettings, useSaveWorkspaceSettings, useUpdateMyProfile } from '../data/settings';
 import { useClockFormat } from '../lib/timeFormat';
 import { CLOCK_FORMATS } from '../lib/clock';
+import { PRODUCT_NAME } from '../lib/appName';
 import './settings.css';
 
 const inputClass =
@@ -229,6 +230,7 @@ function MyProfileCard() {
  * need permission to read a clock the way they prefer.
  */
 function PreferencesCard({
+  appName = PRODUCT_NAME,
   theme = 'light',
   onToggleTheme,
   installAvailable = false,
@@ -307,7 +309,7 @@ function PreferencesCard({
         <SettingRow
           icon={Smartphone}
           title="Installed app"
-          detail={installed ? 'This browser is already running as an installed app.' : 'Install for full-screen access from the home screen.'}
+          detail={installed ? `${appName} is running as an installed app.` : `Add ${appName} to your home screen for full-screen access.`}
         >
           {installAvailable && !installed ? (
             <ActionButton onClick={onInstall} variant="primary">
@@ -432,6 +434,7 @@ const SETTINGS_SECTIONS = [
 
 export default function SettingsPage({
   theme, onToggleTheme, installAvailable, installed, updateAvailable, online, onInstall, onUpdate,
+  appName = PRODUCT_NAME,
 }) {
   const [section, setSection] = useState('general');
   const [verticalTabs, setVerticalTabs] = useState(false);
@@ -483,7 +486,7 @@ export default function SettingsPage({
         <div className="settings-panels">
           {/* Keep panels mounted so switching sections preserves unsaved form drafts. */}
           <section className="settings-panel" role="tabpanel" id="settings-panel-general" aria-labelledby="settings-tab-general" hidden={section !== 'general'} tabIndex={0}>
-            <PreferencesCard theme={theme} onToggleTheme={onToggleTheme} installAvailable={installAvailable}
+            <PreferencesCard appName={appName} theme={theme} onToggleTheme={onToggleTheme} installAvailable={installAvailable}
               installed={installed} updateAvailable={updateAvailable} online={online} onInstall={onInstall} onUpdate={onUpdate} />
           </section>
           <section className="settings-panel" role="tabpanel" id="settings-panel-account" aria-labelledby="settings-tab-account" hidden={section !== 'account'} tabIndex={0}>

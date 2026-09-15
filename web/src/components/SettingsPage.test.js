@@ -122,6 +122,21 @@ test('general settings preserve theme, time format, install/update actions and c
   assert.equal(openings(installed, 'button').filter(tag => text(contents(installed, tag)).trim() === 'Install').length, 0);
 });
 
+test('installation settings show the supplied role name before and after installation', () => {
+  for (const appName of ['Parakkat Admin', 'Parakkat HR', 'Parakkat Manager', 'Parakkat Employee']) {
+    const available = text(panel(render({ props: { appName, installAvailable: true } }).html, 'General').html);
+    assert.ok(available.includes(`Add ${appName} to your home screen for full-screen access.`));
+    const installed = panel(render({ props: { appName, installed: true, installAvailable: true } }).html, 'General').html;
+    assert.ok(text(installed).includes(`${appName} is running as an installed app.`));
+    assert.equal(openings(installed, 'button').some(tag => text(contents(installed, tag)).trim() === 'Install'), false);
+  }
+});
+
+test('installation settings retain the product name when no role name is supplied', () => {
+  const general = text(panel(render().html, 'General').html);
+  assert.ok(general.includes('Add Parakkat to your home screen for full-screen access.'));
+});
+
 test('account uses the own employee detail, labels inputs and keeps HR identity read-only', () => {
   const result = render();
   const account = panel(result.html, 'Account').html;

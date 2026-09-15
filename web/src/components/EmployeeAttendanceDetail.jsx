@@ -88,7 +88,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
     return true;
   }), [rows, show, status]);
 
-  const pager = usePagination(filtered, 31, null, `${employeeId}:${status}:${show}`);
+  const pager = usePagination(filtered, 31, null, `${employeeId}:${from}:${to}:${status}:${show}`);
 
   // Who to look at. At 242 people a dropdown is unusable, so it is a search.
   const matches = useMemo(() => {

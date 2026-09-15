@@ -42,6 +42,7 @@ import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
 import LiquidGlassNav from './components/ui/LiquidGlassNav';
+import UnreadMessageBadge, { unreadMessageLabel } from './components/ui/UnreadMessageBadge';
 import './components/ui/liquidGlassNav.css';
 import { useAuth } from './auth/AuthContext';
 import { useEmployeeAvatars } from './data/documents';
@@ -49,12 +50,14 @@ import './components/profileNavigation.css';
 import { usePermissions } from './auth/usePermissions';
 import { resolveHeldRoles, resolvePrimaryRole } from './lib/roles';
 import { useViewRole } from './lib/viewRole';
-import { appNameFor, documentTitleFor } from './lib/appName';
+import { appIdentityFor, appNameFor, appRoleFor, documentTitleFor } from './lib/appName';
 import { useRealtimeSync } from './lib/realtime';
 import { useIncomingMessageDelivery } from './data/messages';
+import { unreadTotal } from './lib/conversations';
 import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
 import { isStandalonePwa } from './lib/pwa';
+import { watchPwaIdentity } from './lib/pwaIdentity';
 import { stripFocus } from './lib/focusRow';
 import { syncNativeTheme } from './mobile/native';
 
@@ -104,7 +107,8 @@ export default function App() {
   const { employee, user, isSuperAdmin, signOut, assignments, permissions, hiddenScreens } = useAuth();
   const { canAny, canBeyondSelf } = usePermissions();
   useRealtimeSync(); // live-sync data across devices via Supabase Realtime
-  useIncomingMessageDelivery();
+  const incomingMessages = useIncomingMessageDelivery();
+  const unreadMessageCount = unreadTotal(incomingMessages.data);
   // Subscribed at the root so switching the clock format repaints every screen at once. Times are
   // printed in a dozen places, several through a plain imported helper rather than a hook, and
   // hunting each one down would leave whichever was missed showing the old format until something
@@ -123,6 +127,8 @@ export default function App() {
   // Real role label for the header: the primary (highest) role, plus a count of any other
   // oversight roles. The auto-granted employee@self role is not counted — every manager has it.
   const trueRole = resolvePrimaryRole(assignments, isSuperAdmin);
+  const namingRole = appRoleFor(assignments, isSuperAdmin);
+  const installIdentity = appIdentityFor(namingRole);
   const roleNames = [...new Set((assignments || []).map((a) => a.role))];
   // Joined here rather than in the dependency array: a fresh array every render would rebuild the
   // list every time, and the linter cannot check an expression written inline in the deps.
@@ -271,6 +277,7 @@ export default function App() {
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [commandSearch, setCommandSearch] = useState('');
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [installError, setInstallError] = useState(null);
   const [isPwaInstalled, setIsPwaInstalled] = useState(() => isStandalonePwa());
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [pwaUpdateRegistration, setPwaUpdateRegistration] = useState(null);
@@ -283,6 +290,17 @@ export default function App() {
     refreshing: false,
     distance: 0,
   });
+
+  // App only mounts after authenticated access resolves. No generic install prompt is offered
+  // while logging in, and changing workspace view leaves the actual account's install name alone.
+  useLayoutEffect(() => {
+    setInstallError(null);
+    return watchPwaIdentity({
+      identity: installIdentity, document, window,
+      onPrompt: setInstallPrompt,
+      onInstalled: () => setIsPwaInstalled(true),
+    });
+  }, [installIdentity, user?.id]);
 
   useLayoutEffect(() => {
     document.documentElement.classList.add('app-root-lock');
@@ -299,27 +317,15 @@ export default function App() {
   }, [isSidebarCollapsed]);
 
   useEffect(() => {
-    const onBeforeInstallPrompt = (event) => {
-      event.preventDefault();
-      setInstallPrompt(event);
-    };
-    const onInstalled = () => {
-      setInstallPrompt(null);
-      setIsPwaInstalled(true);
-    };
     const onOnline = () => setIsOnline(true);
     const onOffline = () => setIsOnline(false);
     const onUpdateReady = (event) => setPwaUpdateRegistration(event.detail?.registration ?? null);
 
-    window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
-    window.addEventListener('appinstalled', onInstalled);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     window.addEventListener('pwa:update-ready', onUpdateReady);
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', onInstalled);
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('pwa:update-ready', onUpdateReady);
@@ -359,11 +365,15 @@ export default function App() {
 
   const installPwa = async () => {
     if (!installPrompt) return;
-    installPrompt.prompt();
-    const choice = await installPrompt.userChoice;
+    const prompt = installPrompt;
     setInstallPrompt(null);
-    if (choice?.outcome === 'accepted') {
-      setIsPwaInstalled(true);
+    setInstallError(null);
+    try {
+      await prompt.prompt();
+      await prompt.userChoice;
+      // appinstalled confirms completion; accepting the dialog alone is not installation.
+    } catch {
+      setInstallError('Could not open installation. Reload the app and try again.');
     }
   };
 
@@ -510,23 +520,15 @@ export default function App() {
     ?? visibleSections[0];
   const activeTabMeta = allTabs.find((t) => t.id === activeTab);
 
-  /**
-   * What this application calls itself for THIS person.
-   *
-   * "HR SYSTEM" was shown to everybody. It is accurate for the people who run HR and wrong for the
-   * 160-odd employees whose whole use of it is a punch, a payslip and a leave request — it names
-   * somebody else's tool. The nav tree already splits on exactly this (an employee gets essSections
-   * under "My Workspace"), so the title now agrees with the screen instead of contradicting it.
-   */
-  const appName = appNameFor(primaryRole);
+  const displayRole = namingRole === null ? null : primaryRole;
+  const appName = appNameFor(displayRole);
 
   // The browser tab, which is the one piece of chrome a person sees without looking at the app.
-  // Dashboard is left off deliberately: "Dashboard · My Workspace · Parakkat" says nothing the next
-  // two words do not.
+  // The dashboard uses the app name; other screens prefix it with the current section.
   useEffect(() => {
     const screen = activeSection?.id === 'home' || activeTab === 'dashboard' ? null : activeSection?.label;
-    document.title = documentTitleFor(primaryRole, screen);
-  }, [primaryRole, activeSection, activeTab]);
+    document.title = documentTitleFor(displayRole, screen);
+  }, [displayRole, activeSection, activeTab]);
 
   const mobilePrimarySections = pickMobilePrimary(visibleSections, primaryRole).map(section => ({
     ...section,
@@ -534,6 +536,7 @@ export default function App() {
     label: MOBILE_NAV_LABELS[section.id] ?? section.label,
     avatarUrl: section.id === 'profile' ? avatarUrl : undefined,
     initials: displayInitials,
+    unreadCount: section.id === 'messages' ? unreadMessageCount : 0,
   }));
   const needle = menuSearch.trim().toLowerCase();
   const menuSections = visibleSections.map(section => ({
@@ -586,8 +589,8 @@ export default function App() {
                 openSection(sec);
               }}
               aria-current={isActive ? 'page' : undefined}
-              title={isCollapsedDesktop ? sec.label : undefined}
-              aria-label={isCollapsedDesktop ? sec.label : undefined}
+              title={isCollapsedDesktop ? (sec.id === 'messages' ? unreadMessageLabel(sec.label, unreadMessageCount) : sec.label) : undefined}
+              aria-label={sec.id === 'messages' ? unreadMessageLabel(sec.label, unreadMessageCount) : isCollapsedDesktop ? sec.label : undefined}
               className={`w-full flex items-center rounded-xl text-base font-semibold cursor-pointer transition-colors duration-200 group relative border border-transparent ${
                 isCollapsedDesktop ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
               } ${
@@ -596,7 +599,7 @@ export default function App() {
                   : 'text-neutral-500 dark:text-warm-gray-400 hover:bg-neutral-50 dark:hover:bg-charcoal-800/80 hover:text-neutral-900 dark:hover:text-warm-gray-100'
               }`}
             >
-              <Icon
+              <span className="nav-message-icon" aria-hidden="true"><Icon
                 size={isCollapsedDesktop ? 18 : 16}
                 className={`shrink-0 ${
                   isActive
@@ -604,7 +607,10 @@ export default function App() {
                     : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-850 dark:group-hover:text-warm-gray-100'
                 }`}
               />
+              {isCollapsedDesktop && sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} corner />}
+              </span>
               {!isCollapsedDesktop && <span className="truncate">{sec.label}</span>}
+              {!isCollapsedDesktop && sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} />}
 
               {isCollapsedDesktop && (
                 <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 absolute left-full ml-4 px-2.5 py-1.5 bg-neutral-900/95 dark:bg-white text-white dark:text-charcoal-900 text-base font-bold rounded-lg shadow-xl transition-opacity duration-200 whitespace-nowrap z-50 pointer-events-none">
@@ -661,9 +667,12 @@ export default function App() {
                     type="button"
                     onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
                     aria-current={sectionActive ? 'page' : undefined}
+                    aria-label={sec.id === 'messages' ? unreadMessageLabel(label, unreadMessageCount) : undefined}
                     className="employee-more-tile"
                   >
-                    <Icon size={17} />
+                    <span className="nav-message-icon" aria-hidden="true"><Icon size={17} />
+                      {sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} corner />}
+                    </span>
                     <span>{label}</span>
                   </button>
                 );
@@ -691,10 +700,12 @@ export default function App() {
               type="button"
               onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
               aria-current={sectionActive && screens.length === 0 ? 'page' : undefined}
+              aria-label={sec.id === 'messages' ? unreadMessageLabel(single?.label ?? sec.label, unreadMessageCount) : undefined}
               className="mobile-nav-section"
             >
               <Icon size={15} />
               <span className="truncate">{single?.label ?? sec.label}</span>
+              {sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} />}
             </button>
 
             {screens.length > 0 && (
@@ -744,7 +755,7 @@ export default function App() {
                   <BrandMark size={15} />
                 </div>
                 <div className="flex flex-col min-w-0">
-                  <span className="font-extrabold text-xs tracking-wider text-neutral-900 dark:text-warm-gray-100 uppercase truncate">{appName}</span>
+                  <span className="font-extrabold text-xs leading-tight text-neutral-900 dark:text-warm-gray-100">{appName}</span>
 
                 </div>
               </div>
@@ -816,7 +827,7 @@ export default function App() {
           {/* Mobile menu toggle & Title */}
           <div className="app-header-title flex items-center gap-3.5">
             <span className="app-header-title-label font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
-              {activeSection?.label || ''}
+              {activeTab === 'dashboard' ? appName : activeSection?.label || appName}
               {activeSection && activeSection.tabs.length > 1 && activeTabMeta && (
                 <span className="hidden sm:inline text-neutral-400 dark:text-neutral-500 font-normal">
                   {' · '}{activeTabMeta.label}
@@ -1089,6 +1100,7 @@ export default function App() {
                 // changes — so Settings is preferences and nothing else. See ui/RoleSwitcher.
                 return (
                   <SettingsPage
+                    appName={installIdentity.name}
                     theme={theme}
                     onToggleTheme={toggleTheme}
                     installAvailable={Boolean(installPrompt)}
@@ -1115,7 +1127,9 @@ export default function App() {
           </div>
         </main>
 
+        {installError && <div role="alert" className="px-4 py-2 text-xs text-rose-700 dark:text-rose-300">{installError}</div>}
         <InstallPrompt
+          appName={installIdentity.name}
           deferredPrompt={installPrompt}
           standalone={isPwaInstalled}
           onInstall={installPwa}

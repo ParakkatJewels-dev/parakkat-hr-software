@@ -21,6 +21,7 @@ import { useEmployeeAvatars } from '../data/documents';
 import { useEmployee } from '../data/employees';
 import { useEmployeeAssets } from '../data/assets';
 import { useUpdateMyProfile } from '../data/settings';
+import PagedCollection from './ui/PagedCollection';
 import './profileMenu.css';
 
 const initials = (name) =>
@@ -104,7 +105,7 @@ function Facts({ icon: Icon, title, fields, children, note, className = '' }) {
  * was invisible to the one person responsible for returning it. 0088 grants it at self scope, and
  * assets_select passes the row's employee_id, so this resolves to their own kit and nothing else.
  */
-function MyAssets({ employeeId }) {
+export function MyAssets({ employeeId }) {
   const { data: assets = [], isLoading, error } = useEmployeeAssets(employeeId);
 
   if (isLoading) {
@@ -114,8 +115,9 @@ function MyAssets({ employeeId }) {
   if (!assets.length) return <p className="profile-note">Nothing is signed out to you.</p>;
 
   return (
-    <ul className="profile-assets">
-      {assets.map((a) => (
+    <PagedCollection items={assets} noun="assets" resetKey={employeeId}>
+      {(pageRows) => <ul className="profile-assets">
+      {pageRows.map((a) => (
         <li key={a.id}>
           <span className="profile-asset-icon"><Package size={14} /></span>
           <span className="profile-asset-copy">
@@ -130,7 +132,8 @@ function MyAssets({ employeeId }) {
           <span className="profile-asset-state">{a.condition || a.status}</span>
         </li>
       ))}
-    </ul>
+      </ul>}
+    </PagedCollection>
   );
 }
 

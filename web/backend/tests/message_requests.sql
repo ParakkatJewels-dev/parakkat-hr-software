@@ -47,6 +47,14 @@ insert into public.conversation_members(conversation_id, employee_id, role, last
     (audit_message.id(5,1), audit_message.id(4,4), 'member', now() - interval '1 day');
 insert into audit_message.refs values ('legacy', audit_message.id(5,1));
 
+-- One legacy recipient has already read the chat, while the other still has a new message.
+-- Both bell rows predate the read-notification fix and must be repaired independently.
+insert into public.messages(id,conversation_id,sender_id,body,created_at)
+  values (audit_message.id(7,101),audit_message.ref('legacy'),audit_message.id(4,1),'Already read before migration',now()-interval '2 days'),
+    (audit_message.id(7,102),audit_message.ref('legacy'),audit_message.id(4,4),'Still unread before migration',now()-interval '1 hour');
+insert into public.notifications(user_id,type,title,tab,ref_id)
+  values (audit_message.id(3,4),'task','Unrelated notification','tasks',audit_message.ref('legacy'));
+
 \else
 create function audit_message.expect_denied(statement text) returns void language plpgsql as $$
 begin
@@ -78,8 +86,16 @@ end $$;
 grant execute on function audit_message.expect_denied(text), audit_message.expect_unchanged(text), audit_message.expect_invalid(text) to authenticated, anon;
 
 do $$ begin
+  assert (select count(*) = 3 from pg_publication_tables where pubname = 'supabase_realtime'
+    and schemaname = 'public' and tablename in ('messages', 'conversations', 'conversation_members')),
+    'messages, inbox changes and member receipt updates are all published to realtime';
+  assert (select pubinsert and pubupdate from pg_publication where pubname = 'supabase_realtime'),
+    'realtime publication includes message inserts and receipt updates';
   assert (select request_status = 'accepted' and request_recipient_id is null from public.conversations where id = audit_message.ref('legacy')), 'legacy cross-branch conversation stays accepted';
   assert (select bool_and(last_delivered_at = last_read_at) from public.conversation_members where conversation_id = audit_message.ref('legacy')), 'legacy reading cursor is delivered, with no new fabricated seen time';
+  assert exists(select 1 from public.notifications where user_id=audit_message.id(3,4) and type='message' and ref_id=audit_message.ref('legacy') and read_at is not null), 'migration clears an already-read legacy chat notification';
+  assert exists(select 1 from public.notifications where user_id=audit_message.id(3,1) and type='message' and ref_id=audit_message.ref('legacy') and read_at is null), 'migration preserves a genuinely unread legacy chat notification';
+  assert exists(select 1 from public.notifications where user_id=audit_message.id(3,4) and type='task' and ref_id=audit_message.ref('legacy') and read_at is null), 'migration leaves non-message notifications untouched';
   assert not has_function_privilege('anon', 'public.start_direct_conversation(uuid)', 'execute'), 'anonymous cannot start a conversation';
   assert not has_function_privilege('anon', 'public.respond_to_message_request(uuid,boolean)', 'execute'), 'anonymous cannot answer a request';
   assert not has_function_privilege('anon', 'public.messaging_directory(text)', 'execute'), 'anonymous cannot list staff';
@@ -174,6 +190,7 @@ do $$ begin
     where cm.conversation_id=audit_message.ref('pending') and cm.employee_id=audit_message.id(4,3) and m.id=audit_message.ref('request-message')), 'recipient actual fetch acknowledges delivered';
   assert (select cm.last_read_at < m.created_at from public.conversation_members cm cross join public.messages m
     where cm.conversation_id=audit_message.ref('pending') and cm.employee_id=audit_message.id(4,3) and m.id=audit_message.ref('request-message')), 'pending request suppresses seen even when client requests it';
+  assert exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('pending') and read_at is null), 'pending request delivery does not clear the message notification';
 end $$;
 select public.respond_to_message_request(audit_message.ref('pending'),true);
 select public.respond_to_message_request(audit_message.ref('pending'),true);
@@ -184,6 +201,7 @@ do $$ begin
   assert (select cm.last_read_at=m.created_at and cm.last_read_message_id=m.id and cm.last_delivered_at=m.created_at
     from public.conversation_members cm cross join public.messages m
     where cm.conversation_id=audit_message.ref('pending') and cm.employee_id=audit_message.id(4,3) and m.id=audit_message.ref('request-message')), 'accepted seen implies delivered at the actual message cursor';
+  assert not exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('pending') and read_at is null), 'reading an accepted thread clears its notification without opening the bell';
 end $$;
 with message as (
   insert into public.messages(conversation_id,sender_id,body)
@@ -243,6 +261,7 @@ do $$ begin
   assert (select last_read_message_id=audit_message.id(7,1) and last_delivered_message_id=audit_message.id(7,1)
     from public.conversation_members where conversation_id=audit_message.ref('ties') and employee_id=audit_message.id(4,3)), 'first equal-time message receives its own cursor';
   assert (select unread_count=2 from public.my_conversations where id=audit_message.ref('ties')), 'later UUID at the same timestamp remains unread';
+  assert exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('ties') and read_at is null), 'a partial read keeps the latest conversation notification unread';
 end $$;
 select public.acknowledge_message_receipts(audit_message.ref('ties'),array[audit_message.id(7,2)],false);
 select public.acknowledge_message_receipts(audit_message.ref('ties'),array[audit_message.id(7,1)],true);
@@ -256,6 +275,7 @@ do $$ begin
   assert (select last_read_message_id=audit_message.id(7,2) and last_delivered_message_id=audit_message.id(7,2)
     and last_read_at <= clock_timestamp() and last_delivered_at <= clock_timestamp()
     from public.conversation_members where conversation_id=audit_message.ref('ties') and employee_id=audit_message.id(4,3)), 'future legacy rows cannot move receipt cursors into the future';
+  assert exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('ties') and read_at is null), 'a future unread message prevents its conversation notification from being cleared';
 end $$;
 select 'PASS: sent, delivered and seen cursors handle timestamp ties, independent stages, out-of-order acknowledgements and future rows' as result;
 
@@ -286,7 +306,30 @@ select public.acknowledge_message_receipts(audit_message.ref('group'),array[audi
 do $$ begin
   assert (select last_read_message_id=audit_message.ref('group-message') and last_delivered_message_id=audit_message.ref('group-message')
     from public.conversation_members where conversation_id=audit_message.ref('group') and employee_id=audit_message.id(4,3)), 'group recipients can acknowledge their own received messages';
+  assert not exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('group') and read_at is null), 'reading a group clears the current recipient notification';
+  assert exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('ties') and read_at is null), 'reading one conversation never clears another';
 end $$;
+reset role;
+do $$ begin
+  assert exists(select 1 from public.notifications where user_id=audit_message.id(3,2) and type='message' and ref_id=audit_message.ref('group') and read_at is null), 'one group recipient cannot clear another recipient notification';
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '30000000-0000-0000-0000-000000000001';
+with message as (
+  insert into public.messages(conversation_id,sender_id,body)
+  values (audit_message.ref('group'),audit_message.id(4,1),'New activity after the group was read') returning id
+) insert into audit_message.refs select 'group-followup', id from message;
+set request.jwt.claim.sub = '30000000-0000-0000-0000-000000000003';
+select public.acknowledge_message_receipts(audit_message.ref('group'),array[audit_message.ref('group-followup')],false);
+select public.acknowledge_message_receipts(audit_message.ref('group'),array[audit_message.ref('group-message')],true);
+do $$ begin
+  assert exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('group') and read_at is null), 'delivery and a repeated older seen acknowledgment preserve a newly arrived notification';
+end $$;
+select public.acknowledge_message_receipts(audit_message.ref('group'),array[audit_message.ref('group-followup')],true);
+do $$ begin
+  assert not exists(select 1 from public.notifications where type='message' and ref_id=audit_message.ref('group') and read_at is null), 'seeing the newly arrived message clears the refreshed notification';
+end $$;
+select 'PASS: chat notifications follow accepted read cursors, preserving delivery-only, future, other-room and other-user activity' as result;
 set request.jwt.claim.sub = '30000000-0000-0000-0000-000000000007';
 insert into audit_message.refs values ('both-null',public.start_direct_conversation(audit_message.id(4,8)));
 do $$ begin

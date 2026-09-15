@@ -73,8 +73,7 @@ export function useAssetHistory(assetId) {
   return useQuery({
     enabled: Boolean(assetId),
     queryKey: ['asset-history', assetId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('asset_assignments')
         .select(
           // The *_by_name columns are stamped server-side at write time (0079). assigned_by itself
@@ -86,10 +85,7 @@ export function useAssetHistory(assetId) {
                               branch:branches(code,name), designation:designations(title))`
         )
         .eq('asset_id', assetId)
-        .order('assigned_at', { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('assigned_at', { ascending: false }).order('id')),
   });
 }
 
@@ -98,17 +94,13 @@ export function useEmployeeAssets(employeeId) {
   return useQuery({
     enabled: Boolean(employeeId),
     queryKey: ['assets', 'employee', employeeId],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('assets')
         .select(
           'id, category, asset_type, name, make, model, serial, asset_code, status, condition, location, photo_path'
         )
         .eq('employee_id', employeeId)
-        .order('name', { ascending: true });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('name', { ascending: true }).order('id')),
   });
 }
 

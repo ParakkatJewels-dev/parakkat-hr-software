@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { bindTypingLifecycle, createTypingPublisher, createTypingRoster, TYPING_TTL_MS } from './chatTyping.js';
+import { bindTypingLifecycle, createTypingPublisher, createTypingRoster, isTypingUnavailable, subscribeToTyping, TYPING_TTL_MS } from './chatTyping.js';
 
 const settle = async () => { for (let turn = 0; turn < 8; turn += 1) await Promise.resolve(); };
 function clock() {
@@ -86,6 +86,54 @@ test('a delayed typing RPC finishes before the stop RPC, including during unmoun
   assert.equal(writes.length, 2);
 });
 
+test('a new draft starts immediately after a stop instead of waiting for the old throttle', async () => {
+  const { timer, publisher, writes } = publisherHarness();
+  publisher.setTyping(true); await settle();
+  await timer.advance(100); publisher.stop(); await settle();
+  publisher.setTyping(true); await settle();
+  assert.deepEqual(writes.map((entry) => entry.typing), [true, false, true]);
+  assert.equal(writes.at(-1).at, timer.now());
+  publisher.dispose();
+});
+
+test('keystrokes during a slow request publish a fresh heartbeat after that request completes', async () => {
+  const timer = clock(), writes = [];
+  let finish;
+  const publisher = createTypingPublisher({ ...timer, write: (typing) => {
+    writes.push({ typing, at: timer.now() });
+    if (writes.length === 1) return new Promise((resolve) => { finish = resolve; });
+  } });
+  publisher.setTyping(true); await settle();
+  await timer.advance(1500); publisher.setTyping(true);
+  await timer.advance(1500); publisher.setTyping(true);
+  finish(); await settle();
+  assert.deepEqual(writes.map((entry) => entry.typing), [true, true]);
+  assert.equal(writes[1].at, timer.now());
+  publisher.dispose(); await settle();
+});
+
+test('transient failures retry at the throttle and recover without reopening the conversation', async () => {
+  const timer = clock(), writes = [], failures = [];
+  const publisher = createTypingPublisher({ ...timer, onError: (error) => failures.push(error), write: async (typing) => {
+    writes.push(typing);
+    if (writes.length === 1) throw new TypeError('Failed to fetch');
+  } });
+  publisher.setTyping(true); await settle();
+  await timer.advance(1999); assert.deepEqual(writes, [true]);
+  await timer.advance(1); assert.deepEqual(writes, [true, true]);
+  assert.equal(failures.length, 1);
+  publisher.dispose(); await settle();
+  await timer.advance(10000);
+  assert.deepEqual(writes, [true, true, false]);
+});
+
+test('only unavailable schema or membership disables typing permanently', () => {
+  for (const code of ['42501', '42883', '42P01', 'PGRST202', 'PGRST205']) assert.equal(isTypingUnavailable({ code }), true);
+  for (const error of [new TypeError('Failed to fetch'), { status: 503 }, { code: 'PGRST301' }]) {
+    assert.equal(isTypingUnavailable(error), false);
+  }
+});
+
 const row = (now, changes = {}) => ({ id: 'row-one', conversation_id: 'room', employee_id: 'peer', is_typing: true,
   updated_at: new Date(now).toISOString(), expires_at: new Date(now + TYPING_TTL_MS).toISOString(), ...changes });
 
@@ -128,6 +176,24 @@ test('late initial reads cannot resurrect a peer after a newer stop, including m
   roster.upsert({ ...started, updated_at: newer, is_typing: false });
   roster.upsert(started);
   assert.deepEqual(roster.ids(), []);
+});
+
+test('snapshots clear missing activity without erasing a newer realtime start or restoring a stopped peer', () => {
+  const timer = clock();
+  const roster = createTypingRoster({ conversationId: 'room', me: 'self', now: timer.now });
+  const started = row(timer.now());
+  roster.upsert(started);
+  roster.reconcile([], roster.checkpoint());
+  assert.deepEqual(roster.ids(), [], 'an absent active row stops on the next fallback read');
+  const checkpoint = roster.checkpoint();
+  const next = row(timer.now() + 1);
+  roster.upsert(next);
+  roster.reconcile([], checkpoint);
+  assert.deepEqual(roster.ids(), ['peer'], 'a read started before new activity cannot erase it');
+  const beforeStop = roster.checkpoint();
+  roster.upsert(row(timer.now() + 2, { is_typing: false }));
+  roster.reconcile([next], beforeStop);
+  assert.deepEqual(roster.ids(), [], 'a late snapshot cannot resurrect a newer stop');
 });
 
 test('membership DELETE only removes a previously authorized opaque ID and rejects stale replay', () => {
@@ -188,9 +254,135 @@ test('blur, hidden tabs, page exit and logout stop activity; cleanup removes eve
   documentTarget.visibilityState = 'visible'; documentTarget.emit('visibilitychange');
   callback('TOKEN_REFRESHED', { user: { id: 'user-one' } });
   assert.equal(stops, 3); assert.equal(hidden, 1); assert.equal(visible, 1);
+  windowTarget.emit('focus'); windowTarget.emit('online'); windowTarget.emit('pageshow');
+  assert.equal(visible, 4, 'resume, reconnect, and browser back/forward restore fresh activity');
   callback('SIGNED_IN', { user: { id: 'user-two' } });
   callback('SIGNED_OUT', null);
   assert.equal(stops, 5); assert.equal(ended, 2);
   remove();
   assert.equal(unsubscribed, true); assert.equal(windowTarget.count(), 0); assert.equal(documentTarget.count(), 0);
+});
+
+function feedHarness(options = {}) {
+  const timer = clock();
+  let handler, status, visible = true, reads = 0, removed = 0;
+  let answer = () => ({ data: [], error: null });
+  const snapshots = [], queries = [];
+  const client = {
+    channel() {
+      const channel = {
+        on(_type, filter, callback) { handler = callback; channel.filter = filter; return channel; },
+        subscribe(callback) { status = callback; return channel; },
+      };
+      return channel;
+    },
+    removeChannel() { removed += 1; },
+    from(table) {
+      const filters = [], query = {
+        select() { return query; },
+        eq(field, value) { filters.push([field, value]); return query; },
+        neq(field, value) { filters.push([field, 'not', value]); return query; },
+        then(resolve, reject) { reads += 1; queries.push({ table, filters }); return Promise.resolve(answer()).then(resolve, reject); },
+      };
+      return query;
+    },
+  };
+  const feed = subscribeToTyping({ client, me: 'self', conversationId: 'room', ...options, ...timer,
+    isVisible: () => visible, onChange: (roster) => snapshots.push(roster.byConversation()) });
+  return { ...timer, feed, snapshots, queries,
+    answer: (next) => { answer = next; },
+    visible: (next) => { visible = next; },
+    status: (next) => status(next), emit: (payload) => handler(payload),
+    reads: () => reads, removed: () => removed };
+}
+
+test('typing events render immediately with no polling on a healthy socket; lost stops still expire', async () => {
+  const h = feedHarness();
+  await settle(); h.status('SUBSCRIBED'); await settle();
+  const reads = h.reads();
+  h.emit({ eventType: 'INSERT', new: row(h.now()) });
+  assert.deepEqual(h.snapshots.at(-1), { room: ['peer'] });
+  await h.advance(TYPING_TTL_MS);
+  assert.deepEqual(h.snapshots.at(-1), {});
+  assert.equal(h.reads(), reads);
+  h.feed.dispose();
+  assert.equal(h.timers(), 0); assert.equal(h.removed(), 1);
+});
+
+test('disconnected typing polls every two seconds and reconnecting returns to realtime', async () => {
+  const h = feedHarness();
+  await settle();
+  h.answer(() => ({ data: [row(h.now())] }));
+  h.status('CHANNEL_ERROR'); await settle();
+  assert.deepEqual(h.snapshots.at(-1), { room: ['peer'] });
+  h.answer(() => ({ data: [] }));
+  await h.advance(2000);
+  assert.deepEqual(h.snapshots.at(-1), {}, 'fallback also clears stopped activity');
+  h.status('SUBSCRIBED'); await settle();
+  const reads = h.reads();
+  await h.advance(4000); assert.equal(h.reads(), reads);
+  assert.ok(h.queries.every(({ table, filters }) => table === 'chat_typing'
+    && filters.some(([field, value]) => field === 'conversation_id' && value === 'room')));
+  h.feed.dispose();
+});
+
+test('slow fallback reads are coalesced and never discarded by the next polling interval', async () => {
+  const h = feedHarness();
+  let finish;
+  h.answer(() => new Promise((resolve) => { finish = resolve; }));
+  await settle();
+  await h.advance(7000);
+  assert.equal(h.reads(), 1);
+  finish({ data: [row(h.now())] }); await settle();
+  assert.deepEqual(h.snapshots.at(-1), { room: ['peer'] });
+  h.feed.dispose();
+});
+
+test('hidden tabs and ended sessions make no typing reads and ignore late events', async () => {
+  const h = feedHarness({ conversationId: undefined });
+  await settle();
+  h.emit({ eventType: 'INSERT', new: row(h.now(), { conversation_id: 'room-b' }) });
+  assert.deepEqual(h.snapshots.at(-1), { 'room-b': ['peer'] });
+  h.visible(false); h.feed.clear();
+  const reads = h.reads();
+  await h.advance(7000); assert.equal(h.reads(), reads);
+  h.visible(true); await h.feed.refresh();
+  assert.equal(h.reads(), reads + 1);
+  h.feed.endSession();
+  h.emit({ eventType: 'INSERT', new: row(h.now()) });
+  await h.advance(7000); await h.feed.refresh();
+  assert.equal(h.reads(), reads + 1);
+  assert.deepEqual(h.snapshots.at(-1), {});
+  assert.ok(h.queries.every(({ filters }) => !filters.some(([field]) => field === 'conversation_id')));
+  h.feed.dispose();
+});
+
+test('restoring the tab during a stale in-flight read queues a fresh snapshot', async () => {
+  const h = feedHarness();
+  let finish;
+  h.answer(() => new Promise((resolve) => { finish = resolve; }));
+  await settle();
+  h.visible(false); h.feed.clear();
+  h.visible(true); void h.feed.refresh();
+  h.answer(() => ({ data: [row(h.now(), { employee_id: 'new-peer', id: 'new-row' })] }));
+  finish({ data: [row(h.now())] }); await settle();
+  assert.equal(h.reads(), 2);
+  assert.deepEqual(h.snapshots.at(-1), { room: ['new-peer'] });
+  h.feed.dispose();
+});
+
+test('fallback recovers from a transient read error but stops querying a missing schema', async () => {
+  const h = feedHarness();
+  h.answer(() => ({ error: new TypeError('Network unavailable') }));
+  await settle();
+  h.answer(() => ({ data: [row(h.now())] }));
+  await h.advance(2000);
+  assert.deepEqual(h.snapshots.at(-1), { room: ['peer'] });
+  h.answer(() => ({ error: { code: 'PGRST205', message: 'Missing table' } }));
+  await h.advance(2000);
+  const reads = h.reads();
+  await h.advance(10000);
+  assert.equal(h.reads(), reads);
+  assert.deepEqual(h.snapshots.at(-1), {});
+  h.feed.dispose();
 });

@@ -8,6 +8,10 @@ const APP_SHELL = [
   '/index.html',
   '/offline.html',
   '/manifest.webmanifest',
+  '/manifests/admin.webmanifest',
+  '/manifests/hr.webmanifest',
+  '/manifests/manager.webmanifest',
+  '/manifests/employee.webmanifest',
   '/favicon.ico',
   '/favicon-16.png',
   '/favicon-32.png',
@@ -115,7 +119,7 @@ async function cachedShellFallback() {
     (await caches.match('/')) ||
     (await caches.match('/offline.html')) ||
     new Response(
-      '<!doctype html><title>Offline</title><h1>Parakkat HR is offline</h1><p>Please reconnect and try again.</p>',
+      '<!doctype html><title>Offline</title><h1>Parakkat is offline</h1><p>Please reconnect and try again.</p>',
       { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
     )
   );

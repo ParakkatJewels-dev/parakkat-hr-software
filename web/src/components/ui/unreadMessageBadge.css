@@ -1,0 +1,43 @@
+.unread-message-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  padding: 0 .25rem;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: .625rem;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nav-message-icon {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+}
+
+.unread-message-badge-corner {
+  position: absolute;
+  top: -.45rem;
+  left: calc(100% - .35rem);
+  margin: 0;
+  box-shadow: 0 0 0 2px var(--surface-elevated);
+}
+
+.employee-more-tile > .nav-message-icon {
+  overflow: visible;
+  color: var(--accent-strong);
+}
+
+.dark .unread-message-badge { background: #b91c1c; }

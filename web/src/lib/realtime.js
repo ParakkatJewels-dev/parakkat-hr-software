@@ -7,6 +7,10 @@ import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabaseClient';
 import { useAuth } from '../auth/AuthContext';
+import { mergeConversationReceipts } from './messageReceipts';
+
+const CHAT_TABLES = new Set(['messages', 'conversations', 'conversation_members']);
+const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']];
 
 // public table → query-key prefixes to invalidate when it changes. A prefix invalidates every
 // query whose key starts with it (e.g. ['attendance'] covers ['attendance','day',date]).
@@ -78,6 +82,35 @@ export function useRealtimeSync() {
     let pending = new Set();
     let accessRefreshPending = false;
     let flushTimer = null;
+    let chatPending = new Set();
+    let chatTimer = null;
+    let chatFallbackTimer = null;
+    let closed = false;
+    const refreshChat = () => {
+      for (const queryKey of CHAT_KEYS) qc.invalidateQueries({ queryKey, type: 'active' });
+    };
+    // A disconnected socket must not leave message ticks on the app-wide five-minute poll.
+    // Only run this fallback while disconnected and while the app is visible.
+    const startChatFallback = () => {
+      if (closed || chatFallbackTimer) return;
+      chatFallbackTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') refreshChat();
+      }, 10_000);
+    };
+    const stopChatFallback = () => {
+      if (chatFallbackTimer) clearInterval(chatFallbackTimer);
+      chatFallbackTimer = null;
+    };
+    const queueChatInvalidation = (keys) => {
+      for (const key of keys) chatPending.add(JSON.stringify(key));
+      if (chatTimer) return;
+      chatTimer = setTimeout(() => {
+        chatTimer = null;
+        const keys = [...chatPending];
+        chatPending = new Set();
+        for (const serialized of keys) qc.invalidateQueries({ queryKey: JSON.parse(serialized), type: 'active' });
+      }, 100);
+    };
     const flush = () => {
       flushTimer = null;
       const keys = [...pending];
@@ -105,19 +138,45 @@ export function useRealtimeSync() {
     const channel = supabase.channel('app-live-sync');
     for (const [table, keys] of Object.entries(TABLE_KEYS)) {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, (payload) => {
-        queueInvalidation(keys, touchesCurrentAccess(table, payload));
+        if (closed) return;
+        if (CHAT_TABLES.has(table)) {
+          // Ticks use member cursors, not message rows. Render the authenticated UPDATE itself;
+          // waiting for the inbox and member directory to refetch added several network trips.
+          if (table === 'conversation_members' && payload.eventType === 'UPDATE') {
+            for (const queryKey of [['conversations'], ['admin-conversations']]) {
+              qc.setQueriesData({ queryKey }, (data) => mergeConversationReceipts(data, payload.new));
+            }
+          }
+          const conversationId = payload.new?.conversation_id ?? payload.old?.conversation_id;
+          queueChatInvalidation(table === 'messages' && conversationId
+            ? keys.map((key) => key[0] === 'messages' ? ['messages', conversationId] : key)
+            : keys);
+          return;
+        }
+        // Adding a secondary assignee emits a task notification without updating the task row.
+        // Refresh newly granted tasks when that notification arrives, using the same burst batch.
+        const relatedKeys = table === 'notifications' && payload.new?.type === 'task'
+          ? [...keys, ...TABLE_KEYS.tasks]
+          : keys;
+        queueInvalidation(relatedKeys, touchesCurrentAccess(table, payload));
       });
     }
 
+    startChatFallback();
     channel.subscribe((status) => {
+      if (closed) return;
       // On (re)connect — including after the app returns from background — refresh what is on
       // screen. `type: 'active'` limits it to mounted queries; a bare invalidateQueries() also
       // re-fetched every cached-but-unmounted screen, which on a phone that switches network a
       // few dozen times a day was the single largest source of traffic.
-      if (status === 'SUBSCRIBED') qc.invalidateQueries({ type: 'active' });
-      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      if (status === 'SUBSCRIBED') {
+        stopChatFallback();
+        qc.invalidateQueries({ type: 'active' });
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        startChatFallback();
         // Surfaced so a misconfigured publication / blocked socket is visible in the console rather
-        // than failing silently. The polling fallback (QueryClient options) keeps the UI fresh.
+        // than failing silently. Chat uses the short fallback above; other screens keep their
+        // normal QueryClient safety poll.
         console.warn('[realtime] channel status:', status, '— falling back to polling');
       }
     });
@@ -131,7 +190,10 @@ export function useRealtimeSync() {
     document.addEventListener('visibilitychange', refreshVisible);
 
     return () => {
+      closed = true;
       if (flushTimer) clearTimeout(flushTimer);
+      if (chatTimer) clearTimeout(chatTimer);
+      stopChatFallback();
       supabase.removeChannel(channel);
       document.removeEventListener('visibilitychange', refreshVisible);
     };

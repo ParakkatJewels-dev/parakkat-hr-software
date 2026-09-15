@@ -1,0 +1,162 @@
+{
+  "name": "Parakkat HR",
+  "short_name": "Parakkat HR",
+  "description": "Manage employee records, attendance, leave and payroll for your Parakkat organization.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait-primary",
+  "background_color": "#080d0b",
+  "theme_color": "#080d0b",
+  "categories": [
+    "business",
+    "productivity"
+  ],
+  "lang": "en",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Open your dashboard",
+      "url": "/#/dashboard",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Attendance",
+      "short_name": "Attendance",
+      "description": "Open attendance",
+      "url": "/#/attendance",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "People",
+      "short_name": "People",
+      "description": "Open employee directory",
+      "url": "/#/directory",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Payroll",
+      "short_name": "Payroll",
+      "description": "Open payroll",
+      "url": "/#/payroll",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Leave",
+      "short_name": "Leave",
+      "description": "Open leave management",
+      "url": "/#/leave",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Tasks",
+      "short_name": "Tasks",
+      "description": "Open task management",
+      "url": "/#/tasks",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "short_name": "Reports",
+      "description": "Open reports and analytics",
+      "url": "/#/reports",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Administration",
+      "short_name": "Admin",
+      "description": "Open users and access",
+      "url": "/#/administration",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "short_name": "Settings",
+      "description": "Open app settings",
+      "url": "/#/settings",
+      "icons": [
+        {
+          "src": "/pwa-icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}

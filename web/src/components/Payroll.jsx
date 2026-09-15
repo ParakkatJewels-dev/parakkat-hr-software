@@ -716,6 +716,7 @@ function ComponentsTab() {
     deptId: c.department_id,
   });
   const { data: components = [] } = usePayComponents();
+  const componentPager = usePagination(components, 25);
   const { data: org } = useVisibleOrg();
   const save = useSavePayComponent();
 
@@ -869,7 +870,7 @@ function ComponentsTab() {
           </p>
         ) : (
           <div className="space-y-1.5">
-            {components.map((c) => (
+            {componentPager.slice.map((c) => (
               <div
                 key={c.id}
                 className="mobile-list-row flex flex-wrap items-center justify-between gap-2 rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2"
@@ -907,6 +908,7 @@ function ComponentsTab() {
             ))}
           </div>
         )}
+        <Pagination {...componentPager} noun="pay components" />
         <Err e={del.error} />
       </section>
     </div>

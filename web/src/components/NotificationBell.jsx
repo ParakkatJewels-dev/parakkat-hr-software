@@ -93,6 +93,10 @@ export default function NotificationBell({ onNavigate }) {
               ))
             )}
           </div>
+          <button type="button" onClick={() => { setOpen(false); onNavigate?.('notifications'); }}
+            className="shrink-0 border-t border-neutral-150 dark:border-neutral-900 px-3.5 py-3 text-xs font-semibold text-brand-ink hover:bg-neutral-50 dark:hover:bg-neutral-900 cursor-pointer">
+            View all notifications
+          </button>
         </div>
       )}
     </div>

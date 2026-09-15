@@ -33,6 +33,7 @@ const employeeAttendance = await import('./employeeAttendance.js');
 const routines = await import('./routines.js');
 const goals = await import('./goals.js');
 const leaves = await import('./leaveTypes.js');
+const holidays = await import('./holidays.js');
 const shifts = await import('./shifts.js');
 const tasks = await import('./tasks.js');
 const devices = await import('./devices.js');
@@ -116,6 +117,11 @@ test('675 employees and three daily duties each remain complete despite a 97-row
     department_id: 'dept-1', entity_id: 'company-1', link_status: i % 2 ? 'manual' : 'unmatched',
   }));
   const cases = [
+    ['shifts', () => shifts.useShifts()],
+    ['devices', () => devices.useDevices()],
+    ['leave_types', () => leaves.useLeaveTypes()],
+    ['holiday_calendars', () => holidays.useHolidayCalendars()],
+    ['holidays', () => holidays.useHolidays()],
     ['routine_items', () => routines.useRoutineItems()],
     ['routine_ticks', () => routines.useRoutineTicks('2026-09-11')],
     ['attendance', () => attendance.useDayAttendance('2026-09-11')],

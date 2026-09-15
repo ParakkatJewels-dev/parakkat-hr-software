@@ -11,18 +11,14 @@ import { textContainsFilter } from '../lib/querySearch';
 export function useDevices() {
   return useQuery({
     queryKey: ['devices'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('devices')
         .select(
           `id, serial_number, alias, ip_address, area_name, entity_id, branch_id,
            last_punch_at, last_seen_at, is_active,
            branch:branches(id, name, code), entity:entities(id, code, name)`
         )
-        .order('last_punch_at', { ascending: false, nullsFirst: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('last_punch_at', { ascending: false, nullsFirst: false }).order('id')),
   });
 }
 

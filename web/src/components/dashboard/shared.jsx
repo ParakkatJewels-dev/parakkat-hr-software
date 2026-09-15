@@ -1,10 +1,8 @@
 // Shared building blocks for the role-based dashboards.
 // Every widget is permission-gated where it renders; these primitives are purely presentational
-// plus the two cross-role widgets (notifications strip, holidays & anniversaries).
+// plus the shared holidays & anniversaries widget.
 import React from 'react';
-import { ArrowRight, BellRing, CalendarHeart, PartyPopper } from 'lucide-react';
-import { useActionableNotifications, useOpenNotification } from '../../data/notifications';
-import { groupUnreadNotifications } from '../../lib/actionableNotifications';
+import { ArrowRight, CalendarHeart, PartyPopper } from 'lucide-react';
 import { useHolidays } from '../../data/holidays';
 import { useEmployees } from '../../data/employees';
 import { todayIso } from '../../data/attendance';
@@ -269,41 +267,6 @@ export function StatusBadge({ status }) {
     >
       {status}
     </span>
-  );
-}
-
-/** Unread-notification strip shown on every dashboard, right under the greeting. */
-export function NotificationsStrip({ onNavigate }) {
-  const { data: notifications = [] } = useActionableNotifications();
-  // Same contract as the bell and the notifications screen: opening marks read, THEN navigates.
-  // This strip used to only navigate, so the badge never came down. See useOpenNotification.
-  const { open } = useOpenNotification(onNavigate);
-  const unreadGroups = groupUnreadNotifications(notifications).slice(0, 3);
-  if (unreadGroups.length === 0) return null;
-
-  return (
-    <section className="premium-card dashboard-alert-strip border-amber-500/25 dark:border-amber-500/20">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 shrink-0">
-          <BellRing size={12} /> Needs attention
-        </span>
-        {unreadGroups.map((n) => (
-          <button
-            key={n.id}
-            onClick={() => open(n)}
-            className="flex items-center gap-1.5 rounded-lg border border-neutral-200/70 dark:border-neutral-850 bg-neutral-50/60 dark:bg-charcoal-900/40 px-2.5 py-1 text-base font-semibold text-neutral-700 dark:text-warm-gray-300 hover:border-amber-500/40 transition-colors cursor-pointer max-w-full"
-          >
-            <span className="truncate">{n.title}</span>
-            {n.count > 1 && (
-              <span className="dashboard-alert-count" aria-label={`${n.count} unread`}>
-                {n.count}
-              </span>
-            )}
-            <ArrowRight size={10} className="shrink-0 text-neutral-400" />
-          </button>
-        ))}
-      </div>
-    </section>
   );
 }
 

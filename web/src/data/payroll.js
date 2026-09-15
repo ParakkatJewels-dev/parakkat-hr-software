@@ -186,15 +186,11 @@ export function useSaveSalaryStructure() {
 export function usePayComponents() {
   return useQuery({
     queryKey: ['pay-components'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('pay_components')
         .select('*')
         .order('display_order')
-        .order('code');
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('code').order('id')),
   });
 }
 

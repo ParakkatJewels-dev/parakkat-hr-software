@@ -1,11 +1,14 @@
 import { accountFixtures } from '../src/test/scaleFixtures.js';
+import { addDays } from '../src/lib/dateRange.js';
 
 export const fixture = accountFixtures(525);
 export const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
 export const period = today.slice(0, 7);
 export const mobileFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-mobile');
-export const chatFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-chat');
+export const actionsFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-actions');
+export const chatFixtures = actionsFixtures || (typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-chat'));
 export const developerFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-developer');
+export const paginationFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-pagination');
 const developerNow = Date.now();
 const developerDate = days => new Date(developerNow + days * 86400000).toISOString();
 export const developerFixture = {
@@ -112,6 +115,31 @@ if (mobileFixtures) {
   tables.tasks[0].title = 'Prepare the branch inventory handover and follow up on the outstanding customer requests before closing';
 }
 
+if (paginationFixtures) {
+  const own = tables.attendance[0];
+  tables.attendance = [
+    ...Array.from({ length: 120 }, (_, i) => {
+      const work_date = addDays(today, -i);
+      return { ...own, id: `qa-attendance-${i}`, work_date, status: 'Present', day_fraction: 1,
+        is_lop: false, worked_minutes: 480, hours: 8, punches: [], punch_count: 2,
+        check_in: `${work_date}T09:00:00+05:30`, check_out: `${work_date}T18:00:00+05:30` };
+    }),
+    ...tables.attendance.slice(1),
+  ];
+  tables.shifts = Array.from({ length: 45 }, (_, i) => ({ id: `qa-shift-${i}`, code: `S${String(i + 1).padStart(3, '0')}`,
+    name: `QA shift ${i + 1}`, start_time: '09:00', end_time: '18:00', weekly_offs: [0],
+    grace_in_minutes: 15, grace_out_minutes: 15, break_minutes: 60, full_day_minutes: 480, is_active: true }));
+  tables.notifications = Array.from({ length: 125 }, (_, i) => ({ id: `qa-notification-${String(i).padStart(3, '0')}`,
+    type: 'info', title: `Pagination notice ${i + 1}`, body: 'Synthetic notification for history paging.',
+    tab: 'attendance', read_at: i % 2 ? stamp : null, created_at: `${addDays(today, -i)}T09:00:00+05:30` }));
+  tables.sync_runs = Array.from({ length: 125 }, (_, i) => ({ id: `qa-run-${String(i).padStart(3, '0')}`,
+    kind: 'transactions', status: 'success', started_at: `${addDays(today, -i)}T09:00:00+05:30`,
+    records_fetched: i + 1, records_inserted: i + 1, records_skipped: 0, duration_ms: 1000 }));
+  tables.service_commands = Array.from({ length: 37 }, (_, i) => ({ id: `qa-command-${String(i).padStart(3, '0')}`,
+    kind: 'sync_transactions', status: 'done', requested_at: `${addDays(today, -i)}T09:00:00+05:30`,
+    result: { inserted: i + 1 } }));
+}
+
 // Production's ancestry trigger stamps every employee-owned row. Include the same columns here
 // so per-row zone checks exercise realistic responses instead of missing fixture metadata.
 const employeesById = new Map(fixture.employees.map((employee) => [employee.id, employee]));
@@ -199,4 +227,66 @@ if (chatFixtures) {
   makeConversation('qa-chat-deepa', [6], null, [{ own: true, body: 'Welcome to the QA workspace!' }], { minutes: 160 });
   tables.chat_preferences = [{ conversation_id: 'qa-chat-asha', is_pinned: true, is_favourite: true }];
   tables.chat_typing = [];
+}
+
+// Small, deliberately different queues make stale cards and accidental team-task counts visible.
+// Use ?qa-role=employee&qa-actions#/dashboard; the chat scenario is enabled automatically.
+if (actionsFixtures) {
+  const me = fixture.employees[0];
+  const colleague = fixture.employees.find((row) => row.id !== me.id && row.department_id === me.department_id) ?? fixture.employees[3];
+  const now = new Date().toISOString();
+  const task = (id, title, overrides = {}) => ({
+    id, title, description: 'Isolated Home actions QA task.', priority: 'Medium', status: 'In Progress',
+    employee_id: me.id, assignee: me, employee: me, assigned_by: colleague.id, assigner: colleague,
+    entity_id: me.entity_id, zone_id: me.zone_id, branch_id: me.branch_id, department_id: me.department_id,
+    due_date: null, created_at: now, completed_at: null,
+    assignees: [{ employee_id: me.id, employee: me }], checklist: [], ...overrides,
+  });
+  tables.tasks = [
+    task('qa-action-overdue', 'QA overdue: reconcile the opening stock', { due_date: addDays(today, -2), priority: 'High' }),
+    task('qa-action-today', 'QA due today: prepare the branch handover', { due_date: today }),
+    task('qa-action-assigned', 'QA newly assigned: review the customer follow-ups', { status: 'To Do', due_date: addDays(today, 3) }),
+    task('qa-action-self', 'QA personal to-do: organise my notes', { status: 'To Do', assigned_by: me.id, assigner: me }),
+    task('qa-action-other', 'QA other employee task: exclude from my actions', {
+      employee_id: colleague.id, employee: colleague, assignee: colleague, assigned_by: me.id, assigner: me,
+      assignees: [{ employee_id: colleague.id, employee: colleague }], status: 'To Do', due_date: addDays(today, -3),
+    }),
+    task('qa-action-done', 'QA completed task: exclude from my actions', { status: 'Done', completed_at: now, due_date: addDays(today, -1) }),
+  ];
+  tables.leaves = [{ ...tables.leaves[0], id: 'qa-action-leave', reason: 'QA sample leave awaiting a reviewer', status: 'Pending' }];
+  tables.attendance_regularizations = [];
+  tables.expenses = [];
+  tables.help_requests = [];
+  tables.tickets = [];
+
+  // The regular chat preview intentionally exaggerates some counters for layout testing. Here
+  // use real incoming-message cursors: Asha has 2 unread messages and Planning has 1.
+  const unreadChats = new Set(['qa-chat-asha', 'qa-chat-planning']);
+  for (const chat of tables.conversations) {
+    const incoming = tables.messages.filter((row) => row.conversation_id === chat.id && row.sender_id !== me.id)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+    const newest = incoming.at(-1);
+    const member = tables.conversation_members.find((row) => row.conversation_id === chat.id && row.employee_id === me.id);
+    const unread = unreadChats.has(chat.id);
+    if (!member) continue;
+    Object.assign(member, {
+      last_read_at: unread ? new Date(new Date(incoming[0].created_at).getTime() - 1).toISOString() : newest?.created_at ?? now,
+      last_read_message_id: unread ? null : newest?.id ?? null,
+    });
+    Object.assign(member, { last_delivered_at: member.last_read_at, last_delivered_message_id: member.last_read_message_id });
+    Object.assign(chat, { unread_count: unread ? incoming.length : 0,
+      last_incoming_message_id: newest?.id ?? null, last_incoming_message_created_at: newest?.created_at ?? null,
+      last_read_at: member.last_read_at, last_read_message_id: member.last_read_message_id,
+      last_delivered_at: member.last_delivered_at, last_delivered_message_id: member.last_delivered_message_id });
+  }
+  const notification = (suffix, type, title, tab, ref_id) => ({ id: `qa-action-notification-${suffix}`, type, title,
+    body: 'Synthetic Home actions notification.', tab, ref_id, read_at: null, created_at: now });
+  tables.notifications = [
+    notification('stale-chat', 'message', 'QA stale chat notice: Ravi is already read', 'messages', 'qa-chat-ravi'),
+    notification('asha', 'message', 'New message', 'messages', 'qa-chat-asha'),
+    notification('planning', 'message', 'New message', 'messages', 'qa-chat-planning'),
+    notification('assigned', 'task', 'New task assigned', 'tasks', 'qa-action-assigned'),
+    notification('done', 'task', 'QA stale completed task notice', 'tasks', 'qa-action-done'),
+    notification('leave', 'leave', 'QA sample leave request', 'leave', 'qa-action-leave'),
+  ];
 }

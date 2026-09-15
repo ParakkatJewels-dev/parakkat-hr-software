@@ -21,6 +21,7 @@ try {
   for (const [database, filename] of [
     ['hr_account_audit', 'user_account_integrity.sql'],
     ['hr_workflow_audit', 'workflow_integrity.sql'],
+    ['hr_team_picker_audit', 'team_picker_pagination.sql'],
   ]) {
     const connection = ['-h', directory, '-U', 'audit_owner'];
     run('createdb', [...connection, database]);
@@ -46,7 +47,7 @@ try {
       ...(file.startsWith('0129_') ? ['\\set message_requests_seed on', `\\i ${quote(messageTests)}`] : []),
       `\\i ${quote(join(migrations, file))}`,
       // This migration promises safe reruns; enforce that before running API assertions.
-      ...(/^(0129|0133|0134)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0129|0133|0134|0137)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     '\\set message_requests_seed off',
     `\\i ${quote(messageTests)}`,
@@ -56,6 +57,7 @@ try {
   run('createdb', [...connection, messageDatabase]);
   const messageOutput = run('psql', [...connection, '-d', messageDatabase, '-q', '-f', messageBootstrap]);
   console.log(messageOutput.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
+  console.log(run(process.execPath, [join(__dirname, 'testMessageNotificationConcurrency.js'), directory]).trim());
   require('./testAdminPassword')({ run, connection, directory });
   require('./testDeveloperApi')({ run, connection, directory });
   require('./testRoleMatrix')({ run, connection: ['-h', directory, '-U', 'audit_owner'], directory });

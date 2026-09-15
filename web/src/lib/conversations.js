@@ -77,9 +77,13 @@ export function sortConversations(list = []) {
   );
 }
 
-/** The number on the badge. Deliberately a sum of rows, so a muted conversation could opt out later. */
+/** Count unread messages, including new requests, across the complete personal inbox. */
 export function unreadTotal(list = []) {
-  return (list ?? []).reduce((sum, c) => sum + (Number(c?.unread_count) || 0), 0);
+  return (list ?? []).reduce((sum, conversation) => {
+    if (conversation?.request_status === 'declined') return sum;
+    const count = Number(conversation?.unread_count);
+    return Number.isFinite(count) && count > 0 ? sum + Math.floor(count) : sum;
+  }, 0);
 }
 
 /**

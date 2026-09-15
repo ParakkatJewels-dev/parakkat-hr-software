@@ -12,8 +12,9 @@
 import React, { useEffect, useState } from 'react';
 import { Download, X, Share, SquarePlus, Smartphone } from 'lucide-react';
 import { installOffer, isIosDevice, installPromptHidden, hideInstallPrompt } from '../lib/pwa';
+import { PRODUCT_NAME } from '../lib/appName';
 
-export default function InstallPrompt({ deferredPrompt, standalone, onInstall }) {
+export default function InstallPrompt({ deferredPrompt, standalone, onInstall, appName = PRODUCT_NAME }) {
   const [dismissed, setDismissed] = useState(() => installPromptHidden(window.localStorage));
   const [shown, setShown] = useState(false);
 
@@ -42,7 +43,7 @@ export default function InstallPrompt({ deferredPrompt, standalone, onInstall })
       <span className="install-prompt-icon"><Smartphone size={18} /></span>
 
       <div className="install-prompt-copy">
-        <strong id="install-prompt-title">Add Parakkat HR to your home screen</strong>
+        <strong id="install-prompt-title">Add {appName} to your home screen</strong>
         {offer === 'prompt' ? (
           <em>Opens full screen, starts faster, and keeps working when the signal drops.</em>
         ) : (
@@ -50,6 +51,7 @@ export default function InstallPrompt({ deferredPrompt, standalone, onInstall })
           <em className="install-prompt-steps">
             Tap <Share size={12} aria-label="the Share button" /> Share, then
             <SquarePlus size={12} aria-hidden="true" /> <b>Add to Home Screen</b>.
+            {' '}Use <b>{appName}</b> as the name, then tap <b>Add</b>.
           </em>
         )}
       </div>

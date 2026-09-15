@@ -12,6 +12,7 @@ import FormSection, { Field, FormError } from './ui/FormSection';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
 import { Skeleton, SkeletonRows } from './ui/Skeleton';
+import Pagination, { usePagination } from './ui/Pagination';
 import './developerSettings.css';
 
 const dateLabel = value => {
@@ -39,6 +40,7 @@ function DeveloperWorkspace() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const keyPager = usePagination(keys.data ?? [], 10, created?.key.id, user?.id);
   const createPanel = useRef(null);
   useEffect(() => {
     if (!showCreate) return undefined;
@@ -111,8 +113,8 @@ function DeveloperWorkspace() {
             queryClient.setQueryData(developerKeysKey(user?.id), current => [result.key, ...(current ?? []).filter(key => key.id !== result.key.id)]);
             keys.refetch();
           }} /></div>}
-          {keys.isLoading ? <SkeletonRows rows={3} avatar={false} label="Loading API keys" /> : keys.error ? <div className="developer-empty"><FormError message="API keys could not be loaded." /><button type="button" className={btnClass('ghost')} onClick={() => keys.refetch()}>Try again</button></div> : keys.data?.length ? <div className="developer-key-list">{keys.data.map(key => <KeyRow key={key.id} item={key} entity={org.data?.entities?.find(entity => entity.id === key.entity_id)} secret={created?.key.id === key.id ? created.api_key : null}
-            replacementDisabled={showCreate || Boolean(created)} onReplace={() => { setReplacement(key); setShowCreate(true); setNotice(''); setError(''); }} onRevoke={() => openConfirm({ type: 'revoke', key })} />)}</div> : <div className="developer-empty"><span className="developer-empty-icon"><KeyRound size={25} /></span><h3>No API keys yet</h3><p>Create a key for your first integration. Choose what it can read and when it expires.</p></div>}
+          {keys.isLoading ? <SkeletonRows rows={3} avatar={false} label="Loading API keys" /> : keys.error ? <div className="developer-empty"><FormError message="API keys could not be loaded." /><button type="button" className={btnClass('ghost')} onClick={() => keys.refetch()}>Try again</button></div> : keys.data?.length ? <><div className="developer-key-list">{keyPager.slice.map(key => <KeyRow key={key.id} item={key} entity={org.data?.entities?.find(entity => entity.id === key.entity_id)} secret={created?.key.id === key.id ? created.api_key : null}
+            replacementDisabled={showCreate || Boolean(created)} onReplace={() => { setReplacement(key); setShowCreate(true); setNotice(''); setError(''); }} onRevoke={() => openConfirm({ type: 'revoke', key })} />)}</div><Pagination {...keyPager} noun="API keys" sizes={[10, 25, 50]} disabled={busy || showCreate} /></> : <div className="developer-empty"><span className="developer-empty-icon"><KeyRound size={25} /></span><h3>No API keys yet</h3><p>Create a key for your first integration. Choose what it can read and when it expires.</p></div>}
         </section>
       </div>
       <GettingStarted />

@@ -1,15 +1,121 @@
 // This deliberately small adapter tests rendering and controls, not Supabase/RLS semantics.
 // Unknown mutations fail closed; fixtures never connect to a database or send email.
-import { fixture, tables, mobileFixtures, chatFixtures, developerFixtures, developerFixture } from './fixtures.js';
+import { fixture, tables, mobileFixtures, chatFixtures, actionsFixtures, developerFixtures, developerFixture, paginationFixtures } from './fixtures.js';
 import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from './roles.js';
 import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib/passwordRecovery.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
-const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${developerFixtures ? '-developer' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
-const emptyChannel = { on() { return this; }, subscribe() { return this; }, unsubscribe() {} };
+const channels = new Set();
+function fixtureChannel() {
+  return {
+    handlers: [], active: false,
+    on(type, filter, callback) { this.handlers.push({ type, filter, callback }); return this; },
+    subscribe(callback) { this.active = true; channels.add(this); queueMicrotask(() => { if (this.active) callback?.('SUBSCRIBED'); }); return this; },
+    unsubscribe() { this.active = false; channels.delete(this); },
+  };
+}
+function chatEvent(table, eventType, row, previous = {}) {
+  for (const channel of channels) for (const { type, filter, callback } of channel.handlers) {
+    if (type !== 'postgres_changes' || filter.table !== table || (filter.event !== '*' && filter.event !== eventType)) continue;
+    if (filter.filter) {
+      const [column, value] = filter.filter.split('=eq.');
+      if (String(row[column]) !== value) continue;
+    }
+    callback({ eventType, table, schema: 'public', new: { ...row }, old: { ...previous } });
+  }
+}
+
+// Explicit local controls exercise the production subscribers without contacting Supabase.
+export function simulateChatActivity(action, requestedConversationId) {
+  if (!chatFixtures || qaState.failReads || new URL(window.location.href).searchParams.has('qa-block-write')) return;
+  const lastNode = [...document.querySelectorAll('.messages-chat [data-message-id]')].at(-1);
+  const conversationId = requestedConversationId ?? tables.messages.find(row => row.id === lastNode?.dataset.messageId)?.conversation_id ?? 'qa-chat-asha';
+  const chat = tables.conversations.find(row => row.id === conversationId);
+  const me = fixture.employees[0].id;
+  const peers = tables.conversation_members.filter(row => row.conversation_id === conversationId && row.employee_id !== me);
+  if (!chat || !peers.length) return;
+  const now = new Date().toISOString();
+  if (action === 'incoming') {
+    const sender = peers[0];
+    const row = { id: crypto.randomUUID(), conversation_id: conversationId, sender_id: sender.employee_id,
+      sender: sender.employee, kind: 'text', body: `Live QA message ${tables.messages.length + 1}`, created_at: now };
+    const previous = { ...chat };
+    tables.messages.push(row);
+    Object.assign(chat, { last_message_id: row.id, last_message_created_at: now, last_message_at: now,
+      last_incoming_message_id: row.id, last_incoming_message_created_at: now,
+      last_body: row.body, last_kind: row.kind, last_sender_id: row.sender_id, unread_count: (chat.unread_count ?? 0) + 1 });
+    chatEvent('messages', 'INSERT', row);
+    chatEvent('conversations', 'UPDATE', chat, previous);
+    if (actionsFixtures) {
+      const notification = { id: `qa-action-notification-incoming-${row.id}`, user_id: user.id, type: 'message',
+        title: 'New message', body: row.body, tab: 'messages', ref_id: chat.id, read_at: null, created_at: now };
+      tables.notifications.push(notification);
+      chatEvent('notifications', 'INSERT', notification);
+    }
+  } else if (action === 'delivered' || action === 'read') {
+    const latest = tables.messages.filter(row => row.conversation_id === conversationId && row.sender_id === me).at(-1);
+    if (!latest) return;
+    for (const peer of peers) {
+      const previous = { ...peer };
+      Object.assign(peer, { last_delivered_at: latest.created_at, last_delivered_message_id: latest.id });
+      if (action === 'read') Object.assign(peer, { last_read_at: latest.created_at, last_read_message_id: latest.id });
+      chatEvent('conversation_members', 'UPDATE', peer, previous);
+    }
+  } else {
+    const typing = action === 'typing';
+    const id = `qa-peer-typing-${conversationId}`;
+    const row = tables.chat_typing.find(row => row.id === id) ?? { id, conversation_id: conversationId, employee_id: peers[0].employee_id };
+    const previous = { ...row };
+    Object.assign(row, { is_typing: typing, updated_at: now, expires_at: new Date(Date.now() + (typing ? 6000 : 0)).toISOString() });
+    if (!tables.chat_typing.includes(row)) tables.chat_typing.push(row);
+    chatEvent('chat_typing', 'UPDATE', row, previous);
+  }
+}
+
+function syncReadChatNotifications(chat) {
+  if (!actionsFixtures || chat.unread_count !== 0) return;
+  for (const row of tables.notifications) {
+    if (row.type !== 'message' || row.tab !== 'messages' || row.ref_id !== chat.id || row.read_at) continue;
+    const previous = { ...row };
+    row.read_at = new Date().toISOString();
+    chatEvent('notifications', 'UPDATE', row, previous);
+  }
+}
+
+// These controls stand in for a colleague completing work or approving a request on another
+// device. They emit the same table events as production instead of touching React Query caches.
+export async function simulateActionActivity(action) {
+  if (!actionsFixtures || qaState.failReads || new URL(window.location.href).searchParams.has('qa-block-write')) return 'Synthetic writes are blocked.';
+  if (action === 'incoming') {
+    simulateChatActivity('incoming', 'qa-chat-asha');
+    return 'Added one unread Asha message and its notification.';
+  }
+  if (action === 'partial-read') {
+    const chatId = 'qa-chat-asha';
+    const member = tables.conversation_members.find((row) => row.conversation_id === chatId && row.employee_id === fixture.employees[0].id);
+    const first = tables.messages.filter((row) => row.conversation_id === chatId && row.sender_id !== member.employee_id
+      && (row.created_at > member.last_read_at || (row.created_at === member.last_read_at && row.id > (member.last_read_message_id ?? ''))))
+      .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))[0];
+    if (!first) return 'Asha has no unread messages.';
+    await supabase.rpc('acknowledge_message_receipts', { _conversation_id: chatId, _message_ids: [first.id], _seen: true });
+    return `Read only the first unread Asha message; ${tables.conversations.find((row) => row.id === chatId).unread_count} remain.`;
+  }
+  const taskId = { 'complete-overdue': 'qa-action-overdue', 'complete-today': 'qa-action-today',
+    'complete-assigned': 'qa-action-assigned', 'complete-self': 'qa-action-self' }[action];
+  const row = taskId ? tables.tasks.find((task) => task.id === taskId && task.employee_id === fixture.employees[0].id)
+    : action === 'approve-request' ? tables.leaves.find((leave) => leave.id === 'qa-action-leave') : null;
+  if (!row) return 'Unknown synthetic action.';
+  const previous = { ...row };
+  const now = new Date().toISOString();
+  Object.assign(row, taskId ? { status: 'Done', completed_at: now } : { status: 'Approved', decided_at: now });
+  qaState.mutations += 1;
+  chatEvent(taskId ? 'tasks' : 'leaves', 'UPDATE', row, previous);
+  return taskId ? `Completed ${row.title}.` : 'Approved the sample leave request.';
+}
 class Query {
   constructor(rows, table) { this.rows = rows; this.table = table; this.filters = []; this.orders = []; this.start = 0; this.size = Infinity; }
   select(_fields, options = {}) { this.head = options.head; return this; }
@@ -36,12 +142,31 @@ class Query {
   single() { this.one = true; return this; }
   maybeSingle() { this.one = true; return this; }
   insert(payload) { this.write = true; this.operation = 'insert'; this.payload = payload; return this; }
-  update() { this.write = true; return this; }
+  update(payload) { this.write = true; this.operation = 'update'; this.payload = payload; return this; }
   delete() { this.write = true; this.operation = 'delete'; return this; }
   upsert(payload) { this.write = true; this.operation = 'upsert'; this.payload = payload; return this; }
   then(resolve, reject) {
     qaState.reads += 1;
     if (this.write) qaState.mutations += 1;
+    if (this.write && actionsFixtures && !qaState.failReads && this.operation === 'update'
+        && !new URL(window.location.href).searchParams.has('qa-block-write')) {
+      const fields = Object.keys(this.payload ?? {});
+      const validTask = this.table === 'tasks' && fields.length > 0 && fields.every((key) => ['status', 'completed_at'].includes(key))
+        && ['To Do', 'In Progress', 'Blocked', 'Done', 'Cancelled'].includes(this.payload.status);
+      const validNotification = this.table === 'notifications' && fields.length === 1 && fields[0] === 'read_at'
+        && typeof this.payload.read_at === 'string' && Number.isFinite(Date.parse(this.payload.read_at));
+      if (validTask || validNotification) {
+        const changed = this.rows.filter((row) => row.id?.startsWith('qa-action-')
+          && (!validTask || row.employee_id === fixture.employees[0].id) && this.filters.every((filter) => filter(row)));
+        for (const row of changed) {
+          const previous = { ...row };
+          Object.assign(row, this.payload);
+          if (validTask) row.completed_at = row.status === 'Done' ? new Date().toISOString() : null;
+          chatEvent(this.table, 'UPDATE', row, previous);
+        }
+        return Promise.resolve({ data: changed.map((row) => ({ ...row })), error: null }).then(resolve, reject);
+      }
+    }
     if (this.write && chatFixtures && !qaState.failReads && this.table === 'messages' && this.operation === 'insert'
         && !new URL(window.location.href).searchParams.has('qa-block-write')) {
       const message = this.payload;
@@ -53,6 +178,7 @@ class Query {
         tables.messages.push(created);
         Object.assign(chat, { last_message_at: created.created_at, last_message_created_at: created.created_at,
           last_body: created.body, last_kind: 'text', last_sender_id: created.sender_id, last_message_id: created.id });
+        chatEvent('messages', 'INSERT', created);
         return Promise.resolve({ data: [created], error: null }).then(resolve, reject);
       }
     }
@@ -125,6 +251,29 @@ export const supabase = {
     if (chatFixtures && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {
       const chat = tables.conversations.find((row) => row.id === args._conversation_id);
       const ownMember = chat && tables.conversation_members.some((member) => member.conversation_id === chat.id && member.employee_id === fixture.employees[0].id);
+      if (name === 'acknowledge_message_receipts' && ownMember) {
+        const member = tables.conversation_members.find(row => row.conversation_id === chat.id && row.employee_id === fixture.employees[0].id);
+        const fetched = tables.messages.filter(row => row.conversation_id === chat.id && row.sender_id !== member.employee_id && args._message_ids?.includes(row.id))
+          .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+        const latest = fetched.at(-1);
+        if (latest) {
+          const previous = { ...member };
+          const advances = (at, id) => !at || latest.created_at > at || (latest.created_at === at && (!id || latest.id > id));
+          if (advances(member.last_delivered_at, member.last_delivered_message_id)) {
+            Object.assign(member, { last_delivered_at: latest.created_at, last_delivered_message_id: latest.id });
+          }
+          if (args._seen && advances(member.last_read_at, member.last_read_message_id)) {
+            Object.assign(member, { last_read_at: latest.created_at, last_read_message_id: latest.id });
+          }
+          Object.assign(chat, { last_delivered_at: member.last_delivered_at, last_delivered_message_id: member.last_delivered_message_id,
+            last_read_at: member.last_read_at, last_read_message_id: member.last_read_message_id });
+          if (args._seen) chat.unread_count = tables.messages.filter(row => row.conversation_id === chat.id && row.sender_id !== member.employee_id && !row.deleted_at
+            && (row.created_at > member.last_read_at || (row.created_at === member.last_read_at && row.id > (member.last_read_message_id ?? '')))).length;
+          chatEvent('conversation_members', 'UPDATE', member, previous);
+          if (args._seen) syncReadChatNotifications(chat);
+        }
+        return Promise.resolve({ data: null, error: null });
+      }
       if (name === 'set_chat_preference' && ownMember) {
         const saved = tables.chat_preferences.find((row) => row.conversation_id === chat.id)
           ?? { conversation_id: chat.id, is_pinned: false, is_favourite: false };
@@ -152,6 +301,7 @@ export const supabase = {
           ?? { id: `qa-typing-${chat.id}`, conversation_id: chat.id, employee_id: fixture.employees[0].id };
         Object.assign(own, { is_typing: args._typing, updated_at: new Date().toISOString(), expires_at: new Date(Date.now() + (args._typing ? 6000 : 0)).toISOString() });
         if (!tables.chat_typing.includes(own)) tables.chat_typing.push(own);
+        chatEvent('chat_typing', 'UPDATE', own);
         qaState.mutations += 1;
         return Promise.resolve({ data: null, error: null });
       }
@@ -186,7 +336,7 @@ export const supabase = {
     resetPasswordForEmail: async () => ({ error: { message: 'QA mode: email delivery is intentionally blocked.' } }),
     updateUser: async () => ({ error: { message: 'QA mode: password writes are intentionally blocked.' } }),
   },
-  realtime: { setAuth() {} }, channel: () => emptyChannel, removeChannel() {},
+  realtime: { setAuth() {} }, channel: fixtureChannel, removeChannel(channel) { channel.unsubscribe(); },
   storage: { from: (bucket) => ({ createSignedUrl: async (path) => chatFixtures && bucket === 'chat-media' && path === 'qa-media/sample-shift-roster.pdf'
     ? { data: { signedUrl: 'data:text/plain;charset=utf-8,Synthetic%20QA%20shift%20roster.%20No%20employee%20data.' }, error: null }
     : { data: null, error: null },

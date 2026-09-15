@@ -6,17 +6,13 @@ import { fetchCollection } from '../lib/fetchCollection';
 export function useLeaveTypes() {
   return useQuery({
     queryKey: ['leave-types'],
-    queryFn: async () => {
-      const { data, error } = await supabase
+    queryFn: () => fetchCollection(() => supabase
         .from('leave_types')
         .select(
           `id, code, name, description, annual_quota, is_paid, allow_half_day, carry_forward,
            max_carry_forward, requires_approval, deducts_balance, colour, sort_order, is_active`
         )
-        .order('sort_order');
-      if (error) throw error;
-      return data ?? [];
-    },
+        .order('sort_order').order('id')),
   });
 }
 

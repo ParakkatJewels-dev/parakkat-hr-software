@@ -19,7 +19,8 @@ export function useExpenses({ enabled = true } = {}) {
            entity_id, zone_id, branch_id, department_id, employee_id, created_by, approver_id,
            employee:employees!expenses_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
-        .gte('expense_date', windowStartIso(180))
+        // Approval and payment remain outstanding regardless of the claim's age.
+        .or(`status.in.(Pending,Approved),expense_date.gte.${windowStartIso(180)}`)
         .order('created_at', { ascending: false }).order('id')),
   });
 }
