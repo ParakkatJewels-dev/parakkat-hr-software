@@ -47,8 +47,8 @@ export const qaExpectedDashboard = {
   super_admin: ['Employees 525', 'Checked In 420'],
   entity_admin: ['Headcount 175', 'Checked In 140', 'Pending Leaves 174'],
   hr_manager: ['Headcount 175', 'Checked In 140', 'Pending Leaves 174'],
-  zonal_manager: ['Headcount 88', 'Pending Approvals 174'],
-  branch_manager: ['Team Size 44', 'Checked In 35', 'Absent Today 9', 'Pending Approvals 86'],
+  zonal_manager: ['Headcount 88', 'Pending Approvals 87'],
+  branch_manager: ['Team Size 44', 'Checked In 35', 'Absent Today 9', 'Pending Approvals 43'],
   dept_head: ['Team Size 22', 'Checked In 17', 'Absent Today 5', 'Pending Approvals 42'],
   employee: ['Tasks 1', 'Leave left 10', 'Absent 1'],
 };

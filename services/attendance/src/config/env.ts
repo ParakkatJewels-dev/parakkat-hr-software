@@ -72,6 +72,7 @@ const schema = z.object({
   PUNCH_DEDUPE_SECONDS: int(60, 0, 3_600),
 
   API_PORT: int(8091, 1, 65_535),
+  API_TRUST_PROXY: z.string().optional().default(''),
   API_CORS_ORIGINS: z
     .string()
     .default('http://localhost:5173')

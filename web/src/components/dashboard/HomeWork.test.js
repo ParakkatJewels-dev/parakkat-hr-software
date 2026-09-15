@@ -6,11 +6,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createServer } from 'vite';
 import { istToday } from '../../lib/dates.js';
 
-let server, AuthContext, MyRoutineToday, MyTasks;
+let server, AuthContext, MyRoutineToday, MyTasks, RoutineOverview;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
   ({ MyRoutineToday, MyTasks } = await server.ssrLoadModule('/src/components/dashboard/selfWidgets.jsx'));
+  ({ default: RoutineOverview } = await server.ssrLoadModule('/src/components/dashboard/RoutineOverview.jsx'));
 });
 after(async () => { await server?.close(); });
 
@@ -37,7 +38,9 @@ function render(Component, seeds, { employee = me, isSuperAdmin = false, permiss
   } finally { client.clear(); }
 }
 
-const routineSeeds = (ticks) => [[['routine-items', 'self'], items], [['routine-ticks', istToday(), 'self'], ticks]];
+const routineSeeds = (ticks) => [[['routine-day', istToday(), 'self'], ticks instanceof Error ? ticks
+  : items.filter(item => item.is_active).map(item => ({ ...item, can_tick: true, routine_name: 'Opening checklist',
+    done: ticks.some(tick => tick.routine_item_id === item.id && tick.on_date === istToday()) }))]];
 
 test('Home shows only the signed-in employee’s active remaining duties, including on a manager account', () => {
   const html = render(MyRoutineToday, routineSeeds([tick('opening', istToday())]), { isSuperAdmin: true });
@@ -58,16 +61,36 @@ test('saved completion hides the Home section for that day and the next IST day 
   assert.match(html, /2 remaining/);
 });
 
-test('failed tick reads stay visible instead of implying the daily routine is finished', () => {
+test('failed scheduled job reads stay visible instead of implying the routine is finished', () => {
   const html = render(MyRoutineToday, routineSeeds(new Error('Fixture connection failed')));
   assert.match(html, /role="alert"/);
   assert.match(html, /Fixture connection failed/);
   assert.match(html, /Try again/);
-  assert.match(html, /disabled=""/);
 });
 
 test('an unlinked account never falls back to displaying the whole team’s routine', () => {
-  assert.equal(render(MyRoutineToday, [[['routine-items'], items]], { employee: null, isSuperAdmin: true }), '');
+  assert.equal(render(MyRoutineToday, [[['routine-day', istToday(), 'all'], items]], { employee: null, isSuperAdmin: true }), '');
+});
+
+test('Home respects server tick capability and displays due weekly jobs with their routine name', () => {
+  const html = render(MyRoutineToday, [[['routine-day', istToday(), 'self'], [
+    { id: 'weekly', employee_id: 'self', title: 'Count inventory', routine_name: 'Weekly stock review', frequency: 'weekly', done: false, can_tick: false },
+  ]]]);
+  assert.match(html, /Weekly stock review/);
+  assert.match(html, /Count inventory/);
+  assert.match(html, /disabled=""/);
+});
+
+test('manager Home totals weight scheduled jobs and employees cannot see the team summary', () => {
+  const seeds = [[['routine-stats', istToday(), istToday(), null], [
+    { id: 'one', scheduled: 3, completed: 1, missed: 0, pending: 2 },
+    { id: 'two', scheduled: 1, completed: 1, missed: 0, pending: 0 },
+  ]]];
+  const html = render(RoutineOverview, seeds, { isSuperAdmin: true });
+  assert.match(html, /2 of 4/);
+  assert.match(html, /aria-valuenow="50"/);
+  assert.match(html, /2 jobs remaining/);
+  assert.equal(render(RoutineOverview, seeds), '');
 });
 
 test('Home keeps the exact task count while showing five readable rows and protecting incomplete subtasks', () => {

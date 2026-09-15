@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 let auth: typeof import('./auth');
 const verifiedTokens: string[] = [];
 const validTokens = new Set<string>();
+let beforeVerification: (() => Promise<void>) | undefined;
 
 before(async () => {
   mock.module(require.resolve('../config/env'), {
@@ -21,6 +22,7 @@ before(async () => {
         return {
           auth: { getUser: async () => {
             verifiedTokens.push(token);
+            await beforeVerification?.();
             return validTokens.has(token)
               ? { data: { user: { id: token, email: null } }, error: null }
               : { data: { user: null }, error: { message: 'invalid signature' } };
@@ -37,6 +39,7 @@ beforeEach(() => {
   auth.clearAuthCache();
   verifiedTokens.length = 0;
   validTokens.clear();
+  beforeVerification = undefined;
 });
 
 async function request(token?: string) {
@@ -46,6 +49,7 @@ async function request(token?: string) {
   const res = {
     status(code: number) { status = code; return this; },
     json() { return this; },
+    setHeader() { return this; },
   } as unknown as Response;
   await auth.authenticate(req, res, () => { continued = true; });
   return { status, continued, context: req.auth };
@@ -66,6 +70,44 @@ test('repeated requests verify a valid token once within the cache lifetime', as
   assert.equal((await request('Bearer valid-token')).status, 200);
   assert.equal((await request('Bearer valid-token')).status, 200);
   assert.deepEqual(verifiedTokens, ['valid-token']);
+});
+
+test('simultaneous requests for one session share verification without sharing different callers', async () => {
+  validTokens.add('first'); validTokens.add('second');
+  const replies = await Promise.all(Array.from({ length: 20 }, () => request('Bearer first')));
+  assert.ok(replies.every(reply => reply.context?.userId === 'first'));
+  assert.deepEqual(verifiedTokens, ['first']);
+  assert.equal((await request('Bearer second')).context?.userId, 'second');
+  assert.deepEqual(verifiedTokens, ['first', 'second']);
+});
+
+test('cached authorization never outlives a verified JWT expiry', async () => {
+  const now = Date.now();
+  const token = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(now / 1000) + 2 })).toString('base64url')}.fixture`;
+  validTokens.add(token);
+  await request(`Bearer ${token}`);
+  const clock = mock.method(Date, 'now', () => now + 3000);
+  try {
+    validTokens.delete(token);
+    assert.equal((await request(`Bearer ${token}`)).status, 401);
+    assert.equal(verifiedTokens.length, 2);
+  } finally { clock.mock.restore(); }
+});
+
+test('too many distinct pending verifications are refused without another upstream call', async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  beforeVerification = () => held;
+  const pending = Array.from({ length: 100 }, (_, i) => {
+    const token = `pending-${i}`; validTokens.add(token); return request(`Bearer ${token}`);
+  });
+  try {
+    assert.equal((await request('Bearer overflow')).status, 503);
+    assert.equal(verifiedTokens.length, 100);
+  } finally { release(); await Promise.all(pending); }
+  beforeVerification = undefined;
+  validTokens.add('recovered');
+  assert.equal((await request('Bearer recovered')).status, 200);
 });
 
 test('expired entries reverify the session, and token refreshes cannot grow the cache without bound', async () => {

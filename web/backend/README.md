@@ -114,6 +114,57 @@ PostgREST transport, Storage HTTP and Realtime are not started by these PostgreS
 existing `0113` exception is tested explicitly: a linked login without a role may insert a personal
 root task without requesting returned rows, while it remains unable to read or update that task.
 
+## Leave review and department ticket routing
+
+Apply `0138_leave_approval_workflow.sql` and `0139_ticket_category_routing.sql` before deploying
+the matching frontend. The normal migration runner applies pending files in order.
+
+- Leave requests first go to an active, scoped Department Head with leave approval permission.
+  Department approval forwards the request to HR; only HR/admin final sanction changes the leave
+  balance. Missing heads and a department head's own request go directly to HR. No reviewer can
+  approve their own request. Both stages require remarks and keep an immutable decision history.
+- In **Helpdesk → Categories**, an organization administrator creates each category and chooses its
+  receiving department. Mark categories intended for the **Tickets to HR** view with **HR queue**.
+  Categories are offered across departments within the requester's company. Deactivation removes
+  a category from new requests while preserving existing tickets and their original routing.
+- Receiving department staff can read their queue with ticket read access. Its head or staff with
+  ticket management permission can update status. HR's **All tickets** view respects their granted
+  scope. Existing free-text tickets retain their original access rules.
+
+`npm test` here verifies stage permissions, remarks/history, leave balances, attendance cancellation,
+payroll locks, category routing, scope boundaries and revoked access in a disposable database.
+For isolated UI checks, run `npm run qa:browser` in `web` and open
+`http://127.0.0.1:5174/?qa-role=hr_manager&qa-workflow#/leave` or `#/helpdesk`; use the QA role picker
+for Department Head, Employee and Entity Admin scenarios. These browser writes stay in memory.
+
+## Named routines and completion history
+
+Apply `0140_named_scheduled_routines.sql` before deploying the matching frontend. In
+**Tasks → Routine**, managers create a named routine containing multiple jobs with one shared
+schedule, then assign it to selected employees within their permission scope.
+
+- Schedules use specific due dates: daily; selected weekly days (ISO Monday = 1, Sunday = 7);
+  monthly on one day, clamped to the month's last day when needed; every N days from the start
+  date; or once. Start/end dates bound the schedule. Home shows jobs due today.
+- The bulk employee chooser filters by current designation/job title and permitted employees.
+  Assignments apply to the selected people; later designation changes do not automatically add
+  or remove assignments. Employee lists and team results are paginated.
+- Employees complete today's jobs. Managers with scoped task-update access can correct earlier
+  due dates. Future or non-due completions are rejected, and the server records the owner, actor
+  and completion time.
+- Editing creates a replacement effective tomorrow or later. Retirement ends future occurrences
+  after today. Previous schedules, jobs and legitimate completion ticks remain available for
+  historical reporting. Completion rates count individual jobs within the selected date range.
+- Legacy routine history has no reliable activation/retirement dates. Expected and missed-job
+  rates therefore start at rollout; earlier recorded completions remain visible as unscored
+  history. Invalid legacy owner/future ticks are retained privately for audit.
+
+From `web`, run `npm test --prefix backend` for isolated SQL upgrade, recurrence, permissions and
+history checks. For browser checks, run `npm run qa:browser` and open
+`http://127.0.0.1:5174/?qa-role=dept_head&qa-routines#/tasks/routine` or
+`http://127.0.0.1:5174/?qa-role=employee&qa-routines#/dashboard`.
+The QA role picker supports manager/admin comparisons; fixture writes stay in memory.
+
 ## Administrator password reset
 
 Apply `0131_admin_password_reset.sql` before using the temporary-password action in Administration.

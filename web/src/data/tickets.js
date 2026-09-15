@@ -9,17 +9,10 @@ export function useTickets({ enabled = true } = {}) {
   return useQuery({
     enabled,
     queryKey: ['tickets'],
+    // The server includes old unresolved tickets and computes management access against the
+    // receiving department. Requester ancestry cannot answer who handles a routed ticket.
     queryFn: () => fetchCollection(() => supabase
-        .from('tickets')
-        .select(
-          // The ancestry columns are selected so the status control can be gated per row, the way
-          // tickets_update checks it. They are part of the column list, so no comments inside it.
-          `id, category, subject, description, priority, status, created_at,
-           entity_id, zone_id, branch_id, department_id, employee_id,
-           employee:employees!tickets_employee_id_fkey(full_name, employee_code, branch:branches(code))`
-        )
-        // An unresolved support request must never disappear because it has been waiting.
-        .or(`status.in.(Open,"In Progress","On Hold"),created_at.gte.${windowStartIso(180)}`)
+        .rpc('list_tickets', { _since: windowStartIso(180) })
         .order('created_at', { ascending: false }).order('id')),
   });
 }
@@ -27,42 +20,30 @@ export function useTickets({ enabled = true } = {}) {
 export function useAddTicket() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (payload) => {
-      const { error } = await supabase.from('tickets').insert({ ...payload, status: 'Open' });
+    mutationFn: async ({ categoryId, subject, description, priority }) => {
+      const { data, error } = await supabase.rpc('create_ticket', { _category_id: categoryId,
+        _subject: subject.trim(), _description: description?.trim() || null, _priority: priority || 'Medium' });
       if (error) throw error;
+      return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tickets'] });
-      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
-    },
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['tickets'] }),
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] }),
+    ]),
   });
 }
 
-/**
- * Move a ticket along.
- *
- * The `.select()` is load-bearing, exactly as in expenses: PostgREST answers an UPDATE that RLS
- * filtered to zero rows with a plain success, so changing the status of a ticket outside your scope
- * did nothing, said nothing, and refetched the unchanged row. It reads as "the status is not
- * updating" rather than as "you are not allowed to do that".
- */
+/** The RPC validates destination access and reports a refusal instead of a zero-row success. */
 export function useSetTicketStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, status }) => {
-      const { data, error } = await supabase
-        .from('tickets')
-        .update({ status })
-        .eq('id', id)
-        .select('id');
+      const { error } = await supabase.rpc('set_ticket_status', { _id: id, _status: status });
       if (error) throw error;
-      if (!data?.length) {
-        throw new Error('That ticket is outside the area you handle, so nothing was changed.');
-      }
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tickets'] });
-      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
-    },
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['tickets'] }),
+      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] }),
+    ]),
   });
 }

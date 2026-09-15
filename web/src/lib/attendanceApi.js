@@ -46,7 +46,10 @@ async function parse(response) {
     const message =
       (body && typeof body === 'object' && (body.message || body.error)) ||
       `Request failed (HTTP ${response.status})`;
-    throw new ApiError(message, response.status, body);
+    const error = new ApiError(message, response.status, body);
+    const retryAfter = Number(response.headers.get('Retry-After'));
+    if (Number.isFinite(retryAfter) && retryAfter > 0) error.retryAfter = retryAfter;
+    throw error;
   }
 
   return body;

@@ -3,13 +3,14 @@ import {
   ESS_NAV, OVERSIGHT_NAV, canSeeTab, visibleSections as navSections,
   mobilePrimarySections as pickMobilePrimary,
 } from './lib/navMap';
-import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell, MessageSquare,
 } from 'lucide-react';
 
 // Import components
 import Dashboard from './components/Dashboard';
+import NotFound from './pages/NotFound';
 import InstallPrompt from './components/InstallPrompt';
 import { SkeletonPage } from './components/ui/Skeleton';
 const Directory = lazy(() => import('./components/Directory'));
@@ -59,6 +60,7 @@ import { useVersionCheck } from './lib/versionCheck';
 import { isStandalonePwa } from './lib/pwa';
 import { watchPwaIdentity } from './lib/pwaIdentity';
 import { stripFocus } from './lib/focusRow';
+import { appRouteDisposition, resolveAppRoute } from './lib/appRoutes';
 import { syncNativeTheme } from './mobile/native';
 
 // Prettify a role key like 'branch_manager' -> 'Branch Manager'.
@@ -160,14 +162,14 @@ export default function App() {
   // steps through screens instead of leaving the app, and a screen can be linked to or bookmarked
   // — /#/payroll opens payroll. HashRouter is already the router here because the native webview
   // serves from a local origin, so these URLs work identically on the web and in Capacitor.
-  // Only the FIRST segment names the screen. Anything after it belongs to that screen's own tab
-  // bar — /#/attendance/exceptions, /#/attendance-admin/sync — read there by useUrlTab. Without
-  // this split the whole path was matched against the screen list, so the moment a page put its
-  // inner tab in the URL every one of those addresses fell through to the not-found redirect.
+  // The FIRST segment names the screen. Known tab and record segments belong to that screen —
+  // /#/attendance/exceptions, /#/attendance-admin/sync, /#/directory/<employeeId>. Validate the
+  // full path before loading a screen, then let its existing tab and permission checks take over.
   const location = useLocation();
   const navigate = useNavigate();
   const routeStageRef = useRef(null);
-  const activeTab = location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0] || 'dashboard';
+  const appRoute = resolveAppRoute(location.pathname);
+  const activeTab = appRoute.screen;
   // Deliberately the same shape as the setState it replaces, so every onNavigate / onBack /
   // command-palette caller keeps working untouched. Switching screens drops the inner tab, which
   // is right: the exceptions tab of Attendance means nothing on Payroll.
@@ -508,16 +510,18 @@ export default function App() {
     const t = allTabs.find((x) => x.id === tabId) ?? allKnownTabs.find((x) => x.id === tabId);
     return Boolean(t) && canSeeTab(t, navPredicates);
   };
+  const routeDisposition = appRouteDisposition(appRoute, canViewTab(activeTab));
+  const isNotFound = routeDisposition === 'not-found';
 
   // Which section owns the screen on show? Drives sidebar highlighting and the tab bar, so a
   // shortcut from the dashboard lands in the right place without the caller knowing the tree.
   // `focus` is transient — a notification pointing at one row — and is stripped the moment the
   // screen claims it (useFocusRow). It must not take part in deciding which nav item is current.
   const here = (location.pathname + stripFocus(location.search)).replace(/^\/+/, '').replace(/\/+$/, '');
-  const activeSection =
+  const activeSection = isNotFound ? null : (
     visibleSections.find((sec) => sec.tabs.some((t) => t.to === here))
     ?? visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab))
-    ?? visibleSections[0];
+    ?? visibleSections[0]);
   const activeTabMeta = allTabs.find((t) => t.id === activeTab);
 
   const displayRole = namingRole === null ? null : primaryRole;
@@ -526,9 +530,9 @@ export default function App() {
   // The browser tab, which is the one piece of chrome a person sees without looking at the app.
   // The dashboard uses the app name; other screens prefix it with the current section.
   useEffect(() => {
-    const screen = activeSection?.id === 'home' || activeTab === 'dashboard' ? null : activeSection?.label;
+    const screen = isNotFound ? 'Page not found' : activeSection?.id === 'home' || activeTab === 'dashboard' ? null : activeSection?.label;
     document.title = documentTitleFor(displayRole, screen);
-  }, [displayRole, activeSection, activeTab]);
+  }, [displayRole, activeSection, activeTab, isNotFound]);
 
   const mobilePrimarySections = pickMobilePrimary(visibleSections, primaryRole).map(section => ({
     ...section,
@@ -546,7 +550,7 @@ export default function App() {
 
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {
-    if (!sec.tabs.some((t) => t.id === activeTab)) setActiveTab(sec.tabs[0].id);
+    if (isNotFound || !sec.tabs.some((t) => t.id === activeTab)) setActiveTab(sec.tabs[0].id);
   };
 
   const commandOptions = [
@@ -692,7 +696,7 @@ export default function App() {
         {menuSections.map((sec) => {
         const single = sec.tabs.length === 1 ? sec.tabs[0] : null;
         const Icon = single?.icon ?? sec.icon;
-        const sectionActive = single ? single.id === activeTab : activeSection?.id === sec.id;
+        const sectionActive = !isNotFound && (single ? single.id === activeTab : activeSection?.id === sec.id);
         const screens = sec.tabs.length > 1 ? sec.tabs : [];
         return (
           <div key={sec.id} className="mobile-nav-group">
@@ -712,7 +716,7 @@ export default function App() {
               <div className="mobile-nav-screens">
                 {screens.map((t) => {
                   const id = t.to ?? t.id;
-                  const on = activeTab === t.id || activeTab === id;
+                  const on = !isNotFound && (activeTab === t.id || activeTab === id);
                   return (
                     <button
                       key={t.id}
@@ -823,11 +827,11 @@ export default function App() {
       <div inert={mobileMenuOpen || undefined} aria-hidden={mobileMenuOpen || undefined} className="app-content flex-1 flex min-h-0 flex-col min-w-0">
 
         {/* Header toolbar */}
-        <header data-profile-page={activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined} className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
+        <header data-profile-page={!isNotFound && activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined} className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
           {/* Mobile menu toggle & Title */}
           <div className="app-header-title flex items-center gap-3.5">
             <span className="app-header-title-label font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
-              {activeTab === 'dashboard' ? appName : activeSection?.label || appName}
+              {isNotFound ? 'Page not found' : activeTab === 'dashboard' ? appName : activeSection?.label || appName}
               {activeSection && activeSection.tabs.length > 1 && activeTabMeta && (
                 <span className="hidden sm:inline text-neutral-400 dark:text-neutral-500 font-normal">
                   {' · '}{activeTabMeta.label}
@@ -985,7 +989,7 @@ export default function App() {
         {activeSection && activeSection.tabs.length > 1 && (
           <nav
             aria-label={`${activeSection.label} sections`}
-            data-profile-page={activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
+            data-profile-page={!isNotFound && activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
             className="section-tabbar shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-white/70 dark:bg-charcoal-900/60 backdrop-blur-sm px-4 sm:px-6"
           >
             <div className="section-tab-scroll tab-scroll flex gap-5 -mb-px">
@@ -1012,7 +1016,7 @@ export default function App() {
 
         <main
           id="main-content"
-          data-profile-page={activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
+          data-profile-page={!isNotFound && activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
           tabIndex={-1}
           className={`app-main flex-1 min-h-0 overflow-y-auto px-2 py-4 ${pullRefresh.pulling || pullRefresh.refreshing ? 'is-pulling-refresh' : ''}`}
           onTouchStart={handlePullStart}
@@ -1039,7 +1043,8 @@ export default function App() {
           <div ref={routeStageRef} className="route-stage" data-route={location.pathname}>
             <Suspense fallback={<SkeletonPage />}>
             {(() => {
-              if (!canViewTab(activeTab)) {
+              if (routeDisposition === 'not-found') return <NotFound appName={appName} />;
+              if (routeDisposition === 'access-denied') {
                 return <AccessDenied />;
               }
               switch (activeTab) {
@@ -1116,11 +1121,7 @@ export default function App() {
               case 'profile':
                 return <UserProfile roleLabel={roleLabel} onOpenSettings={canViewTab('settings') ? () => setActiveTab('settings') : undefined} onOpenMenu={openMobileMenu} menuOpen={mobileMenuOpen} />;
                 default:
-                  // A screen name in the URL that this build does not have: a stale bookmark, a
-                  // typo, a link from an older version. Now that the address bar can name a screen,
-                  // this is reachable — send them home rather than painting a blank page they have
-                  // no way out of.
-                  return <Navigate to="/" replace />;
+                  return <NotFound appName={appName} />;
               }
             })()}
             </Suspense>
@@ -1137,7 +1138,7 @@ export default function App() {
 
         <LiquidGlassNav
           items={mobilePrimarySections}
-          activeId={activeTab}
+          activeId={isNotFound ? '' : activeTab}
           menuOpen={mobileMenuOpen}
           isPwaInstalled={isPwaInstalled}
           onSelect={(item, event) => {

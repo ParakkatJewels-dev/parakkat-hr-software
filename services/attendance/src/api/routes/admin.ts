@@ -4,6 +4,7 @@
 // a browser request should not be held open for four minutes while six months of history loads.
 // Progress is visible through /api/status, which reads the same sync_runs rows.
 import { asyncRoute } from '../asyncRoute';
+import { limitApiWork } from '../rateLimit';
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { dateString, catchupSchema } from '../validation';
@@ -52,7 +53,7 @@ async function refuseUnlessOrgWide(
 // sync
 // ---------------------------------------------------------------------------
 
-adminRouter.post('/api/sync/transactions', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/sync/transactions', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A transaction sync')) return;
   try {
     const result = await syncTransactions();
@@ -66,7 +67,7 @@ adminRouter.post('/api/sync/transactions', authenticate, requirePermission('devi
   }
 }));
 
-adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'An employee sync')) return;
   try {
     const result = await syncEmployees();
@@ -80,7 +81,7 @@ adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.
   }
 }));
 
-adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A catch-up scan')) return;
   const parsed = catchupSchema.safeParse(req.body ?? {});
   if (!parsed.success) {
@@ -102,7 +103,7 @@ const backfillSchema = z.object({
   recompute: z.boolean().optional(),
 });
 
-adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A backfill')) return;
   const parsed = backfillSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -156,7 +157,7 @@ const recomputeSchema = z.object({
   includeLocked: z.boolean().optional(),
 });
 
-adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.manage'), limitApiWork, asyncRoute(async (req, res) => {
   const parsed = recomputeSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
@@ -213,7 +214,7 @@ adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.m
 
 // The queue holds whatever the sync enqueued, with no way to drain only one caller's share of it —
 // so this takes an org-wide grant rather than being narrowed like /api/recompute above.
-adminRouter.post('/api/recompute/queue', authenticate, requirePermission('attendance.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/recompute/queue', authenticate, requirePermission('attendance.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'attendance.manage', 'Draining the recompute queue')) return;
   const summary = await drainRecomputeQueue();
   res.json({ ok: true, drained: summary !== null, ...(summary ?? {}) });
@@ -229,7 +230,7 @@ const mappingQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
 });
 
-adminRouter.get('/api/mapping', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+adminRouter.get('/api/mapping', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Viewing the device roster')) return;
   const parsed = mappingQuerySchema.safeParse(req.query);
   if (!parsed.success) {
@@ -269,7 +270,7 @@ const linkSchema = z.object({
  * from the caller's point of view: set the link, adopt the orphaned punches already stored under
  * that code, and queue those dates for recompute.
  */
-adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Changing device mappings')) return;
   const parsed = linkSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -314,15 +315,29 @@ adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.ma
   });
 
   let adopted = { punchesLinked: 0, firstDate: null as string | null, lastDate: null as string | null };
+  let recomputeStatus: 'not-needed' | 'started' | 'queued' = 'not-needed';
 
   if (employeeId && !ignore) {
     adopted = await resolvePunchLinks(empCode);
 
     if (adopted.punchesLinked > 0 && adopted.firstDate && adopted.lastDate) {
       await enqueueRecompute(employeeId, adopted.firstDate, adopted.lastDate, `code ${empCode} mapped`);
-      background('recompute-after-link', () =>
-        recompute({ from: adopted.firstDate!, to: adopted.lastDate!, employeeIds: [employeeId] })
-      );
+      try {
+        background('recompute-after-link', (signal) =>
+          recompute({ from: adopted.firstDate!, to: adopted.lastDate!, employeeIds: [employeeId] }, { signal })
+        );
+        recomputeStatus = 'started';
+      } catch (err) {
+        // Only immediate admission can throw here; asynchronous work failures are logged by
+        // background(). The saved mapping and durable queue must not become a failed save
+        // merely because all workers are busy or this process is shutting down. The worker
+        // scheduler drains pending queue rows every two minutes (or via /api/recompute/queue).
+        const status = (err as { status?: number } | null)?.status;
+        if (status !== 429 && status !== 503) throw err;
+        recomputeStatus = 'queued';
+        logger.warn({ err, empCode, employeeId, from: adopted.firstDate, to: adopted.lastDate },
+          'device mapping saved; attendance recompute deferred to durable queue');
+      }
     }
   }
 
@@ -335,10 +350,11 @@ adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.ma
     punchesAdopted: adopted.punchesLinked,
     recomputedFrom: adopted.firstDate,
     recomputedTo: adopted.lastDate,
+    recomputeStatus,
   });
 }));
 
-adminRouter.post('/api/mapping/suggest', authenticate, requirePermission('device.manage'), asyncRoute(async (req, res) => {
+adminRouter.post('/api/mapping/suggest', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
   if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Refreshing device suggestions')) return;
   const updated = await refreshSuggestions();
   res.json({ ok: true, updated });

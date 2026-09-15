@@ -62,7 +62,7 @@ but offset pagination is not a snapshot: records can change between requests.
 | 403 | Key lacks the requested permission |
 | 404 | Unknown endpoint |
 | 405 | Unsupported method; use GET |
-| 429 | Per-key limit of 60 successful requests per minute reached |
+| 429 | A key, gateway request, or concurrent-work budget has been reached; wait for `Retry-After` |
 | 503 | API access is disabled or the service is unavailable |
 
 Error responses use `{ "error": { "code": "unauthorized", "message": "A valid API key is required." } }`.
@@ -86,6 +86,20 @@ the Vercel gateway. Each key is limited to 60 successful requests per minute. Re
 explicit field lists: API keys do not grant salary, banking, statutory ID, private message,
 document or raw-punch access. Company restrictions cannot become global access when a company
 is deleted. Key creation/revocation and access-setting changes are audited without secrets.
+
+The Node gateway also refuses excess work **before contacting PostgreSQL**: each warm function
+instance admits at most 60 attempts per key and 600 total attempts per minute, with 32 upstream
+requests in flight. Invalid credentials that reach the gateway consume this attempt budget too.
+Its key map stores hashes only, has a fixed capacity, and resets after one minute. HTTP 429
+includes a decreasing `Retry-After` in seconds; concurrency exhaustion uses 5 seconds. An
+upstream call releases its slot on success, failure, or its existing 8-second timeout.
+
+The warm-instance limit is an additional load reduction, not a distributed quota: cold starts
+and separate instances have separate counters. The SQL key quota remains authoritative across
+instances and direct RPC calls. No successful authorization or employee response is cached, so
+each admitted request still rechecks expiry, revocation, current authority and company scope.
+Arbitrary distributed requests to Supabase or the gateway require platform ingress controls;
+these source changes do not modify hosted rate-limit settings.
 
 ## Verification
 

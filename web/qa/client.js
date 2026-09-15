@@ -1,11 +1,14 @@
 // This deliberately small adapter tests rendering and controls, not Supabase/RLS semantics.
 // Unknown mutations fail closed; fixtures never connect to a database or send email.
-import { fixture, tables, mobileFixtures, chatFixtures, actionsFixtures, developerFixtures, developerFixture, paginationFixtures } from './fixtures.js';
+import { fixture, tables, mobileFixtures, chatFixtures, actionsFixtures, developerFixtures, developerFixture, paginationFixtures, goalsFixtures } from './fixtures.js';
 import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from './roles.js';
 import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib/passwordRecovery.js';
+import { workflowFixtures, workflowLeaveRows, workflowRpc } from './workflowFixtures';
+import { routineFixtures, routineRpc } from './routineFixtures';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
-const user = { id: `qa-user-v3-${qaRole}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const slowRequests = new URL(window.location.href).searchParams.has('qa-slow');
+const user = { id: `qa-user-v3-${qaRole}${workflowFixtures ? '-workflow' : ''}${routineFixtures ? '-routines' : ''}${goalsFixtures ? '-goals' : ''}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
@@ -145,9 +148,26 @@ class Query {
   update(payload) { this.write = true; this.operation = 'update'; this.payload = payload; return this; }
   delete() { this.write = true; this.operation = 'delete'; return this; }
   upsert(payload) { this.write = true; this.operation = 'upsert'; this.payload = payload; return this; }
-  then(resolve, reject) {
+  async then(resolve, reject) {
+    // Exercise real loading/pending UI without an external network or a live database write.
+    if (slowRequests) await new Promise(resolveDelay => setTimeout(resolveDelay, 1500));
     qaState.reads += 1;
     if (this.write) qaState.mutations += 1;
+    if (this.write && goalsFixtures && !qaState.failReads && this.table === 'goals' && this.operation === 'insert'
+        && !new URL(window.location.href).searchParams.has('qa-block-write')) {
+      const person = fixture.employees.find(employee => employee.id === this.payload.employee_id);
+      const fields = Object.keys(this.payload);
+      if (!person || !fixtureAllows('performance.manage', { ...person, employee_id: person.id })
+          || !String(this.payload.title ?? '').trim()
+          || fields.some(field => !['employee_id', 'title', 'description', 'target_date', 'created_by'].includes(field))) {
+        return Promise.resolve({ data: null, error: { message: 'Choose an authorized employee and enter a goal title.' } }).then(resolve, reject);
+      }
+      const created = { ...this.payload, id: crypto.randomUUID(), employee: person, progress: 0, status: 'Active',
+        entity_id: person.entity_id, zone_id: person.zone_id, branch_id: person.branch_id, department_id: person.department_id,
+        created_at: new Date().toISOString() };
+      tables.goals.push(created); chatEvent('goals', 'INSERT', created);
+      return Promise.resolve({ data: this.one ? created : [created], error: null }).then(resolve, reject);
+    }
     if (this.write && actionsFixtures && !qaState.failReads && this.operation === 'update'
         && !new URL(window.location.href).searchParams.has('qa-block-write')) {
       const fields = Object.keys(this.payload ?? {});
@@ -221,10 +241,27 @@ export const supabase = {
   from(name) {
     let rows = tables[name] ?? [];
     if (roleMode && tablePermissions[name]) rows = rows.filter((row) => fixtureAllows(tablePermissions[name], row));
+    if (name === 'leaves') rows = workflowLeaveRows(rows, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows });
     return new Query(rows, name);
   },
   rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    const routine = routineRpc(name, args, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows,
+      event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
+    if (routine) {
+      if (routine.error) return Promise.resolve({ data: null, error: routine.error });
+      if (routine.mutated) qaState.mutations += 1;
+      const query = new Query(routine.rows);
+      return routine.one ? query.single() : query;
+    }
+    const workflow = workflowRpc(name, args, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows,
+      event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
+    if (workflow) {
+      if (workflow.error) return Promise.resolve({ data: null, error: workflow.error });
+      if (workflow.mutated) qaState.mutations += 1;
+      const query = new Query(workflow.rows);
+      return workflow.one ? query.single() : query;
+    }
     if (qaRole === 'super_admin' && name === 'get_developer_settings') return new Query([{ ...developerFixture.settings }]).single();
     if (qaRole === 'super_admin' && name === 'list_developer_api_keys') return new Query(developerFixture.keys.map(key => ({ ...key })));
     if (developerFixtures && qaRole === 'super_admin' && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {

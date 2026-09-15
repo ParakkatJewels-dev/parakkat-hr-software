@@ -1,4 +1,4 @@
-const VERSION = 'parakkat-hr-pwa-v6';
+const VERSION = 'parakkat-hr-pwa-v7';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 90;
@@ -74,8 +74,11 @@ async function putRuntime(request, response) {
   await trimRuntimeCache();
 }
 
-async function putShellResponse(response) {
-  if (!isCacheable(response)) return;
+async function putShellResponse(request, response) {
+  const path = new URL(request.url).pathname;
+  // A standalone 404/offline document or another successful page is not the application shell.
+  if (!['/', '/index.html'].includes(path) || !isCacheable(response)
+      || !response.headers.get('Content-Type')?.includes('text/html')) return;
   const cache = await caches.open(SHELL_CACHE);
   await Promise.all([
     cache.put('/index.html', response.clone()),
@@ -131,16 +134,16 @@ async function navigationResponse(event) {
     // A preload that failed is still a truthy Response. Returning it unchecked hands the user
     // Vercel's error body instead of the shell we already have cached.
     if (preload) {
-      if (!preload.ok) return cachedShellFallback();
-      await putShellResponse(preload.clone());
+      if (preload.status >= 500) return cachedShellFallback();
+      await putShellResponse(event.request, preload.clone());
       return preload;
     }
 
     const response = await fetch(event.request);
-    if (!response.ok) {
+    if (response.status >= 500) {
       return cachedShellFallback();
     }
-    await putShellResponse(response.clone());
+    await putShellResponse(event.request, response.clone());
     return response;
   } catch {
     return cachedShellFallback();
@@ -170,7 +173,15 @@ async function fetchRepairing(request) {
   }
 }
 
-async function staleWhileRevalidate(request) {
+async function cacheFirstAsset(request) {
+  const cached = await caches.match(request);
+  if (isCacheable(cached)) return cached;
+  const response = await fetchRepairing(request);
+  if (response) await putRuntime(request, response.clone());
+  return response || new Response('', { status: 504, statusText: 'Offline' });
+}
+
+async function staleWhileRevalidate(request, event) {
   const cached = await caches.match(request);
   const network = fetchRepairing(request)
     .then(async (response) => {
@@ -179,17 +190,11 @@ async function staleWhileRevalidate(request) {
     })
     .catch(() => null);
 
-  return cached || (await network) || new Response('', { status: 504, statusText: 'Offline' });
-}
-
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request);
-    await putRuntime(request, response.clone());
-    return response;
-  } catch {
-    return (await caches.match(request)) || (await caches.match('/offline.html'));
+  if (isCacheable(cached)) {
+    event.waitUntil(network);
+    return cached;
   }
+  return (await network) || new Response('', { status: 504, statusText: 'Offline' });
 }
 
 self.addEventListener('fetch', (event) => {
@@ -210,10 +215,19 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (/\.(?:js|css|png|svg|ico|webp|avif|woff2?)$/i.test(url.pathname)) {
-    event.respondWith(staleWhileRevalidate(request));
+  // Content-hashed build files never change at the same URL. Serving a cached copy saves a
+  // network request on every route visit, while a newly deployed filename still fetches normally.
+  if (/^\/app-assets\/[^/]+-[\w-]{8,}\.(?:js|css)$/.test(url.pathname)) {
+    event.respondWith(cacheFirstAsset(request));
     return;
   }
 
-  event.respondWith(networkFirst(request));
+  if (/\.(?:js|css|png|svg|ico|webp|avif|woff2?)$/i.test(url.pathname)) {
+    event.respondWith(staleWhileRevalidate(request, event));
+    return;
+  }
+
+  // Cache only the explicitly handled public shell/assets. Unknown same-origin endpoints may
+  // return private data and must never receive an unrelated cached HTML document on failure.
+  event.respondWith(fetch(request));
 });

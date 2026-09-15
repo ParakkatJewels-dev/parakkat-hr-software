@@ -331,7 +331,7 @@ test('imported calendar dates retain their day in IST and invalid dates name the
   }
 });
 
-test('Home routine queries request one employee and one day with distinct scoped cache keys', async () => {
+test('legacy routine reads request one employee and one day with distinct scoped cache keys', async () => {
   fixtureDb({
     routine_items: [
       { id: 'mine', employee_id: 'employee-1', is_active: true },
@@ -351,10 +351,13 @@ test('Home routine queries request one employee and one day with distinct scoped
   assert.deepEqual((await ticks.queryFn()).map(item => item.id), ['today']);
 });
 
-test('routine mutations require a confirmed affected row so a denied save cannot hide the duty', async () => {
-  fixtureDb({ routine_ticks: [] });
+test('routine mutations propagate server refusal so a denied save cannot hide the job', async () => {
+  globalThis.auditDb = { rpc: async (name) => {
+    assert.equal(name, 'set_routine_job_tick');
+    return { error: new Error('You cannot change this scheduled job.') };
+  } };
   const mutation = routines.useSetRoutineTick();
   const input = { itemId: 'duty', employeeId: 'employee-1', onDate: '2026-09-11' };
-  await assert.rejects(mutation.mutationFn({ ...input, done: true }), /could not be marked done/);
-  await assert.rejects(mutation.mutationFn({ ...input, done: false }), /could not be reopened/);
+  await assert.rejects(mutation.mutationFn({ ...input, done: true }), /cannot change/);
+  await assert.rejects(mutation.mutationFn({ ...input, done: false }), /cannot change/);
 });

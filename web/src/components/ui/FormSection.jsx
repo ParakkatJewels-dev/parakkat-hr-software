@@ -6,10 +6,11 @@
 // visible, scrolls with the page, and needs no z-index at all.
 //
 // Modals are still right for destructive confirmations — see ConfirmDialog.
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { useRevealOnOpen } from '../../lib/useRevealOnOpen';
 import { X, AlertTriangle, Loader2 } from 'lucide-react';
 import { btnClass } from './Btn';
+import { humanDbError } from '../../lib/dbErrors';
 
 export const FIELD =
   'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors';
@@ -31,15 +32,16 @@ export function Field({ label, htmlFor, hint, required, children, className = ''
   );
 }
 
-export function FormError({ message }) {
+export function FormError({ message, id }) {
   if (!message) return null;
   return (
     <div
+      id={id}
       role="alert"
       className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5"
     >
-      <AlertTriangle size={13} className="text-rose-500 shrink-0 mt-0.5" />
-      <p className="text-xs text-rose-600 dark:text-rose-300 break-words">{message}</p>
+      <AlertTriangle size={13} className="text-rose-500 shrink-0 mt-0.5" aria-hidden="true" />
+      <p className="text-xs text-rose-600 dark:text-rose-300 break-words">{humanDbError(message)}</p>
     </div>
   );
 }
@@ -58,6 +60,7 @@ export default function FormSection({
   onClose,
   onSubmit,
   submitLabel = 'Save',
+  busyLabel = 'Saving…',
   busy = false,
   error,
   disabled = false,
@@ -68,18 +71,24 @@ export default function FormSection({
   // the list they belong to, so editing row 3 of 264 in the Directory would otherwise open a form
   // below the pagination with no visible sign anything happened.
   const ref = useRevealOnOpen(true);
+  const errorId = useId();
+  const submittingRef = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState(null);
+  const pending = busy || submitting;
+  const shownError = submitError || error;
 
   // The latest onClose, without making the effects below depend on its identity. Every caller
   // passes an inline arrow, so a new function arrives on every render.
   const onCloseRef = useRef(onClose);
   useEffect(() => {
-    onCloseRef.current = onClose;
+    onCloseRef.current = pending ? undefined : onClose;
   });
 
   // Escape closes. Bound once and routed through the ref, so re-binding never costs anything.
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') onCloseRef.current?.();
+      if (e.key === 'Escape' && !submittingRef.current) onCloseRef.current?.();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -92,11 +101,25 @@ export default function FormSection({
   // the first field. The hook selects inputs only, and waits for the scroll to settle first.
 
   const Tag = onSubmit ? 'form' : 'div';
+  const close = () => { if (!pending && !submittingRef.current) onClose?.(); };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (busy || disabled || submittingRef.current) return;
+    // The ref closes the interval before React paints the pending state after the first click.
+    submittingRef.current = true;
+    setSubmitting(true);
+    setSubmitError(null);
+    try { await onSubmit(event); }
+    catch (failure) { setSubmitError(humanDbError(failure) || 'This could not be saved. Try again.'); }
+    finally { submittingRef.current = false; setSubmitting(false); }
+  };
 
   return (
     <Tag
       ref={ref}
-      {...(onSubmit ? { onSubmit } : {})}
+      {...(onSubmit ? { onSubmit: submit } : {})}
+      aria-busy={pending}
+      aria-describedby={shownError ? errorId : undefined}
       className="premium-card form-section space-y-4 animate-fade-in scroll-mt-4"
     >
       <div className="form-section-header flex items-start justify-between gap-3">
@@ -110,7 +133,8 @@ export default function FormSection({
         {onClose && (
           <button
             type="button"
-            onClick={onClose}
+            onClick={close}
+            disabled={pending}
             aria-label={`Close ${title}`}
             className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-brand/40 cursor-pointer shrink-0 transition-colors"
           >
@@ -119,8 +143,11 @@ export default function FormSection({
         )}
       </div>
 
-      {children}
-      <FormError message={error} />
+      <fieldset disabled={pending} className="min-w-0 space-y-4 border-0 p-0 m-0">
+        {children}
+      </fieldset>
+      <FormError id={errorId} message={shownError} />
+      <p role="status" aria-live="polite" className="sr-only">{pending ? busyLabel : ''}</p>
 
       {(onSubmit || footer) && (
         <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-2 pt-3 border-t border-neutral-200/70 dark:border-neutral-850">
@@ -129,7 +156,8 @@ export default function FormSection({
             {onClose && (
               <button
                 type="button"
-                onClick={onClose}
+                onClick={close}
+                disabled={pending}
                 className={btnClass('ghost')}
               >
                 Cancel
@@ -138,11 +166,11 @@ export default function FormSection({
             {onSubmit && (
               <button
                 type="submit"
-                disabled={busy || disabled}
+                disabled={pending || disabled}
                 className={btnClass('primary')}
               >
-                {busy && <Loader2 size={12} className="animate-spin" />}
-                {submitLabel}
+                {pending && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
+                {pending ? busyLabel : submitLabel}
               </button>
             )}
           </div>

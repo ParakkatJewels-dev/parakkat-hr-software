@@ -1,6 +1,32 @@
 // Server-only gateway logic. Imported by api/v1/[resource].js and its contract tests, never UI.
+import { createHash } from 'node:crypto';
 export const DEVELOPER_API_MAX_OFFSET = 1000000;
 export const DEVELOPER_API_TIMEOUT_MS = 8000;
+
+/** Warm-instance admission control. PostgreSQL remains the shared, authoritative key quota. */
+export function createDeveloperApiLimiter({ now = Date.now, keyLimit = 60, processLimit = 600,
+  maximumKeys = 2000, maximumConcurrent = 32 } = {}) {
+  const keys = new Map();
+  let window = { count: 0, resetAt: 0 };
+  let active = 0;
+  return {
+    enter(key) {
+      const time = now();
+      if (window.resetAt <= time) { window = { count: 0, resetAt: time + 60000 }; keys.clear(); }
+      const wait = () => Math.max(1, Math.ceil((window.resetAt - time) / 1000));
+      if (window.count >= processLimit) return { retryAfter: wait() };
+      const digest = createHash('sha256').update(key).digest('hex');
+      if ((!keys.has(digest) && keys.size >= maximumKeys) || (keys.get(digest) ?? 0) >= keyLimit) return { retryAfter: wait() };
+      if (active >= maximumConcurrent) return { retryAfter: 5 };
+      window.count++;
+      keys.set(digest, (keys.get(digest) ?? 0) + 1);
+      active++;
+      let released = false;
+      return { retryAfter: 0, release() { if (!released) { released = true; active--; } } };
+    },
+  };
+}
+const requestLimiter = createDeveloperApiLimiter();
 const RESOURCES = new Set(['employees', 'organization', 'attendance']);
 const CACHE_HEADERS = {
   'Cache-Control': 'no-store, max-age=0',
@@ -165,12 +191,18 @@ function successPayload(payload, request) {
 }
 
 export async function handleDeveloperApiRequest(request, { environment = {}, fetchImpl = globalThis.fetch,
-  timeoutMs = DEVELOPER_API_TIMEOUT_MS } = {}) {
+  timeoutMs = DEVELOPER_API_TIMEOUT_MS, limiter = requestLimiter } = {}) {
   let parsed;
   try { parsed = parseDeveloperApiRequest(request); }
   catch (error) { return error instanceof InvalidRequest ? error.result : failure(400); }
   const config = developerApiEnvironment(environment);
   if (!config || typeof fetchImpl !== 'function') return failure(503);
+  const admission = limiter.enter(parsed.key);
+  if (admission.retryAfter) {
+    const result = failure(429, `Too many requests. Try again in ${admission.retryAfter} seconds.`);
+    result.headers['Retry-After'] = String(admission.retryAfter);
+    return result;
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -187,5 +219,5 @@ export async function handleDeveloperApiRequest(request, { environment = {}, fet
     const body = successPayload(payload, parsed);
     return body ? { status: 200, headers: { ...CACHE_HEADERS }, body } : failure(503);
   } catch { return failure(503); }
-  finally { clearTimeout(timer); }
+  finally { clearTimeout(timer); admission.release(); }
 }

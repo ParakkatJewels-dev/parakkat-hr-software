@@ -1,4 +1,5 @@
-// The daily routine: duties defined once, ticked each day.
+// Named routines contain jobs that recur on scheduled dates. The database decides which jobs
+// are due and who may record completion; the browser never supplies the completion actor.
 //
 // No permission of its own (0107). Reading follows task.read — an employee holds it at self scope
 // and sees their own list, a head holds it over their team. Defining follows task.create, which
@@ -7,7 +8,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
-import { useAuth } from '../auth/AuthContext';
 import { istToday } from '../lib/dates';
 
 /** Every routine the caller can see — their own, or their team's. RLS decides which. */
@@ -47,82 +47,96 @@ export function useRoutineTicks(onDate, { enabled = true, employeeId } = {}) {
   });
 }
 
+export function useRoutineSets({ enabled = true, employeeId, includeRetired = false } = {}) {
+  return useQuery({
+    enabled,
+    queryKey: ['routine-sets', employeeId ?? 'all', includeRetired],
+    queryFn: () => fetchCollection(() => supabase.rpc('list_routine_sets', {
+      _employee_id: employeeId ?? null, _include_retired: includeRetired,
+    }).order('id')),
+  });
+}
+
+export function useRoutineDay(onDate, { enabled = true, employeeId } = {}) {
+  const day = onDate ?? istToday();
+  return useQuery({
+    enabled,
+    queryKey: ['routine-day', day, employeeId ?? 'all'],
+    queryFn: () => fetchCollection(() => supabase.rpc('routine_day', {
+      _on_date: day, _employee_id: employeeId ?? null,
+    }).order('id')),
+  });
+}
+
+export function useRoutineStats(from, to, { enabled = true, employeeIds } = {}) {
+  const ids = employeeIds ? [...new Set(employeeIds)].sort() : null;
+  return useQuery({
+    enabled: enabled && Boolean(from && to),
+    queryKey: ['routine-stats', from, to, ids],
+    queryFn: () => fetchCollection(() => supabase.rpc('routine_completion_stats', {
+      _from: from, _to: to, _employee_ids: ids,
+    }).order('id')),
+  });
+}
+
 function useRoutineCaches() {
   const qc = useQueryClient();
-  return () => {
-    qc.invalidateQueries({ queryKey: ['routine-items'] });
-    qc.invalidateQueries({ queryKey: ['routine-ticks'] });
-  };
+  return () => Promise.all(['routine-items', 'routine-ticks', 'routine-sets', 'routine-day', 'routine-stats']
+    .map((key) => qc.invalidateQueries({ queryKey: [key] })));
 }
 
-/**
- * Tick or un-tick one duty for one day.
- *
- * An upsert, not an insert: the unique index makes a second tick the same fact arriving twice, and
- * a duplicate-key error is not something to show somebody who double-tapped. Un-ticking deletes,
- * because "not done" is the absence of a tick rather than a tick saying no.
- */
+/** Record or reopen one due job. The RPC validates the date, owner, scope and actor atomically. */
 export function useSetRoutineTick() {
-  const { employee } = useAuth();
   const invalidate = useRoutineCaches();
   return useMutation({
-    mutationFn: async ({ itemId, employeeId, onDate, done }) => {
-      const day = onDate ?? istToday();
-      if (done) {
-        const { data, error } = await supabase
-          .from('routine_ticks')
-          .upsert(
-            { routine_item_id: itemId, employee_id: employeeId, on_date: day, done_by: employee?.id ?? null },
-            { onConflict: 'routine_item_id,on_date' }
-          ).select('id');
-        if (error) throw error;
-        if (!data?.length) throw new Error('That duty could not be marked done. Your access may have changed.');
-      } else {
-        const { data, error } = await supabase
-          .from('routine_ticks').delete().eq('routine_item_id', itemId).eq('on_date', day).select('id');
-        if (error) throw error;
-        if (!data?.length) throw new Error('That duty could not be reopened. Refresh the routine and try again.');
-      }
-    },
-    onSuccess: invalidate,
-  });
-}
-
-export function useSaveRoutineItem() {
-  const { employee } = useAuth();
-  const invalidate = useRoutineCaches();
-  return useMutation({
-    mutationFn: async ({ id, employeeId, title, detail, sortOrder }) => {
-      const row = {
-        employee_id: employeeId,
-        title: (title ?? '').trim(),
-        detail: (detail ?? '').trim() || null,
-        sort_order: Number(sortOrder) || 0,
-      };
-      if (!row.title) throw new Error('A duty needs a name.');
-      const q = id
-        ? supabase.from('routine_items').update(row).eq('id', id).select('id')
-        : supabase.from('routine_items').insert({ ...row, created_by: employee?.id ?? null }).select('id');
-      const { data, error } = await q;
+    mutationFn: async ({ itemId, onDate, done }) => {
+      const { data, error } = await supabase.rpc('set_routine_job_tick', {
+        _item_id: itemId, _on_date: onDate ?? istToday(), _done: Boolean(done),
+      });
       if (error) throw error;
-      if (!data?.length) throw new Error('That routine could not be saved. Your access may have changed.');
+      return data;
     },
     onSuccess: invalidate,
   });
 }
 
-/**
- * Retire a duty rather than delete it: the ticks are a record of work that was actually done, and
- * `on delete cascade` would take that history with it.
- */
-export function useRetireRoutineItem() {
+export function useCreateRoutineSet() {
+  const invalidate = useRoutineCaches();
+  return useMutation({
+    mutationFn: async ({ employeeIds, title, jobs, schedule, detail }) => {
+      const { data, error } = await supabase.rpc('create_routine_set', {
+        _employee_ids: [...new Set(employeeIds ?? [])], _title: String(title ?? '').trim(),
+        _jobs: jobs, _schedule: schedule, _detail: String(detail ?? '').trim() || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useReplaceRoutineSet() {
+  const invalidate = useRoutineCaches();
+  return useMutation({
+    mutationFn: async ({ id, title, jobs, schedule, detail }) => {
+      const { data, error } = await supabase.rpc('replace_routine_set', {
+        _id: id, _title: String(title ?? '').trim(), _jobs: jobs,
+        _schedule: schedule, _detail: String(detail ?? '').trim() || null,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useRetireRoutineSet() {
   const invalidate = useRoutineCaches();
   return useMutation({
     mutationFn: async (id) => {
-      const { data, error } = await supabase
-        .from('routine_items').update({ is_active: false }).eq('id', id).select('id');
+      const { data, error } = await supabase.rpc('retire_routine_set', { _id: id });
       if (error) throw error;
-      if (!data?.length) throw new Error('That duty could not be retired.');
+      return data;
     },
     onSuccess: invalidate,
   });

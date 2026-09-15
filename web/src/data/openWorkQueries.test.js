@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 // Exercise the real operational queries and pagination without credentials or a browser.
 const stubs = {
   '@tanstack/react-query': 'export const useQuery = x => x; export const useMutation = x => x; export const useQueryClient = () => ({});',
-  supabaseClient: 'export const supabase = { from: (...args) => globalThis.openWorkDb.from(...args) };',
+  supabaseClient: 'export const supabase = { from: (...args) => globalThis.openWorkDb.from(...args), rpc: (...args) => globalThis.openWorkDb.rpc(...args) };',
 };
 registerHooks({
   resolve(specifier, context, next) {
@@ -29,6 +29,13 @@ const { istToday } = await import('../lib/dates.js');
 function fixtureDb(rows) {
   const reads = [];
   globalThis.openWorkDb = {
+    rpc(name, args) {
+      assert.equal(name, 'list_tickets');
+      assert.match(args._since, /^\d{4}-\d{2}-\d{2}$/);
+      // The RPC applies this same window before PostgREST ranges its result. Its SQL and
+      // management flags are covered separately; keep the oldest open rows in this regression.
+      return globalThis.openWorkDb.from('tickets').or(`status.in.(Open,"In Progress","On Hold"),created_at.gte.${args._since}`);
+    },
     from(table) {
       const predicates = [], order = [];
       let offset = 0, end = Infinity;

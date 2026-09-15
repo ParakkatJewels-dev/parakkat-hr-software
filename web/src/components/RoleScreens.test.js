@@ -78,6 +78,7 @@ function tree(Component, auth, seeds = [], path = '/', props = {}) {
   for (const [key, value] of [[['employees'], people], [['org', 'all'], org], [['roles'], roleRows()], [['managed-users'], []],
     [['leaves'], []], [['expenses'], []], [['goals'], []], [['tasks'], []], [['notifications'], []], [['my-departments'], []],
     [['notifications', 'task-assignments'], []], [['message-delivery', auth.employee?.id], []],
+    [['ticket-access'], { can_view_queue: false, can_manage_categories: false, is_hr: false }],
     [['payroll-runs'], []], [['leave-types'], []], [['assets'], []], ...seeds]) {
     if (value instanceof Error) client.getQueryCache().build(client, { queryKey: key }).setState({ status: 'error', fetchStatus: 'idle', error: value });
     else client.setQueryData(key, value);
@@ -106,6 +107,15 @@ function records(kind) {
     entity_id: employee.entity_id, zone_id: employee.zone_id, branch_id: employee.branch_id, department_id: employee.department_id,
     status: 'Pending', type: 'CL', days: 1, start_date: istToday(), end_date: istToday(), work_date: istToday(),
     category: 'Travel', amount: 100, expense_date: istToday(), reason: `${employee.full_name} request`, created_by: `author-${employee.id}` }));
+}
+const LEAVE_REVIEWERS = ['super_admin', 'entity_admin', 'hr_manager', 'dept_head'];
+function workflowLeaves(key) {
+  return records('leave').map((row) => ({ ...row,
+    approval_stage: key === 'dept_head' ? 'department' : 'hr',
+    effective_stage: key === 'dept_head' ? 'department' : 'hr',
+    can_decide: LEAVE_REVIEWERS.includes(key) && row.employee_id !== 'self'
+      && (key === 'super_admin' || row.employee_id === 'inside'), can_reopen: false,
+  }));
 }
 const count = (html, pattern) => (html.match(pattern) ?? []).length;
 
@@ -187,18 +197,19 @@ for (const key of KEYS) {
   });
   test(`${key}: leave, expense and correction decisions exclude self and outside scope`, () => {
     const auth = actor(key);
-    const expectedLeave = key === 'super_admin' ? 2 : key === 'employee' ? 0 : 1;
+    const expectedCorrection = key === 'super_admin' ? 2 : key === 'employee' ? 0 : 1;
+    const expectedLeave = key === 'super_admin' ? 2 : LEAVE_REVIEWERS.includes(key) ? 1 : 0;
     const expectedExpense = key === 'super_admin' ? 2 : EXPENSE_APPROVERS.includes(key) ? 1 : 0;
-    const leave = render(Leave, auth, [[['leaves'], records('leave')]], '/leave');
-    assert.equal(count(leave, /aria-label="Change status for /g), expectedLeave);
-    assert.doesNotMatch(leave, /aria-label="Change status for Self Worker"/);
+    const leave = render(Leave, auth, [[['leaves'], workflowLeaves(key)]], '/leave');
+    assert.equal(count(leave, /aria-label="Review leave for /g), expectedLeave);
+    assert.doesNotMatch(leave, /aria-label="Review leave for Self Worker"/);
     const expenses = render(Expense, auth, [[['expenses'], records('expense')]], '/expense');
     assert.equal(count(expenses, /aria-label="Approve"/g), expectedExpense);
     const corrections = render(RegularizationsView, auth, [
       [['regularizations', key === 'employee' ? 'all' : 'Pending', key === 'employee' ? 'self' : 'everyone'], records('correction')],
       [['regularizations', 'mine', 'self'], []],
     ], '/attendance/regularizations', { employee: auth.employee, canApprove: key !== 'employee' });
-    assert.equal(count(corrections, />Approve<\/button>/g), expectedLeave);
+    assert.equal(count(corrections, />Approve<\/button>/g), expectedCorrection);
     if (key === 'employee') {
       assert.doesNotMatch(leave, /Inside Worker|Outside Worker/);
       assert.doesNotMatch(expenses, /Inside Worker|Outside Worker/);
@@ -213,13 +224,14 @@ for (const key of KEYS) {
   test(`${key}: dashboard approval KPIs, priorities and inline inbox agree on actionable rows`, () => {
     const auth = actor(key);
     const seeds = [
-      [['leaves'], records('leave')],
+      [['leaves'], workflowLeaves(key)],
       [['expenses'], [...records('expense'), { ...records('expense')[1], id: 'filed-by-viewer', created_by: 'viewer' }]],
       [['regularizations', 'Pending', 'everyone'], records('correction')],
     ];
-    const leaves = key === 'super_admin' ? 2 : key === 'employee' ? 0 : 1;
+    const punches = key === 'super_admin' ? 2 : key === 'employee' ? 0 : 1;
+    const leaves = key === 'super_admin' ? 2 : LEAVE_REVIEWERS.includes(key) ? 1 : 0;
     const expenses = key === 'super_admin' ? 2 : EXPENSE_APPROVERS.includes(key) ? 1 : 0;
-    const total = leaves * 2 + expenses;
+    const total = leaves + punches + expenses;
     for (const Kpis of [TeamKpis, ZonalKpis]) {
       const html = render(Kpis, auth, seeds);
       assert.match(html, new RegExp(`Pending Approvals<\\/span><\\/div><div class="dashboard-kpi-body"><p>${total}<\\/p>`));
@@ -232,16 +244,16 @@ for (const key of KEYS) {
     else {
       assert.match(inbox, new RegExp(`dashboard-badge">${total}<`));
       assert.match(inbox, new RegExp(`Leaves · ${leaves}<`));
-      assert.match(inbox, new RegExp(`Punches · ${leaves}<`));
+      assert.match(inbox, new RegExp(`Punches · ${punches}<`));
       if (EXPENSE_APPROVERS.includes(key)) assert.match(inbox, new RegExp(`Expenses · ${expenses}<`));
       else assert.doesNotMatch(inbox, /Expenses ·/);
-      assert.equal(count(inbox, /> Approve<\/button>/g), leaves);
+      assert.equal(count(inbox, /Review &amp; remarks<\/button>/g), leaves);
       assert.doesNotMatch(inbox, /Self Worker/);
       if (key !== 'super_admin') assert.doesNotMatch(inbox, /Outside Worker/);
     }
     const priorities = render(ActionCenter, auth, seeds);
     if (leaves) {
-      assert.match(priorities, new RegExp(`${leaves} punch correction${leaves > 1 ? 's' : ''} awaiting your approval`));
+      assert.match(priorities, new RegExp(`${punches} punch correction${punches > 1 ? 's' : ''} awaiting your approval`));
       assert.match(priorities, new RegExp(`${leaves} leave request${leaves > 1 ? 's' : ''} awaiting your approval`));
     }
     if (expenses) assert.match(priorities, new RegExp(`${expenses} expense claim${expenses > 1 ? 's' : ''} awaiting your approval`));
@@ -348,11 +360,12 @@ test('combined HR and department roles retain both scopes without acquiring comp
     permissions: [...hr.permissions, ...matrix.dept_head.permissions.map((permission) => ({ permission, scope_type: 'department', scope_id: 'department-b' }))] };
   assert.match(await renderApp(combined, '/organization'), /Access restricted/);
   assert.doesNotMatch(await renderApp(combined, '/payroll/run'), /Access restricted/);
-  const leave = render(Leave, combined, [[['leaves'], records('leave')]], '/leave');
-  assert.equal(count(leave, /aria-label="Change status for /g), 2);
+  const combinedLeaves = workflowLeaves('super_admin').map((row) => ({ ...row, approval_stage: row.employee_id === 'outside' ? 'department' : 'hr' }));
+  const leave = render(Leave, combined, [[['leaves'], combinedLeaves]], '/leave');
+  assert.equal(count(leave, /aria-label="Review leave for /g), 2);
   const expense = render(Expense, combined, [[['expenses'], records('expense')]], '/expense');
   assert.equal(count(expense, /aria-label="Approve"/g), 1);
-  const inbox = render(ApprovalsQueue, combined, [[['leaves'], records('leave')], [['expenses'], records('expense')],
+  const inbox = render(ApprovalsQueue, combined, [[['leaves'], combinedLeaves], [['expenses'], records('expense')],
     [['regularizations', 'Pending', 'everyone'], records('correction')]]);
   assert.match(inbox, /Leaves · 2</);
   assert.match(inbox, /Punches · 2</);

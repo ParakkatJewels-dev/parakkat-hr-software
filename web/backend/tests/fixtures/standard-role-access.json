@@ -140,7 +140,10 @@
     "0134_chat_typing.sql",
     "0135_developer_api_keys.sql",
     "0136_complete_team_employee_picker.sql",
-    "0137_read_chat_notifications.sql"
+    "0137_read_chat_notifications.sql",
+    "0138_leave_approval_workflow.sql",
+    "0139_ticket_category_routing.sql",
+    "0140_named_scheduled_routines.sql"
   ],
   "roles": [
     {

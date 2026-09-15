@@ -4,14 +4,18 @@ import assert from 'node:assert/strict';
 import type { Server } from 'node:http';
 import type { AuthContext } from './auth';
 import { backgroundJobs } from '../jobs/background';
+import { apiRequestBudget } from './rateLimit';
 
 const branchId = '00000000-0000-4000-8000-000000001002';
+const mappedEmployeeId = '00000000-0000-4000-8000-000000000501';
+const adoptedPunches = { punchesLinked: 8, firstDate: '2026-07-01', lastDate: '2026-07-02' };
 const users: Record<string, AuthContext> = {
   admin: { userId: 'admin', email: null, isSuperAdmin: true, permissions: [], employee: null },
   branch: { userId: 'branch', email: null, isSuperAdmin: false, permissions: [{ permission: 'device.manage', scope_type: 'branch', scope_id: branchId }], employee: null },
   self: { userId: 'self', email: null, isSuperAdmin: false, permissions: [{ permission: 'payslip.read', scope_type: 'self', scope_id: null }], employee: null },
 };
 const calls: Array<{ name: string; args?: unknown }> = [];
+const warnings: string[] = [];
 let failMappings = false;
 let server: Server;
 let baseUrl: string;
@@ -21,7 +25,7 @@ before(async () => {
   mock.module(require.resolve('../config/env'), {
     namedExports: { env: { SUPABASE_URL: 'http://127.0.0.1:9', SUPABASE_ANON_KEY: 'fixture', API_CORS_ORIGINS: ['https://hr.example.test'], APP_TIMEZONE: 'Asia/Kolkata', ENABLE_WORKERS: false }, canVerifyTokens: true },
   });
-  mock.module(require.resolve('../lib/logger'), { namedExports: { logger: { info() {}, warn() {}, error() {} } } });
+  mock.module(require.resolve('../lib/logger'), { namedExports: { logger: { info() {}, warn(_data: unknown, message: string) { warnings.push(message); }, error() {} } } });
   mock.module(require.resolve('@supabase/supabase-js'), {
     namedExports: { createClient: (_url: string, _key: string, options: { global: { headers: { Authorization: string } } }) => {
       const user = users[options.global.headers.Authorization.slice(7)];
@@ -36,15 +40,22 @@ before(async () => {
       jsonSafe: (value: unknown) => value,
       prisma: {
         $queryRaw: async (strings: TemplateStringsArray) => {
+          if (strings.join('').includes('select 1')) { calls.push({ name: 'health.database' }); return [{ '?column?': 1 }]; }
           if (strings.join('').includes("'punches_total'")) {
             calls.push({ name: 'status.metrics' });
             return [{ metric: 'punches_total', value: 503 }];
           }
           throw new Error('Unexpected database query in HTTP fixture');
         },
-        syncState: { findMany: async () => { calls.push({ name: 'status.state' }); return []; } },
+        syncState: {
+          findMany: async () => { calls.push({ name: 'status.state' }); return []; },
+          findUnique: async () => { calls.push({ name: 'health.state' }); return null; },
+        },
         device: { findMany: async () => { calls.push({ name: 'status.devices' }); return [{ id: 'other-company-device' }]; } },
+        employee: { findUnique: async () => ({ id: mappedEmployeeId }) },
         biotimeEmployee: {
+          findUnique: async () => ({ empCode: '101', employeeId: null, linkStatus: 'unmatched' }),
+          update: async (args: unknown) => { calls.push({ name: 'mapping.update', args }); return args; },
           findMany: async (args: { take: number; skip?: number }) => {
             calls.push({ name: 'mapping.list', args });
             if (failMappings) throw new Error('Fixture database unavailable');
@@ -62,14 +73,17 @@ before(async () => {
   const invoked = (name: string) => async (args: unknown, options?: unknown) => { calls.push({ name, args }); return await onWork?.(name, args, options) ?? {}; };
   mock.module(require.resolve('../sync/syncTransactions'), { namedExports: { syncTransactions: invoked('sync'), catchUpTransactions: invoked('catchup'), runTransactionSync: invoked('backfill') } });
   mock.module(require.resolve('../sync/syncEmployees'), { namedExports: { syncEmployees: invoked('employees'), refreshSuggestions: invoked('suggestions'), resolvePunchLinks: invoked('link') } });
-  mock.module(require.resolve('../engine/recompute'), { namedExports: { recompute: invoked('recompute'), drainRecomputeQueue: invoked('queue'), enqueueRecompute: invoked('enqueue') } });
+  mock.module(require.resolve('../engine/recompute'), { namedExports: {
+    recompute: invoked('recompute'), drainRecomputeQueue: invoked('queue'),
+    enqueueRecompute: async (...args: unknown[]) => { calls.push({ name: 'enqueue', args }); return onWork?.('enqueue', args, undefined); },
+  } });
   const { createServer } = require('./server') as typeof import('./server');
   server = createServer().listen(0, '127.0.0.1');
   await new Promise<void>((resolve) => server.once('listening', resolve));
   baseUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
 
-beforeEach(() => { calls.length = 0; failMappings = false; onWork = undefined; });
+beforeEach(() => { calls.length = 0; warnings.length = 0; failMappings = false; onWork = undefined; apiRequestBudget.clear(); });
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -87,6 +101,14 @@ test('anonymous and invalid sessions receive 401 without touching data', async (
     assert.equal((await request('/api/mapping', user)).status, 401);
   }
   assert.equal(calls.length, 0);
+});
+
+test('a burst of health checks performs only one pair of readiness queries', async () => {
+  const responses = await Promise.all(Array.from({ length: 20 }, () => request('/health')));
+  assert.ok(responses.every(response => response.status === 200));
+  assert.equal(calls.filter(call => call.name === 'health.database').length, 1);
+  assert.equal(calls.filter(call => call.name === 'health.state').length, 1);
+  assert.equal((await responses[0]!.json() as { status: string }).status, 'ok');
 });
 
 test('a branch manager cannot list, unlink or change the organisation-wide device roster', async () => {
@@ -109,6 +131,32 @@ test('organisation-wide diagnostics are refused before reading telemetry for a s
   const allowed = await request('/api/status', 'admin');
   assert.equal(allowed.status, 200);
   assert.deepEqual((await allowed.json() as { devices: unknown[] }).devices, [{ id: 'other-company-device' }]);
+  assert.match(allowed.headers.get('cache-control') ?? '', /no-store/);
+  const reads = calls.length;
+  assert.equal((await request('/api/status', 'admin')).status, 200);
+  assert.equal(calls.length, reads, 'diagnostics within five seconds use the cached read');
+  assert.equal((await request('/api/status', 'branch')).status, 403, 'a warm diagnostics cache never bypasses scope authorization');
+  assert.equal(calls.length, reads);
+});
+
+test('pre-auth limits reject spoofed-forwarded-IP bursts before authentication or database access', async () => {
+  for (let i = 0; i < 600; i++) apiRequestBudget.take('incoming:ip:127.0.0.1', 600);
+  const response = await fetch(`${baseUrl}/api/mapping`, { headers: {
+    Authorization: 'Bearer invalid', 'X-Forwarded-For': '203.0.113.7', Origin: 'https://hr.example.test',
+  } });
+  assert.equal(response.status, 429);
+  assert.ok(Number(response.headers.get('retry-after')) > 0);
+  assert.equal(response.headers.get('access-control-allow-origin'), 'https://hr.example.test');
+  assert.match(response.headers.get('access-control-expose-headers') ?? '', /Retry-After/);
+  assert.equal(calls.length, 0);
+});
+
+test('a user who exhausts their read quota cannot trigger another mapping query', async () => {
+  for (let i = 0; i < 120; i++) apiRequestBudget.take('user:admin:read', 120);
+  const limited = await request('/api/mapping', 'admin');
+  assert.equal(limited.status, 429);
+  assert.equal((await limited.json() as { error: string }).error, 'rate_limited');
+  assert.equal(calls.length, 0);
 });
 
 test('invalid calendar dates and catch-up sizes are rejected before any work is queued', async () => {
@@ -214,6 +262,115 @@ test('a long HTTP recompute keeps its scope and receives cancellation while its 
   } finally { release(); await new Promise(resolve => setImmediate(resolve)); }
 });
 
+test('long-running HTTP operations cap simultaneous work and recover capacity on completion', async () => {
+  let release!: () => void, started!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const allStarted = new Promise<void>(resolve => { started = resolve; });
+  let count = 0;
+  onWork = async name => { if (name === 'sync') { if (++count === 4) started(); await held; } };
+  const responses = Array.from({ length: 4 }, () => request('/api/sync/transactions', 'admin', {}));
+  try {
+    await allStarted;
+    const limited = await request('/api/sync/transactions', 'admin', {});
+    assert.equal(limited.status, 429);
+    assert.equal(limited.headers.get('retry-after'), '5');
+    assert.equal((await request('/API/SYNC/TRANSACTIONS', 'admin', {})).status, 429,
+      'case-insensitive Express aliases cannot bypass expensive-work admission');
+    assert.equal((await request('/API/EXPORTS/REGISTER?year=2026&month=7', 'admin')).status, 429);
+    assert.equal((await request('/api/EXPORTS/payroll?year=2026&month=7', 'admin')).status, 429);
+    assert.equal(count, 4);
+  } finally { release(); await Promise.all(responses); }
+  assert.equal((await request('/api/sync/transactions', 'admin', {})).status, 200);
+});
+
+test('accepted background jobs remain bounded after their 202 responses finish', async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  onWork = async name => { if (name === 'catchup') await held; };
+  try {
+    for (let i = 0; i < 4; i++) assert.equal((await request('/api/sync/catchup', 'admin', { days: 7 })).status, 202);
+    const limited = await request('/api/sync/catchup', 'admin', { days: 7 });
+    assert.equal(limited.status, 429);
+    assert.equal(limited.headers.get('retry-after'), '5');
+    assert.equal((await limited.json() as { error: string }).error, 'rate_limited');
+    assert.equal(backgroundJobs.inFlight().length, 4);
+  } finally { release(); await new Promise(resolve => setImmediate(resolve)); }
+  assert.deepEqual(backgroundJobs.inFlight(), []);
+});
+
+test('mapping commits and durably queues adopted punches when four background jobs already hold capacity', async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  onWork = async name => {
+    if (name === 'catchup') await held;
+    if (name === 'link') return adoptedPunches;
+  };
+  try {
+    for (let i = 0; i < 4; i++) assert.equal((await request('/api/sync/catchup', 'admin', { days: 7 })).status, 202);
+    const response = await request('/api/mapping/link', 'admin', { empCode: '101', employeeId: mappedEmployeeId });
+    assert.equal(response.status, 200, 'a saved mapping must not be reported as a failed save');
+    assert.deepEqual(await response.json(), {
+      ok: true, empCode: '101', employeeId: mappedEmployeeId, punchesAdopted: 8,
+      recomputedFrom: adoptedPunches.firstDate, recomputedTo: adoptedPunches.lastDate, recomputeStatus: 'queued',
+    });
+    const mappingCalls = calls.filter(call => call.name !== 'catchup');
+    assert.deepEqual(mappingCalls.map(call => call.name), ['mapping.update', 'link', 'enqueue']);
+    assert.equal((mappingCalls[0]?.args as { data: { employeeId: string; linkStatus: string } }).data.employeeId, mappedEmployeeId);
+    assert.equal((mappingCalls[0]?.args as { data: { linkStatus: string } }).data.linkStatus, 'manual');
+    assert.deepEqual(mappingCalls[2]?.args, [mappedEmployeeId, '2026-07-01', '2026-07-02', 'code 101 mapped']);
+    assert.deepEqual(backgroundJobs.inFlight(), ['catchup', 'catchup', 'catchup', 'catchup']);
+    assert.ok(warnings.some(message => message.includes('recompute deferred to durable queue')));
+  } finally { release(); await new Promise(resolve => setImmediate(resolve)); }
+  assert.deepEqual(backgroundJobs.inFlight(), []);
+  assert.equal(calls.some(call => call.name === 'recompute'), false, 'no untracked immediate work bypasses the cap');
+});
+
+test('mapping starts cancellable recomputation after its durable queue write when capacity is available', async () => {
+  let options: unknown;
+  onWork = async (name, _args, value) => {
+    if (name === 'link') return adoptedPunches;
+    if (name === 'recompute') options = value;
+  };
+  const response = await request('/api/mapping/link', 'admin', { empCode: '101', employeeId: mappedEmployeeId });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json() as { recomputeStatus: string }).recomputeStatus, 'started');
+  assert.deepEqual(calls.map(call => call.name), ['mapping.update', 'link', 'enqueue', 'recompute']);
+  assert.deepEqual(calls[3]?.args, { from: '2026-07-01', to: '2026-07-02', employeeIds: [mappedEmployeeId] });
+  assert.ok((options as { signal?: AbortSignal })?.signal instanceof AbortSignal);
+  assert.equal(warnings.length, 0);
+});
+
+test('a failed durable enqueue is never reported as successful deferred recomputation', async () => {
+  onWork = async name => {
+    if (name === 'link') return adoptedPunches;
+    if (name === 'enqueue') throw Object.assign(new Error('Fixture queue unavailable'), { status: 503 });
+  };
+  const response = await request('/api/mapping/link', 'admin', { empCode: '101', employeeId: mappedEmployeeId });
+  assert.equal(response.status, 503, 'only immediate background admission errors may be deferred');
+  assert.deepEqual(calls.map(call => call.name), ['mapping.update', 'link', 'enqueue']);
+  assert.equal(warnings.some(message => message.includes('recompute deferred')), false);
+});
+
+test('disconnecting clients cannot release expensive-work slots while their queries are running', async () => {
+  let release!: () => void, started!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const allStarted = new Promise<void>(resolve => { started = resolve; });
+  let count = 0;
+  onWork = async name => { if (name === 'sync') { if (++count === 4) started(); await held; } };
+  const controllers = Array.from({ length: 4 }, () => new AbortController());
+  const pending = controllers.map(controller => fetch(`${baseUrl}/api/sync/transactions`, {
+    method: 'POST', headers: { Authorization: 'Bearer admin', 'Content-Type': 'application/json' },
+    body: '{}', signal: controller.signal,
+  }).catch(() => null));
+  try {
+    await allStarted;
+    controllers.forEach(controller => controller.abort());
+    await Promise.all(pending);
+    assert.equal((await request('/api/sync/transactions', 'admin', {})).status, 429);
+    assert.equal(count, 4);
+  } finally { release(); await new Promise(resolve => setImmediate(resolve)); }
+});
+
 test('shutdown cancellation stops later HTTP backfill chunks and the trailing recompute', async () => {
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
@@ -232,4 +389,11 @@ test('shutdown cancellation stops later HTTP backfill chunks and the trailing re
   assert.deepEqual(backgroundJobs.inFlight(), []);
   const late = await request('/api/sync/catchup', 'admin', { days: 7 });
   assert.equal(late.status, 503, 'a request reaching the handler during shutdown is refused explicitly');
+
+  onWork = async name => name === 'link' ? adoptedPunches : undefined;
+  const mapping = await request('/api/mapping/link', 'admin', { empCode: '101', employeeId: mappedEmployeeId });
+  assert.equal(mapping.status, 200, 'shutdown cannot fail a mapping already saved and durably queued');
+  assert.equal((await mapping.json() as { recomputeStatus: string }).recomputeStatus, 'queued');
+  assert.deepEqual(calls.filter(call => call.name !== 'backfill').map(call => call.name), ['mapping.update', 'link', 'enqueue']);
+  assert.ok(warnings.some(message => message.includes('recompute deferred to durable queue')));
 });

@@ -5,7 +5,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import handler from '../../api/v1/[resource].js';
-import { developerApiEnvironment, handleDeveloperApiRequest } from './developerApiGateway.js';
+import { createDeveloperApiLimiter, developerApiEnvironment, handleDeveloperApiRequest } from './developerApiGateway.js';
 
 const KEY = 'phr_synthetic_test_key_never_log';
 const jwt = (role) => `e30.${Buffer.from(JSON.stringify({ role })).toString('base64url')}.signature`;
@@ -17,6 +17,7 @@ const success = (limit = 50, offset = 0, data = []) => ({ data, pagination: { li
 async function invoke(req, { payload = success(), status = 200, environment = ENVIRONMENT, fetchImpl, ...rest } = {}) {
   const calls = [];
   const result = await handleDeveloperApiRequest(req, { environment,
+    limiter: createDeveloperApiLimiter(),
     fetchImpl: fetchImpl ?? (async (...args) => { calls.push(args); return response(payload, status); }), ...rest });
   assert.match(result.headers['Cache-Control'], /no-store/);
   assert.equal(result.headers['CDN-Cache-Control'], 'no-store');
@@ -45,6 +46,46 @@ test('valid GET forwards only validated arguments to the fixed RPC using the pro
   assert.deepEqual(JSON.parse(options.body), { _api_key: KEY, _resource: 'employees', _limit: 2, _offset: 5, _from: null, _to: null });
   assert.equal(url.includes(KEY), false);
   assert.equal(JSON.stringify(options.headers).includes(KEY), false);
+});
+
+test('gateway rejects a repeated key before contacting PostgreSQL, then admits it after Retry-After', async () => {
+  let clock = 1000;
+  const limiter = createDeveloperApiLimiter({ now: () => clock, keyLimit: 2 });
+  for (let i = 0; i < 2; i++) assert.equal((await invoke(request(), { limiter })).calls.length, 1);
+  clock += 1500;
+  const refused = await invoke(request(), { limiter });
+  assert.equal(refused.result.status, 429);
+  assert.equal(refused.calls.length, 0);
+  assert.equal(refused.result.headers['Retry-After'], '59');
+  assert.equal(JSON.stringify(refused.result).includes(KEY), false);
+  clock += 58500;
+  assert.equal((await invoke(request(), { limiter })).result.status, 200);
+});
+
+test('gateway bounds rotating keys and simultaneous upstream work without caching authorized responses', async () => {
+  const limiter = createDeveloperApiLimiter({ processLimit: 2, maximumConcurrent: 1 });
+  let release;
+  const held = new Promise(resolve => { release = resolve; });
+  const first = invoke(request(), { limiter, fetchImpl: async () => { await held; return response(success()); } });
+  const busy = await invoke(request(), { limiter });
+  assert.equal(busy.result.status, 429);
+  assert.equal(busy.calls.length, 0);
+  assert.equal(busy.result.headers['Retry-After'], '5');
+  release();
+  assert.equal((await first).result.status, 200);
+  const other = request(); other.headers.authorization = 'Bearer different-synthetic-key';
+  assert.equal((await invoke(other, { limiter })).calls.length, 1, 'a fresh authorization and data read is still required');
+  other.headers.authorization = 'Bearer third-synthetic-key';
+  assert.equal((await invoke(other, { limiter })).result.status, 429, 'rotating keys cannot bypass the process budget');
+  const bounded = createDeveloperApiLimiter({ maximumKeys: 1 });
+  assert.equal((await invoke(request(), { limiter: bounded })).result.status, 200);
+  assert.equal((await invoke(other, { limiter: bounded })).calls.length, 0, 'active identities are never evicted to admit an unbounded stream');
+});
+
+test('gateway releases concurrency capacity when an upstream request fails', async () => {
+  const limiter = createDeveloperApiLimiter({ maximumConcurrent: 1 });
+  assert.equal((await invoke(request(), { limiter, fetchImpl: async () => { throw new Error('fixture'); } })).result.status, 503);
+  assert.equal((await invoke(request(), { limiter })).result.status, 200);
 });
 
 test('default and boundary pagination work for employees and flat organization rows', async () => {

@@ -10,6 +10,7 @@ import { useLeaves } from '../../data/leaves';
 import { useExpenses } from '../../data/expenses';
 import { useRegularizations } from '../../data/regularizations';
 import { useTickets } from '../../data/tickets';
+import { useTicketAccess } from '../../data/ticketCategories';
 import { useMyDepartments } from '../../data/team';
 import { useHelpRequests } from '../../data/helpRequests';
 import { incomingRequests } from '../../lib/helpRequests';
@@ -23,13 +24,14 @@ const ICONS = { messages: MessageSquare, tasks: ListTodo, overdue: CircleAlert, 
 
 export default function ActionCenter({ onNavigate }) {
   const { employee } = useAuth();
-  const { can, canAny, viewingAsEmployee } = usePermissions();
+  const { canAny, viewingAsEmployee } = usePermissions();
   const today = useIstToday();
   const tasksEnabled = Boolean(employee?.id) && canAny('task.read');
   const leavesEnabled = !viewingAsEmployee && canAny('leave.approve');
   const expensesEnabled = !viewingAsEmployee && canAny('expense.approve');
   const correctionsEnabled = !viewingAsEmployee && canAny('regularization.approve');
-  const ticketsEnabled = !viewingAsEmployee && canAny('ticket.manage');
+  const ticketAccess = useTicketAccess({ enabled: !viewingAsEmployee && canAny('ticket.read') });
+  const ticketsEnabled = !viewingAsEmployee && ticketAccess.data?.can_view_queue === true;
   const inbox = useMessageInbox();
   const tasks = useTasks({ enabled: tasksEnabled });
   const assignments = useUnreadTaskAssignments({ enabled: tasksEnabled });
@@ -42,9 +44,7 @@ export default function ActionCenter({ onNavigate }) {
   const help = useHelpRequests({ enabled: helpEnabled });
   const approvals = useActionableApprovals({ leaves: leaves.data, expenses: expenses.data, regs: corrections.data });
   const manageableTickets = ticketsEnabled ? (tickets.data ?? []).filter((t) =>
-    ['Open', 'In Progress', 'On Hold'].includes(t.status) && can('ticket.manage', {
-      entityId: t.entity_id, zoneId: t.zone_id, branchId: t.branch_id, deptId: t.department_id, employeeId: t.employee_id,
-    })) : [];
+    ['Open', 'In Progress', 'On Hold'].includes(t.status) && t.can_manage === true) : [];
   const requests = helpEnabled ? incomingRequests(help.data, (departments.data ?? []).map((d) => d.id))
     .filter((r) => r.status === 'Pending') : [];
   const actions = dashboardActions({ employeeId: employee?.id, today, conversations: inbox.data,
@@ -52,7 +52,8 @@ export default function ActionCenter({ onNavigate }) {
     approvals: viewingAsEmployee ? {} : approvals, tickets: manageableTickets, helpRequests: requests });
   const queries = [employee?.id && inbox, tasksEnabled && tasks, tasksEnabled && assignments,
     leavesEnabled && leaves, expensesEnabled && expenses, correctionsEnabled && corrections,
-    ticketsEnabled && tickets, helpEnabled && departments, helpEnabled && help].filter(Boolean);
+    !viewingAsEmployee && canAny('ticket.read') && ticketAccess, ticketsEnabled && tickets,
+    helpEnabled && departments, helpEnabled && help].filter(Boolean);
   const loading = queries.some((q) => q.isLoading);
   const failed = queries.some((q) => q.isError);
   const [expanded, setExpanded] = useState(false);

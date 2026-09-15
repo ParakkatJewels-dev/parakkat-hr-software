@@ -1,50 +1,16 @@
-import { SkeletonRows } from './ui/Skeleton';
-import React, { useMemo, useState } from 'react';
-import { HelpCircle, MailOpen, Plus, X, Loader2, AlertTriangle, DoorOpen } from 'lucide-react';
-import { useTickets, useAddTicket, useSetTicketStatus } from '../data/tickets';
+import React, { useEffect, useRef, useState } from 'react';
+import { MailOpen, X, Loader2, DoorOpen } from 'lucide-react';
+import TicketDesk from './TicketDesk';
 import { useExits, useAddExit } from '../data/exits';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
-import { useFocusRow } from '../lib/useFocusRow';
-
-const CATS = ['IT Support', 'Payroll Query', 'HR Policy', 'Facility/Admin'];
-const PRIOS = ['Low', 'Medium', 'High'];
-
-const statusClass = (s) =>
-  s === 'Resolved'
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30'
-    : s === 'In Progress'
-    ? 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/30'
-    : 'bg-neutral-105 text-neutral-500 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-450 dark:border-neutral-800';
 
 export default function HelpdeskExit() {
-  const { data: allTickets = [], isLoading, error } = useTickets();
   const { employee } = useAuth();
   const { can, canBeyondSelf, viewingAsEmployee } = usePermissions();
-  // Ticket subjects carry other people's problems by name. Same rule as Documents.
-  const ticketsMineOnly = viewingAsEmployee || !canBeyondSelf('ticket.read');
-  // Declared AFTER the two values it reads: `const` is not hoisted, so putting this above them
-  // throws "Cannot access before initialization" on first render.
-  const tickets = useMemo(
-    () => (ticketsMineOnly ? allTickets.filter((t) => t.employee_id === employee?.id) : allTickets),
-    [allTickets, ticketsMineOnly, employee?.id]
-  );
-  const add = useAddTicket();
   const addExit = useAddExit();
-  const setStatus = useSetTicketStatus();
-
-  const canRaise = Boolean(employee?.id);
-  // Per row, mirroring tickets_update. The blanket version put an editable status on every ticket
-  // RLS returned; outside the handler's scope the update matches nothing and reports success.
-  const canHandleTicket = (t) => can('ticket.manage', {
-    entityId: t.entity_id,
-    zoneId: t.zone_id,
-    branchId: t.branch_id,
-    deptId: t.department_id,
-    employeeId: t.employee_id,
-  });
   // The exit clearances panel lists other people's separations — name, department, last day — and
   // had no permission expression at all. RLS spared a plain employee (exits_select admits your own
   // row unconditionally); everyone else saw the queue whether or not they handle exits.
@@ -60,23 +26,17 @@ export default function HelpdeskExit() {
   const visibleExits = exitsMineOnly
     ? exits.filter((x) => x.employee?.id === employee?.id)
     : exits;
-  const [showForm, setShowForm] = useState(false);
   const [showExitForm, setShowExitForm] = useState(false);
-  const [form, setForm] = useState({ category: 'IT Support', subject: '', priority: 'Medium' });
+  const exitFormRef = useRef(null);
   const [exitForm, setExitForm] = useState({ last_day: '', reason: '' });
   const myOpenExit = exits.find(
     (x) => x.employee?.id === employee?.id && !['Completed', 'Cleared'].includes(x.status)
   );
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!form.subject || !employee?.id) return;
-    try {
-      await add.mutateAsync({ employee_id: employee.id, category: form.category, subject: form.subject, priority: form.priority });
-      setForm({ category: 'IT Support', subject: '', priority: 'Medium' });
-      setShowForm(false);
-    } catch { /* shown below */ }
-  };
+  useEffect(() => {
+    if (!showExitForm) return;
+    exitFormRef.current?.scrollIntoView({ block: 'start' });
+    exitFormRef.current?.querySelector('input')?.focus({ preventScroll: true });
+  }, [showExitForm]);
 
   const submitExit = async (e) => {
     e.preventDefault();
@@ -92,14 +52,11 @@ export default function HelpdeskExit() {
     } catch { /* shown below */ }
   };
 
-  // Paged: this list grows with the business and was rendering every row.
-  const { focusId, rowProps } = useFocusRow();
-  const pager = usePagination(tickets, 25, focusId);
   const exitPager = usePagination(visibleExits, 10, null, exitsMineOnly);
 
   return (
     <div className="page-shell space-y-6 animate-slide-up text-xs">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-start gap-3">
         <div>
           <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Helpdesk &amp; Separation</h1>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Raise support tickets and track exit clearances.</p>
@@ -110,79 +67,13 @@ export default function HelpdeskExit() {
               <DoorOpen size={12} /> Request Exit
             </button>
           )}
-          {canRaise && !showForm && (
-            <button onClick={() => setShowForm(true)} className={btnClass('primary')}>
-              <Plus size={12} /> Raise Ticket
-            </button>
-          )}
+
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* tickets */}
-        <div className="space-y-4">
-          {showForm && canRaise ? (
-            <div className="premium-card space-y-4 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-900 pb-2">
-                <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-150">Raise Support Ticket</h3>
-                <button onClick={() => setShowForm(false)} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded text-neutral-450 cursor-pointer"><X size={15} /></button>
-              </div>
-              <form onSubmit={submit} className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Category"><select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={INPUT}>{CATS.map((c) => <option key={c}>{c}</option>)}</select></Field>
-                  <Field label="Priority"><select value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })} className={INPUT}>{PRIOS.map((p) => <option key={p}>{p}</option>)}</select></Field>
-                </div>
-                <Field label="Subject"><textarea required rows={3} placeholder="Describe your issue…" value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className={`${INPUT} resize-none`} /></Field>
-                {add.error && <p className="text-xs text-red-500">{add.error.message}</p>}
-                <div className="flex justify-end gap-2 pt-1">
-                  <button type="button" onClick={() => setShowForm(false)} className="px-3 py-2 text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer">Cancel</button>
-                  <button type="submit" disabled={add.isPending} className={btnClass('primary')}>{add.isPending && <Loader2 size={13} className="animate-spin" />} Submit</button>
-                </div>
-              </form>
-            </div>
-          ) : (
-            <div className="premium-card space-y-3.5">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-250 flex items-center border-b border-neutral-100 dark:border-neutral-900 pb-2">
-                <HelpCircle size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Support Tickets
-              </h3>
-              {isLoading ? (
-                <SkeletonRows rows={4} avatar={false} label="Loading support tickets" />
-              ) : error ? (
-                <div className="flex items-start gap-2 text-amber-700 dark:text-amber-300 py-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
-              ) : tickets.length === 0 ? (
-                <p className="text-neutral-500 py-6 text-center">No tickets visible to you yet.</p>
-              ) : (
-                <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-                  {pager.slice.map((t) => (
-                    <div key={t.id} {...rowProps(t.id)} className="mobile-list-row p-3 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
-                      <div className="space-y-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-neutral-850 dark:text-slate-200">{t.category}</span>
-                          <span className={`text-2xs font-mono font-bold ${t.priority === 'High' ? 'text-red-600 dark:text-red-400' : t.priority === 'Medium' ? 'text-amber-600 dark:text-amber-300' : 'text-blue-600 dark:text-blue-300'}`}>{t.priority}</span>
-                        </div>
-                        <p className="text-xs text-neutral-800 dark:text-slate-300 truncate max-w-[240px]">{t.subject}</p>
-                        <span className="text-2xs text-neutral-500 block">{t.employee?.full_name || 'Unknown'}{t.employee?.branch?.code ? ` · ${t.employee.branch.code}` : ''}</span>
-                      </div>
-                      <div className="mobile-list-actions shrink-0 flex items-center gap-1.5">
-                        <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase border ${statusClass(t.status)}`}>{t.status}</span>
-                        {canHandleTicket(t) && t.status !== 'Resolved' && (
-                          <select
-                            value={t.status}
-                            onChange={(e) => setStatus.mutate({ id: t.id, status: e.target.value })}
-                            className="text-2xs bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded px-1 py-0.5 cursor-pointer"
-                          >
-                            <option>Open</option><option>In Progress</option><option>On Hold</option><option>Resolved</option>
-                          </select>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      <TicketDesk />
 
+      <div>
         {/* Exit clearances, from public.exits — the note that used to say "sample data"
             outlived the sample data by some months. */}
         {canSeeExits && (
@@ -192,7 +83,7 @@ export default function HelpdeskExit() {
               <MailOpen size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Exit Clearances
             </h3>
             {showExitForm && canRequestExit && !myOpenExit && (
-              <form onSubmit={submitExit} className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950/30 p-3">
+              <form ref={exitFormRef} onSubmit={submitExit} className="space-y-3 scroll-mt-4 rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50 dark:bg-neutral-950/30 p-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <p className="font-bold text-neutral-850 dark:text-neutral-100">Request separation</p>
@@ -271,7 +162,6 @@ export default function HelpdeskExit() {
         )}
       </div>
 
-      <Pagination {...pager} noun="tickets" />
     </div>
   );
 }

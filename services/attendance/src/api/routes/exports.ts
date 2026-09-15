@@ -3,6 +3,7 @@
 // Generated server-side rather than in the browser because a 250 x 31 grid with per-cell fills is
 // slow and memory-hungry on a phone, and the Capacitor build runs on phones.
 import { asyncRoute } from '../asyncRoute';
+import { limitApiWork } from '../rateLimit';
 import { Router } from 'express';
 import { z } from 'zod';
 import { branchFilter } from '../validation';
@@ -37,7 +38,7 @@ function parsePeriod(query: unknown) {
 // monthly attendance register
 // ---------------------------------------------------------------------------
 
-exportsRouter.get('/api/exports/register', authenticate, requirePermission('report.read', 'attendance.read'), asyncRoute(async (req, res) => {
+exportsRouter.get('/api/exports/register', authenticate, requirePermission('report.read', 'attendance.read'), limitApiWork, asyncRoute(async (req, res) => {
   try {
     const { year, month, branchIds, format } = parsePeriod(req.query);
     const scope = await scopeFor(req.auth, EXPORT_PERMISSIONS.register, branchIds);
@@ -75,11 +76,11 @@ exportsRouter.get('/api/exports/register', authenticate, requirePermission('repo
 // payroll export
 // ---------------------------------------------------------------------------
 
-exportsRouter.get('/api/exports/payroll/columns', authenticate, requirePermission('report.read', 'payslip.read'), (_req, res) => {
+exportsRouter.get('/api/exports/payroll/columns', authenticate, requirePermission('report.read', 'payslip.read'), limitApiWork, (_req, res) => {
   res.json({ columns: columnCatalog() });
 });
 
-exportsRouter.get('/api/exports/payroll', authenticate, requirePermission('report.read', 'payslip.read'), asyncRoute(async (req, res) => {
+exportsRouter.get('/api/exports/payroll', authenticate, requirePermission('report.read', 'payslip.read'), limitApiWork, asyncRoute(async (req, res) => {
   try {
     const { year, month, branchIds, columns, format } = parsePeriod(req.query);
     const scope = await scopeFor(req.auth, EXPORT_PERMISSIONS.payroll, branchIds);

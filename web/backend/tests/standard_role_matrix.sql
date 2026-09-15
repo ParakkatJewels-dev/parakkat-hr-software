@@ -115,7 +115,8 @@ begin
         can_manage := in_scope and case module
           when 'employees' then a.ordinal<=6
           when 'attendance' then a.ordinal<=5
-          when 'leaves' then a.ordinal<=6 and (not own or a.ordinal=1)
+          -- Leave decisions are atomic stage-aware RPCs; direct status writes cannot skip review.
+          when 'leaves' then false
           when 'expenses' then a.ordinal<=5 and (not own or a.ordinal=1)
           when 'tasks' then true
           when 'goals' then true
@@ -130,6 +131,12 @@ begin
           'with changed as (update public.%I set %I=%s where id=%L returning %I) select coalesce(jsonb_agg(%I),''[]''::jsonb) from changed',
           module,field,value,e,field,field),can_manage,json_value);
       end loop;
+      can_manage := in_scope and not own and case when t = 1 then a.key = 'dept_head' else a.ordinal <= 3 end;
+      select to_jsonb(coalesce((select public.leave_can_decide(l) from public.leaves l where l.id = e),false)) into actual;
+      perform audit_test.expect(prefix||'leaves/current review capability',actual,to_jsonb(can_manage));
+      perform audit_test.write_expect(prefix||'leaves/stage-aware decision',format(
+        'select jsonb_build_array((public.decide_leave(%L,''Rejected'',''Scoped review audit'')).status)',e),
+        can_manage,'["Rejected"]');
       perform audit_test.write_expect(prefix||'goals/definition',format(
         'with changed as (update public.goals set title=''Changed goal'' where id=%L returning title) select coalesce(jsonb_agg(title),''[]''::jsonb) from changed',e),
         in_scope and a.ordinal<=6,'["Changed goal"]');

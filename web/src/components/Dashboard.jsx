@@ -14,6 +14,7 @@ import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { resolvePrimaryRole } from '../lib/roles';
 import { useEmployees } from '../data/employees';
+import RoutineOverview from './dashboard/RoutineOverview';
 import { useLeaves } from '../data/leaves';
 import { useExpenses } from '../data/expenses';
 import { useTickets } from '../data/tickets';
@@ -489,6 +490,7 @@ export default function Dashboard({ onNavigate, viewRole }) {
     <div className="page-shell dashboard-shell space-y-5 animate-slide-up py-3" data-dashboard-role={role}>
       <ActionCenter onNavigate={onNavigate} />
       {role !== 'employee' && <MyRoutineToday onNavigate={onNavigate} />}
+      <RoutineOverview onNavigate={onNavigate} />
       <Preset onNavigate={onNavigate} actions={actions} />
     </div>
   );

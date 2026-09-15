@@ -3,10 +3,14 @@
 export class BackgroundJobs {
   private readonly active = new Map<AbortController, string>();
   private stopping = false;
+  constructor(private readonly maximum = 4) {}
 
   start(name: string, fn: (signal: AbortSignal) => Promise<unknown>): Promise<unknown> {
     if (this.stopping) {
       throw Object.assign(new Error('The service is shutting down; retry this request after it restarts.'), { status: 503 });
+    }
+    if (this.active.size >= this.maximum) {
+      throw Object.assign(new Error(`The service is already processing ${this.maximum} background jobs. Try again shortly.`), { status: 429, retryAfter: 5 });
     }
     const abort = new AbortController();
     this.active.set(abort, name);

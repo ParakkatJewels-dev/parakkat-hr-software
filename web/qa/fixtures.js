@@ -9,6 +9,7 @@ export const actionsFixtures = typeof window !== 'undefined' && new URL(window.l
 export const chatFixtures = actionsFixtures || (typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-chat'));
 export const developerFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-developer');
 export const paginationFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-pagination');
+export const goalsFixtures = typeof window !== 'undefined' && new URL(window.location.href).searchParams.has('qa-goals');
 const developerNow = Date.now();
 const developerDate = days => new Date(developerNow + days * 86400000).toISOString();
 export const developerFixture = {
@@ -96,6 +97,16 @@ export const tables = {
   routine_items: [], routine_ticks: [], conversations: [], messages: [], conversation_members: [],
   help_requests: [], task_comments: [], task_attachments: [], pay_components: [], audit_log: [],
 };
+
+if (goalsFixtures) {
+  const designations = [{ id: 'goal-sales', title: 'Sales Associate' }, { id: 'goal-cashier', title: 'Cashier' }];
+  fixture.employees.forEach((employee, index) => Object.assign(employee, {
+    designation_id: designations[Math.floor(index / 3) % 2].id, designation: designations[Math.floor(index / 3) % 2],
+  }));
+  tables.goals.forEach((goal, index) => Object.assign(goal, {
+    status: index % 4 === 0 ? 'Completed' : 'Active', progress: index % 4 === 0 ? 100 : 25,
+  }));
+}
 
 if (mobileFixtures) {
   const employee = fixture.employees[0];

@@ -51,6 +51,9 @@ export function humanDbError(error, table) {
   // No error is not an error. Call sites pass this straight to a panel's `error` prop, and a
   // truthy string here would paint a failure banner on a form nobody has submitted yet.
   if (!error) return null;
+  if (error?.code === 'PT429' || Number(error?.status ?? error?.statusCode) === 429) {
+    return 'Too many requests. Wait a moment and try again.';
+  }
   const raw = typeof error === 'string' ? error : error?.message;
   if (!raw) return 'Something went wrong.';
   for (const rule of RULES) {

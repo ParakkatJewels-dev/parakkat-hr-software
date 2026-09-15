@@ -14,6 +14,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Check, X, Loader2 } from 'lucide-react';
 import { btnClass } from './Btn';
+import { humanDbError } from '../../lib/dbErrors';
 
 const INPUT =
   'w-full min-w-0 text-sm rounded-lg px-2 py-1.5 bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors';
@@ -31,24 +32,35 @@ export default function InlineRowForm({
 }) {
   const [form, setForm] = useState(() => ({ ...initial }));
   const firstRef = useRef(null);
+  const submitting = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const pending = busy || saving;
 
   useEffect(() => { firstRef.current?.focus(); }, []);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const canSave = fields.every((f) => !f.required || String(form[f.key] ?? '').trim());
 
-  const save = () => { if (canSave && !busy) onSave(form); };
+  const save = async () => {
+    if (!canSave || busy || submitting.current) return;
+    submitting.current = true; setSaving(true); setFailure(null);
+    try { await onSave(form); }
+    catch (reason) { setFailure(humanDbError(reason) || 'This could not be saved. Try again.'); }
+    finally { submitting.current = false; setSaving(false); }
+  };
+  const cancel = () => { if (!pending && !submitting.current) onCancel(); };
 
   // Enter saves, Escape abandons — the two keys anyone typing into a grid already expects.
   const onKeyDown = (e) => {
     if (e.key === 'Enter') { e.preventDefault(); save(); }
-    else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
   };
 
   return (
     <tr className="bg-brand/5">
       <td colSpan={colSpan} className="py-2.5">
-        <div className="inline-row-form flex flex-wrap items-end gap-2" onKeyDown={onKeyDown}>
+        <div className="inline-row-form flex flex-wrap items-end gap-2" onKeyDown={onKeyDown} aria-busy={pending}>
           {fields.map((f, i) => (
             <div key={f.key} className={f.type === 'select' ? 'inline-row-field inline-row-field-select min-w-[10rem] flex-1' : 'inline-row-field min-w-[7rem] flex-1'}>
               <label
@@ -63,6 +75,7 @@ export default function InlineRowForm({
                   id={`inline-${f.key}`}
                   ref={i === 0 ? firstRef : undefined}
                   value={form[f.key] ?? ''}
+                  disabled={pending}
                   onChange={(e) => set(f.key, e.target.value)}
                   className={INPUT + ' cursor-pointer'}
                 >
@@ -76,6 +89,7 @@ export default function InlineRowForm({
                   id={`inline-${f.key}`}
                   ref={i === 0 ? firstRef : undefined}
                   value={form[f.key] ?? ''}
+                  disabled={pending}
                   placeholder={f.placeholder || ''}
                   onChange={(e) => set(f.key, e.target.value)}
                   className={INPUT}
@@ -88,16 +102,17 @@ export default function InlineRowForm({
             <button
               type="button"
               onClick={save}
-              disabled={!canSave || busy}
+              disabled={!canSave || pending}
               title={submitLabel}
               aria-label={submitLabel}
               className={btnClass('primary', 'sm')}
             >
-              {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+              {pending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Check size={13} />}
             </button>
             <button
               type="button"
-              onClick={onCancel}
+              onClick={cancel}
+              disabled={pending}
               title="Cancel"
               aria-label="Cancel"
               className="p-1.5 rounded-lg text-neutral-450 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
@@ -107,9 +122,10 @@ export default function InlineRowForm({
           </div>
         </div>
 
-        {error && (
-          <p role="alert" className="text-xs text-rose-600 dark:text-rose-300 mt-1.5">{error}</p>
+        {(failure || error) && (
+          <p role="alert" className="text-xs text-rose-600 dark:text-rose-300 mt-1.5">{humanDbError(failure || error)}</p>
         )}
+        <p role="status" className="sr-only">{pending ? 'Saving…' : ''}</p>
       </td>
     </tr>
   );

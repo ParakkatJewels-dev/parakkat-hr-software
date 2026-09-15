@@ -50,18 +50,17 @@ test('task detail bounds subtasks, root comment threads and files while preservi
   for (const label of ['of 35 subtasks', 'of 35 comment threads', 'of 35 shared files']) assert.ok(html.includes(label), label);
 });
 
-test('daily routine pages both own duties and each person’s duties without changing full-day progress', () => {
+test('named routine pages jobs without changing full-routine progress or including another employee', () => {
   const items = ['employee-1', 'employee-2'].flatMap(employeeId => Array.from({ length: 35 }, (_, i) => ({
     id: `${employeeId}-duty-${i}`, employee_id: employeeId, title: `Duty ${employeeId} ${i}`, sort_order: i,
+    routine_id: `routine-${employeeId}`, routine_name: `Opening ${employeeId}`, frequency: 'daily', done: i < 15, can_tick: true,
     employee: { full_name: employeeId, employee_code: employeeId },
   })));
-  const ticks = items.filter(item => item.sort_order < 15).map(item => ({ id: `tick-${item.id}`,
-    employee_id: item.employee_id, routine_item_id: item.id, on_date: istToday() }));
-  const html = render(TaskRoutine, [[['routine-items'], items], [['routine-ticks', istToday()], ticks]]);
-  assert.equal((html.match(/aria-label="Untick Duty/g) ?? []).length, 20);
-  assert.equal((html.match(/15\/35/g) ?? []).length, 2);
-  assert.match(html, /of 35 my duties/);
-  assert.match(html, /of 35 duties/);
+  const html = render(TaskRoutine, [[['routine-day', istToday(), 'employee-1'], items]]);
+  assert.equal((html.match(/aria-label="Untick Duty/g) ?? []).length, 10);
+  assert.match(html, /15\/35/);
+  assert.match(html, /of 35 jobs/);
+  assert.doesNotMatch(html, /Duty employee-2/);
 });
 
 test('the inbox shows 25 conversations with every remaining conversation reachable', () => {

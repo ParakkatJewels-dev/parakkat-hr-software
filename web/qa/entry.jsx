@@ -1,5 +1,7 @@
 import { qaState, simulateChatActivity, simulateActionActivity } from './client.js';
-import { actionsFixtures, chatFixtures } from './fixtures.js';
+import { actionsFixtures, chatFixtures, goalsFixtures } from './fixtures.js';
+import { workflowFixtures } from './workflowFixtures.js';
+import { routineFixtures } from './routineFixtures.js';
 import { ROLE_NAMES, qaRole, roleMode, expectsDeniedScreen, qaExpectedCounts, qaExpectedDashboard } from './roles.js';
 import { setChosenRole } from '../src/lib/viewRole.js';
 import '../src/main.jsx';
@@ -17,6 +19,18 @@ panel.id = 'qa-panel';
 panel.style.cssText = 'position:fixed;right:4px;bottom:78px;z-index:99999;max-width:calc(100vw - 8px);max-height:65vh;overflow:auto;background:#fff;color:#111;border:2px solid #b45309;border-radius:8px;padding:8px;font:12px/1.5 sans-serif;box-shadow:0 2px 15px #0003';
 panel.innerHTML = '<summary>QA · 525 synthetic employees</summary><p>Isolated fixtures. Writes and external connections blocked.</p><label>QA role <select id="qa-role" aria-label="QA role"></select></label><button id="qa-sweep">Run all-screen smoke checks</button> <button id="qa-fail">Simulate read failure</button><pre id="qa-results" style="white-space:pre-wrap;max-width:520px"></pre>';
 document.body.appendChild(panel);
+if (workflowFixtures) {
+  panel.querySelector('p').textContent = 'Isolated leave and ticket fixtures. Decisions, categories, and tickets save in memory only. External connections and other writes are blocked.';
+  Object.assign(panel.style, { top: '4px', left: '4px', right: 'auto', bottom: 'auto' });
+}
+if (routineFixtures) {
+  panel.querySelector('p').textContent = 'Isolated recurring routine fixtures. Assignment, completion and retirement save in memory only. External connections and other writes are blocked.';
+  Object.assign(panel.style, { top: '4px', left: '4px', right: 'auto', bottom: 'auto' });
+}
+if (goalsFixtures) {
+  panel.querySelector('p').textContent = 'Isolated goal fixtures. New goals save in memory only. External connections and other writes are blocked.';
+  Object.assign(panel.style, { top: '4px', left: '4px', right: 'auto', bottom: 'auto' });
+}
 if (new URL(window.location.href).searchParams.has('qa-mobile')) {
   panel.querySelector('p').textContent = 'Isolated phone fixtures. Routine ticks save in memory only; all other writes and external connections are blocked.';
 }

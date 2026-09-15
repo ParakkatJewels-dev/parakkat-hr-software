@@ -43,6 +43,8 @@ declare global {
 const CACHE_TTL_MS = 60_000;
 const MAX_CACHE_ENTRIES = 2_000;
 const cache = new Map<string, { context: AuthContext; expiresAt: number }>();
+const inFlight = new Map<string, Promise<AuthContext | null>>();
+const MAX_PENDING_VERIFICATIONS = 100;
 
 function cacheKey(token: string): string {
   // A non-cryptographic hash lets a different token reuse a verified caller's privileges.
@@ -61,9 +63,22 @@ async function resolveContext(token: string): Promise<AuthContext | null> {
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.context;
   if (hit) cache.delete(key);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  if (inFlight.size >= MAX_PENDING_VERIFICATIONS) {
+    throw Object.assign(new Error('Session verification is busy. Try again shortly.'), { status: 503 });
+  }
+  const verification = verifyContext(token, key).finally(() => { inFlight.delete(key); });
+  inFlight.set(key, verification);
+  return verification;
+}
 
+async function verifyContext(token: string, key: string): Promise<AuthContext | null> {
   const supabase = createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
-    global: { headers: { Authorization: `Bearer ${token}` } },
+    global: {
+      headers: { Authorization: `Bearer ${token}` },
+      fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(8_000) }),
+    },
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
@@ -99,7 +114,13 @@ async function resolveContext(token: string): Promise<AuthContext | null> {
     }
     if (cache.size >= MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value!);
   }
-  cache.set(key, { context, expiresAt: Date.now() + CACHE_TTL_MS });
+  let expiresAt = Date.now() + CACHE_TTL_MS;
+  // getUser has already verified the token. Never let the local cache outlive its JWT expiry.
+  try {
+    const claims = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString());
+    if (typeof claims.exp === 'number' && Number.isFinite(claims.exp)) expiresAt = Math.min(expiresAt, claims.exp * 1000);
+  } catch { /* Non-JWT test identities and future opaque tokens use only the short TTL. */ }
+  cache.set(key, { context, expiresAt });
   return context;
 }
 
@@ -128,6 +149,11 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     req.auth = context;
     next();
   } catch (err) {
+    if ((err as { status?: number }).status === 503) {
+      res.setHeader('Retry-After', '5');
+      res.status(503).json({ error: 'auth_unavailable', message: 'Session verification is busy. Try again shortly.' });
+      return;
+    }
     logger.error({ err }, 'authentication failed');
     res.status(500).json({ error: 'auth_error', message: 'Could not verify the session.' });
   }

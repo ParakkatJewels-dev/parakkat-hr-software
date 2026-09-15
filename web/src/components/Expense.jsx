@@ -1,9 +1,10 @@
-import { SkeletonRows } from './ui/Skeleton';
+import { SkeletonCards, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo } from 'react';
-import { FileText, Check, Ban, AlertTriangle, Plus } from 'lucide-react';
+import { FileText, Check, Ban, Plus } from 'lucide-react';
 import { useExpenses, useAddExpense, useSetExpenseStatus } from '../data/expenses';
 import { useAuth } from '../auth/AuthContext';
-import FormSection, { Field, FIELD } from './ui/FormSection';
+import FormSection, { Field, FIELD, FormError } from './ui/FormSection';
+import QueryError from './ui/QueryError';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useFocusRow } from '../lib/useFocusRow';
@@ -22,16 +23,14 @@ const statusClass = (s) =>
     : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/30';
 
 export default function Expense() {
-  const { data: expenses = [], isLoading, error } = useExpenses();
+  const expensesQuery = useExpenses();
+  const { data: expenses = [], isLoading, error, refetch, isFetching } = expensesQuery;
+  const hasData = Array.isArray(expensesQuery.data);
   const { employee } = useAuth();
-  const { canAny, can, canBeyondSelf } = usePermissions();
+  const { can, canBeyondSelf } = usePermissions();
   const { user } = useAuth();
   const add = useAddExpense();
   const setStatus = useSetExpenseStatus();
-
-  // Whether the module is on show at all. Deciding a PARTICULAR claim is a separate question,
-  // answered per row below.
-  const canApprove = canAny('expense.approve');
 
   /**
    * May this viewer decide THIS claim?
@@ -77,7 +76,7 @@ export default function Expense() {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!form.amount || !form.expense_date || !form.description || !employee?.id) return;
+    if (add.isPending || !form.amount || !form.expense_date || !form.description || !employee?.id) return;
     try {
       await add.mutateAsync({
         employee_id: employee.id,
@@ -106,7 +105,7 @@ export default function Expense() {
           onSubmit={submit}
           submitLabel="Submit claim"
           busy={add.isPending}
-          error={add.error?.message}
+          error={add.error}
           onClose={() => { add.reset(); setForm(blankExpenseForm()); setShowForm(false); }}
         >
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -197,19 +196,15 @@ export default function Expense() {
       {/* A refused decision has to say so. The database rejects two of these outright — your own
           claim, and one you filed — and both used to arrive as a thrown error nothing rendered, so
           the row simply stayed Pending and the screen looked broken rather than principled. */}
-      <div>
-        {setStatus.isError ? (
-          <p role="alert" className="text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/50 rounded-xl px-3 py-2">
-            {setStatus.error?.message || 'That decision could not be saved.'}
-          </p>
-        ) : null}
-      </div>
+      <FormError message={setStatus.isError ? setStatus.error || 'That decision could not be saved.' : null} />
+      <QueryError error={error} title={hasData ? 'Expense claims could not be refreshed.' : 'Expense claims could not be loaded.'}
+        onRetry={refetch} retrying={isFetching} hasData={hasData} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {isLoading ? <SkeletonCards count={3} label="Loading expense totals" /> : (!error || hasData) && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         <Stat label="Total Claims" value={totals.count} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="Pending ₹" value={totals.pending.toLocaleString()} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
         <Stat label="Approved ₹" value={totals.approved.toLocaleString()} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
@@ -219,9 +214,7 @@ export default function Expense() {
             </h3>
             {isLoading ? (
               <SkeletonRows rows={4} avatar={false} label="Loading expense claims" />
-            ) : error ? (
-              <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-3"><AlertTriangle size={15} className="shrink-0 mt-0.5" /> <span>{error.message}</span></div>
-            ) : visibleExpenses.length === 0 ? (
+            ) : visibleExpenses.length === 0 ? error ? null : (
               <p className="text-xs text-neutral-500 py-8 text-center">
                 No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}expense claims visible to you yet.
               </p>
@@ -243,8 +236,8 @@ export default function Expense() {
                         <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold border ${statusClass(exp.status)}`}>{exp.status}</span>
                         {canDecide(exp) && exp.status === 'Pending' && (
                           <>
-                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id })} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-brand/10 dark:bg-brand/15 text-brand-ink dark:text-brand-ink hover:bg-brand/20 cursor-pointer"><Check size={13} /></button>
-                            <button onClick={() => setStatus.mutate({ id: exp.id, status: 'Rejected', approverEmployeeId: employee?.id })} title="Reject" aria-label="Reject" className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 cursor-pointer"><Ban size={13} /></button>
+                            <button disabled={setStatus.isPending} onClick={() => { if (!setStatus.isPending) setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id }); }} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-brand/10 dark:bg-brand/15 text-brand-ink dark:text-brand-ink hover:bg-brand/20 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"><Check size={13} /></button>
+                            <button disabled={setStatus.isPending} onClick={() => { if (!setStatus.isPending) setStatus.mutate({ id: exp.id, status: 'Rejected', approverEmployeeId: employee?.id }); }} title="Reject" aria-label="Reject" className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"><Ban size={13} /></button>
                           </>
                         )}
                       </div>
@@ -273,7 +266,7 @@ export default function Expense() {
       {/* Claim form is an inline section, not a modal: it belongs to the page's flow and the
           policy limits beside it stay readable while you fill it in. */}
 
-      <Pagination {...pager} noun="claims" />
+      {!isLoading && (!error || hasData) && <Pagination {...pager} noun="claims" />}
     </div>
   );
 }

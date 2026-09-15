@@ -88,3 +88,71 @@ export function filterTeamRoutine(groups, { query = '', status = 'all' } = {}) {
 export function stillOwing(groups) {
   return (groups ?? []).filter((g) => !g.complete).length;
 }
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+export function routineScheduleLabel(schedule = {}) {
+  switch (schedule.frequency) {
+    case 'weekly': return `Weekly · ${(schedule.weekdays ?? []).map(Number).sort((a, b) => a - b).map((day) => WEEKDAYS[day - 1]).filter(Boolean).join(', ')}`;
+    case 'monthly': return `Monthly · day ${schedule.month_day ?? 1} (last day in shorter months)`;
+    case 'interval': return `Every ${schedule.interval_days ?? 1} days`;
+    case 'once': return `Once · ${schedule.start_date ?? ''}`;
+    default: return 'Daily';
+  }
+}
+
+/** One card per assigned routine, with counts calculated before display filters/pagination. */
+export function groupRoutineDay(rows = []) {
+  const groups = new Map();
+  for (const row of rows ?? []) {
+    const routineId = row.routine_id ?? row.id;
+    const key = `${row.employee_id}:${routineId}`;
+    if (!groups.has(key)) groups.set(key, {
+      routineId, routineName: row.routine_name ?? row.title, employeeId: row.employee_id,
+      employee: row.employee ?? null, frequency: row.frequency ?? 'daily', schedule: row, list: [],
+    });
+    groups.get(key).list.push(row);
+  }
+  return [...groups.values()].map((group) => {
+    const list = [...group.list].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || String(a.id).localeCompare(String(b.id)));
+    return { ...group, list, ...routineProgress(list), canManage: list.every((row) => row.can_manage === true) };
+  }).sort((a, b) => String(a.routineName).localeCompare(String(b.routineName)) || String(a.employeeId).localeCompare(String(b.employeeId)));
+}
+
+function matchesRoutineQuery(row, query) {
+  const terms = String(query ?? '').toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const employee = row.employee ?? {};
+  const words = [row.routineName, row.routine_name, row.title, employee.full_name, employee.employee_code,
+    employee.designation?.title, employee.department?.name, employee.branch?.name, employee.branch?.code,
+    ...(row.list ?? []).map((item) => item.title)].filter(Boolean).join(' ').toLocaleLowerCase();
+  return terms.every((term) => words.includes(term));
+}
+
+export function filterRoutineGroups(groups, { query = '', status = 'all', frequency = '', designationId = '', departmentId = '', branchId = '' } = {}) {
+  const matchesId = (filter, value) => !filter || filter === 'all' || (filter === '__none__' ? !value : value === filter);
+  return (groups ?? []).filter((group) => (!frequency || frequency === 'all' || group.frequency === frequency)
+    && (status !== 'owing' || !group.complete) && (status !== 'finished' || group.complete)
+    && matchesId(designationId, group.employee?.designation_id)
+    && matchesId(departmentId, group.employee?.department_id) && matchesId(branchId, group.employee?.branch_id)
+    && matchesRoutineQuery(group, query));
+}
+
+/** Occurrence-weighted totals: a person with one weekly job has one obligation, not seven. */
+export function summarizeRoutineStats(rows) {
+  const result = { scheduled: 0, completed: 0, missed: 0, pending: 0, unscored_done_jobs: 0 };
+  for (const row of rows ?? []) for (const key of Object.keys(result)) result[key] += Number(row[key]) || 0;
+  return { ...result, pct: result.scheduled ? Math.round(result.completed / result.scheduled * 100) : 0 };
+}
+
+export function filterRoutineStats(rows, { query = '', frequency = '', departmentId = '', branchId = '', designationId = '', status = 'all', routineId = '' } = {}) {
+  return (rows ?? []).filter((row) => {
+    const person = row.employee ?? {};
+    const matchesId = (filter, value) => !filter || filter === 'all' || (filter === '__none__' ? !value : value === filter);
+    const complete = Number(row.scheduled) > 0 && Number(row.completed) === Number(row.scheduled);
+    return matchesId(departmentId, person.department_id) && matchesId(branchId, person.branch_id)
+      && matchesId(designationId, person.designation_id) && matchesId(routineId, row.routine_id)
+      && (!frequency || frequency === 'all' || frequency === row.frequency)
+      && (status !== 'owing' || Number(row.scheduled) > Number(row.completed))
+      && (status !== 'finished' || complete) && matchesRoutineQuery(row, query);
+  });
+}

@@ -91,6 +91,7 @@ export default function Btn({
   icon: Icon,
   iconOnly = false,
   busy = false,
+  disabled = false,
   className = '',
   type = 'button',
   ...rest
@@ -103,8 +104,9 @@ export default function Btn({
   return (
     <button
       type={type}
-      disabled={busy || rest.disabled}
       {...rest}
+      disabled={busy || disabled}
+      aria-busy={busy || undefined}
       className={`${BASE} ${VARIANT[variant] ?? VARIANT.ghost} ${
         iconOnly ? ICON_SIZE[size] : SIZE[size]
       } ${className}`}

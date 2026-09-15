@@ -7,8 +7,9 @@
 // Accessibility: labelled dialog role, Escape to cancel, focus moves in on open and returns to
 // wherever it came from on close, and the confirm button is never the default focus so nobody
 // deletes something by hitting Enter out of habit.
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { humanDbError } from '../../lib/dbErrors';
 
 export default function ConfirmDialog({
   title,
@@ -24,13 +25,25 @@ export default function ConfirmDialog({
   const panelRef = useRef(null);
   const cancelRef = useRef(null);
   const restoreTo = useRef(null);
+  const submitting = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState(null);
+  const pending = busy || saving;
+  const cancel = () => { if (!pending && !submitting.current) onCancel?.(); };
+  const confirm = async () => {
+    if (busy || submitting.current) return;
+    submitting.current = true; setSaving(true); setFailure(null);
+    try { await onConfirm(); }
+    catch (reason) { setFailure(humanDbError(reason) || 'This could not be completed. Try again.'); }
+    finally { submitting.current = false; setSaving(false); }
+  };
 
   // The latest onCancel without tying the effect to its identity — callers pass inline arrows, and
   // re-running this effect re-captures `restoreTo` (so focus returns to the dialog's own Cancel
   // button instead of where the user actually was) and drags focus back to Cancel mid-interaction.
   const onCancelRef = useRef(onCancel);
   useEffect(() => {
-    onCancelRef.current = onCancel;
+    onCancelRef.current = pending ? undefined : onCancel;
   });
 
   useEffect(() => {
@@ -39,7 +52,7 @@ export default function ConfirmDialog({
 
     const onKey = (e) => {
       if (e.key === 'Escape') {
-        onCancelRef.current?.();
+        if (!submitting.current) onCancelRef.current?.();
         return;
       }
       // Keep Tab inside the dialog while it is open.
@@ -47,7 +60,7 @@ export default function ConfirmDialog({
       const items = panelRef.current.querySelectorAll(
         'button:not([disabled]), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
       );
-      if (items.length === 0) return;
+      if (items.length === 0) { e.preventDefault(); panelRef.current.focus(); return; }
       const first = items[0];
       const last = items[items.length - 1];
       if (e.shiftKey && document.activeElement === first) {
@@ -79,12 +92,14 @@ export default function ConfirmDialog({
     // z-50 is the app's top layer (see the scale used across the shell: 30 header, 50 overlay).
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/70 backdrop-blur-sm p-4 animate-fade-in"
-      onClick={onCancel}
+      onClick={cancel}
     >
       <div
         ref={panelRef}
         role="alertdialog"
         aria-modal="true"
+        aria-busy={pending}
+        tabIndex={-1}
         aria-labelledby="confirm-title"
         onClick={(e) => e.stopPropagation()}
         className="confirm-panel w-full max-w-md rounded-2xl bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 shadow-2xl p-5 space-y-4"
@@ -109,9 +124,9 @@ export default function ConfirmDialog({
           </div>
         </div>
 
-        {error && (
+        {(failure || error) && (
           <p role="alert" className="text-xs text-rose-500 break-words">
-            {error}
+            {humanDbError(failure || error)}
           </p>
         )}
 
@@ -119,21 +134,23 @@ export default function ConfirmDialog({
           <button
             ref={cancelRef}
             type="button"
-            onClick={onCancel}
+            onClick={cancel}
+            disabled={pending}
             className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-2 text-base font-bold text-neutral-600 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-400/40 cursor-pointer transition-colors"
           >
             {cancelLabel}
           </button>
           <button
             type="button"
-            onClick={onConfirm}
-            disabled={busy}
+            onClick={confirm}
+            disabled={pending}
             className={`inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-base font-bold focus:outline-none focus:ring-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed transition-colors ${confirmClass}`}
           >
-            {busy && <Loader2 size={12} className="animate-spin" />}
+            {pending && <Loader2 size={12} className="animate-spin" aria-hidden="true" />}
             {confirmLabel}
           </button>
         </div>
+        <p role="status" className="sr-only">{pending ? 'Working…' : ''}</p>
       </div>
     </div>
   );

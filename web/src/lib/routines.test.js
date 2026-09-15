@@ -158,3 +158,46 @@ test('the count on the filter is how many people still owe something', () => {
   assert.equal(stillOwing([]), 0);
   assert.equal(stillOwing(undefined), 0);
 });
+
+const {
+  routineScheduleLabel, groupRoutineDay, filterRoutineGroups, summarizeRoutineStats, filterRoutineStats,
+} = await import('./routines.js');
+
+const scheduledJobs = [
+  { id: 'a', routine_id: 'opening', routine_name: 'Opening checks', employee_id: 'e1', title: 'Unlock', sort_order: 1, done: true, frequency: 'daily', can_manage: true },
+  { id: 'b', routine_id: 'opening', routine_name: 'Opening checks', employee_id: 'e1', title: 'Inspect', sort_order: 2, done: false, frequency: 'daily', can_manage: true },
+  { id: 'c', routine_id: 'report', routine_name: 'Weekly report', employee_id: 'e1', title: 'Submit', done: false, frequency: 'weekly', can_manage: false },
+];
+
+test('named routines keep all jobs in their progress when filtering by a matching job', () => {
+  const groups = groupRoutineDay(scheduledJobs);
+  assert.equal(groups.length, 2);
+  const [group] = filterRoutineGroups(groups, { query: 'unlock', status: 'owing', frequency: 'daily' });
+  assert.equal(group.done, 1);
+  assert.equal(group.total, 2);
+  assert.equal(group.pct, 50);
+  assert.equal(group.canManage, true);
+  assert.equal(filterRoutineGroups(groups, { status: 'finished' }).length, 0);
+  assert.equal(filterRoutineGroups(groups, { frequency: 'weekly' })[0].canManage, false);
+});
+
+test('statistics filter by current designation and scope without changing occurrence weights', () => {
+  const rows = [
+    { routine_id: 'r1', scheduled: 6, completed: 3, missed: 2, pending: 1, frequency: 'daily', employee: { full_name: 'Asha', designation_id: 'cashier', department_id: 'sales', branch_id: 'north' } },
+    { routine_id: 'r2', scheduled: 1, completed: 1, missed: 0, pending: 0, frequency: 'weekly', employee: { full_name: 'Binu', designation_id: 'cashier', department_id: 'sales', branch_id: 'south' } },
+    { routine_id: 'r3', scheduled: 0, completed: 0, unscored_done_jobs: 2, employee: { full_name: 'Legacy', designation_id: 'manager', department_id: 'office' } },
+  ];
+  assert.deepEqual(summarizeRoutineStats(rows), { scheduled: 7, completed: 4, missed: 2, pending: 1, unscored_done_jobs: 2, pct: 57 });
+  assert.equal(filterRoutineStats(rows, { designationId: 'cashier' }).length, 2);
+  assert.equal(filterRoutineStats(rows, { designationId: 'cashier', branchId: 'north', departmentId: 'sales', status: 'owing' })[0].routine_id, 'r1');
+  assert.equal(filterRoutineStats(rows, { status: 'finished' })[0].routine_id, 'r2');
+  assert.equal(filterRoutineStats(rows, { status: 'owing' }).length, 1, 'unknown historic denominator is not a missed routine');
+  assert.equal(filterRoutineStats(rows, { query: 'binu', frequency: 'weekly' }).length, 1);
+});
+
+test('schedule labels explain monthly clamping and selected weekdays', () => {
+  assert.equal(routineScheduleLabel({ frequency: 'weekly', weekdays: [5, 1] }), 'Weekly · Mon, Fri');
+  assert.match(routineScheduleLabel({ frequency: 'monthly', month_day: 31 }), /31.*last day/);
+  assert.equal(routineScheduleLabel({ frequency: 'interval', interval_days: 14 }), 'Every 14 days');
+  assert.equal(routineScheduleLabel({ frequency: 'once', start_date: '2026-10-01' }), 'Once · 2026-10-01');
+});

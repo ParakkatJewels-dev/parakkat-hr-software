@@ -9,7 +9,7 @@ import {
 import { useAuth } from '../../auth/AuthContext';
 import { usePermissions } from '../../auth/usePermissions';
 import { useAttendanceSummary, todayIso, fmtTime, fmtMinutes } from '../../data/attendance';
-import { useLeaves, useSetLeaveStatus } from '../../data/leaves';
+import { useLeaves } from '../../data/leaves';
 import { useExpenses, useSetExpenseStatus } from '../../data/expenses';
 import { useRegularizations, useDecideRegularization } from '../../data/regularizations';
 import { useTickets } from '../../data/tickets';
@@ -17,6 +17,8 @@ import { useAssets } from '../../data/assets';
 import { useTasks } from '../../data/tasks';
 import { Widget, EmptyNote, Avatar, StatPill, StatusBadge, fmtDay, inr } from './shared';
 import { useActionableApprovals } from './useActionableApprovals';
+import LeaveReviewPanel from '../LeaveReviewPanel';
+import { leaveStageLabel } from '../../lib/leaveWorkflow';
 
 /** Live team attendance for today: counters plus who's absent / late right now. */
 export function TeamAttendanceToday({ onNavigate }) {
@@ -100,7 +102,7 @@ export function ApprovalsQueue({ onNavigate }) {
   const { data: leaves = [], error: leaveError } = useLeaves();
   const { data: expenses = [], error: expenseError } = useExpenses();
   const { data: regs = [], error: regError } = useRegularizations('Pending');
-  const setLeaveStatus = useSetLeaveStatus();
+  const [reviewLeaveId, setReviewLeaveId] = useState(null);
   const setExpenseStatus = useSetExpenseStatus();
   const decideReg = useDecideRegularization();
 
@@ -128,19 +130,18 @@ export function ApprovalsQueue({ onNavigate }) {
   ].filter(Boolean);
 
   const [active, setActive] = useState(tabs[0]?.id);
-  const tab = tabs.find((t) => t.id === active) || tabs[0];
+  const tab = tabs.find((t) => t.id === active) || tabs.find((t) => t.rows.length > 0) || tabs[0];
   const total = tabs.reduce((n, t) => n + t.rows.length, 0);
-  const busy = setLeaveStatus.isPending || setExpenseStatus.isPending || decideReg.isPending;
-  const decisionError = setLeaveStatus.error || setExpenseStatus.error || decideReg.error;
+  const busy = setExpenseStatus.isPending || decideReg.isPending;
+  const decisionError = setExpenseStatus.error || decideReg.error;
+  const reviewLeave = leaves.find((row) => row.id === reviewLeaveId);
 
   if (tabs.length === 0) return null;
 
   const decide = (row, approve) => {
-    setLeaveStatus.reset();
     setExpenseStatus.reset();
     decideReg.reset();
-    if (tab.id === 'leaves') setLeaveStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected' });
-    else if (tab.id === 'expenses') {
+    if (tab.id === 'expenses') {
       setExpenseStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected', approverEmployeeId: employee?.id });
     }
     else decideReg.mutate({ id: row.id, decision: approve ? 'Approved' : 'Rejected' });
@@ -168,6 +169,7 @@ export function ApprovalsQueue({ onNavigate }) {
       action="Open queue"
       onAction={() => onNavigate?.(tab.id === 'expenses' ? 'expense' : tab.id === 'regs' ? 'attendance' : 'leave')}
     >
+      {reviewLeave && <LeaveReviewPanel key={reviewLeave.id} request={reviewLeave} onClose={() => setReviewLeaveId(null)} />}
       <div className="mb-3 flex gap-1.5">
         {tabs.map((t) => (
           <button
@@ -200,9 +202,14 @@ export function ApprovalsQueue({ onNavigate }) {
                   </span>
                   <span className="block text-2xs text-neutral-400 dark:text-neutral-600 truncate">{rowSub(row)}</span>
                 </div>
-                <StatusBadge status="Pending" />
+                <StatusBadge status={row.status} />
               </div>
-              <div className="mt-2 flex gap-2">
+              {tab.id === 'leaves' ? <div className="mt-2 space-y-2">
+                <p className="text-2xs text-neutral-500 dark:text-neutral-400">{leaveStageLabel(row)}</p>
+                <button type="button" onClick={() => setReviewLeaveId(row.id)} className="rounded-lg bg-brand-action px-2.5 py-1.5 text-xs font-bold text-brand-on cursor-pointer">
+                  Review &amp; remarks
+                </button>
+              </div> : <div className="mt-2 flex gap-2">
                 <button
                   onClick={() => decide(row, true)}
                   disabled={busy}
@@ -217,7 +224,7 @@ export function ApprovalsQueue({ onNavigate }) {
                 >
                   <Ban size={10} /> Decline
                 </button>
-              </div>
+              </div>}
             </div>
           </div>
         ))}

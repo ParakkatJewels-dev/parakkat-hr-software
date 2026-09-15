@@ -4,6 +4,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { windowStartIso } from '../lib/dates';
 import { fetchCollection } from '../lib/fetchCollection';
+import { fetchPage } from '../lib/fetchPage';
+
+const WORKFLOW_FIELDS = 'approval_stage, effective_stage:leave_effective_stage, can_decide:leave_can_decide, can_reopen:leave_can_reopen';
 
 export function useLeaves({ enabled = true } = {}) {
   return useQuery({
@@ -15,7 +18,7 @@ export function useLeaves({ enabled = true } = {}) {
           // disambiguate: leaves has two FKs to employees (employee_id + approver_id)
           `id, employee_id, entity_id, zone_id, branch_id, department_id,
            type, start_date, end_date, days, reason, status, created_at,
-           cancelled_dates, auto_cancelled_at, auto_cancellation_note,
+           cancelled_dates, auto_cancelled_at, auto_cancellation_note, ${WORKFLOW_FIELDS},
            employee:employees!leaves_employee_id_fkey(id, full_name, employee_code, branch_id, branch:branches(code))`
         )
         // Pending and held requests still need a decision, even after the history window.
@@ -66,22 +69,34 @@ export function useApplyLeave() {
   });
 }
 
-export function useSetLeaveStatus() {
+export function useDecideLeave() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }) => {
-      const { data, error } = await supabase
-        .from('leaves')
-        .update({ status })
-        .eq('id', id)
-        .select('id')
-        .maybeSingle();
+    mutationFn: async ({ id, status, remarks }) => {
+      const note = String(remarks ?? '').trim();
+      if (!note) throw new Error('Add remarks before recording your decision.');
+      if (note.length > 2000) throw new Error('Keep remarks within 2,000 characters.');
+      const { data, error } = await supabase.rpc('decide_leave', {
+        _leave_id: id, _decision: status, _remarks: note,
+      });
       if (error) throw error;
-      if (!data) throw new Error('That leave request is outside the scope you can manage.');
+      return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['leaves'] });
-      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
-    },
+    onSuccess: () => Promise.all(['leaves', 'leaves-period', 'leave-balances', 'attendance', 'notifications', 'notification-ref-statuses']
+      .map((key) => qc.invalidateQueries({ queryKey: [key] }))),
+  });
+}
+
+export const useSetLeaveStatus = useDecideLeave;
+
+/** Decision history grows independently of leave requests and stays paged on the server. */
+export function useLeaveDecisions(leaveId, page = 1, pageSize = 10) {
+  return useQuery({
+    enabled: Boolean(leaveId),
+    queryKey: ['leaves', 'decisions', leaveId, page, pageSize],
+    queryFn: () => fetchPage(() => supabase.from('leave_decisions')
+      .select('id, leave_id, stage, decision, remarks, actor_name, created_at, from_status, to_status, from_stage, to_stage', { count: 'exact' })
+      .eq('leave_id', leaveId).order('created_at', { ascending: false }).order('id', { ascending: false }), { page, pageSize }),
+    placeholderData: (previous) => previous,
   });
 }

@@ -59,6 +59,8 @@ module.exports = function testRoleMatrix({ run, connection, directory }) {
   console.log(`PASS: ${files.length} production migrations replayed in an isolated database; actual standard-role grants exported`);
   const output = run('psql', [...connection, '-d', database, '-q', '-f', join(backend, 'tests', 'standard_role_matrix.sql')]);
   console.log(output.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
+  const leaveOutput = run('psql', [...connection, '-d', database, '-q', '-f', join(backend, 'tests', 'leave_workflow.sql')]);
+  console.log(leaveOutput.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
   const summary = JSON.parse(run('psql', [...connection, '-d', database, '-XqAt', '-c', `
     select jsonb_build_object('assertions',(select count(*) from audit_test.results),
       'groups',(select jsonb_object_agg(role_key,n) from (

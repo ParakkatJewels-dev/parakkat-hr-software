@@ -62,7 +62,8 @@ const TASKS_PER_PAGE = 10;
 
 export default function TaskManagement() {
   const { data: tasks = [], isLoading, error } = useTasks();
-  const { data: employees = [] } = useEmployees();
+  const employeesQuery = useEmployees();
+  const { data: employees = [] } = employeesQuery;
   const { employee } = useAuth();
   const { canAny, can, canBeyondSelf } = usePermissions();
 
@@ -449,7 +450,8 @@ export default function TaskManagement() {
       ) : effectiveView === 'todo' ? (
         <TaskTodo tasks={tasks} loading={isLoading} loadError={error} focusId={focusId} rowProps={rowProps} />
       ) : effectiveView === 'routine' ? (
-        <TaskRoutine employees={employees} />
+        <TaskRoutine employees={employees} employeesLoading={employeesQuery.isLoading}
+          employeesError={employeesQuery.error} onRetryEmployees={employeesQuery.refetch} />
       ) : isLoading ? (
         <TaskListSkeleton />
       ) : error && tasks.length === 0 ? (

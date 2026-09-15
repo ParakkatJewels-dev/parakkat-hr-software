@@ -35,6 +35,7 @@ try {
   const backend = join(__dirname, '..');
   const migrations = join(backend, 'supabase', 'migrations');
   const messageTests = join(backend, 'tests', 'message_requests.sql');
+  const routineTests = join(backend, 'tests', 'routine_scheduling.sql');
   const quote = (path) => `'${path.replace(/'/g, "''")}'`;
   const messageBootstrap = join(directory, 'message-requests-bootstrap.sql');
   writeFileSync(messageBootstrap, [
@@ -45,14 +46,18 @@ try {
         "insert into public.shifts(code,name,start_time,end_time) values ('GN','Synthetic configured baseline','09:00','17:30');",
       ] : []),
       ...(file.startsWith('0129_') ? ['\\set message_requests_seed on', `\\i ${quote(messageTests)}`] : []),
+      ...(file.startsWith('0140_') ? ['\\set routine_seed on', `\\i ${quote(routineTests)}`] : []),
       `\\i ${quote(join(migrations, file))}`,
       // This migration promises safe reruns; enforce that before running API assertions.
-      ...(/^(0129|0133|0134|0137)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0129|0133|0134|0137|0138|0139|0140)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     '\\set message_requests_seed off',
     `\\i ${quote(messageTests)}`,
     `\\i ${quote(join(backend, 'tests', 'chat_preferences.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'chat_typing.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'ticket_category_routing.sql'))}`,
+    '\\set routine_seed off',
+    `\\i ${quote(routineTests)}`,
   ].join('\n'));
   run('createdb', [...connection, messageDatabase]);
   const messageOutput = run('psql', [...connection, '-d', messageDatabase, '-q', '-f', messageBootstrap]);

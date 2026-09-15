@@ -5,12 +5,15 @@ import { logger } from '../lib/logger';
 import { healthRouter } from './routes/health';
 import { adminRouter } from './routes/admin';
 import { exportsRouter } from './routes/exports';
+import { limitIncomingRequests } from './rateLimit';
 
 export function createServer(): Express {
   const app = express();
 
   app.disable('x-powered-by');
-  app.set('trust proxy', true);
+  // Only explicitly trusted reverse proxies may supply the client IP used by rate limits.
+  app.set('trust proxy', env.API_TRUST_PROXY || false);
+  app.use((_req, res, next) => { res.setHeader('Cache-Control', 'private, no-store'); next(); });
 
   // Entries may be exact origins or wildcards like https://*.vercel.app (matches any subdomain —
   // needed for Vercel preview deploys). Safe because auth is a bearer token the calling page must
@@ -51,9 +54,11 @@ export function createServer(): Express {
         );
       },
       credentials: true,
+      exposedHeaders: ['Retry-After'],
     })
   );
 
+  app.use(limitIncomingRequests);
   app.use(express.json({ limit: '1mb' }));
 
   // Request logging, minus the noise of health checks polling every few seconds.
@@ -84,8 +89,9 @@ export function createServer(): Express {
     if (status >= 500) logger.error({ err }, 'unhandled API error');
     else logger.warn({ msg: err.message, status }, 'request rejected');
     if (res.headersSent) return;
+    if (status === 429) res.setHeader('Retry-After', String((err as { retryAfter?: number }).retryAfter ?? 5));
     res.status(status).json({
-      error: status === 403 ? 'forbidden' : 'internal_error',
+      error: status === 429 ? 'rate_limited' : status === 403 ? 'forbidden' : status === 400 ? 'invalid_request' : 'internal_error',
       message: err.message,
     });
   });

@@ -190,6 +190,10 @@ async function main() {
       const metadata = await request('/api/exports/payroll/columns', role);
       assert.equal(metadata.status, 200, 'all standard roles may read column definitions without any employee data');
       assert.ok((await metadata.json() as { columns: Array<{ key: string }> }).columns.some((column) => column.key === 'employee_code'));
+      // This matrix deliberately performs many independent operations in seconds. Keep its
+      // scope assertions independent of burst quotas, which the HTTP admission tests exercise.
+      const { apiRequestBudget } = require('../api/rateLimit') as typeof import('../api/rateLimit');
+      apiRequestBudget.clear();
       calls.length = 0;
       const recompute = await request('/api/recompute', role, { from: '2026-07-15', employeeIds: people.map((person) => person.id) });
       assert.equal(recompute.status, permitted ? 200 : 403, `${role} recompute`);

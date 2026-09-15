@@ -29,6 +29,12 @@ test('being offline is named as being offline', () => {
   assert.match(humanDbError('TypeError: Failed to fetch'), /connection/i);
 });
 
+test('HTTP and PostgREST rate limits explain when to retry', () => {
+  for (const error of [{ code: 'PT429', message: 'quota reached' }, { status: 429 }, { statusCode: '429' }]) {
+    assert.equal(humanDbError(error), 'Too many requests. Wait a moment and try again.');
+  }
+});
+
 test('anything unrecognised is passed through, not guessed at', () => {
   // A confident wrong translation sends the reader looking in the wrong place. Better to show the
   // technical string than to invent a friendly one that does not match what happened.

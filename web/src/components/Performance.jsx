@@ -5,9 +5,8 @@
 // `goals` table (migration 0043), scoped by RLS: you always see your own, managers with
 // performance.manage see and set their team's.
 import React, { useMemo, useState } from 'react';
-import { Target, Plus, Loader2, AlertTriangle, Trash2, Check, X } from 'lucide-react';
+import { Target, Plus, Trash2, Check, X } from 'lucide-react';
 import { useGoals, useSaveGoal, useDeleteGoal } from '../data/goals';
-import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { useUrlTab } from '../lib/useUrlTab';
@@ -16,10 +15,12 @@ import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
 import { istToday } from '../lib/dates';
+import GoalForm from './GoalForm';
+import QueryError from './ui/QueryError';
+import { FormError } from './ui/FormSection';
 
 const INPUT =
-  'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60';
-const BTN = btnClass('primary');
+  'w-full min-h-11 text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200';
 const fmtDate = (iso) => {
   if (!iso) return null;
   const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
@@ -32,11 +33,12 @@ const isOverdue = (g) =>
   g.status === 'Active' && g.target_date && g.target_date.slice(0, 10) < istToday();
 
 export default function Performance() {
-  const { data: goals = [], isLoading, error } = useGoals();
-  const { data: employees = [] } = useEmployees();
+  const goalsQuery = useGoals();
+  const { data: goals = [], isLoading, error, isFetching, refetch } = goalsQuery;
+  const hasData = Array.isArray(goalsQuery.data);
   const { employee } = useAuth();
-  const { canAny, can } = usePermissions();
-  const canManage = canAny('performance.manage');
+  const { canAny, can, viewingAsEmployee } = usePermissions();
+  const canManage = !viewingAsEmployee && canAny('performance.manage');
   const canManageGoal = (goal) => can('performance.manage', {
     entityId: goal.entity_id, zoneId: goal.zone_id, branchId: goal.branch_id,
     deptId: goal.department_id, employeeId: goal.employee_id,
@@ -45,8 +47,10 @@ export default function Performance() {
   const save = useSaveGoal();
   const del = useDeleteGoal();
 
-  const [form, setForm] = useState({ employee_id: '', title: '', target_date: '', weight: '' });
+  const [formOpen, setFormOpen] = useState(false);
+  const [created, setCreated] = useState(null);
   const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('All');
   // In the URL, so a refresh comes back to the view you were reading — but only among the views
   // this person actually has. The tab bar is already hidden without performance.manage; passing the
   // whole catalogue here meant typing /performance/team still selected the team view. Payroll.jsx
@@ -59,81 +63,49 @@ export default function Performance() {
   const matching = useMemo(() => {
     const terms = search.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
     return shown.filter((goal) => {
+      if (status === 'Overdue' ? !isOverdue(goal) : status !== 'All' && goal.status !== status) return false;
       const text = [goal.title, goal.employee?.full_name, goal.employee?.employee_code, goal.employee?.department?.name, goal.status].join(' ').toLocaleLowerCase();
       return terms.every((term) => text.includes(term));
     });
-  }, [shown, search]);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    try {
-      await save.mutateAsync({
-        employee_id: form.employee_id,
-        title: form.title.trim(),
-        target_date: form.target_date || null,
-        weight: form.weight === '' ? null : Number(form.weight),
-        created_by: employee?.id ?? null,
-      });
-      setForm({ employee_id: '', title: '', target_date: '', weight: '' });
-    } catch { /* surfaced below */ }
-  };
+  }, [shown, search, status]);
 
   const setProgress = (g, progress) =>
     save.mutate({ id: g.id, progress, status: progress >= 100 ? 'Completed' : 'Active' });
 
   // Paged: this list grows with the business and was rendering every row.
   // Above the early return — a hook must run in the same order on every render.
-  const pager = usePagination(matching, 25, null, `${view}:${search}`);
-
-  if (isLoading) {
-    return <div className="page-shell space-y-5"><SkeletonRows rows={5} /></div>;
-  }
+  const pager = usePagination(matching, 25, created?.id, `${view}:${search}:${status}`);
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
           <Target size={20} className="text-brand-ink" /> Goals &amp; KRAs
         </h1>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           Track objectives and progress. {canManage ? "Set goals for your team and follow them through." : 'Update progress on your own goals.'}
         </p>
+        </div>
+        {canManage && !formOpen && <button type="button" className={btnClass('primary')}
+          onClick={() => { setCreated(null); setFormOpen(true); }}><Plus size={16} />Set a goal</button>}
       </div>
 
-      {error && (
-        <div className="premium-card flex items-start gap-2 text-xs text-rose-500">
-          <AlertTriangle size={13} className="shrink-0 mt-0.5" /> {error.message}
-        </div>
-      )}
+      <QueryError error={error} title={hasData ? 'Goals could not be refreshed.' : 'Goals could not be loaded.'}
+        onRetry={refetch} retrying={isFetching} hasData={hasData} />
 
-      {canManage && (
-        <form onSubmit={submit} className="premium-card space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Set a goal</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <select required aria-label="Employee for goal" value={form.employee_id} onChange={(e) => setForm({ ...form, employee_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
-              <option value="">For whom…</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>{e.full_name} {e.employee_code ? `(${e.employee_code})` : ''}</option>
-              ))}
-            </select>
-            <input required aria-label="Goal title" placeholder="Goal, e.g. Reduce stock variance to under 1%" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className={INPUT + ' sm:col-span-2'} />
-            <input type="date" value={form.target_date} onChange={(e) => setForm({ ...form, target_date: e.target.value })} className={INPUT} title="Target date" aria-label="Target date" />
-          </div>
-          <div className="form-section-actions flex flex-wrap items-center gap-3">
-            <button type="submit" disabled={save.isPending} className={BTN}>
-              {save.isPending ? <Loader2 size={12} className="animate-spin disabled:opacity-40 disabled:cursor-not-allowed" /> : <Plus size={12} />} Add goal
-            </button>
-            <span className="text-2xs text-neutral-400">The person can update their own progress; you can edit or remove the goal.</span>
-          </div>
-        </form>
-      )}
+      {canManage && formOpen && <GoalForm onClose={() => setFormOpen(false)} onCreated={(goal) => {
+        setCreated(goal); setFormOpen(false); setSearch(''); setStatus('All');
+        setView(goal.employeeId === employee?.id ? 'mine' : 'team');
+      }} />}
+      {created && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">Goal assigned to {created.employeeName}.</p>}
 
       {canManage && (
         <div className="mobile-segmented flex gap-1.5">
-          {[['mine', `My goals (${mine.length})`], ['team', `Team goals (${team.length})`]].map(([k, label]) => (
+          {[['mine', `My goals${hasData ? ` (${mine.length})` : ''}`], ['team', `Team goals${hasData ? ` (${team.length})` : ''}`]].map(([k, label]) => (
             <button
               key={k}
-              onClick={() => setView(k)}
+              onClick={() => { setCreated(null); setView(k); }}
               aria-current={view === k ? 'page' : undefined}
               className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                 view === k
@@ -147,12 +119,18 @@ export default function Performance() {
         </div>
       )}
 
-      {(save.error || del.error) && <p role="alert" className="premium-card text-sm text-red-700 dark:text-red-300">{(save.error || del.error).message}</p>}
-      <ListSearch value={search} onChange={setSearch} label="Search goals" placeholder="Search goal, employee, code or status…" />
+      <FormError message={save.error || del.error} />
+      <div className="grid items-end gap-3 sm:grid-cols-[1fr_12rem]">
+        <ListSearch value={search} onChange={(value) => { setCreated(null); setSearch(value); }} label="Search goals" placeholder="Search goal, employee, code or status…" />
+        <label className="space-y-1 text-sm"><span>Goal status</span><select className={INPUT} value={status}
+          onChange={(event) => { setCreated(null); setStatus(event.target.value); }}>
+          {['All', 'Active', 'Overdue', 'Completed', 'Dropped'].map(value => <option key={value} value={value}>{value === 'All' ? 'All goals' : value}</option>)}
+        </select></label>
+      </div>
 
-      {matching.length === 0 ? (
+      {isLoading ? <SkeletonRows rows={5} label="Loading goals" /> : matching.length === 0 ? error ? null : (
         <div className="premium-card p-8 text-center text-xs text-neutral-500">
-          {search.trim() ? 'No goals match your search.' : view === 'mine' ? 'No goals set for you yet.' : 'No goals set for your team yet.'}
+          {search.trim() || status !== 'All' ? 'No goals match these filters.' : view === 'mine' ? 'No goals set for you yet.' : 'No goals set for your team yet.'}
         </div>
       ) : (
         <div className="space-y-2">
@@ -160,11 +138,11 @@ export default function Performance() {
             const own = g.employee_id === employee?.id;
             const manage = canManageGoal(g);
             return (
-              <article key={g.id} className="premium-card">
+              <article key={g.id} className="premium-card" data-focus-row={created?.id === g.id ? '' : undefined}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-base font-bold text-neutral-900 dark:text-white">{g.title}</span>
+                      <span className="break-words text-base font-bold text-neutral-900 dark:text-white">{g.title}</span>
                       {g.status !== 'Active' && (
                         <span className={`text-2xs font-bold uppercase px-1.5 py-0.5 rounded ${g.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'}`}>
                           {g.status}
@@ -180,6 +158,7 @@ export default function Performance() {
                       {view === 'team' && <>{g.employee?.full_name} · </>}
                       {g.target_date ? `Target ${fmtDate(g.target_date)}` : 'No target date'}
                     </p>
+                    {g.description && <p className="mt-2 whitespace-pre-wrap break-words text-sm text-neutral-600 dark:text-neutral-400">{g.description}</p>}
                   </div>
                   {manage && (
                     <button
@@ -241,7 +220,7 @@ export default function Performance() {
         </div>
       )}
 
-      <Pagination {...pager} noun="goals" />
+      {!isLoading && (!error || hasData) && <Pagination {...pager} noun="goals" />}
     </div>
   );
 }

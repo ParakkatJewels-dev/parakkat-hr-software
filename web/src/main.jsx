@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 // HashRouter (not BrowserRouter): the native webview serves from a local origin where
 // history/path routing is fragile — hash routes work identically on web and in Capacitor.
 import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { QueryClient } from '@tanstack/react-query';
+import { createAppQueryClient } from './lib/queryPolicy';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 import { ShieldAlert, LogOut, RefreshCw } from 'lucide-react';
@@ -13,12 +13,14 @@ import { SkeletonApp } from './components/ui/Skeleton';
 import App from './App.jsx';
 import Login from './pages/Login.jsx';
 import ForgotPassword from './pages/ForgotPassword.jsx';
+import NotFound from './pages/NotFound.jsx';
 import { accessCacheScope, guardedStorage } from './lib/accessCache';
 import SetYourPassword from './components/SetYourPassword.jsx';
 import { AuthProvider, useAuth } from './auth/AuthContext.jsx';
 import { initNative } from './mobile/native';
 import { installPreloadErrorHandler, registerServiceWorker } from './lib/pwa';
 import { normalizedHashRoute } from './lib/passwordRecovery';
+import { resolveAppRoute } from './lib/appRoutes';
 
 function normalizeHashRoute() {
   const route = normalizedHashRoute(window.location.href);
@@ -44,21 +46,7 @@ try {
 // attendance-exceptions query. A 5-minute net keeps the mobile guarantee the original comment
 // cared about (Capacitor webviews under-report "focus") at 1/60th the traffic; screens that truly
 // need to tick faster set their own interval (useDayAttendance, the sync-status hooks).
-const queryOptions = {
-  defaultOptions: {
-    queries: {
-      staleTime: 60_000,
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: true,
-      refetchOnMount: true,
-      refetchInterval: 300_000,
-      refetchIntervalInBackground: false,
-      // Restored cache is only useful if the queries that read it will accept it. Anything older
-      // than this is refetched rather than shown.
-      gcTime: 24 * 60 * 60_000,
-    },
-  },
-};
+// The shared policy also bounds retries and gives reference data and signed media longer lives.
 
 // --- surviving a refresh ----------------------------------------------------------------------
 // Without this the whole cache dies on every reload: the sync card, the roster, the day's
@@ -116,7 +104,7 @@ function SessionQueries({ children, scope, userId, owner }) {
     const lease = { active: true };
     return {
       lease,
-      client: new QueryClient(queryOptions),
+      client: createAppQueryClient(),
       persister: createSyncStoragePersister({
         storage: guardedStorage(safeStorage, () => lease.active && Boolean(scope) && owner.current === scope),
         key: `${CACHE_KEY}:${userId ?? 'signed-out'}`,
@@ -317,9 +305,10 @@ function AuthedApp() {
   return hasAccess ? <App /> : <NoAccess />;
 }
 
-// Top-level auth gate: unauthenticated users only ever see /login.
+// Top-level auth gate: valid app destinations require sign-in; missing pages have a public 404.
 function RootRoutes() {
   const { session, loading, sessionError, passwordRecovery, recoveryRequested, finishRecovery } = useAuth();
+  const { pathname } = useLocation();
   if (loading) return <SkeletonApp />;
   if (sessionError) return <FullScreenError error={sessionError} />;
   // Recovery is independent of roles and of whether a first-login password change is required.
@@ -334,6 +323,11 @@ function RootRoutes() {
       }}>Request another link</button>
     </div>
   );
+  // A typo is a missing page even before sign-in. Valid destinations retain the login gate,
+  // and all password-recovery states above must resolve before interpreting ordinary routes.
+  if (!session && !/^\/(login|forgot-password)\/*$/.test(pathname) && !resolveAppRoute(pathname).valid) {
+    return <NotFound standalone />;
+  }
   return (
     <Routes>
       <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -19,8 +19,8 @@ import { useTickets } from '../../data/tickets';
 import { useMyRegularizations } from '../../data/regularizations';
 import { useTasks, useUpdateTask } from '../../data/tasks';
 import { usePayslips } from '../../data/payroll';
-import { useRoutineItems, useRoutineTicks, useSetRoutineTick } from '../../data/routines';
-import { routineForDay, routineProgress } from '../../lib/routines';
+import { useRoutineDay, useSetRoutineTick } from '../../data/routines';
+import { routineProgress } from '../../lib/routines';
 import { useIstToday } from '../../lib/useIstToday';
 import { checklistProgress } from '../../lib/checklist';
 import { humanDbError } from '../../lib/dbErrors';
@@ -384,19 +384,18 @@ export function MyTasks({ onNavigate }) {
   );
 }
 
-/** Only this person's remaining daily work. Completion is derived from saved ticks for today. */
+/** Today's scheduled jobs, including weekly/monthly routines when their due date arrives. */
 export function MyRoutineToday({ onNavigate }) {
   const { employee } = useAuth();
   const { can, canAny } = usePermissions();
   const today = useIstToday();
   const enabled = Boolean(employee?.id && canAny('task.read'));
-  const itemsQuery = useRoutineItems({ enabled, employeeId: employee?.id });
-  const ticksQuery = useRoutineTicks(today, { enabled, employeeId: employee?.id });
+  const dayQuery = useRoutineDay(today, { enabled, employeeId: employee?.id });
   const setTick = useSetRoutineTick();
-  const items = employee?.id ? routineForDay(itemsQuery.data ?? [], ticksQuery.data ?? [], employee.id, today) : [];
+  const items = (dayQuery.data ?? []).filter((item) => item.employee_id === employee?.id);
   const progress = routineProgress(items);
-  const error = itemsQuery.error || ticksQuery.error || setTick.error;
-  const loading = itemsQuery.isLoading || ticksQuery.isLoading;
+  const error = dayQuery.error || setTick.error;
+  const loading = dayQuery.isLoading;
   const canTick = can('task.update', { employeeId: employee?.id, entityId: employee?.entity_id, zoneId: employee?.zone_id, branchId: employee?.branch_id, deptId: employee?.department_id });
 
   if (!enabled || (!loading && !error && !setTick.isPending && (progress.complete || items.length === 0))) return null;
@@ -406,19 +405,20 @@ export function MyRoutineToday({ onNavigate }) {
       badge={loading ? null : `${progress.done}/${progress.total}`} action="Routine" onAction={() => onNavigate?.('tasks/routine')}>
       {error && <div role="alert" className="home-work-error">
         <p>{humanDbError(error, 'routine_ticks')}</p>
-        {(itemsQuery.error || ticksQuery.error) && <button type="button" onClick={() => { itemsQuery.refetch(); ticksQuery.refetch(); }}>Try again</button>}
+        {dayQuery.error && <button type="button" onClick={() => dayQuery.refetch()}>Try again</button>}
       </div>}
       {loading ? <SkeletonRows rows={3} compact avatar={false} trailing={false} label="Loading today’s routine" /> : <>
         <p className="home-routine-note">{fmtDay(today)} · {progress.total - progress.done} remaining</p>
         <div className="home-routine-list">
           {items.filter(item => !item.done).slice(0, 6).map(item => (
-            <button key={item.id} type="button" className="home-routine-item" disabled={!canTick || setTick.isPending || Boolean(ticksQuery.error)}
+            <button key={item.id} type="button" className="home-routine-item" disabled={!canTick || item.can_tick !== true || setTick.isPending || Boolean(dayQuery.error)}
               aria-label={`Complete routine: ${item.title}`}
               onClick={() => setTick.mutate({ itemId: item.id, employeeId: employee.id, onDate: today, done: true })}>
               <span className="home-routine-checkbox" aria-hidden="true">
                 {setTick.isPending && setTick.variables?.itemId === item.id ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />}
               </span>
               <span className="home-work-copy"><span className="home-work-title">{item.title}</span>
+                {item.routine_name && <span className="home-work-meta">{item.routine_name}</span>}
                 {item.detail && <span className="home-work-meta">{item.detail}</span>}
               </span>
             </button>

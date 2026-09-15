@@ -5,7 +5,7 @@
 // screen does is show what the engine concluded, surface the exceptions HR must act on, and let
 // people raise a correction when the device missed something.
 import { Skeleton, SkeletonRows, SkeletonTable } from './ui/Skeleton';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
   CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
@@ -31,6 +31,7 @@ import EmployeeLink from './ui/EmployeeLink';
 import { useUrlTab } from '../lib/useUrlTab';
 import { useFocusRow } from '../lib/useFocusRow';
 import EmployeeAttendanceDetail from './EmployeeAttendanceDetail';
+import { humanDbError } from '../lib/dbErrors';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -122,7 +123,7 @@ function ErrorNote({ error }) {
     <div role="alert" className="premium-card border-red-300 dark:border-red-900/60">
       <div className="flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
         <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-        <span>{error.message || String(error)}</span>
+        <span>{humanDbError(error)}</span>
       </div>
     </div>
   );
@@ -999,6 +1000,7 @@ export function RegularizationsView({ employee, canApprove }) {
     });
   const { data: mine = [], isLoading: loadingMine, error: mineError } = useMyRegularizations(employee?.id);
   const create = useCreateRegularization();
+  const submitting = useRef(false);
   const decide = useDecideRegularization();
 
   const [form, setForm] = useState({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' });
@@ -1014,9 +1016,9 @@ export function RegularizationsView({ employee, canApprove }) {
   const queuePager = usePagination(matching, 25, focusId, `${reviewing}:${employee?.id}:${search}`);
   const minePager = usePagination(mine, 8, reviewing ? focusId : null, employee?.id);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
-    if (!employee?.id) return;
+    if (!employee?.id || create.isPending || submitting.current) return;
     setFormError('');
     if (!form.checkIn && !form.checkOut) {
       setFormError('Enter a check-in or check-out time to request a correction.');
@@ -1026,16 +1028,19 @@ export function RegularizationsView({ employee, canApprove }) {
       setFormError('Enter a reason for this correction.');
       return;
     }
-    create.mutate(
-      { employeeId: employee.id, ...form, reason: form.reason.trim() },
-      { onSuccess: () => setForm({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' }) }
-    );
+    submitting.current = true;
+    try {
+      await create.mutateAsync({ employeeId: employee.id, ...form, reason: form.reason.trim() });
+      setForm({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' });
+    } catch { /* The mutation error is visible; keep entered values for a retry. */ }
+    finally { submitting.current = false; }
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-1 space-y-4">
-        <form onSubmit={submit} className="premium-card space-y-3">
+        <form onSubmit={submit} className="premium-card space-y-3" aria-busy={create.isPending}>
+          <fieldset disabled={create.isPending} className="min-w-0 space-y-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
             Raise a correction
           </h3>
@@ -1077,6 +1082,8 @@ export function RegularizationsView({ employee, canApprove }) {
             className="w-full py-2 rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover text-xs font-bold disabled:opacity-50">
             {create.isPending ? 'Submitting…' : 'Submit for approval'}
           </button>
+          </fieldset>
+          <p role="status" className="sr-only">{create.isPending ? 'Submitting correction…' : ''}</p>
 
           {create.isError ? <ErrorNote error={create.error} /> : null}
           {formError ? <p role="alert" className="text-xs text-red-700 dark:text-red-300">{formError}</p> : null}
