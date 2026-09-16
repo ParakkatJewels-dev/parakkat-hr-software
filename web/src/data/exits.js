@@ -9,9 +9,35 @@ export function useExits({ enabled = true } = {}) {
     queryKey: ['exits'],
     queryFn: () => fetchCollection(() => supabase
         .from('exits')
-        .select('id, last_day, reason, status, approvals, created_at, employee:employees(id, full_name, employee_code, branch_id, branch:branches(code), department:departments(name))')
+        .select('id, employee_id, entity_id, zone_id, branch_id, department_id, created_by, last_day, reason, status, approvals, created_at, employee:employees(id, full_name, employee_code, entity_id, zone_id, branch_id, department_id, branch:branches(code), department:departments(name))')
         .order('created_at', { ascending: false })
         .order('id')),
+  });
+}
+
+export function useDecideExitClearance() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, department, decision }) => {
+      const { data, error } = await supabase.rpc('decide_exit_clearance', {
+        p_exit_id: id, p_department: department, p_decision: decision,
+      });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['exits'] }),
+  });
+}
+
+export function useCompleteExit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id) => {
+      const { data, error } = await supabase.rpc('complete_exit', { p_exit_id: id });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['exits'] }),
   });
 }
 

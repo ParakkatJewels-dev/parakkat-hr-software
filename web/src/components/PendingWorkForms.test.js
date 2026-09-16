@@ -19,9 +19,12 @@ const stubs = {
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))}; export default React;
     export const useState = value => globalThis.pendingFormTest.useState(value);
     export const useRef = value => globalThis.pendingFormTest.useRef(value);
-    export const useEffect = () => {}; export const useMemo = fn => fn();`,
+    export const useEffect = (fn, deps) => globalThis.pendingFormTest.useEffect(fn, deps);
+    export const useMemo = fn => fn(); export const useCallback = fn => fn;`,
+  'react-router-dom': `export const useLocation = () => globalThis.pendingFormTest.location;
+    export const useSearchParams = () => [globalThis.pendingFormTest.params, globalThis.pendingFormTest.setParams];`,
   '../auth/AuthContext': 'export const useAuth = () => ({ employee: { id: "self" } });',
-  '../auth/usePermissions': 'export const usePermissions = () => ({ can: () => true, canBeyondSelf: () => false, viewingAsEmployee: false });',
+  '../auth/usePermissions': 'export const usePermissions = () => globalThis.pendingFormTest.permissions;',
   '../data/tickets': queryStubs(['useTickets']) + mutationStubs(['useAddTicket', 'useSetTicketStatus']),
   '../data/ticketCategories': queryStubs(['useTicketAccess', 'useTicketCategories']) + mutationStubs(['useSaveTicketCategory']),
   '../data/org': queryStubs(['useVisibleOrg']),
@@ -86,6 +89,7 @@ const department = { id: 'department', name: 'Support', is_active: true };
 const category = { id: 'category', name: 'Help', department_id: department.id, department, is_active: true };
 function mount(Component, props = {}) {
   const slots = []; let cursor = 0;
+  const effects = []; let effectCursor = 0; let pendingEffects = [];
   const writes = [];
   const state = value => {
     const i = cursor++;
@@ -93,6 +97,15 @@ function mount(Component, props = {}) {
     return [slots[i], next => { slots[i] = typeof next === 'function' ? next(slots[i]) : next; }];
   };
   const harness = { useState: state, useRef: value => state({ current: value })[0],
+    useEffect(fn, deps) {
+      const index = effectCursor++;
+      if (!effects[index] || deps.some((value, i) => !Object.is(value, effects[index][i]))) pendingEffects.push(fn);
+      effects[index] = deps;
+    },
+    flushEffects() { const scheduled = pendingEffects; pendingEffects = []; scheduled.forEach(fn => fn()); },
+    permissions: { can: () => true, canBeyondSelf: () => false, viewingAsEmployee: false },
+    params: new URLSearchParams(), location: { key: 'initial' },
+    setParams(next) { harness.params = typeof next === 'function' ? next(harness.params) : new URLSearchParams(next); harness.location = { key: `${harness.location.key}-next` }; },
     queries: Object.fromEntries(['useTickets', 'useRegularizations', 'useMyRegularizations'].map(name => [name, { data: [], isLoading: false }])),
     mutation: { isPending: false, reset() {}, mutate() {}, async mutateAsync(payload) { writes.push(payload); } },
   };
@@ -105,7 +118,7 @@ function mount(Component, props = {}) {
     useLeaveBalances: { data: [] },
   });
   const render = changes => {
-    props = { ...props, ...changes }; cursor = 0; globalThis.pendingFormTest = harness;
+    props = { ...props, ...changes }; cursor = 0; effectCursor = 0; globalThis.pendingFormTest = harness;
     return Component(props);
   };
   const field = label => {
@@ -141,6 +154,55 @@ test('ticket submission blocks stale category errors and duplicate saves while r
   form.harness.mutation.isPending = false;
   assert.equal(form.field('Subject').props.value, ' Network issue ');
   assert.equal(form.field('Details').props.value, ' Keep these details ');
+});
+
+test('ticket action queue navigation clears conflicting filters while keeping unrelated URL state', () => {
+  const desk = mount(TicketDesk);
+  desk.harness.queries.useTicketAccess.data = { can_view_queue: true, is_hr: true };
+  desk.harness.queries.useTickets.data = [
+    { id: 'open', subject: 'Open issue', employee_id: 'self', status: 'Open', can_manage: true, is_hr_queue: true },
+    { id: 'read-only', subject: 'Visible issue', status: 'Open', can_manage: false, is_hr_queue: true },
+    { id: 'other', subject: 'IT issue', status: 'On Hold', can_manage: true, is_hr_queue: false },
+    { id: 'resolved', subject: 'Resolved issue', status: 'Resolved', can_manage: true, is_hr_queue: true },
+  ];
+  desk.harness.params.set('tab', 'tickets');
+  desk.open('Needs action'); desk.harness.flushEffects();
+  assert.equal(desk.harness.params.get('ticketQueue'), 'needs-action');
+  assert.equal(desk.harness.params.get('tab'), 'tickets');
+  assert.ok(find(desk.render(), element => element.props['aria-label'] === 'Ticket: IT issue'));
+  assert.equal(find(desk.render(), element => element.props['aria-label'] === 'Ticket: Visible issue'), null);
+  desk.fill('Search tickets', 'nonexistent'); desk.fill('Ticket status', 'On Hold');
+  desk.fill('Ticket category', 'unused'); desk.fill('Assigned department', 'unused');
+  assert.match(textOf(desk.render()), /No tickets match these filters/);
+  // A second click on the same Support link is a new router location, even if its query is identical.
+  desk.harness.setParams(new URLSearchParams('tab=tickets&ticketQueue=needs-action'));
+  desk.render(); desk.harness.flushEffects();
+  for (const label of ['Search tickets', 'Ticket status', 'Ticket category', 'Assigned department']) assert.equal(desk.field(label).props.value, '');
+  assert.ok(find(desk.render(), element => element.props['aria-label'] === 'Ticket: Open issue'));
+  assert.ok(find(desk.render(), element => element.props['aria-label'] === 'Ticket: IT issue'));
+  desk.open('Tickets to HR'); desk.harness.flushEffects();
+  assert.equal(desk.harness.params.get('ticketQueue'), 'hr-needs-action');
+  assert.equal(find(desk.render(), element => element.props['aria-label'] === 'Ticket: IT issue'), null);
+  desk.open('All tickets'); desk.harness.flushEffects();
+  assert.equal(desk.harness.params.has('ticketQueue'), false);
+  assert.ok(find(desk.render(), element => element.props['aria-label'] === 'Ticket: Resolved issue'));
+});
+
+test('employee presentation ignores a managerial queue deep link and hides all queue counts', () => {
+  const desk = mount(TicketDesk);
+  desk.harness.params.set('ticketQueue', 'needs-action');
+  desk.harness.queries.useTicketAccess.data = { can_view_queue: true, is_hr: true };
+  desk.harness.permissions.viewingAsEmployee = true;
+  desk.harness.queries.useTickets.data = [
+    { id: 'own', employee_id: 'self', subject: 'Own resolved issue', status: 'Resolved', can_manage: true },
+    { id: 'other', employee_id: 'other', subject: 'Someone else', status: 'Open', can_manage: true },
+  ];
+  const view = desk.render();
+  assert.ok(find(view, element => element.props['aria-label'] === 'Ticket: Own resolved issue'));
+  assert.equal(find(view, element => element.props['aria-label'] === 'Ticket: Someone else'), null);
+  assert.equal(find(view, element => element.props['aria-label'] === 'Ticket queue'), null);
+  assert.equal(find(view, element => element.props['aria-label']?.includes('ticket needing action')), null);
+  assert.equal(find(view, element => element.props['aria-label']?.startsWith('Update status for')), null);
 });
 
 test('category lookup failures block writes and saving locks fields, close and duplicate submission', async () => {
@@ -179,6 +241,24 @@ test('attendance correction keeps entered times after failure and resets only af
   await form.form().props.onSubmit(submitEvent());
   assert.equal(form.field('Check in').props.value, ''); assert.equal(form.field('Reason').props.value, '');
   assert.deepEqual(form.writes[1], form.writes[0]);
+});
+
+test('ATT-05: correction form requires an explicit next-day exit and supports checkout-only requests', async () => {
+  const form = mount(RegularizationsView, { employee: { id: 'self' }, canApprove: false });
+  form.fill('Check in', '22:00'); form.fill('Check out', '06:00'); form.fill('Reason', 'Missing night exit');
+  await form.form().props.onSubmit(submitEvent());
+  assert.equal(form.writes.length, 0);
+  assert.match(textOf(find(form.render(), element => element.props.role === 'alert')), /next day/);
+  form.field('Check-out is next day').props.onChange({ target: { checked: true } });
+  await form.form().props.onSubmit(submitEvent());
+  assert.equal(form.writes[0].checkOutNextDay, true);
+  assert.equal(form.writes[0].checkIn, '22:00');
+  assert.equal(form.field('Check-out is next day').props.checked, false, 'success resets the date choice');
+  form.fill('Check out', '06:00'); form.fill('Reason', 'Only exit was missed');
+  form.field('Check-out is next day').props.onChange({ target: { checked: true } });
+  await form.form().props.onSubmit(submitEvent());
+  assert.equal(form.writes[1].checkIn, '');
+  assert.equal(form.writes[1].checkOutNextDay, true);
 });
 
 test('leave applications require a successfully loaded active type and preserve details after refusal', async () => {

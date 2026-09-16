@@ -16,9 +16,12 @@ const roleKeys = ['super_admin', 'entity_admin', 'hr_manager', 'zonal_manager', 
 type RoleKey = typeof roleKeys[number];
 // Generated from a fresh replay of every application migration, including cumulative grants and
 // the later removal of management access to colleagues' personal payslips/documents.
-const catalogue = JSON.parse(readFileSync(resolve(__dirname, '../../../../web/src/test/standardRolePermissions.json'), 'utf8')) as
+// Explicit QA overrides allow a new replay to be verified without rewriting older audit fixtures.
+const cataloguePath = process.env.HR_QA_ROLE_CATALOGUE || resolve(__dirname, '../../../../web/src/test/standardRolePermissions.json');
+const accessFixturePath = process.env.HR_QA_ROLE_ACCESS_FIXTURE || resolve(__dirname, '../../../../web/backend/tests/fixtures/standard-role-access.json');
+const catalogue = JSON.parse(readFileSync(cataloguePath, 'utf8')) as
   Record<RoleKey, { rank: number; permissions: string[] }>;
-const replay = JSON.parse(readFileSync(resolve(__dirname, '../../../../web/backend/tests/fixtures/standard-role-access.json'), 'utf8')) as {
+const replay = JSON.parse(readFileSync(accessFixturePath, 'utf8')) as {
   migrations: string[];
   actors: Array<{ key: string; userId: string; access: { is_super_admin: boolean; permissions: Grant[]; employee: AuthContext['employee'] } }>;
 };

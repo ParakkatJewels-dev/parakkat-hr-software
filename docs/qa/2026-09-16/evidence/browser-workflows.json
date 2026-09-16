@@ -1,0 +1,356 @@
+[
+  {
+    "name": "employee-ticket-create",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "created": {
+        "id": "6584741e-4638-4bc9-b797-a3dc1b83cda6",
+        "employee_id": "person-1",
+        "employee": {
+          "id": "person-1",
+          "user_id": "user-1",
+          "employee_code": "EMP0001",
+          "full_name": "Sample Employee 0001",
+          "email": "employee1@example.test",
+          "entity_id": "company-1",
+          "entity": {
+            "id": "company-1",
+            "code": "C1",
+            "name": "Sample Jewellery",
+            "is_active": true
+          },
+          "branch_id": "branch-1",
+          "branch": {
+            "id": "branch-1",
+            "entity_id": "company-1",
+            "zone_id": "zone-1",
+            "code": "B1",
+            "name": "Sample branch 1",
+            "is_active": true
+          },
+          "status": "Active",
+          "department_id": "dept-1",
+          "department": {
+            "id": "dept-1",
+            "entity_id": "company-1",
+            "zone_id": "zone-1",
+            "branch_id": "branch-1",
+            "branch_name": "Sample branch 1",
+            "name": "IT",
+            "is_active": true
+          },
+          "designation_id": "designation-1",
+          "designation": {
+            "id": "designation-1",
+            "title": "Sales Associate",
+            "grade": "A",
+            "is_active": true
+          },
+          "join_date": "2025-01-01",
+          "zone_id": "zone-1"
+        },
+        "entity_id": "company-1",
+        "zone_id": "zone-1",
+        "branch_id": "branch-1",
+        "department_id": "dept-1",
+        "category": "IT support",
+        "category_id": "qa-cat-it",
+        "routed_department_id": "dept-1",
+        "is_hr_queue": false,
+        "subject": "QA laptop test & <validation>",
+        "description": "Synthetic issue from an employee.",
+        "priority": "High",
+        "status": "Open",
+        "created_at": "2026-09-16T08:38:58.741Z"
+      },
+      "selfEscalationControlAbsent": true
+    }
+  },
+  {
+    "name": "department-ticket-queue",
+    "role": "dept_head",
+    "status": "PASS",
+    "evidence": {
+      "resolvedStatus": "Resolved",
+      "unresolvedQueueCount": 14
+    }
+  },
+  {
+    "name": "dept_head-leave-decision",
+    "role": "dept_head",
+    "status": "PASS",
+    "evidence": {
+      "status": "Pending",
+      "stage": "hr",
+      "history": [
+        {
+          "id": "be53c35d-e6be-4346-b00c-880508c29cb5",
+          "leave_id": "qa-leave-department",
+          "stage": "department",
+          "decision": "Approved",
+          "remarks": "QA verified handover and balance.",
+          "actor_name": "QA Department Head",
+          "created_at": "2026-09-16T08:39:01.625Z",
+          "from_status": "Pending",
+          "to_status": "Pending",
+          "from_stage": "department",
+          "to_stage": "hr"
+        }
+      ],
+      "selfApprovalAbsent": true
+    }
+  },
+  {
+    "name": "hr_manager-leave-decision",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "status": "Approved",
+      "stage": "completed",
+      "history": [
+        {
+          "id": "b0348b06-457a-49c8-96dc-4e90c3dd9dc0",
+          "leave_id": "qa-leave-hr",
+          "stage": "hr",
+          "decision": "Approved",
+          "remarks": "QA verified handover and balance.",
+          "actor_name": "QA HR Reviewer",
+          "created_at": "2026-09-16T08:39:02.991Z",
+          "from_status": "Pending",
+          "to_status": "Approved",
+          "from_stage": "hr",
+          "to_stage": "completed"
+        }
+      ],
+      "selfApprovalAbsent": true
+    }
+  },
+  {
+    "name": "failed-ticket-preserves-input",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "error": "QA mode: create_ticket is intentionally blocked.",
+      "inputRetained": true,
+      "inserted": 0
+    }
+  },
+  {
+    "name": "employee-routine-tick",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "savedTick": true,
+      "removedTick": true
+    }
+  },
+  {
+    "name": "goal-designation-selection",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "selected": "Selected employee\n\nSample Employee 0004\n\nEMP0004\n\nCashier · Department 2 · B1\n\nChange employee\nSearch other employees",
+      "goal": {
+        "employee_id": "person-4",
+        "title": "QA cashier reconciliation",
+        "description": "Close all reconciliation differences.",
+        "target_date": null,
+        "created_by": "person-1",
+        "id": "7b51d1bb-d2ad-4399-96a0-c1d84e853170",
+        "employee": {
+          "id": "person-4",
+          "user_id": "user-4",
+          "employee_code": "EMP0004",
+          "full_name": "Sample Employee 0004",
+          "email": "employee4@example.test",
+          "entity_id": "company-1",
+          "entity": {
+            "id": "company-1",
+            "code": "C1",
+            "name": "Sample Jewellery",
+            "is_active": true
+          },
+          "branch_id": "branch-1",
+          "branch": {
+            "id": "branch-1",
+            "entity_id": "company-1",
+            "zone_id": "zone-1",
+            "code": "B1",
+            "name": "Sample branch 1",
+            "is_active": true
+          },
+          "status": "Active",
+          "department_id": "dept-2",
+          "department": {
+            "id": "dept-2",
+            "entity_id": "company-1",
+            "zone_id": "zone-1",
+            "branch_id": "branch-1",
+            "branch_name": "Sample branch 1",
+            "name": "Department 2",
+            "is_active": true
+          },
+          "designation_id": "goal-cashier",
+          "designation": {
+            "id": "goal-cashier",
+            "title": "Cashier"
+          },
+          "join_date": "2025-01-01",
+          "zone_id": "zone-1"
+        },
+        "progress": 0,
+        "status": "Active",
+        "entity_id": "company-1",
+        "zone_id": "zone-1",
+        "branch_id": "branch-1",
+        "department_id": "dept-2",
+        "created_at": "2026-09-16T08:39:07.123Z"
+      }
+    }
+  },
+  {
+    "name": "multi-designation-routine-create",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "assignedCount": 2,
+      "designations": [
+        "Sales Associate",
+        "Cashier"
+      ],
+      "invalidDayBlocked": true
+    }
+  },
+  {
+    "name": "category-create-deactivate",
+    "role": "entity_admin",
+    "status": "PASS",
+    "evidence": {
+      "initial": {
+        "id": "ed7bf198-0256-4ecd-bdf6-ceff4ed375af",
+        "name": "QA benefits",
+        "department_id": "dept-2",
+        "is_active": true,
+        "is_hr_queue": true
+      },
+      "deactivated": true,
+      "unavailableForNewTickets": true
+    }
+  },
+  {
+    "name": "employee-own-payslip-output",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "validatedGross": 22000,
+      "validatedDeductions": 2000,
+      "validatedNet": 20000,
+      "otherEmployeeHidden": true
+    }
+  },
+  {
+    "name": "invalid-route-and-settings",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "timePreferenceSurvivedReload": true,
+      "invalidRouteHandled": true
+    }
+  },
+  {
+    "name": "calendar-route-super_admin",
+    "role": "super_admin",
+    "status": "PASS",
+    "evidence": {
+      "calendarLoaded": true,
+      "title": "Attendance\n\nSourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes and the engine derives each day against the assigned shift.\n\nTODAY\nEXCEPTIONS\nR"
+    }
+  },
+  {
+    "name": "calendar-route-entity_admin",
+    "role": "entity_admin",
+    "status": "PASS",
+    "evidence": {
+      "calendarLoaded": true,
+      "title": "Attendance\n\nSourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes and the engine derives each day against the assigned shift.\n\nTODAY\nEXCEPTIONS\nR"
+    }
+  },
+  {
+    "name": "calendar-route-hr_manager",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "calendarLoaded": true,
+      "title": "Attendance\n\nSourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes and the engine derives each day against the assigned shift.\n\nTODAY\nEXCEPTIONS\nR"
+    }
+  },
+  {
+    "name": "calendar-route-zonal_manager",
+    "role": "zonal_manager",
+    "status": "PASS",
+    "evidence": {
+      "calendarLoaded": true,
+      "title": "Attendance\nTODAY\nEXCEPTIONS\nREGULARIZATIONS\nSync service not running — nothing has arrived for ever. Nothing has been heard from the HR laptop. The two links behind it cannot be ch"
+    }
+  },
+  {
+    "name": "calendar-route-branch_manager",
+    "role": "branch_manager",
+    "status": "PASS",
+    "evidence": {
+      "calendarLoaded": true,
+      "title": "Attendance\nTODAY\nEXCEPTIONS\nREGULARIZATIONS\nSync service not running — nothing has arrived for ever. Nothing has been heard from the HR laptop. The two links behind it cannot be ch"
+    }
+  },
+  {
+    "name": "calendar-route-dept_head",
+    "role": "dept_head",
+    "status": "PASS",
+    "evidence": {
+      "calendarLoaded": true,
+      "title": "Attendance\nTODAY\nREGULARIZATIONS\nSync service not running — nothing has arrived for ever. Nothing has been heard from the HR laptop. The two links behind it cannot be checked from "
+    }
+  },
+  {
+    "name": "calendar-route-employee",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "calendarLoaded": true,
+      "title": "My Attendance\nMY ATTENDANCE\nAbsent\n\nYour attendance status for today.\n\nTODAY IN\n—\nWORKED\n—\nPRESENT\n0\nISSUES\n1\nFix attendance\nMonthly view\nMY MONTHLY CALENDAR\nOVERVIEW\nFIX ATTENDANC"
+    }
+  },
+  {
+    "name": "employee-detail-super_admin",
+    "role": "super_admin",
+    "status": "PASS",
+    "evidence": {
+      "loadedEmployee": "Sample Employee 0001"
+    }
+  },
+  {
+    "name": "employee-detail-branch_manager",
+    "role": "branch_manager",
+    "status": "PASS",
+    "evidence": {
+      "loadedEmployee": "Sample Employee 0001"
+    }
+  },
+  {
+    "name": "employee-detail-employee",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "deniedAsExpected": true
+    }
+  },
+  {
+    "name": "read-failure-reports",
+    "role": "hr_manager",
+    "status": "FAIL",
+    "error": "Expected a report loading failure to be visible; observed empty report instead.",
+    "pageErrors": [],
+    "screen": "Reports & Analytics\n\nBranch-wise operational reports, scoped to what you may see. Pick a month and branch, then export.\n\nAll branches (in your scope)\nAttendance\nLeave\nExpenses\nHeadcount\nLEAVE REPORT · 2026-09\nRequests (CSV)\nBalances (CSV)\n\nNo data for this period in your scope.\n\n0 requests overlapping 2026-09 in your scope. LOP days appear in the Attendance tab."
+  }
+]

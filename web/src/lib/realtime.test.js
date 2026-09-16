@@ -48,6 +48,39 @@ function useLiveHarness(t) {
   return state;
 }
 
+test('section counts refresh once for a burst of queue, assignment and access changes', async (t) => {
+  const live = useLiveHarness(t);
+  live.status('SUBSCRIBED');
+  live.invalidations.length = 0;
+  for (const table of ['tickets', 'ticket_categories', 'tasks', 'task_assignees', 'leaves',
+    'leave_decisions', 'expenses', 'attendance_regularizations', 'departments', 'role_assignments']) {
+    live.handlers.get(table)({ eventType: 'UPDATE', new: { id: 'changed', user_id: 'me' } });
+  }
+  assert.equal(live.invalidations.length, 0);
+  t.mock.timers.tick(1000);
+  await settle();
+  assert.equal(live.invalidations.filter(value => value.queryKey?.[0] === 'section-counts').length, 1);
+  assert.equal(live.accessRefreshes, 1);
+});
+
+test('a resolved ticket reduces the active navigation summary without loading its collection', async (t) => {
+  const live = useLiveHarness(t);
+  let unresolved = 2, reads = 0;
+  const observer = new QueryObserver(live.client, { queryKey: ['section-counts', 'me', false],
+    staleTime: Infinity, queryFn: async () => { reads++; return { helpdesk: unresolved }; } });
+  const unsubscribe = observer.subscribe(() => {});
+  t.after(unsubscribe);
+  await settle();
+  live.status('SUBSCRIBED');
+  unresolved = 1;
+  live.handlers.get('tickets')({ eventType: 'UPDATE', new: { id: 'ticket-1', status: 'Resolved' } });
+  t.mock.timers.tick(1000);
+  await settle();
+  assert.deepEqual(observer.getCurrentResult().data, { helpdesk: 1 });
+  assert.equal(reads, 2);
+  assert.equal(live.client.getQueryCache().findAll({ queryKey: ['tickets'] }).length, 0);
+});
+
 test('recipient receipt UPDATEs change sender ticks before refetching the inbox', (t) => {
   const live = useLiveHarness(t);
   const stamp = '2026-09-15T10:00:00.123456Z';
@@ -119,6 +152,7 @@ test('task notifications refresh newly granted assignments without a task row ev
   t.mock.timers.tick(1);
   assert.deepEqual(live.invalidations, [
     { queryKey: ['notifications'], refetchType: 'active' },
+    { queryKey: ['section-counts'], refetchType: 'active' },
     { queryKey: ['tasks'], refetchType: 'active' },
     { queryKey: ['notification-ref-statuses'], refetchType: 'active' },
   ]);

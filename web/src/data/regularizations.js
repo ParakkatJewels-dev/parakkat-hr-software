@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
+import { regularizationTimes } from '../lib/regularizationTimes.js';
 
 // The ancestry is selected because reg_update checks all five columns, so the Approve/Reject
 // buttons can be drawn per row instead of from one blanket canAny.
@@ -61,20 +62,23 @@ export function useMyRegularizations(employeeId) {
 export function useCreateRegularization() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ employeeId, workDate, checkIn, checkOut, reason }) => {
-      const atIst = (clock) => (clock ? new Date(`${workDate}T${clock}:00+05:30`).toISOString() : null);
+    mutationFn: async ({ employeeId, workDate, checkIn, checkOut, checkOutNextDay, reason }) => {
+      const times = regularizationTimes({ workDate, checkIn, checkOut, checkOutNextDay });
 
       const { error } = await supabase.from('attendance_regularizations').insert({
         employee_id: employeeId,
         work_date: workDate,
-        check_in: atIst(checkIn),
-        check_out: atIst(checkOut),
+        check_in: times.checkIn,
+        check_out: times.checkOut,
         reason,
         status: 'Pending',
       });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['regularizations'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['regularizations'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -97,6 +101,7 @@ export function useDecideRegularization() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['regularizations'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
       // The recompute trigger has queued the date; attendance updates once the queue drains.
       qc.invalidateQueries({ queryKey: ['attendance'] });

@@ -1,0 +1,48 @@
+[
+  {
+    "name": "hr-exit-clearance-lifecycle",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "status": "Completed",
+      "ownDecisionControls": 0
+    }
+  },
+  {
+    "name": "exit-clearance-save-refusal",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "displayed": "Pending",
+      "errorVisible": true
+    }
+  },
+  {
+    "name": "employee-exit-scope",
+    "role": "employee",
+    "status": "PASS",
+    "evidence": {
+      "ownRecordOnly": true,
+      "duplicateRequestHidden": true
+    }
+  },
+  {
+    "name": "recruitment-blank-title-browser",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "blankWrites": 0,
+      "failedValidDraftRetained": true
+    }
+  },
+  {
+    "name": "monthly-leave-csv-output",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "csv": "leave-period.csv",
+      "periodDays": 2,
+      "requestDays": 3
+    }
+  }
+]

@@ -130,6 +130,7 @@ export function useCreateTask() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['task-checklist'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
     },
@@ -151,6 +152,7 @@ export function useUpdateTask() {
     // click can advance from the old status while the successful write is still being refetched.
     onSuccess: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['tasks'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] }),
     ]),
   });
@@ -175,6 +177,7 @@ export function useAddAssignee() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
     },
   });
@@ -196,7 +199,10 @@ export function useRemoveAssignee() {
       if (error) throw error;
       if (!data?.length) throw new Error('They could not be removed. Your access may have changed.');
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['tasks'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['tasks'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -210,6 +216,7 @@ export function useDeleteTask() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['tasks'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
     },
   });

@@ -39,11 +39,12 @@ declare global {
   }
 }
 
-/** Short-lived cache so a burst of calls from one screen is not N round trips to Supabase. */
+/** Cache verified token identity only. Account state and grants must be checked on every request. */
+type VerifiedIdentity = Pick<AuthContext, 'userId' | 'email'>;
 const CACHE_TTL_MS = 60_000;
 const MAX_CACHE_ENTRIES = 2_000;
-const cache = new Map<string, { context: AuthContext; expiresAt: number }>();
-const inFlight = new Map<string, Promise<AuthContext | null>>();
+const cache = new Map<string, { identity: VerifiedIdentity; expiresAt: number }>();
+const inFlight = new Map<string, Promise<VerifiedIdentity | null>>();
 const MAX_PENDING_VERIFICATIONS = 100;
 
 function cacheKey(token: string): string {
@@ -58,52 +59,37 @@ function bearerToken(req: Request): string | null {
   return /^Bearer\s+(\S+)\s*$/i.exec(header)?.[1] ?? null;
 }
 
-async function resolveContext(token: string): Promise<AuthContext | null> {
-  const key = cacheKey(token);
-  const hit = cache.get(key);
-  if (hit && hit.expiresAt > Date.now()) return hit.context;
-  if (hit) cache.delete(key);
-  const pending = inFlight.get(key);
-  if (pending) return pending;
-  if (inFlight.size >= MAX_PENDING_VERIFICATIONS) {
-    throw Object.assign(new Error('Session verification is busy. Try again shortly.'), { status: 503 });
-  }
-  const verification = verifyContext(token, key).finally(() => { inFlight.delete(key); });
-  inFlight.set(key, verification);
-  return verification;
-}
-
-async function verifyContext(token: string, key: string): Promise<AuthContext | null> {
-  const supabase = createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
+function clientForToken(token: string) {
+  return createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
     global: {
       headers: { Authorization: `Bearer ${token}` },
       fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(8_000) }),
     },
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
 
+async function resolveIdentity(token: string, supabase: ReturnType<typeof clientForToken>): Promise<VerifiedIdentity | null> {
+  const key = cacheKey(token);
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.identity;
+  if (hit) cache.delete(key);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  if (inFlight.size >= MAX_PENDING_VERIFICATIONS) {
+    throw Object.assign(new Error('Session verification is busy. Try again shortly.'), { status: 503 });
+  }
+  const verification = verifyIdentity(token, key, supabase).finally(() => { inFlight.delete(key); });
+  inFlight.set(key, verification);
+  return verification;
+}
+
+async function verifyIdentity(token: string, key: string, supabase: ReturnType<typeof clientForToken>): Promise<VerifiedIdentity | null> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData?.user) return null;
-
-  // Runs as the caller, so it returns exactly the grants RLS would honour for them.
-  const { data: access, error: accessError } = await supabase.rpc('get_my_access');
-  if (accessError) {
-    logger.warn({ err: accessError.message }, 'get_my_access failed');
-    return null;
-  }
-
-  const payload = (access ?? {}) as {
-    is_super_admin?: boolean;
-    permissions?: Grant[];
-    employee?: { id: string; full_name: string; employee_code: string | null } | null;
-  };
-
-  const context: AuthContext = {
+  const identity: VerifiedIdentity = {
     userId: userData.user.id,
     email: userData.user.email ?? null,
-    isSuperAdmin: Boolean(payload.is_super_admin),
-    permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
-    employee: payload.employee ?? null,
   };
 
   // Token refreshes must not grow this process-wide map for the lifetime of the worker.
@@ -120,8 +106,33 @@ async function verifyContext(token: string, key: string): Promise<AuthContext | 
     const claims = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString());
     if (typeof claims.exp === 'number' && Number.isFinite(claims.exp)) expiresAt = Math.min(expiresAt, claims.exp * 1000);
   } catch { /* Non-JWT test identities and future opaque tokens use only the short TTL. */ }
-  cache.set(key, { context, expiresAt });
-  return context;
+  cache.set(key, { identity, expiresAt });
+  return identity;
+}
+
+async function resolveContext(token: string): Promise<AuthContext | null> {
+  const supabase = clientForToken(token);
+  const identity = await resolveIdentity(token, supabase);
+  if (!identity) return null;
+
+  // Never cache or share this result across requests. get_my_access rejects inactive/banned/
+  // deleted accounts immediately, even when the unchanged JWT identity is still cached.
+  const { data: access, error: accessError } = await supabase.rpc('get_my_access');
+  if (accessError) {
+    logger.warn({ err: accessError.message }, 'get_my_access failed');
+    return null;
+  }
+  const payload = (access ?? {}) as {
+    is_super_admin?: boolean;
+    permissions?: Grant[];
+    employee?: { id: string; full_name: string; employee_code: string | null } | null;
+  };
+  return {
+    ...identity,
+    isSuperAdmin: Boolean(payload.is_super_admin),
+    permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+    employee: payload.employee ?? null,
+  };
 }
 
 /** Populate req.auth, rejecting anything without a valid token. */
@@ -240,6 +251,12 @@ export async function resolveVisibleScope(
  */
 export async function contextForUserId(userId: string | null): Promise<AuthContext | null> {
   if (!userId) return null;
+
+  // Queued work has no bearer token, but the requester must still be active when work starts.
+  // This service-only database helper uses the same ban/deletion/employee-status rule as RPC/RLS.
+  const account = await prisma.$queryRaw<Array<{ active: boolean }>>`
+    select app.account_is_active(${userId}::uuid) as active`;
+  if (!account[0]?.active) return null;
 
   const rows = await prisma.$queryRaw<Array<{ permission: string; scope_type: string; scope_id: string | null }>>`
     select p.key as permission, ra.scope_type::text as scope_type, ra.scope_id::text as scope_id

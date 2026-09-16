@@ -379,6 +379,159 @@ test('leave is not auto-cancelled without a punch or when it covers only half a 
 // regularization
 // ---------------------------------------------------------------------------
 
+test('ATT-01: approved check-in keeps a lone real departure and resolves the exception', () => {
+  for (const missedPunchPolicy of ['exception', 'present'] as const) {
+    const r = processDay(day({
+      shift: { ...FLEXIBLE, missedPunchPolicy },
+      punches: [punchAt('2026-07-15', '16:30')],
+      regularization: { id: 'reg-in', checkIn: workDateAtTime('2026-07-15', '09:00'), checkOut: null },
+    }));
+    assert.equal(r.checkIn?.getTime(), workDateAtTime('2026-07-15', '09:00').getTime());
+    assert.equal(r.checkOut?.getTime(), workDateAtTime('2026-07-15', '16:30').getTime());
+    assert.equal(r.workedMinutes, 450);
+    assert.equal(r.dayFraction, 1);
+    assert.equal(r.isMissingPunch, false);
+    assert.equal(r.punchCount, 1, 'raw device evidence remains unchanged');
+    assert.equal(r.punches[0]?.getTime(), r.checkOut?.getTime());
+  }
+});
+
+test('ATT-02: approved departure rebuilds sessions and deducts the measured excess break', () => {
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['09:00', '12:00', '13:30'].map(t => punchAt('2026-07-15', t)),
+    regularization: { id: 'reg-out', checkIn: null, checkOut: workDateAtTime('2026-07-15', '17:30') },
+  }));
+  assert.equal(r.workedMinutes, 460);
+  assert.equal(r.breakMinutes, 90);
+  assert.equal(r.breaksIncomplete, false);
+  assert.equal(r.isMissingPunch, false);
+  assert.equal(r.isLongBreak, true);
+  assert.equal(r.punchCount, 3);
+});
+
+test('a missing arrival before a recorded break preserves the break and departure', () => {
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['12:00', '13:30', '17:30'].map(t => punchAt('2026-07-15', t)),
+    regularization: { id: 'reg-in', checkIn: workDateAtTime('2026-07-15', '09:00'), checkOut: null },
+  }));
+  assert.equal(r.breakMinutes, 90);
+  assert.equal(r.workedMinutes, 460);
+  assert.equal(r.isMissingPunch, false);
+});
+
+test('explicit endpoint overrides on complete days keep internal breaks without adding false ones', () => {
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['09:00', '12:00', '13:30', '17:30'].map(t => punchAt('2026-07-15', t)),
+    regularization: {
+      id: 'reg-both', checkIn: workDateAtTime('2026-07-15', '09:10'),
+      checkOut: workDateAtTime('2026-07-15', '17:40'),
+    },
+  }));
+  assert.equal(r.breakMinutes, 90);
+  assert.equal(r.workedMinutes, 460);
+  assert.equal(r.isMissingPunch, false);
+  assert.equal(r.firstPunchAt?.getTime(), workDateAtTime('2026-07-15', '09:00').getTime());
+  assert.equal(r.lastPunchAt?.getTime(), workDateAtTime('2026-07-15', '17:30').getTime());
+});
+
+test('an endpoint override cannot clear an unresolved internal missing punch', () => {
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    punches: ['09:00', '12:00', '17:30'].map(t => punchAt('2026-07-15', t)),
+    regularization: { id: 'reg-out', checkIn: null, checkOut: workDateAtTime('2026-07-15', '17:30') },
+  }));
+  assert.equal(r.breaksIncomplete, true);
+  assert.equal(r.isMissingPunch, true);
+});
+
+test('two proposed endpoints do not erase an unpaired real interior punch', () => {
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-15', '12:00')],
+    regularization: {
+      id: 'reg-both', checkIn: workDateAtTime('2026-07-15', '09:00'),
+      checkOut: workDateAtTime('2026-07-15', '17:30'),
+    },
+  }));
+  assert.equal(r.breaksIncomplete, true);
+  assert.equal(r.isMissingPunch, true);
+});
+
+test('ATT-03: completed corrections on rest days clear missing flags and contradictory remarks', () => {
+  for (const dayType of ['weekly_off', 'holiday'] as const) {
+    const r = processDay(day({
+      workDate: '2026-07-19', dayType, shift: FLEXIBLE,
+      punches: [punchAt('2026-07-19', '09:00')],
+      regularization: { id: 'reg-off', checkIn: null, checkOut: workDateAtTime('2026-07-19', '11:00') },
+    }));
+    assert.equal(r.workedMinutes, 120);
+    assert.equal(r.otMinutes, 120);
+    assert.equal(r.isMissingPunch, false);
+    assert.equal(r.breaksIncomplete, false);
+    assert.doesNotMatch(r.remarks ?? '', /cannot be measured|missing/);
+  }
+});
+
+test('ATT-04: paid half-day leave stays half credit until the missing worked half is verified', () => {
+  const input = day({
+    shift: FLEXIBLE,
+    punches: [punchAt('2026-07-15', '09:00')],
+    leave: { id: 'half-leave', type: 'CL', dayFraction: 0.5, isLop: false, isPaid: true },
+  });
+  const provisional = processDay(input);
+  assert.equal(provisional.dayFraction, 0.5);
+  assert.equal(provisional.status, 'Missing Punch');
+  assert.equal(provisional.isMissingPunch, true);
+  assert.equal(provisional.leaveId, 'half-leave');
+
+  const verified = processDay({ ...input,
+    regularization: { id: 'reg-half', checkIn: null, checkOut: workDateAtTime('2026-07-15', '13:30') },
+  });
+  assert.equal(verified.dayFraction, 1);
+  assert.equal(verified.status, 'On Leave');
+  assert.equal(verified.isMissingPunch, false);
+});
+
+test('checkout-only correction without raw punches remains a known departure with missing arrival', () => {
+  const r = processDay(day({
+    shift: FLEXIBLE,
+    regularization: { id: 'reg-out', checkIn: null, checkOut: workDateAtTime('2026-07-15', '16:30') },
+  }));
+  assert.equal(r.checkIn, null);
+  assert.equal(r.checkOut?.getTime(), workDateAtTime('2026-07-15', '16:30').getTime());
+  assert.equal(r.workedMinutes, 450);
+  assert.equal(r.isMissingPunch, true);
+  assert.equal(r.dayFraction, 0.5);
+});
+
+test('ATT-04: paid half leave remains half credit for every unresolved endpoint or internal gap', () => {
+  for (const missedPunchPolicy of ['exception', 'present'] as const) {
+    for (const clocks of [['09:00'], ['09:00', '12:00', '17:30']]) {
+      const r = processDay(day({
+        shift: { ...FLEXIBLE, missedPunchPolicy },
+        punches: clocks.map(t => punchAt('2026-07-15', t)),
+        leave: { id: 'half-leave', type: 'CL', dayFraction: 0.5, isLop: false, isPaid: true },
+      }));
+      assert.equal(r.isMissingPunch, true);
+      assert.equal(r.dayFraction, 0.5, `${missedPunchPolicy} with ${clocks.length} punches`);
+    }
+  }
+});
+
+test('ATT-05: next-day approved departure completes a night-shift timeline', () => {
+  const r = processDay(day({
+    shift: NIGHT,
+    punches: [punchAt('2026-07-15', '22:00')],
+    regularization: { id: 'reg-night', checkIn: null, checkOut: workDateAtTime('2026-07-15', '06:00', 1) },
+  }));
+  assert.equal(r.workedMinutes, 450);
+  assert.equal(r.dayFraction, 1);
+  assert.equal(r.isMissingPunch, false);
+});
+
 test('an approved regularization supplies the missing check-out', () => {
   const r = processDay(
     day({

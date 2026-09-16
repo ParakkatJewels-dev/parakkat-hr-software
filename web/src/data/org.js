@@ -210,7 +210,10 @@ export function useOrgMutation() {
       if (error) throw new Error(friendlyOrgError(error, table, op));
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['org'] }),
+    onSuccess: (_data, variables) => Promise.all([
+      qc.invalidateQueries({ queryKey: ['org'] }),
+      ...(variables.table === 'branches' ? [qc.invalidateQueries({ queryKey: ['leaves-period-days'] })] : []),
+    ]),
   });
 }
 

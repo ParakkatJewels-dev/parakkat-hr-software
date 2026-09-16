@@ -1,0 +1,610 @@
+{
+  "summary": {
+    "total": 55,
+    "failed": 11,
+    "passed": 44
+  },
+  "probes": [
+    {
+      "label": "banned HR/employee rows revoked",
+      "actual": 4,
+      "passed": false,
+      "expected": 0
+    },
+    {
+      "label": "branch_manager/candidates/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "branch_manager/documents/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000105"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000105"
+      ]
+    },
+    {
+      "label": "branch_manager/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000105"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000105"
+      ]
+    },
+    {
+      "label": "branch_manager/expense/cannot approve filed claim control",
+      "actual": {
+        "denied": true,
+        "message": "You filed this claim, so you cannot approve it — someone else has to review it.",
+        "sqlstate": "42501"
+      },
+      "passed": true,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "branch_manager/expense/cannot approve own Pending control",
+      "actual": {
+        "denied": true,
+        "message": "You cannot approve your own request — someone else has to review it.",
+        "sqlstate": "42501"
+      },
+      "passed": true,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "branch_manager/expense/cannot erase filer and approve",
+      "actual": {
+        "status": "Approved",
+        "created_by": null
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "branch_manager/expense/cannot pay own Pending",
+      "actual": {
+        "status": "Paid"
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "branch_manager/expense/cannot self-approve through Draft",
+      "actual": {
+        "status": "Approved"
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "branch_manager/jobs/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "branch_manager/onboarding/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "dept_head/candidates/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "dept_head/documents/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000106"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000106"
+      ]
+    },
+    {
+      "label": "dept_head/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000106"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000106"
+      ]
+    },
+    {
+      "label": "dept_head/jobs/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "dept_head/onboarding/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "employee/candidates/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "employee/designation/cannot rewrite own designation",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "employee/documents/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000107"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000107"
+      ]
+    },
+    {
+      "label": "employee/exit/cannot self-certify clearance",
+      "actual": {
+        "status": "Completed",
+        "approvals": {
+          "HR": "Approved",
+          "IT": "Approved",
+          "Admin": "Approved",
+          "Finance": "Approved"
+        }
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "employee/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000107"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000107"
+      ]
+    },
+    {
+      "label": "employee/expense/cannot forge filer",
+      "actual": {
+        "created_by": "60000000-0000-0000-0000-000000000003"
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "employee/expense/cannot insert Approved",
+      "actual": {
+        "amount": 100,
+        "status": "Approved"
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "employee/expense/cannot insert Paid",
+      "actual": {
+        "amount": 100,
+        "status": "Paid"
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "employee/expense/cannot insert negative amount",
+      "actual": {
+        "amount": -100,
+        "status": "Pending"
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "employee/expense/pending control",
+      "actual": {
+        "status": "Pending"
+      },
+      "passed": true,
+      "expected": {
+        "status": "Pending"
+      }
+    },
+    {
+      "label": "employee/jobs/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "employee/onboarding/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "employee/regularization/cannot insert Approved",
+      "actual": {
+        "status": "Approved",
+        "work_date": "2026-09-16"
+      },
+      "passed": false,
+      "expected": {
+        "denied": true
+      }
+    },
+    {
+      "label": "entity_admin/candidates/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ]
+    },
+    {
+      "label": "entity_admin/documents/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000102"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000102"
+      ]
+    },
+    {
+      "label": "entity_admin/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000102"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000102"
+      ]
+    },
+    {
+      "label": "entity_admin/jobs/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ]
+    },
+    {
+      "label": "entity_admin/onboarding/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ]
+    },
+    {
+      "label": "hr_manager/candidates/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ]
+    },
+    {
+      "label": "hr_manager/documents/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000103"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000103"
+      ]
+    },
+    {
+      "label": "hr_manager/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000103"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000103"
+      ]
+    },
+    {
+      "label": "hr_manager/jobs/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ]
+    },
+    {
+      "label": "hr_manager/onboarding/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004"
+      ]
+    },
+    {
+      "label": "inactive HR/employee rows revoked",
+      "actual": 4,
+      "passed": false,
+      "expected": 0
+    },
+    {
+      "label": "super_admin/candidates/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005"
+      ]
+    },
+    {
+      "label": "super_admin/documents/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005",
+        "50000000-0000-0000-0000-000000000101"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005",
+        "50000000-0000-0000-0000-000000000101"
+      ]
+    },
+    {
+      "label": "super_admin/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005",
+        "50000000-0000-0000-0000-000000000101"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005",
+        "50000000-0000-0000-0000-000000000101"
+      ]
+    },
+    {
+      "label": "super_admin/jobs/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005"
+      ]
+    },
+    {
+      "label": "super_admin/onboarding/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000001",
+        "50000000-0000-0000-0000-000000000002",
+        "50000000-0000-0000-0000-000000000003",
+        "50000000-0000-0000-0000-000000000004",
+        "50000000-0000-0000-0000-000000000005"
+      ]
+    },
+    {
+      "label": "unassigned/candidates/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "unassigned/documents/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "unassigned/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000108"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000108"
+      ]
+    },
+    {
+      "label": "unassigned/jobs/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "unassigned/onboarding/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "zonal_manager/candidates/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "zonal_manager/documents/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000104"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000104"
+      ]
+    },
+    {
+      "label": "zonal_manager/exits/exact visible rows",
+      "actual": [
+        "50000000-0000-0000-0000-000000000104"
+      ],
+      "passed": true,
+      "expected": [
+        "50000000-0000-0000-0000-000000000104"
+      ]
+    },
+    {
+      "label": "zonal_manager/jobs/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    },
+    {
+      "label": "zonal_manager/onboarding/exact visible rows",
+      "actual": [],
+      "passed": true,
+      "expected": []
+    }
+  ]
+}

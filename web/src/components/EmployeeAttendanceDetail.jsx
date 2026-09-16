@@ -17,6 +17,7 @@ import { useClockFormat } from '../lib/timeFormat';
 import { explainDay, asHoursMinutes, onSiteMinutes, insideMinutes } from '../lib/attendanceSummary';
 import { useEmployees } from '../data/employees';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
+import { attendanceTimeline } from '../lib/attendanceTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
@@ -105,7 +106,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
       'Break complete', 'Late (min)', 'Early (min)', 'OT (min)', 'Leave', 'All punches'];
     const body = filtered.map((r) => {
       const punches = Array.isArray(r.punches) ? r.punches : [];
-      const breaks = punches.length >= 4 ? Math.floor((punches.length - 2) / 2) : 0;
+      const corrected = attendanceTimeline(r);
+      const breaks = corrected.length >= 4 ? Math.floor((corrected.length - 2) / 2) : 0;
       return [
         r.work_date, DOW[new Date(`${r.work_date}T00:00:00`).getDay()], r.status,
         fmtTime(r.check_in), fmtTime(r.check_out),
@@ -360,13 +362,12 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                     <tbody>
                       {pager.slice.map((r) => {
                         const dow = new Date(`${r.work_date}T00:00:00`).getDay();
-                        const punches = Array.isArray(r.punches) ? r.punches : [];
+                        const punches = attendanceTimeline(r);
                         // Two punches are just in and out — there is no timeline worth opening.
                         const hasTimeline = punches.length > 2;
                         const open = openDay === r.id;
-                        // First punch to last. Not check_in/check_out: on a day with a
-                        // reconstructed punch those are the assumed times, and this column is meant
-                        // to be only what the terminal actually recorded.
+                        // Device times plus approved corrections. Schedule reconstructions are
+                        // excluded: they have not been verified by an attendance reviewer.
                         const onSite = onSiteMinutes(r);
                         const inside = insideMinutes(r);
                         return (

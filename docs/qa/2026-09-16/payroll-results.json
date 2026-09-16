@@ -1,0 +1,185 @@
+{
+  "summary": {
+    "total": 17,
+    "failed": 6,
+    "passed": 11
+  },
+  "probes": [
+    {
+      "label": "PAY-01/absence and half-day reduce payable days",
+      "actual": {
+        "lop": 0,
+        "paid": 30,
+        "gross": 30000
+      },
+      "passed": false,
+      "expected": {
+        "lop": 1.5,
+        "paid": 28.5,
+        "gross": 28500
+      }
+    },
+    {
+      "label": "PAY-02/fixed deduction obeys Reduce with unpaid days",
+      "actual": {
+        "net": 12000,
+        "gross": 15000,
+        "deductions": 3000
+      },
+      "passed": false,
+      "expected": {
+        "net": 13500,
+        "gross": 15000,
+        "deductions": 1500
+      }
+    },
+    {
+      "label": "PAY-03/named structure and part-of-gross component preserve agreed gross",
+      "actual": {
+        "net": 35000,
+        "gross": 35000
+      },
+      "passed": false,
+      "expected": {
+        "net": 30000,
+        "gross": 30000
+      }
+    },
+    {
+      "label": "PAY-04/employee can read own payslip after publication",
+      "actual": 0,
+      "passed": false,
+      "expected": 1
+    },
+    {
+      "label": "PAY-04/employee can read published earning lines",
+      "actual": 0,
+      "passed": false,
+      "expected": 2
+    },
+    {
+      "label": "PAY-04/published payslip uses employee-visible status",
+      "actual": "Paid",
+      "passed": false,
+      "expected": "Published"
+    },
+    {
+      "label": "control/basic above gross rejected",
+      "actual": "23514",
+      "passed": true,
+      "expected": "23514"
+    },
+    {
+      "label": "control/deleting published payroll rejected",
+      "actual": "23514",
+      "passed": true,
+      "expected": "23514"
+    },
+    {
+      "label": "control/employee cannot read own draft",
+      "actual": 0,
+      "passed": true,
+      "expected": 0
+    },
+    {
+      "label": "control/employee cannot run payroll",
+      "actual": "P0001",
+      "passed": true,
+      "expected": "P0001"
+    },
+    {
+      "label": "control/explicit LOP prorates salary",
+      "actual": {
+        "lop": 15,
+        "paid": 15,
+        "gross": 15000
+      },
+      "passed": true,
+      "expected": {
+        "lop": 15,
+        "paid": 15,
+        "gross": 15000
+      }
+    },
+    {
+      "label": "control/full-month salary and future structure excluded",
+      "actual": {
+        "lop": 0,
+        "net": 30000,
+        "paid": 30,
+        "gross": 30000
+      },
+      "passed": true,
+      "expected": {
+        "lop": 0,
+        "net": 30000,
+        "paid": 30,
+        "gross": 30000
+      }
+    },
+    {
+      "label": "control/named salary lines equal agreed gross",
+      "actual": [
+        {
+          "code": "BASIC",
+          "amount": 20000
+        },
+        {
+          "code": "GROSS_1",
+          "amount": 10000
+        }
+      ],
+      "passed": true,
+      "expected": [
+        {
+          "code": "BASIC",
+          "amount": 20000
+        },
+        {
+          "code": "GROSS_1",
+          "amount": 10000
+        }
+      ]
+    },
+    {
+      "label": "control/percent base cap amount cap employer cost and eligibility scope",
+      "actual": {
+        "net": 14600,
+        "gross": 15000,
+        "deductions": 400,
+        "employer_cost": 450
+      },
+      "passed": true,
+      "expected": {
+        "net": 14600,
+        "gross": 15000,
+        "deductions": 400,
+        "employer_cost": 450
+      }
+    },
+    {
+      "label": "control/publish marks run Published",
+      "actual": "Published",
+      "passed": true,
+      "expected": "Published"
+    },
+    {
+      "label": "control/rerun creates one payslip and two lines",
+      "actual": {
+        "lines": 2,
+        "payslips": 1
+      },
+      "passed": true,
+      "expected": {
+        "lines": 2,
+        "payslips": 1
+      }
+    },
+    {
+      "label": "control/rerunning published payroll rejected",
+      "actual": "P0001",
+      "passed": true,
+      "expected": "P0001"
+    }
+  ]
+}

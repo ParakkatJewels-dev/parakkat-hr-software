@@ -230,7 +230,9 @@ class Query {
       return 0;
     });
     const page = rows.slice(this.start, this.start + Math.min(this.size, 1000));
-    return Promise.resolve({ data: this.head ? null : this.one ? page[0] ?? null : page,
+    // Real HTTP responses never share mutable row objects with their backing store. Cloning
+    // here keeps React Query structural sharing from masking subsequent fixture changes.
+    return Promise.resolve({ data: structuredClone(this.head ? null : this.one ? page[0] ?? null : page),
       count: rows.length, error: null }).then(resolve, reject);
   }
 }
@@ -242,6 +244,7 @@ export const supabase = {
     let rows = tables[name] ?? [];
     if (roleMode && tablePermissions[name]) rows = rows.filter((row) => fixtureAllows(tablePermissions[name], row));
     if (name === 'leaves') rows = workflowLeaveRows(rows, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows });
+    if (name === 'exits' && roleMode) rows = rows.filter(row => row.employee_id === fixture.employees[0].id || fixtureAllows('exit.manage', row));
     return new Query(rows, name);
   },
   rpc(name, args = {}) {
@@ -254,7 +257,7 @@ export const supabase = {
       const query = new Query(routine.rows);
       return routine.one ? query.single() : query;
     }
-    const workflow = workflowRpc(name, args, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows,
+    const workflow = workflowRpc(name, args, { role: qaRole, userId: user.id, employee: fixture.employees[0], allows: fixtureAllows,
       event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
     if (workflow) {
       if (workflow.error) return Promise.resolve({ data: null, error: workflow.error });

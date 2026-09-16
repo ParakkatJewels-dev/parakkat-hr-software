@@ -1,9 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { clamp, constrainLens, dragIntent, insideDock, nearestDestination, stepSpring } from './liquidGlassMotion.js';
-import UnreadMessageBadge, { unreadMessageLabel } from './UnreadMessageBadge';
+import { NavigationCountBadge, NavigationCountStatus } from './CountBadge';
+import { navigationCountLabel, navigationScreenCount } from '../../lib/navigationCounts';
 
 /** A small DOM-only spring: motion never rerenders the application or samples its content. */
-export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = false, isPwaInstalled = false }) {
+export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = false, isPwaInstalled = false, countStatus = null }) {
   const navRef = useRef(null);
   const lensRef = useRef(null);
   const buttonsRef = useRef(new Map());
@@ -279,13 +280,15 @@ export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = f
     <span className="liquid-glass-nav__rim" aria-hidden="true" />
     <span className="liquid-glass-nav__sheen" aria-hidden="true" />
     <span ref={lensRef} className="mobile-bottom-nav-indicator liquid-glass-nav__lens" data-visible="false" aria-hidden="true" />
+    <NavigationCountStatus {...countStatus} compact />
     {items.map(item => {
       const Icon = item.icon;
       const active = item.id === activeId && item.id !== 'menu';
+      const badge = item.badge ?? (item.id === 'messages' ? navigationScreenCount('messages', null, item.unreadCount) : null);
       return <button key={item.id} ref={node => { if (node) buttonsRef.current.set(item.id, node); else buttonsRef.current.delete(item.id); }}
         type="button" className={`mobile-bottom-nav-item${active ? ' mobile-bottom-nav-item-active' : ''}`}
         data-glass-destination={item.id} disabled={item.disabled}
-        aria-label={unreadMessageLabel(item.label, item.unreadCount)} aria-current={active ? 'page' : undefined}
+        aria-label={navigationCountLabel(item.label, badge)} aria-current={active ? 'page' : undefined}
         aria-haspopup={item.id === 'menu' ? 'dialog' : undefined}
         aria-controls={item.id === 'menu' ? 'mobile-navigation' : undefined}
         aria-expanded={item.id === 'menu' ? menuOpen : undefined}
@@ -295,7 +298,7 @@ export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = f
             ? <img src={item.avatarUrl} alt="" draggable="false" onError={() => setFailedAvatar(item.avatarUrl)} />
             : item.initials || 'Me'}
         </span></span> : <span className="mobile-bottom-nav-icon" aria-hidden="true"><span className="nav-message-icon">
-          {Icon && <Icon size={20} />}<UnreadMessageBadge count={item.unreadCount} corner />
+          {Icon && <Icon size={20} />}<NavigationCountBadge badge={badge} corner />
         </span></span>}
         <span className="mobile-bottom-nav-label" aria-hidden="true">{item.label}</span>
       </button>;

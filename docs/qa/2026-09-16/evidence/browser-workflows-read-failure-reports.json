@@ -1,0 +1,10 @@
+[
+  {
+    "name": "read-failure-reports",
+    "role": "hr_manager",
+    "status": "FAIL",
+    "error": "Expected a report loading failure to be visible; observed empty report instead.",
+    "pageErrors": [],
+    "screen": "Reports & Analytics\n\nBranch-wise operational reports, scoped to what you may see. Pick a month and branch, then export.\n\nAll branches (in your scope)\nAttendance\nLeave\nExpenses\nHeadcount\nLEAVE REPORT · 2026-09\nRequests (CSV)\nBalances (CSV)\n\nNo data for this period in your scope.\n\n0 requests overlapping 2026-09 in your scope. LOP days appear in the Attendance tab."
+  }
+]

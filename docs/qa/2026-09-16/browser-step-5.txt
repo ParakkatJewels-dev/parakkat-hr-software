@@ -1,0 +1,133 @@
+Skip to content
+Parakkat Admin
+Home
+Work
+1
+Time & Attendance
+99+
+Messages
+People
+Pay & Expenses
+Asset Management
+Support
+Reports
+My Profile
+Administration
+SE
+Sample Employee 0001
+Super Admin
+Administration · Developer Settings
+Search anything…
+⌘K
+Super Admin
+SE
+Sample Employee 0001
+Super Admin
+Users & Access
+Roles
+Audit Log
+Developer Settings
+Chat Monitor
+Pull to refresh
+
+ADMINISTRATION
+
+Developer Settings
+
+Connect your tools to HR data with scoped, read-only API keys.
+
+API access
+Disabled
+
+Enable access when you are ready to connect an integration.
+
+API keys
+
+Give each integration its own key and access level.
+
+Create key
+
+Full keys are shown only once, immediately after creation. If you did not save a key, create a replacement to get a new one you can copy.
+
+QA reporting dashboard
+qa_sample_reporting_••••••••
+Active
+Employee directory
+Organization
+Company
+All companies
+Created
+9 Sept 2026
+Expires
+8 Dec 2026
+Last used
+15 Sept 2026
+
+The full key was shown only when it was created.
+
+Create replacement
+Revoke key
+QA attendance export
+qa_sample_attendance_••••••••
+Expired
+Attendance
+Company
+Sample Jewellery
+Created
+7 Aug 2026
+Expires
+6 Sept 2026
+Last used
+5 Sept 2026
+
+The full key was shown only when it was created.
+
+Create replacement
+Revoke key
+QA retired integration
+qa_sample_retired_••••••••
+Revoked
+Employee directory
+Company
+All companies
+Created
+18 Jul 2026
+Expires
+16 Oct 2026
+Last used
+Never
+
+The full key was shown only when it was created.
+
+Create replacement
+Getting started
+
+Send requests from your server or integration using an active API key.
+
+Base URL
+Copy
+http://127.0.0.1:5174/api/v1
+Authentication
+Copy
+
+Add this request header:
+
+Authorization: Bearer YOUR_API_KEY
+Example request
+Copy
+curl 'http://127.0.0.1:5174/api/v1/employees?limit=50&offset=0' \
+  -H 'Authorization: Bearer YOUR_API_KEY'
+Read endpoints
+GET /employees
+Work directory
+GET /organization
+Companies, locations and departments
+GET /attendance
+Include from=YYYY-MM-DD and to=YYYY-MM-DD, up to 31 days per request.
+Pages and limits
+
+Use limit and offset to page through results. The default page has 50 records; the maximum is 100.
+
+Each key allows up to 60 requests per minute. Revoking a key stops its access immediately.
+
+QA · 525 synthetic employees

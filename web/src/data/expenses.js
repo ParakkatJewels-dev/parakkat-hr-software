@@ -51,6 +51,7 @@ export function useAddExpense() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
     },
   });
@@ -96,6 +97,7 @@ export function useSetExpenseStatus() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
     },
   });

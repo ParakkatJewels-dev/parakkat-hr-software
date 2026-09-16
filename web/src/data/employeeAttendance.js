@@ -18,7 +18,7 @@ const SELECT = `
   work_date, status, day_type, check_in, check_out, hours, is_locked,
   worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
   is_late, is_early_exit, is_missing_punch, is_lop, day_fraction,
-  leave_type, remarks, punch_count, scheduled_in, scheduled_out, source,
+  leave_type, remarks, punch_count, scheduled_in, scheduled_out, source, regularization_id,
   punches, break_minutes, breaks_incomplete, is_short_day, is_long_break,
   shift:shifts(id, code, name, start_time, end_time, is_flexible, full_day_minutes,
                short_day_tolerance_minutes, break_minutes)

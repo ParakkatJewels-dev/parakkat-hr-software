@@ -80,7 +80,7 @@ export function useDepartments() {
 // Accepting creates a task, so the task caches have to go too — the board, the counts and the
 // notification badges all change on the strength of one click here.
 const TOUCHED = [
-  ['help-requests'], ['tasks'], ['notifications'], ['notification-ref-statuses'],
+  ['help-requests'], ['tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],
 ];
 
 export function useRequestHelp() {

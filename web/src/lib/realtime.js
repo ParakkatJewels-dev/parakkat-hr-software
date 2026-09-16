@@ -14,14 +14,15 @@ const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['m
 const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
 // a staff transfer or a permission change can alter the queue without changing its request rows.
-const WORKFLOW_ACCESS_KEYS = [['leaves'], ['leaves-period'], ['leave-balances'], ['ticket-access'],
+const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['ticket-access'],
   ['ticket-categories'], ['tickets'], ['notification-ref-statuses'], ...ROUTINE_KEYS];
 
 // public table → query-key prefixes to invalidate when it changes. A prefix invalidates every
 // query whose key starts with it (e.g. ['attendance'] covers ['attendance','day',date]).
 const TABLE_KEYS = {
   notifications: [['notifications']],
-  tasks: [['tasks'], ['notification-ref-statuses']],
+  tasks: [['section-counts'], ['tasks'], ['notification-ref-statuses']],
+  task_assignees: [['tasks'], ['section-counts'], ['notification-ref-statuses']],
   goals: [['goals']],
   // A help request is answered by somebody else, on another screen, and the person who raised it is
   // sitting looking at it. Without this the answer only arrives on the 5-minute safety poll.
@@ -34,10 +35,10 @@ const TABLE_KEYS = {
   routine_ticks: ROUTINE_KEYS,
   routine_items: ROUTINE_KEYS,
   routine_sets: ROUTINE_KEYS,
-  leaves: [['leaves'], ['leaves-period'], ['leave-balances'], ['notification-ref-statuses']],
-  leave_decisions: [['leaves'], ['notifications']],
-  expenses: [['expenses'], ['notification-ref-statuses']],
-  attendance_regularizations: [['regularizations'], ['notification-ref-statuses']],
+  leaves: [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['notification-ref-statuses']],
+  leave_decisions: [['section-counts'], ['leaves'], ['notifications']],
+  expenses: [['section-counts'], ['expenses'], ['expenses-period'], ['notification-ref-statuses']],
+  attendance_regularizations: [['section-counts'], ['regularizations'], ['notification-ref-statuses']],
   attendance: [['attendance']],
   // Punches invalidate ONLY the punch drill-down. They used to also invalidate ['attendance'],
   // which meant every punch re-pulled the (large) attendance queries on every connected admin's
@@ -47,8 +48,8 @@ const TABLE_KEYS = {
   // Queued work for the sync service. Pushed rather than polled so a button press shows its
   // outcome the moment the service writes it back, instead of on the next 5-second tick.
   service_commands: [['service-commands'], ['sync-runs'], ['sync-health']],
-  tickets: [['tickets'], ['notification-ref-statuses']],
-  ticket_categories: [['ticket-categories'], ['ticket-access'], ['tickets']],
+  tickets: [['section-counts'], ['tickets'], ['notification-ref-statuses']],
+  ticket_categories: [['section-counts'], ['ticket-categories'], ['ticket-access'], ['tickets']],
   assets: [['assets']],
   asset_assignments: [['assets'], ['asset-history']],
   employees: [['employees'], ['employee'], ['messaging-people'], ...WORKFLOW_ACCESS_KEYS],
@@ -61,8 +62,8 @@ const TABLE_KEYS = {
   profiles: [['managed-users'], ...WORKFLOW_ACCESS_KEYS],
   entities: [['org']],
   zones: [['org']],
-  branches: [['org'], ['messaging-people'], ...ROUTINE_KEYS],
-  departments: [['org'], ['ticket-categories'], ['ticket-access'], ['tickets'], ...ROUTINE_KEYS],
+  branches: [['org'], ['messaging-people'], ['leaves-period-days'], ...ROUTINE_KEYS],
+  departments: [['section-counts'], ['org'], ['ticket-categories'], ['ticket-access'], ['tickets'], ...ROUTINE_KEYS],
   designations: [['org'], ['employees'], ...ROUTINE_KEYS],
   // A chat that arrives on the five-minute safety poll is not a chat. RLS applies to realtime too,
   // so a subscriber is only sent messages from conversations they are already allowed to read.

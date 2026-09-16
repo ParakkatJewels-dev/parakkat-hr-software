@@ -1,0 +1,31 @@
+{
+  "mode": "local only; no deployment, remote writes, or real communications",
+  "confirmed_defects_fixed": 21,
+  "workflow_gap_completed": "FE-09",
+  "policy_decisions": {
+    "inactive_or_banned": "block next database/API request without token refresh",
+    "paid_half_leave_missing_punch": "0.5 until verified",
+    "headcount": "current roster, clearly labeled"
+  },
+  "validation": {
+    "frontend_tests": 1144,
+    "attendance_tests": 242,
+    "engine_integration_tests": 10,
+    "database_migration_files": 149,
+    "database_role_assertions": 1259,
+    "database_contract_groups": 38,
+    "payroll_assertions": 33,
+    "attendance_role_http_requests": 249,
+    "report_synthetic_employees": 503,
+    "browser_route_checks": 674,
+    "browser_workflows": 22,
+    "new_browser_workflows": 5,
+    "mobile_clearance_workflow": 1,
+    "chat_developer_workflows": 6,
+    "build": "pass",
+    "lint": "pass with32 existingwarnings",
+    "typecheck": "pass"
+  },
+  "source_files_hashed": 621,
+  "limits": "See README.md; counts overlap and must not be added. Hosted integrations and every workflow permutation are not claimed tested."
+}

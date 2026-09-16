@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Building2, HelpCircle, Loader2, Plus, X } from 'lucide-react';
 import { useTickets, useAddTicket, useSetTicketStatus } from '../data/tickets';
 import { useTicketAccess, useTicketCategories } from '../data/ticketCategories';
 import { useVisibleOrg } from '../data/org';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
-import { availableTicketCategories, canManageTicket, filterTickets, TICKET_STATUSES } from '../lib/ticketRouting';
+import { ACTIONABLE_TICKET_STATUSES, availableTicketCategories, canManageTicket, filterTickets, ticketQueueCounts, TICKET_STATUSES } from '../lib/ticketRouting';
 import { humanDbError } from '../lib/dbErrors';
 import { useFocusRow } from '../lib/useFocusRow';
 import { btnClass } from './ui/Btn';
@@ -19,6 +20,12 @@ const badgeClass = (status) => status === 'Resolved'
   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
   : status === 'In Progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
     : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-900 dark:text-neutral-300';
+const queueLabel = (label, count) => count === null ? `${label}, checking tickets needing action`
+  : `${label}, ${count} ticket${count === 1 ? '' : 's'} needing action`;
+function QueueBadge({ count }) {
+  if (count === 0) return null;
+  return <span aria-hidden="true" className="min-w-5 rounded-full bg-neutral-900/10 px-1.5 py-0.5 text-xs tabular-nums dark:bg-white/15">{count === null ? '?' : count > 99 ? '99+' : count}</span>;
+}
 
 export default function TicketDesk() {
   const { employee } = useAuth();
@@ -30,8 +37,15 @@ export default function TicketDesk() {
   const add = useAddTicket();
   const submitting = useRef(false);
   const update = useSetTicketStatus();
+  const location = useLocation();
+  const [params, setParams] = useSearchParams();
+  const requestedQueue = params.get('ticketQueue');
+  const setQueue = useCallback((value) => setParams(previous => {
+    const next = new URLSearchParams(previous);
+    if (value === 'all') next.delete('ticketQueue'); else next.set('ticketQueue', value);
+    return next;
+  }, { replace: true }), [setParams]);
   const [section, setSection] = useState('tickets');
-  const [queue, setQueue] = useState('all');
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [categoryId, setCategoryId] = useState('');
@@ -43,16 +57,32 @@ export default function TicketDesk() {
   useEffect(() => {
     if (!focusId) return;
     setSection('tickets'); setQueue('all'); setSearch(''); setStatus(''); setCategoryId(''); setDepartmentId('');
-  }, [focusId]);
+  }, [focusId, setQueue]);
   const canManageCategories = !viewingAsEmployee && access.data?.can_manage_categories === true;
   const canRaise = Boolean(employee?.id) && can('ticket.create', { employeeId: employee.id });
   const isHr = !viewingAsEmployee && access.data?.is_hr === true;
+  const canViewQueue = !viewingAsEmployee && access.data?.can_view_queue === true;
+  const hrOnly = isHr && (requestedQueue === 'hr' || requestedQueue === 'hr-needs-action');
+  const needsAction = canViewQueue && (requestedQueue === 'needs-action' || requestedQueue === 'hr-needs-action');
+  const queue = hrOnly ? 'hr' : 'all';
   const mineOnly = viewingAsEmployee || (access.data ? !access.data.can_view_queue : !canBeyondSelf('ticket.read'));
   const ticketRows = useMemo(() => (query.data ?? []).filter((ticket) => !mineOnly || ticket.employee_id === employee?.id),
     [query.data, mineOnly, employee?.id]);
-  const matches = useMemo(() => filterTickets(ticketRows, { search, status, categoryId, departmentId, hrOnly: isHr && queue === 'hr' }),
-    [ticketRows, search, status, categoryId, departmentId, isHr, queue]);
-  const pager = usePagination(matches, 25, focusId, `${mineOnly}:${queue}:${search}:${status}:${categoryId}:${departmentId}`);
+  const matches = useMemo(() => filterTickets(ticketRows, { search, status, categoryId, departmentId, hrOnly, needsAction, viewingAsEmployee }),
+    [ticketRows, search, status, categoryId, departmentId, hrOnly, needsAction, viewingAsEmployee]);
+  const counts = useMemo(() => ticketQueueCounts(ticketRows, { canViewQueue, viewingAsEmployee }), [ticketRows, canViewQueue, viewingAsEmployee]);
+  const hasTickets = Array.isArray(query.data);
+  const allCount = hasTickets ? counts.all : null;
+  const hrCount = hasTickets ? counts.hr : null;
+  const actionCount = hrOnly ? hrCount : allCount;
+  const pager = usePagination(matches, 25, focusId, `${location.key}:${mineOnly}:${queue}:${needsAction}:${search}:${status}:${categoryId}:${departmentId}`);
+  const chooseQueue = (value) => {
+    setQueue(value); setSearch(''); setStatus(''); setCategoryId(''); setDepartmentId(''); pager.setPage(1);
+  };
+  useEffect(() => {
+    if (requestedQueue !== 'needs-action' && requestedQueue !== 'hr-needs-action') return;
+    setSection('tickets'); setSearch(''); setStatus(''); setCategoryId(''); setDepartmentId('');
+  }, [requestedQueue, location.key]);
   const activeCategories = availableTicketCategories(categories.data);
   const departmentRows = (org.data?.departments ?? []).map((department) => ({ ...department,
     branch: org.data?.branches?.find((branch) => branch.id === department.branch_id),
@@ -81,7 +111,8 @@ export default function TicketDesk() {
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap gap-2" aria-label="Helpdesk sections">
         <button type="button" className={btnClass(section === 'tickets' || !canManageCategories ? 'primary' : 'ghost')}
-          aria-pressed={section === 'tickets' || !canManageCategories} onClick={() => setSection('tickets')}>Tickets</button>
+          aria-label={canViewQueue ? queueLabel('Tickets', allCount) : undefined}
+          aria-pressed={section === 'tickets' || !canManageCategories} onClick={() => setSection('tickets')}>Tickets{canViewQueue && <QueueBadge count={allCount} />}</button>
         {canManageCategories && <button type="button" className={btnClass(section === 'categories' ? 'primary' : 'ghost')}
           aria-pressed={section === 'categories'} onClick={() => setSection('categories')}>Categories</button>}
       </div>
@@ -122,22 +153,27 @@ export default function TicketDesk() {
       </form>}
       <div className="premium-card space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-base font-bold"><HelpCircle size={18} />Support Tickets</h2>
-          <span className="text-sm text-neutral-500">{matches.length} ticket{matches.length === 1 ? '' : 's'}</span></div>
-        {isHr && <div className="flex flex-wrap gap-2" aria-label="Ticket queue">
-          <button type="button" className={btnClass(queue === 'all' ? 'primary' : 'ghost')} aria-pressed={queue === 'all'} onClick={() => setQueue('all')}>All tickets</button>
-          <button type="button" className={btnClass(queue === 'hr' ? 'primary' : 'ghost')} aria-pressed={queue === 'hr'} onClick={() => setQueue('hr')}>Tickets to HR</button>
+          <span className="text-sm text-neutral-500">{hasTickets ? `${matches.length} ticket${matches.length === 1 ? '' : 's'}` : query.error ? 'Tickets unavailable' : 'Loading tickets…'}</span></div>
+        {canViewQueue && <div className="flex flex-wrap gap-2" aria-label="Ticket queue">
+          <button type="button" className={btnClass(!hrOnly && !needsAction ? 'primary' : 'ghost')} aria-pressed={!hrOnly && !needsAction}
+            aria-label={queueLabel('All tickets', allCount)} onClick={() => chooseQueue('all')}>All tickets<QueueBadge count={allCount} /></button>
+          <button type="button" className={btnClass(needsAction ? 'primary' : 'ghost')} aria-pressed={needsAction}
+            aria-label={queueLabel('Needs action', actionCount)} onClick={() => chooseQueue(needsAction ? queue : hrOnly ? 'hr-needs-action' : 'needs-action')}>Needs action<QueueBadge count={actionCount} /></button>
+          {isHr && <button type="button" className={btnClass(hrOnly ? 'primary' : 'ghost')} aria-pressed={hrOnly}
+            aria-label={queueLabel('Tickets to HR', hrCount)} onClick={() => chooseQueue(needsAction ? 'hr-needs-action' : 'hr')}>Tickets to HR<QueueBadge count={hrCount} /></button>}
         </div>}
+        {canViewQueue && <p className="text-xs text-neutral-500">Counts show unresolved tickets you can update, including tickets on hold.{needsAction ? ' Showing tickets that need action.' : ''}</p>}
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-1 text-sm"><span>Search tickets</span><input type="search" className={INPUT} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Subject, employee or category" /></label>
-          <label className="space-y-1 text-sm"><span>Ticket status</span><select className={INPUT} value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{TICKET_STATUSES.map((value) => <option key={value}>{value}</option>)}</select></label>
+          <label className="space-y-1 text-sm"><span>Ticket status</span><select className={INPUT} value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{(needsAction ? ACTIONABLE_TICKET_STATUSES : TICKET_STATUSES).map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="space-y-1 text-sm"><span>Ticket category</span><select className={INPUT} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">All categories</option>
             {[...categoryOptions].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
           <label className="space-y-1 text-sm"><span>Assigned department</span><select className={INPUT} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">All departments</option>
             {[...departmentOptions].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
         </div>
         {update.error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{humanDbError(update.error)}</p>}
-        {query.isLoading ? <SkeletonRows rows={4} avatar={false} label="Loading support tickets" />
-          : query.error ? <div role="alert" className="flex items-start gap-2 text-sm text-rose-700 dark:text-rose-300"><AlertTriangle size={16} className="shrink-0" /><span>{humanDbError(query.error)} <button type="button" className="underline" onClick={() => query.refetch()}>Retry tickets</button></span></div>
+        {query.error && <div role="alert" className="flex items-start gap-2 text-sm text-rose-700 dark:text-rose-300"><AlertTriangle size={16} className="shrink-0" /><span>{humanDbError(query.error)} {hasTickets && 'Showing the last available tickets and counts. They may be out of date. '}<button type="button" className="underline" onClick={() => query.refetch()}>Retry tickets</button></span></div>}
+        {!hasTickets ? !query.error && <SkeletonRows rows={4} avatar={false} label="Loading support tickets" />
             : matches.length === 0 ? <p className="py-8 text-center text-sm text-neutral-500">{ticketRows.length ? 'No tickets match these filters.' : 'No tickets visible to you yet.'}</p>
               : <div className="divide-y divide-neutral-200 dark:divide-neutral-800">{pager.slice.map((ticket) => <article key={ticket.id} {...rowProps(ticket.id)} className="py-4" aria-label={`Ticket: ${ticket.subject}`}>
                 <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1">

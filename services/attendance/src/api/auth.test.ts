@@ -5,13 +5,26 @@ import type { Request, Response } from 'express';
 let auth: typeof import('./auth');
 const verifiedTokens: string[] = [];
 const validTokens = new Set<string>();
+const accessChecks: string[] = [];
+const disabledAccounts = new Map<string, string>();
+const revokedGrants = new Set<string>();
+const accountQueries: string[] = [];
+let queuedAccountActive = true;
 let beforeVerification: (() => Promise<void>) | undefined;
 
 before(async () => {
   mock.module(require.resolve('../config/env'), {
     namedExports: { env: { SUPABASE_URL: 'http://127.0.0.1:9', SUPABASE_ANON_KEY: 'fixture' }, canVerifyTokens: true },
   });
-  mock.module(require.resolve('../lib/db'), { namedExports: { prisma: {} } });
+  mock.module(require.resolve('../lib/db'), { namedExports: { prisma: {
+    $queryRaw: async (parts: TemplateStringsArray) => {
+      const sql = parts.join('?'); accountQueries.push(sql);
+      if (sql.includes('account_is_active')) return [{ active: queuedAccountActive }];
+      if (sql.includes('from public.profiles')) return [{ is_super_admin: true, employee_id: null }];
+      if (sql.includes('from public.role_assignments')) return [{ permission: 'device.manage', scope_type: 'global', scope_id: null }];
+      throw new Error('Unexpected query');
+    },
+  } } });
   mock.module(require.resolve('../lib/logger'), {
     namedExports: { logger: { warn() {}, error() {} } },
   });
@@ -27,7 +40,12 @@ before(async () => {
               ? { data: { user: { id: token, email: null } }, error: null }
               : { data: { user: null }, error: { message: 'invalid signature' } };
           } },
-          rpc: async () => ({ data: { is_super_admin: true }, error: null }),
+          rpc: async () => {
+            accessChecks.push(token);
+            return disabledAccounts.has(token)
+              ? { data: null, error: { code: '42501', message: disabledAccounts.get(token) } }
+              : { data: { is_super_admin: !revokedGrants.has(token), permissions: [] }, error: null };
+          },
         };
       },
     },
@@ -39,6 +57,8 @@ beforeEach(() => {
   auth.clearAuthCache();
   verifiedTokens.length = 0;
   validTokens.clear();
+  accessChecks.length = 0; disabledAccounts.clear(); revokedGrants.clear();
+  accountQueries.length = 0; queuedAccountActive = true;
   beforeVerification = undefined;
 });
 
@@ -65,11 +85,35 @@ test('a token colliding under the former 32-bit hash cannot inherit a cached adm
   assert.deepEqual(verifiedTokens, ['Aa', 'BB']);
 });
 
-test('repeated requests verify a valid token once within the cache lifetime', async () => {
+test('repeated requests cache verified identity but recheck current account access every time', async () => {
   validTokens.add('valid-token');
   assert.equal((await request('Bearer valid-token')).status, 200);
   assert.equal((await request('Bearer valid-token')).status, 200);
   assert.deepEqual(verifiedTokens, ['valid-token']);
+  assert.deepEqual(accessChecks, ['valid-token', 'valid-token']);
+});
+
+test('unchanged cached tokens immediately lose access when the account becomes inactive, banned or deleted', async () => {
+  for (const reason of ['employee inactive', 'account banned', 'account deleted']) {
+    const token = reason.replaceAll(' ', '-'); validTokens.add(token);
+    assert.equal((await request(`Bearer ${token}`)).status, 200);
+    const identityChecks = verifiedTokens.length;
+    disabledAccounts.set(token, reason);
+    const denied = await request(`Bearer ${token}`);
+    assert.equal(denied.status, 401);
+    assert.equal(denied.continued, false);
+    assert.equal(denied.context, undefined);
+    assert.equal(verifiedTokens.length, identityChecks, 'cached identity does not bypass fresh access check');
+  }
+});
+
+test('removing a cached caller\'s grants changes permissions on the very next request', async () => {
+  validTokens.add('demoted');
+  assert.equal(auth.hasPermission((await request('Bearer demoted')).context, 'device.manage'), true);
+  revokedGrants.add('demoted');
+  assert.equal(auth.hasPermission((await request('Bearer demoted')).context, 'device.manage'), false);
+  assert.deepEqual(verifiedTokens, ['demoted']);
+  assert.deepEqual(accessChecks, ['demoted', 'demoted']);
 });
 
 test('simultaneous requests for one session share verification without sharing different callers', async () => {
@@ -77,6 +121,7 @@ test('simultaneous requests for one session share verification without sharing d
   const replies = await Promise.all(Array.from({ length: 20 }, () => request('Bearer first')));
   assert.ok(replies.every(reply => reply.context?.userId === 'first'));
   assert.deepEqual(verifiedTokens, ['first']);
+  assert.equal(accessChecks.length, 20, 'authorization is checked independently for each request');
   assert.equal((await request('Bearer second')).context?.userId, 'second');
   assert.deepEqual(verifiedTokens, ['first', 'second']);
 });
@@ -133,4 +178,17 @@ test('missing or malformed authorization never reaches a protected handler', asy
   for (const header of [undefined, 'Basic valid-token', 'Bearer', 'Bearer valid-token extra']) {
     assert.equal((await request(header)).status, 401, header);
   }
+});
+
+test('queued actors are checked for current account activity before reading any privileged grants', async () => {
+  assert.equal((await auth.contextForUserId('queued-user'))?.isSuperAdmin, true);
+  assert.ok(accountQueries[0]?.includes('app.account_is_active'));
+  accountQueries.length = 0;
+  queuedAccountActive = false;
+  assert.equal(await auth.contextForUserId('queued-user'), null);
+  assert.equal(accountQueries.length, 1, 'disabled requester cannot load cached or current grants');
+  assert.ok(accountQueries[0]?.includes('app.account_is_active'));
+  accountQueries.length = 0;
+  assert.equal(await auth.contextForUserId(null), null);
+  assert.equal(accountQueries.length, 0);
 });

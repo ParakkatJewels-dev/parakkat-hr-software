@@ -16,6 +16,7 @@ const users: Record<string, AuthContext> = {
 };
 const calls: Array<{ name: string; args?: unknown }> = [];
 const warnings: string[] = [];
+const disabledAccounts = new Map<string, string>();
 let failMappings = false;
 let server: Server;
 let baseUrl: string;
@@ -31,7 +32,9 @@ before(async () => {
       const user = users[options.global.headers.Authorization.slice(7)];
       return {
         auth: { getUser: async () => ({ data: { user: user ? { id: user.userId } : null }, error: null }) },
-        rpc: async () => ({ data: { is_super_admin: user?.isSuperAdmin, permissions: user?.permissions }, error: null }),
+        rpc: async () => disabledAccounts.has(user?.userId ?? '')
+          ? { data: null, error: { code: '42501', message: disabledAccounts.get(user!.userId) } }
+          : { data: { is_super_admin: user?.isSuperAdmin, permissions: user?.permissions }, error: null },
       };
     } },
   });
@@ -83,7 +86,7 @@ before(async () => {
   baseUrl = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
 
-beforeEach(() => { calls.length = 0; warnings.length = 0; failMappings = false; onWork = undefined; apiRequestBudget.clear(); });
+beforeEach(() => { calls.length = 0; warnings.length = 0; disabledAccounts.clear(); failMappings = false; onWork = undefined; apiRequestBudget.clear(); });
 after(async () => {
   server.closeAllConnections();
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -101,6 +104,18 @@ test('anonymous and invalid sessions receive 401 without touching data', async (
     assert.equal((await request('/api/mapping', user)).status, 401);
   }
   assert.equal(calls.length, 0);
+});
+
+test('an already-used administrator token is denied on its next HTTP call after inactive, banned or deleted state', async () => {
+  for (const reason of ['employee inactive', 'account banned', 'account deleted']) {
+    disabledAccounts.clear();
+    assert.equal((await request('/api/status', 'admin')).status, 200);
+    calls.length = 0;
+    disabledAccounts.set('admin', reason);
+    assert.equal((await request('/api/status', 'admin')).status, 401);
+    assert.equal((await request('/api/sync/transactions', 'admin', {})).status, 401);
+    assert.equal(calls.length, 0, 'neither private reads nor background operations may start');
+  }
 });
 
 test('a burst of health checks performs only one pair of readiness queries', async () => {

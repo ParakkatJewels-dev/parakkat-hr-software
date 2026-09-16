@@ -44,6 +44,7 @@ export function useSaveTicketCategory() {
       qc.invalidateQueries({ queryKey: ['ticket-categories'] }),
       qc.invalidateQueries({ queryKey: ['ticket-access'] }),
       qc.invalidateQueries({ queryKey: ['tickets'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
     ]),
   });
 }

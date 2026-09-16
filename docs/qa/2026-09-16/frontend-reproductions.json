@@ -1,0 +1,96 @@
+{
+  "mode": "Real React SSR with synthetic query-cache data; no network or database writes",
+  "date": "2026-09-16",
+  "results": [
+    {
+      "id": "FE-01-leave",
+      "name": "Report read failure presented as successful empty data",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "Visible failed-read state and exports unavailable until valid report data exists.",
+      "actual": "No data for this period in your scope. No query error displayed; CSV export remains enabled.",
+      "evidence": "FE-01-leave.html"
+    },
+    {
+      "id": "FE-01-expenses",
+      "name": "Report read failure presented as successful empty data",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "Visible failed-read state and exports unavailable until valid report data exists.",
+      "actual": "No data for this period in your scope. No query error displayed; CSV export remains enabled.",
+      "evidence": "FE-01-expenses.html"
+    },
+    {
+      "id": "FE-01-headcount",
+      "name": "Report read failure presented as successful empty data",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "Visible failed-read state and exports unavailable until valid report data exists.",
+      "actual": "No data for this period in your scope. No query error displayed; CSV export remains enabled.",
+      "evidence": "FE-01-headcount.html"
+    },
+    {
+      "id": "FE-02",
+      "name": "Monthly leave totals include days outside selected month",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "2 approved days inside 2026-09 for a three-calendar-day leave starting 2026-08-31.",
+      "actual": "Approved Days = 3; report sums entire request days instead of the period overlap.",
+      "evidence": "FE-02.html"
+    },
+    {
+      "id": "FE-03",
+      "name": "Headcount merges distinct companies branches with identical codes",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "Two branch rows, one active employee each, identified by distinct branch IDs and companies.",
+      "actual": "One HQ row reports Active = 2. Branch code is used as aggregation identity.",
+      "evidence": "FE-03.html"
+    },
+    {
+      "id": "FE-04",
+      "name": "Period headcount includes future joiners",
+      "classification": "needs business clarification",
+      "period": "2026-09",
+      "expected": "A person joining in 2099 contributes no active headcount for 2026-09, or the screen explicitly labels Active as a current roster measure.",
+      "actual": "Headcount & Movement for 2026-09 shows Active = 1 for a 2099 hire because only current status is checked.",
+      "evidence": "FE-04.html"
+    },
+    {
+      "id": "FE-05",
+      "name": "Rejected candidate remains counted but inaccessible in hiring UI",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "Rejected candidates are accessible via a stage/filter/archive and matching count agrees with view.",
+      "actual": "Candidates = 1 and 1 matching profiles; all four stages say No applicants; candidate name absent.",
+      "evidence": "FE-05.html"
+    },
+    {
+      "id": "FE-06",
+      "name": "Hiring failures also display definitive zero metrics",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "Failed reads show unavailable metrics and an unavailable pipeline, preserving cached values only when present.",
+      "actual": "Errors are displayed, alongside Candidates = 0, Open roles = 0, 0 matching profiles and four No applicants states.",
+      "evidence": "FE-06.html"
+    },
+    {
+      "id": "FE-07",
+      "name": "Exit read failure masks existing requests and enables a new request",
+      "classification": "confirmed frontend reproduction",
+      "period": "2026-09",
+      "expected": "Failed-read state; do not assert there is no existing exit or enable creation until open-request lookup is trustworthy.",
+      "actual": "No exit records visible to you and Request Exit button; query error invisible.",
+      "evidence": "FE-07.html"
+    },
+    {
+      "id": "FE-09",
+      "name": "HR cannot record separation clearances or complete an exit from the visible screen",
+      "classification": "confirmed visible workflow gap",
+      "period": "2026-09",
+      "expected": "An exit manager can record authorized department clearance and complete or otherwise progress the exit workflow.",
+      "actual": "HR manager sees the employee and four Pending clearances, but the entire Exit Clearances section contains no action controls.",
+      "evidence": "FE-09.html"
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import './PunchTimeline.css';
 import { labelLayout, rowCount, spanLabels } from '../../lib/punchLayout';
 import { formatClock } from '../../lib/clock';
 import { useClockFormat } from '../../lib/timeFormat';
+import { attendanceTimeline } from '../../lib/attendanceTimeline';
 
 // One shape for the whole component. It used to print "9:37 am" in the header and "09:37" on the
 // bar immediately below — the same punch, twice, differently.
@@ -56,11 +57,12 @@ export function segments(punches) {
  * Used in table cells where a bar would be too much.
  */
 export function BreakSummary({ row }) {
-  const n = Array.isArray(row.punches) ? row.punches.length : 0;
+  const punches = attendanceTimeline(row);
+  const n = punches.length;
   if (n < 4) {
     return <span className="text-neutral-450">{row.breaks_incomplete ? 'punch missing' : '—'}</span>;
   }
-  const count = segments(row.punches).filter((s) => s.away).length;
+  const count = segments(punches).filter((s) => s.away).length;
   return (
     <span className={row.breaks_incomplete ? 'text-amber-600 dark:text-amber-400' : ''}>
       <span className="tabular-nums font-semibold">{count}</span>

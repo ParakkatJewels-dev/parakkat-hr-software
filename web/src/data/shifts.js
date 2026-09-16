@@ -47,7 +47,8 @@ export function useSaveShift() {
       const { error } = await query;
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
+    onSuccess: () => Promise.all(['shifts', 'leaves-period-days']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
@@ -58,7 +59,8 @@ export function useDeleteShift() {
       const { error } = await supabase.from('shifts').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['shifts'] }),
+    onSuccess: () => Promise.all(['shifts', 'leaves-period-days']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
@@ -107,11 +109,9 @@ export function useAssignShift() {
       }
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['shift-assignments'] });
-      // The trigger queued a recompute; the calendar will change once it drains.
-      qc.invalidateQueries({ queryKey: ['attendance'] });
-    },
+    // Leave allocations read effective assignments directly; attendance follows the queued recompute.
+    onSuccess: () => Promise.all(['shift-assignments', 'attendance', 'leaves-period-days']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 

@@ -117,7 +117,8 @@ begin
           when 'attendance' then a.ordinal<=5
           -- Leave decisions are atomic stage-aware RPCs; direct status writes cannot skip review.
           when 'leaves' then false
-          when 'expenses' then a.ordinal<=5 and (not own or a.ordinal=1)
+          -- Independent expense review also applies to authenticated super administrators.
+          when 'expenses' then a.ordinal<=5 and not own
           when 'tasks' then true
           when 'goals' then true
           when 'payslips' then a.ordinal<=3 end;
@@ -325,10 +326,11 @@ do $$ declare module text; count_rows integer; begin
     execute format('select count(*) from public.%I',module) into count_rows;
     perform audit_test.expect('anonymous/'||module||'/RLS returns zero rows',to_jsonb(count_rows),'0');
   end loop;
-  perform audit_test.expect('anonymous/access RPC reveals no employee',public.get_my_access()->'employee','null');
-  perform audit_test.expect('anonymous/access RPC grants no permissions',public.get_my_access()->'permissions','[]');
-  perform audit_test.expect('anonymous/access RPC grants no assignments',public.get_my_access()->'assignments','[]');
-  perform audit_test.expect('anonymous/access RPC superadmin denied',public.get_my_access()->'is_super_admin','false');
+  -- Anonymous and revoked sessions receive an explicit denial, never a reusable access envelope.
+  perform audit_test.write_expect('anonymous/access RPC reveals no employee','select public.get_my_access()->''employee''',false,'[]');
+  perform audit_test.write_expect('anonymous/access RPC grants no permissions','select public.get_my_access()->''permissions''',false,'[]');
+  perform audit_test.write_expect('anonymous/access RPC grants no assignments','select public.get_my_access()->''assignments''',false,'[]');
+  perform audit_test.write_expect('anonymous/access RPC superadmin denied','select public.get_my_access()->''is_super_admin''',false,'[]');
 end $$;
 reset role;
 select 'PASS: '||count(*)||' real PostgreSQL role assertions across all seven standard roles, unassigned and anonymous' from audit_test.results;

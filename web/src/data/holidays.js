@@ -48,10 +48,8 @@ export function useSaveHoliday() {
       const { error } = await query;
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['holidays'] });
-      qc.invalidateQueries({ queryKey: ['attendance'] });
-    },
+    onSuccess: () => Promise.all(['holidays', 'attendance', 'leaves-period-days']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
@@ -62,10 +60,8 @@ export function useDeleteHoliday() {
       const { error } = await supabase.from('holidays').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['holidays'] });
-      qc.invalidateQueries({ queryKey: ['attendance'] });
-    },
+    onSuccess: () => Promise.all(['holidays', 'attendance', 'leaves-period-days']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
@@ -88,6 +84,7 @@ export function useSaveCalendar() {
       const { error } = await query;
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['holiday-calendars'] }),
+    onSuccess: () => Promise.all(['holiday-calendars', 'leaves-period-days']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }

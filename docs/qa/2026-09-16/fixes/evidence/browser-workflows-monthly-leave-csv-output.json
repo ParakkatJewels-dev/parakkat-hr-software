@@ -1,0 +1,12 @@
+[
+  {
+    "name": "monthly-leave-csv-output",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "csv": "leave-period.csv",
+      "periodDays": 2,
+      "requestDays": 3
+    }
+  }
+]

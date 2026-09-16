@@ -32,6 +32,8 @@ import { useUrlTab } from '../lib/useUrlTab';
 import { useFocusRow } from '../lib/useFocusRow';
 import EmployeeAttendanceDetail from './EmployeeAttendanceDetail';
 import { humanDbError } from '../lib/dbErrors';
+import { correctionDateLabel, regularizationTimes } from '../lib/regularizationTimes';
+import { attendanceTimeline } from '../lib/attendanceTimeline';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -703,9 +705,9 @@ function CalendarView({ employeeId, employeeName }) {
           )}
 
           <div className="soft-divider" />
-          {punchTimes.length > 0 ? (
+          {attendanceTimeline(selectedRow, punchTimes).length > 0 ? (
             <PunchTimeline
-              punches={punchTimes}
+              punches={attendanceTimeline(selectedRow, punchTimes)}
               breakMinutes={selectedRow?.break_minutes}
               incomplete={selectedRow?.breaks_incomplete}
             />
@@ -1003,7 +1005,7 @@ export function RegularizationsView({ employee, canApprove }) {
   const submitting = useRef(false);
   const decide = useDecideRegularization();
 
-  const [form, setForm] = useState({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' });
+  const [form, setForm] = useState({ workDate: todayIso(), checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' });
   const [search, setSearch] = useState('');
   const [formError, setFormError] = useState('');
   const matching = useMemo(() => {
@@ -1028,10 +1030,15 @@ export function RegularizationsView({ employee, canApprove }) {
       setFormError('Enter a reason for this correction.');
       return;
     }
+    try { regularizationTimes(form); }
+    catch (error) {
+      setFormError(error.message);
+      return;
+    }
     submitting.current = true;
     try {
       await create.mutateAsync({ employeeId: employee.id, ...form, reason: form.reason.trim() });
-      setForm({ workDate: todayIso(), checkIn: '', checkOut: '', reason: '' });
+      setForm({ workDate: todayIso(), checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' });
     } catch { /* The mutation error is visible; keep entered values for a retry. */ }
     finally { submitting.current = false; }
   };
@@ -1069,6 +1076,13 @@ export function RegularizationsView({ employee, canApprove }) {
                 className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
             </label>
           </div>
+
+          <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+            <input type="checkbox" checked={form.checkOutNextDay} disabled={!form.checkOut}
+              onChange={(e) => setForm({ ...form, checkOutNextDay: e.target.checked })} />
+            Check-out is next day
+          </label>
+          <p className="text-2xs text-neutral-500">Times are in IST. Select next day for a shift ending after midnight, including a check-out-only correction.</p>
 
           <label className="block text-2xs uppercase tracking-wider text-neutral-500">
             Reason
@@ -1151,7 +1165,7 @@ export function RegularizationsView({ employee, canApprove }) {
                         <div className="font-semibold text-neutral-800 dark:text-neutral-100"><EmployeeLink employee={r.employee} /></div>
                         <div className="text-2xs text-neutral-400">{r.employee?.branch?.name ?? ''}</div>
                       </td>
-                      <td data-label="Proposed" className="font-mono">{fmtTime(r.check_in)} – {fmtTime(r.check_out)}</td>
+                      <td data-label="Proposed" className="font-mono">{fmtTime(r.check_in)}{correctionDateLabel(r.check_in, r.work_date)} – {fmtTime(r.check_out)}{correctionDateLabel(r.check_out, r.work_date)}</td>
                       <td data-label="Reason" className="max-w-72 whitespace-normal break-words text-neutral-500">{r.reason}</td>
                       <td data-label="Status"><span className={`badge ${r.status === 'Approved' ? 'badge-green' : r.status === 'Rejected' ? 'bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-300' : 'badge-muted'}`}>{r.status}</span>
                         {r.decision_note && <p className="mt-1 whitespace-normal break-words text-neutral-500">{r.decision_note}</p>}

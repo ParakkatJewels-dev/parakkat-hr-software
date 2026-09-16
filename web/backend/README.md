@@ -57,6 +57,18 @@ backend/
 > `npm run dev` here just prints these commands — the backend is hosted, so there is no local
 > server to start. (It used to run `supabase start`, which this project doesn't use.)
 
+### Retrying migration 0144 after a Storage ownership error
+
+If `0144_immediate_account_revocation.sql` failed with `must be owner of table migrations`,
+use the corrected file and run `npm run migrate` again from this directory. The original
+policy scan included Storage's internal metadata tables. It now covers public HRMS tables
+and `storage.objects`, where the application's document, asset, task and chat file policies live.
+Storage metadata ownership and policies are left to the platform.
+
+For this failure, 0144 rolled back before its commit. Files already reported `ok` (such as
+0141–0143) stay applied and will be skipped; the runner retries 0144 and then continues with
+0145 and 0146. Do not baseline the failed migration or change ownership of Storage's tables.
+
 ## Design notes
 
 Password recovery and the latest user/role fixes have a dedicated
@@ -164,6 +176,28 @@ history checks. For browser checks, run `npm run qa:browser` and open
 `http://127.0.0.1:5174/?qa-role=dept_head&qa-routines#/tasks/routine` or
 `http://127.0.0.1:5174/?qa-role=employee&qa-routines#/dashboard`.
 The QA role picker supports manager/admin comparisons; fixture writes stay in memory.
+
+## Navigation section counts
+
+Apply `0141_section_counts.sql` **before deploying the client that displays section badges**.
+The authenticated `get_section_counts(_self_only boolean default false)` RPC returns only five
+integer counts: `tasks`, `leave`, `expense`, `attendance`, and `helpdesk`. Identity and scope come
+from the verified caller; inactive, banned, deleted and anonymous accounts are refused.
+
+Tasks count unfinished primary/secondary assignments once each, including old open work. Leave
+counts current department/HR reviews, including holds and excluding payroll-locked requests.
+Expense and attendance count pending approvals in scope, excluding the caller's own requests;
+expenses also exclude claims filed by the caller. Support counts manageable Open, In Progress,
+and On Hold tickets using the receiving-department/HR rules, including legacy ticket scope.
+Reading a ticket or raising one does not by itself add it to the support-action badge.
+Employee view (`_self_only=true`) retains assigned tasks and suppresses management queues.
+
+The client caches counts for one minute, invalidates on batched Realtime changes, and has a
+visible-only 60-second fallback. The migration publishes `task_assignees` so membership changes
+can also refresh task badges. No count is limited to a displayed page or recent-history window.
+`npm test --prefix web/backend` replays the migration twice and tests authorization, department
+routing, status transitions, ownership exclusions and summaries larger than a list page in a
+disposable database.
 
 ## Administrator password reset
 

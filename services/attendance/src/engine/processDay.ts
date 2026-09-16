@@ -155,6 +155,64 @@ export function splitSessions(punches: Date[]): {
   };
 }
 
+/**
+ * An approved endpoint completes an odd timeline when it lies beyond the recorded boundary.
+ * Otherwise it replaces that endpoint. In particular, a check-in before a lone exit must keep
+ * the exit, and a check-out after a break return must keep both of the break punches.
+ *
+ * Even timelines already have both endpoints: their corrections replace the endpoints without
+ * turning the old arrival/departure into a fictitious break. Raw evidence is kept separately in
+ * DayResult; only this reconciled timeline is used for hours and missing-punch flags.
+ */
+function reconcilePunches(punches: Date[], correction: DayInput['regularization']) {
+  let timeline = [...punches];
+  const proposedIn = correction?.checkIn;
+  const proposedOut = correction?.checkOut;
+  let departureOnly = false;
+
+  if (!punches.length) {
+    timeline = [proposedIn, proposedOut].filter((p): p is Date => Boolean(p));
+    departureOnly = Boolean(proposedOut && !proposedIn);
+  } else if (punches.length === 1) {
+    const punch = punches[0]!;
+    if (proposedIn && proposedOut) {
+      // A real punch inside two proposed endpoints has an unresolved direction. Keep it visible
+      // as incomplete rather than silently deleting evidence of a potential break.
+      timeline = punch > proposedIn && punch < proposedOut
+        ? [proposedIn, punch, proposedOut] : [proposedIn, proposedOut];
+    } else if (proposedIn) {
+      timeline = proposedIn < punch ? [proposedIn, punch] : [proposedIn];
+    } else if (proposedOut) {
+      timeline = proposedOut > punch ? [punch, proposedOut] : [proposedOut];
+      departureOnly = timeline.length === 1;
+    }
+  } else {
+    const odd = punches.length % 2 === 1;
+    if (proposedIn) {
+      if (odd && proposedIn < punches[0]!) timeline.unshift(proposedIn);
+      else timeline[0] = proposedIn;
+    }
+    if (proposedOut) {
+      if (odd && proposedOut > punches[punches.length - 1]!) timeline.push(proposedOut);
+      else timeline[timeline.length - 1] = proposedOut;
+    }
+  }
+
+  const checkIn = departureOnly ? null : timeline[0] ?? null;
+  const checkOut = departureOnly ? timeline[0]! : timeline.length > 1 ? timeline[timeline.length - 1]! : null;
+  // A correction can shorten the day beyond a recorded break. Only interior punches inside the
+  // approved interval are measurable, and the inconsistent remainder must still be flagged.
+  const middle = timeline.slice(1, -1);
+  const inBounds = middle.filter((p) => checkIn && checkOut && p > checkIn && p < checkOut);
+  const sessions = splitSessions(checkIn && checkOut ? [checkIn, ...inBounds, checkOut] : timeline);
+  return {
+    checkIn,
+    checkOut,
+    breakMinutes: sessions.breakMinutes,
+    incomplete: sessions.incomplete || inBounds.length !== middle.length,
+  };
+}
+
 function emptyResult(input: DayInput): DayResult {
   return {
     employeeId: input.employeeId,
@@ -273,19 +331,16 @@ function calculateDay(input: DayInput): DayResult {
 
   // Keep the whole timeline, not just the ends. Everything after this can explain itself.
   result.punches = deduped.map((p) => p.punchTime);
-  const sessions = splitSessions(result.punches);
+  const sessions = reconcilePunches(result.punches, input.regularization);
   result.breakMinutes = sessions.breakMinutes;
   result.breaksIncomplete = sessions.incomplete;
 
   // An approved regularization supplies what the device missed. It wins over the raw punches for
   // the times it specifies, and only for those.
-  let checkIn = result.firstPunchAt;
-  let checkOut = deduped.length > 1 ? result.lastPunchAt : null;
+  const { checkIn, checkOut } = sessions;
 
   if (input.regularization) {
     result.regularizationId = input.regularization.id;
-    if (input.regularization.checkIn) checkIn = input.regularization.checkIn;
-    if (input.regularization.checkOut) checkOut = input.regularization.checkOut;
     result.source = 'regularized';
   }
 
@@ -387,11 +442,11 @@ function calculateDay(input: DayInput): DayResult {
     // most expensive guess in the engine. Crediting nothing is the safe direction — but it was also
     // silent, so 129 days across 38 people showed a rest day with no hint anyone had been in.
     // Flagged, HR can regularize it and set the real time.
-    if (result.punchCount === 1 || (result.punchCount >= 3 && result.punchCount % 2 === 1)) {
+    if ((Boolean(checkIn) !== Boolean(checkOut)) || result.breaksIncomplete) {
       result.isMissingPunch = true;
       result.remarks = [
         result.remarks,
-        result.punchCount === 1
+        !checkIn || !checkOut
           ? 'Punched once on a day off — the hours cannot be measured, so none are credited'
           : 'A punch is missing — one stretch of the day is unaccounted for',
       ]
@@ -402,7 +457,7 @@ function calculateDay(input: DayInput): DayResult {
   }
 
   // --- no punches at all --------------------------------------------------------
-  if (!checkIn) {
+  if (!checkIn && !checkOut) {
     if (!input.leave) {
       result.status = 'Absent';
       result.dayFraction = 0;
@@ -427,11 +482,12 @@ function calculateDay(input: DayInput): DayResult {
   // The scheduled midpoint separates the two cleanly — the real punches cluster around 08:00-09:00
   // and 17:00-18:00, nowhere near it — and where there is no shift to compare against, the old
   // assumption stands rather than a guess.
-  if (!checkOut) {
+  if (!checkIn || !checkOut) {
+    const knownPunch = (checkIn ?? checkOut)!;
     const midpoint = new Date(
       (result.scheduledIn!.getTime() + result.scheduledOut!.getTime()) / 2
     );
-    const isDeparture = checkIn.getTime() > midpoint.getTime();
+    const isDeparture = Boolean(checkOut) || (!input.regularization?.checkIn && knownPunch.getTime() > midpoint.getTime());
 
     // --- is the day simply not over yet? -----------------------------------------------------
     //
@@ -460,14 +516,14 @@ function calculateDay(input: DayInput): DayResult {
       // Time on site so far, not time they are expected to put in. Overtime is deliberately left
       // at zero: nobody has worked beyond a full day until the day is done, and paying it out
       // mid-morning on a projection would be inventing a claim.
-      const soFar = Math.max(0, minutesBetween(checkIn, asOf));
+      const soFar = Math.max(0, minutesBetween(knownPunch, asOf));
       result.workedMinutes = Math.max(0, soFar - breakDeduction(shift, result));
       result.hours = minutesToHours(result.workedMinutes);
       result.dayFraction = Math.max(result.dayFraction, 1);
       result.remarks = 'On site — has not punched out yet';
 
       if (!shift.isFlexible) {
-        const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
+        const lateBy = minutesBetween(result.scheduledIn!, knownPunch) - shift.graceInMinutes;
         if (lateBy > 0) {
           result.lateMinutes = lateBy;
           result.isLate = true;
@@ -511,9 +567,9 @@ function calculateDay(input: DayInput): DayResult {
     // outside the scheduled window is payable.
     const from = isDeparture
       ? result.scheduledIn!
-      : new Date(Math.max(checkIn.getTime(), result.scheduledIn!.getTime()));
+      : new Date(Math.max(knownPunch.getTime(), result.scheduledIn!.getTime()));
     const to = isDeparture
-      ? new Date(Math.min(checkIn.getTime(), result.scheduledOut!.getTime()))
+      ? new Date(Math.min(knownPunch.getTime(), result.scheduledOut!.getTime()))
       : result.scheduledOut!;
 
     const gross = Math.max(0, minutesBetween(from, to));
@@ -525,14 +581,14 @@ function calculateDay(input: DayInput): DayResult {
       // is asserted — claiming someone was eight hours late for forgetting to punch in is worse
       // than recording nothing.
       result.checkIn = null;
-      result.checkOut = checkIn;
+      result.checkOut = knownPunch;
       result.remarks = 'Only one punch recorded — no check-in, hours counted from the shift start';
     } else {
       result.remarks = 'Only one punch recorded — no check-out, hours counted to the shift end';
 
       // No lateness on a flexible shift; see the lateness block further down.
       if (!shift.isFlexible) {
-        const lateBy = minutesBetween(result.scheduledIn!, checkIn) - shift.graceInMinutes;
+        const lateBy = minutesBetween(result.scheduledIn!, knownPunch) - shift.graceInMinutes;
         if (lateBy > 0) {
           result.lateMinutes = lateBy;
           result.isLate = true;
@@ -544,7 +600,9 @@ function calculateDay(input: DayInput): DayResult {
     // must not generate a payable claim — otherwise forgetting to punch out becomes profitable.
     // Falling out of this branch before the overtime block is what enforces that.
     //
-    // A full day under Easy Time Pro's rule; half pending regularization under ours.
+    // A full day under Easy Time Pro's rule; half pending regularization under ours. Paid
+    // half-day leave does not add to provisional attendance: the worked half must be verified
+    // before the total becomes a full day (confirmed policy, ATT-04).
     result.dayFraction = Math.max(result.dayFraction, creditAsPresent ? 1 : 0.5);
     return result;
   }
@@ -625,7 +683,7 @@ function calculateDay(input: DayInput): DayResult {
   // missed; 28% have under an hour, so the final punch is a break-return and the departure was
   // missed. Both leave one span of the day unaccounted for, and the flag says so without pretending
   // to know which. The hours are unchanged — what changes is that the day now admits it is a floor.
-  if (result.punchCount >= 3 && result.punchCount % 2 === 1) {
+  if (result.breaksIncomplete) {
     result.isMissingPunch = true;
     result.remarks = [result.remarks, 'A punch is missing — one stretch of the day is unaccounted for']
       .filter(Boolean)
@@ -697,6 +755,13 @@ function calculateDay(input: DayInput): DayResult {
 export function processDay(input: DayInput): DayResult {
   const result = calculateDay(input);
   const { leave } = input;
+  // An unresolved endpoint or break gap cannot verify the worked half alongside paid half-day
+  // leave. Keep the provisional total at the approved leave credit until the gap is resolved,
+  // including shifts whose ordinary single-punch policy otherwise pays a full day (ATT-04).
+  if (leave?.dayFraction === 0.5 && leave.isPaid && !leave.isLop
+      && result.isMissingPunch && result.dayType === 'working') {
+    result.dayFraction = Math.min(result.dayFraction, 0.5);
+  }
   // Flexible and missing-punch policies grant a full day for attendance. They cannot also pay
   // the half day explicitly approved as unpaid leave. Apply this to every return path, including
   // an in-progress or reconstructed single-punch day, while retaining the measured hours.

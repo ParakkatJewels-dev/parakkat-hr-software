@@ -1,0 +1,28 @@
+{
+  "mode": "Real component event handlers; hook and mutation boundaries stubbed; no database writes",
+  "verifiedWorkflow": {
+    "action": "Reject Applied candidate",
+    "payload": {
+      "id": "candidate",
+      "stage": "Rejected"
+    },
+    "result": "The UI explicitly writes Rejected, which the SSR audit confirms is then inaccessible."
+  },
+  "finding": {
+    "id": "FE-08",
+    "name": "Publish opening accepts a whitespace-only job title",
+    "expected": "No write for a whitespace-only required job title; show validation and retain form.",
+    "actual": {
+      "mutationCalls": 1,
+      "payload": {
+        "entity_id": "company",
+        "title": "   ",
+        "type": "Full-time",
+        "location": "",
+        "openings": 1
+      },
+      "formStillOpen": false
+    },
+    "boundary": "Frontend write payload confirmed; persistence not tested by this audit."
+  }
+}

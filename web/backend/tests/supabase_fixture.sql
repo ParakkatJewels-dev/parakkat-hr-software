@@ -9,6 +9,9 @@ do $$ begin
   if not exists(select from pg_roles where rolname='authenticated') then create role authenticated; end if;
   if not exists(select from pg_roles where rolname='service_role') then create role service_role bypassrls; end if;
 end $$;
+-- Earlier standalone tests can create the role in this shared disposable cluster. Supabase's
+-- real service role always bypasses RLS, even when this fixture did not create it first.
+alter role service_role bypassrls;
 -- Supabase grants new public objects to API roles by default. Reproduce that so anonymous
 -- negative tests exercise row policies and explicit revokes instead of an artificially absent ACL.
 alter default privileges in schema public grant all on tables to anon,authenticated,service_role;

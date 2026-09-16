@@ -1,5 +1,6 @@
 // Local UI fixtures only. Database authorization and complete multi-user flows run in SQL tests.
 import { fixture, tables, today } from './fixtures';
+import { isAssignedTo } from '../src/lib/taskBoard.js';
 export const workflowFixtures = new URL(window.location.href).searchParams.has('qa-workflow');
 const hrRoles = ['super_admin', 'entity_admin', 'hr_manager'];
 const waiting = (row) => ['Pending', 'On Hold'].includes(row.status);
@@ -18,6 +19,12 @@ if (workflowFixtures) {
   tables.leave_decisions = [{ id: 'qa-head-decision', leave_id: 'qa-leave-hr', stage: 'department', decision: 'Approved',
     remarks: 'Handover arranged; forwarded to HR for sanction.', actor_name: 'QA Department Head', created_at: at(),
     from_status: 'Pending', to_status: 'Pending', from_stage: 'department', to_stage: 'hr' }];
+  if (new URL(window.location.href).searchParams.has('qa-exits')) {
+    tables.exits = [me, colleague].map((person, index) => ({ id: `qa-exit-${index}`, employee_id: person.id,
+      employee: person, created_by: `qa-exit-filer-${index}`, entity_id: person.entity_id, zone_id: person.zone_id,
+      branch_id: person.branch_id, department_id: person.department_id, last_day: today,
+      status: 'Clearance in Progress', approvals: { IT: 'Pending', Admin: 'Pending', Finance: 'Pending', HR: 'Pending' }, created_at: at() }));
+  }
   tables.ticket_categories = [
     { id: 'qa-cat-it', name: 'IT support', department_id: me.department_id, is_active: true, is_hr_queue: false },
     { id: 'qa-cat-hr', name: 'HR support', department_id: hr.id, is_active: true, is_hr_queue: true },
@@ -53,12 +60,57 @@ export function workflowRpc(name, args, context) {
     department: { is_active: true, ...department(row.department_id) }, can_manage: admin }));
   const tickets = () => (tables.tickets ?? []).filter((row) => isHr || row.employee_id === employee?.id || row.routed_department_id === employee?.department_id)
     .map((row) => ({ ...row, routed_department: department(row.routed_department_id), can_manage: isHr || (role === 'dept_head' && row.routed_department_id === employee?.department_id) }));
+  // UI fixtures use a synthetic Sunday-off calendar. PostgreSQL tests exercise real calendars.
+  if (name === 'report_leave_days') return { rows: (tables.leaves ?? [])
+    .filter(row => allows('leave.read', row) && row.start_date <= args._to && row.end_date >= args._from)
+    .map(row => {
+      let days = 0;
+      const end = row.end_date < args._to ? row.end_date : args._to;
+      for (const day = new Date(`${row.start_date > args._from ? row.start_date : args._from}T00:00:00Z`);
+        day.toISOString().slice(0, 10) <= end; day.setUTCDate(day.getUTCDate() + 1)) {
+        if (day.getUTCDay() !== 0 && !(row.cancelled_dates ?? []).includes(day.toISOString().slice(0, 10))) days += row.day_fraction ?? 1;
+      }
+      return { leave_id: row.id, period_days: days };
+    }) };
+  if (name === 'get_section_counts') {
+    const personal = args._self_only === true;
+    const pendingReview = (rows, read, approve) => personal ? 0 : (rows ?? []).filter(row =>
+      row.status === 'Pending' && row.employee_id !== employee?.id && allows(read, row) && allows(approve, row)).length;
+    return { one: true, rows: [{
+      tasks: (tables.tasks ?? []).filter(row => isAssignedTo(row, employee?.id)
+        && !['Done', 'Cancelled'].includes(row.status) && allows('task.read', row)).length,
+      leave: personal ? 0 : workflowLeaveRows(tables.leaves ?? [], context).filter(row => row.can_decide).length,
+      expense: pendingReview(tables.expenses, 'expense.read', 'expense.approve'),
+      attendance: pendingReview(tables.attendance_regularizations, 'attendance.read', 'regularization.approve'),
+      helpdesk: personal ? 0 : tickets().filter(row => row.can_manage && ['Open', 'In Progress', 'On Hold'].includes(row.status)).length,
+    }] };
+  }
   if (name === 'get_ticket_access') return { one: true, rows: [{ is_hr: isHr, can_manage_categories: admin,
     can_view_queue: isHr || role === 'dept_head' || (workflowFixtures && role === 'employee'), can_create: Boolean(employee?.id) }] };
   if (name === 'list_ticket_categories') return { rows: categories() };
   if (name === 'list_ticket_departments') return { rows: fixture.org.departments };
   if (name === 'list_tickets') return { rows: tickets() };
   if (!workflowFixtures || !canWrite) return undefined;
+  if (name === 'decide_exit_clearance' || name === 'complete_exit') {
+    const row = tables.exits.find(exit => exit.id === args.p_exit_id);
+    if (!row || row.employee_id === employee?.id || row.created_by === context.userId || !allows('exit.manage', row))
+      return { error: { message: 'You cannot decide this exit.' } };
+    const departments = ['IT', 'Admin', 'Finance', 'HR'];
+    if (row.status === 'Completed') return { error: { message: 'This exit is already completed.' } };
+    const previous = { ...row, approvals: { ...row.approvals } };
+    if (name === 'decide_exit_clearance') {
+      if (!departments.includes(args.p_department) || !['Approved', 'Rejected'].includes(args.p_decision))
+        return { error: { message: 'Invalid clearance decision.' } };
+      row.approvals = { ...row.approvals, [args.p_department]: args.p_decision };
+      row.status = departments.every(dept => row.approvals[dept] === 'Approved') ? 'Cleared' : 'Clearance in Progress';
+    } else {
+      if (row.status !== 'Cleared' || !departments.every(dept => row.approvals[dept] === 'Approved'))
+        return { error: { message: 'All departments must approve first.' } };
+      row.status = 'Completed';
+    }
+    event('exits', 'UPDATE', row, previous);
+    return { rows: [row], one: true, mutated: true };
+  }
   if (name === 'decide_leave') {
     const raw = tables.leaves.find((row) => row.id === args._leave_id);
     const row = raw && workflowLeaveRows([raw], context)[0];

@@ -1,0 +1,11 @@
+[
+  {
+    "name": "hr-exit-clearance-lifecycle",
+    "role": "hr_manager",
+    "status": "PASS",
+    "evidence": {
+      "status": "Completed",
+      "ownDecisionControls": 0
+    }
+  }
+]

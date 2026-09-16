@@ -1,4 +1,5 @@
 import { minutesOfDay } from './clock.js';
+import { attendanceTimeline } from './attendanceTimeline.js';
 
 // The numbers behind the per-person attendance screen, derived from its rows.
 //
@@ -230,11 +231,11 @@ export function summarise(rows) {
 /**
  * First punch to last — the whole day, break included.
  *
- * Deliberately the punches rather than check_in/check_out: on a day with a reconstructed punch
- * those are assumed times, and this figure is meant to be only what the terminal recorded.
+ * Use device punches plus approved endpoint corrections. A schedule reconstruction is still
+ * unverified and cannot supply an endpoint here.
  */
 export function onSiteMinutes(row) {
-  const punches = Array.isArray(row?.punches) ? row.punches : [];
+  const punches = attendanceTimeline(row);
   if (punches.length >= 2) {
     const first = new Date(punches[0]).getTime();
     const last = new Date(punches[punches.length - 1]).getTime();
@@ -263,7 +264,7 @@ export function insideMinutes(row) {
 }
 
 export function explainDay(row, shift) {
-  const punches = Array.isArray(row?.punches) ? row.punches : [];
+  const punches = attendanceTimeline(row);
   if (punches.length < 2) return null;
 
   const first = new Date(punches[0]).getTime();
@@ -286,7 +287,7 @@ export function explainDay(row, shift) {
   const insideMins = Math.max(0, onSite - measured);
   const free = Math.min(measured, allowance);
 
-  const lines = [{ label: 'On site, first punch to last', minutes: onSite }];
+  const lines = [{ label: row.regularization_id ? 'On site, approved corrections included' : 'On site, first punch to last', minutes: onSite }];
 
   if (measured > 0) {
     const breaks = Math.max(1, Math.floor((punches.length - 2) / 2));

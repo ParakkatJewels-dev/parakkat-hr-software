@@ -28,6 +28,7 @@ export function useAddTicket() {
     },
     onSuccess: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['tickets'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] }),
     ]),
   });
@@ -43,6 +44,7 @@ export function useSetTicketStatus() {
     },
     onSuccess: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['tickets'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] }),
     ]),
   });

@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useVisibleOrg } from '../data/org';
 import { useEmployees } from '../data/employees';
-import { useLeavesForPeriod } from '../data/leaves';
+import { useLeavesForPeriod, useLeaveDaysForPeriod } from '../data/leaves';
 import { useLeaveTypes, useLeaveBalances } from '../data/leaveTypes';
 import { useExpensesForPeriod } from '../data/expenses';
 import { useExits } from '../data/exits';
@@ -23,12 +23,23 @@ import { usePermissions } from '../auth/usePermissions';
 import { downloadCsv } from '../lib/csv';
 import { useUrlTab } from '../lib/useUrlTab';
 import Pagination, { usePagination } from './ui/Pagination';
+import QueryError from './ui/QueryError';
+import { headcountByBranch, reportReady } from '../lib/reportRows';
 
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
 const th = 'py-2 px-2 text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500';
 const td = 'py-1.5 px-2 text-xs font-mono text-neutral-600 dark:text-neutral-300';
 const tdName = 'py-1.5 px-2 text-base font-bold text-neutral-800 dark:text-warm-gray-100';
+
+function ReportData({ queries, label, children }) {
+  const failures = queries.filter(query => query.error);
+  if (failures.length) return <QueryError error={failures[0].error} title={`${label} could not be loaded.`}
+    onRetry={() => Promise.all(failures.map(query => query.refetch()))}
+    retrying={failures.some(query => query.isFetching)} />;
+  if (!reportReady(...queries)) return <SkeletonTable rows={4} columns={4} label={`Loading ${label.toLowerCase()}`} />;
+  return children;
+}
 
 export function ReportTable({ headers, rows, footer, resetKey }) {
   const pager = usePagination(rows, 25, null, resetKey);
@@ -112,8 +123,10 @@ export default function ReportsAnalytics() {
   const month = Number(period.slice(5, 7));
   const { from, to } = monthRange(year, month);
 
-  const { data: org } = useVisibleOrg();
-  const { data: employees = [] } = useEmployees();
+  const orgQuery = useVisibleOrg();
+  const { data: org } = orgQuery;
+  const employeeQuery = useEmployees();
+  const { data: employees = [] } = employeeQuery;
   const branches = useMemo(
     () => [...(org?.branches ?? [])].sort((a, b) => (a.code || '').localeCompare(b.code || '')),
     [org]
@@ -125,7 +138,8 @@ export default function ReportsAnalytics() {
   const inBranch = (empBranchId) => branchId === 'all' || empBranchId === branchId;
 
   // ---- attendance ----
-  const { data: attRows = [], isLoading: attLoading, error: attError } = useAttendanceReport(from, to);
+  const attendanceQuery = useAttendanceReport(from, to);
+  const { data: attRows = [] } = attendanceQuery;
   // Queued through Supabase. These used to call the service's HTTP API and were greyed out by a
   // health check that pinged the same unreachable address — so on the deployed site they were
   // permanently disabled, correctly but uselessly. The queue does not care whether this browser can
@@ -152,11 +166,24 @@ export default function ReportsAnalytics() {
   // ---- leave ----
   // Bounded by the PICKED period, not by recent activity — the activity hook stops 180 days
   // back, so older months summed to zero and the report presented that as fact.
-  const { data: leaves = [] } = useLeavesForPeriod(from, to, { enabled: tab === 'leave' });
-  const { data: leaveTypes = [] } = useLeaveTypes();
-  const { data: allBalances = [] } = useLeaveBalances(null, year, { all: tab === 'leave' });
+  const leaveQuery = useLeavesForPeriod(from, to, { enabled: tab === 'leave' });
+  const daysQuery = useLeaveDaysForPeriod(from, to, { enabled: tab === 'leave' });
+  const typeQuery = useLeaveTypes();
+  const balanceQuery = useLeaveBalances(null, year, { all: tab === 'leave' });
+  const { data: leaves = [] } = leaveQuery;
+  const { data: leaveTypes = [] } = typeQuery;
+  const { data: allBalances = [] } = balanceQuery;
+  const daysById = new Map((daysQuery.data ?? []).map(row => [row.leave_id, Number(row.period_days)]));
+  const periodDays = leave => daysById.get(leave.id) ?? 0;
+  const missingAllocation = reportReady(leaveQuery, daysQuery) && leaves.some(leave =>
+    !daysById.has(leave.id) || !Number.isFinite(daysById.get(leave.id)) || daysById.get(leave.id) < 0);
+  const allocationQuery = { ...daysQuery,
+    error: daysQuery.error || (missingAllocation ? new Error('Leave requests changed while this report loaded. Retry to refresh the totals.') : null),
+    refetch: () => Promise.all([leaveQuery.refetch(), daysQuery.refetch()]),
+  };
+  const leaveReady = reportReady(leaveQuery, allocationQuery, typeQuery);
   const periodLeaves = leaves.filter(
-    (l) => l.start_date <= to && l.end_date >= from && inBranch(l.employee?.branch_id)
+    (l) => l.start_date <= to && l.end_date >= from && inBranch(l.branch_id ?? l.employee?.branch_id)
   );
   const leaveByType = leaveTypes
     .map((t) => {
@@ -164,7 +191,7 @@ export default function ReportsAnalytics() {
       return {
         type: t.name,
         requests: rows.length,
-        approvedDays: rows.filter((l) => l.status === 'Approved').reduce((n, l) => n + Number(l.days || 0), 0),
+        approvedDays: rows.filter((l) => l.status === 'Approved').reduce((n, l) => n + periodDays(l), 0),
         pending: rows.filter((l) => l.status === 'Pending').length,
       };
     })
@@ -182,9 +209,10 @@ export default function ReportsAnalytics() {
   }, [allBalances, branchId, employees]);
 
   // ---- expenses ----
-  const { data: expenses = [] } = useExpensesForPeriod(from, to, { enabled: tab === 'expenses' });
+  const expenseQuery = useExpensesForPeriod(from, to, { enabled: tab === 'expenses' });
+  const { data: expenses = [] } = expenseQuery;
   const periodExpenses = expenses.filter(
-    (e) => (e.expense_date || '') >= from && (e.expense_date || '') <= to && inBranch(e.employee?.branch_id)
+    (e) => (e.expense_date || '') >= from && (e.expense_date || '') <= to && inBranch(e.branch_id ?? e.employee?.branch_id)
   );
   const expByCategory = Object.values(
     periodExpenses.reduce((m, e) => {
@@ -198,25 +226,10 @@ export default function ReportsAnalytics() {
   );
 
   // ---- headcount ----
-  const { data: exits = [] } = useExits({ enabled: tab === 'headcount' });
-  const headByBranch = Object.values(
-    employees.reduce((m, e) => {
-      if (!inBranch(e.branch_id)) return m;
-      const code = e.branch?.code || '—';
-      m[code] ||= { code, active: 0, joiners: 0, exits: 0 };
-      if (e.status === 'Active') m[code].active += 1;
-      if (e.join_date && e.join_date >= from && e.join_date <= to) m[code].joiners += 1;
-      return m;
-    }, {})
-  );
-  for (const x of exits) {
-    const code = x.employee?.branch?.code || '—';
-    if (!inBranch(x.employee?.branch_id) || !x.last_day || x.last_day < from || x.last_day > to) continue;
-    let row = headByBranch.find((r) => r.code === code);
-    if (!row) headByBranch.push((row = { code, active: 0, joiners: 0, exits: 0 }));
-    row.exits += 1;
-  }
-  headByBranch.sort((a, b) => b.active - a.active);
+  const exitsQuery = useExits({ enabled: tab === 'headcount' });
+  const { data: exits = [] } = exitsQuery;
+  const headByBranch = headcountByBranch(employees, exits, { from, to, branchId, org });
+  const headcountReady = reportReady(employeeQuery, exitsQuery) && Boolean(org) && !orgQuery.error;
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
@@ -226,6 +239,8 @@ export default function ReportsAnalytics() {
           Branch-wise operational reports, scoped to what you may see. Pick a month and branch, then export.
         </p>
       </div>
+
+      <QueryError error={orgQuery.error} title="Branch filters could not be loaded." onRetry={orgQuery.refetch} />
 
       {/* Filters */}
       <div className="premium-card mobile-filter-card mobile-toolbar flex flex-col sm:flex-row sm:items-center gap-3">
@@ -320,6 +335,7 @@ export default function ReportsAnalytics() {
               )}
               <ExportButton
                 label="Summary (CSV)"
+                disabled={!reportReady(attendanceQuery)}
                 onClick={() =>
                   downloadCsv(
                     `attendance-summary-${period}.csv`,
@@ -338,14 +354,7 @@ export default function ReportsAnalytics() {
               <AlertCircle size={11} /> Excel export failed: {exportError.message} — is the attendance service running?
             </p>
           )}
-          {attError && (
-            <p className="flex items-center gap-1.5 text-xs text-rose-500">
-              <AlertCircle size={11} /> {attError.message}
-            </p>
-          )}
-          {attLoading ? (
-            <SkeletonTable rows={6} columns={10} label="Loading attendance report" />
-          ) : (
+          <ReportData queries={[attendanceQuery]} label="Attendance report">
             <ReportTable
               resetKey={`${period}:${branchId}:${tab}`}
               headers={['Branch', 'Staff', 'Present', 'Half', 'Absent', 'Leave', 'LOP', 'Late', 'No Punch', 'OT']}
@@ -358,7 +367,7 @@ export default function ReportsAnalytics() {
                 attTotal.leave_days, attTotal.lop_days, attTotal.late_marks, attTotal.missing_punches, fmtMinutes(attTotal.ot_minutes),
               ] : null}
             />
-          )}
+          </ReportData>
           <p className="text-2xs text-neutral-400">
             The Excel register has the full per-employee day grid; this table is the per-branch roll-up.
             In the Total row, someone who worked in two branches this month counts once per branch.
@@ -376,19 +385,21 @@ export default function ReportsAnalytics() {
             <div className="mobile-list-actions flex flex-wrap gap-2">
               <ExportButton
                 label="Requests (CSV)"
+                disabled={!leaveReady}
                 onClick={() =>
                   downloadCsv(
                     `leave-report-${period}.csv`,
-                    ['Employee', 'Code', 'Branch', 'Type', 'From', 'To', 'Days', 'Status'],
+                    ['Employee', 'Code', 'Branch', 'Type', 'From', 'To', 'Days in period', 'Request days', 'Status'],
                     periodLeaves.map((l) => [
                       l.employee?.full_name, l.employee?.employee_code, l.employee?.branch?.code,
-                      l.type, l.start_date, l.end_date, l.days, l.status,
+                      l.type, l.start_date, l.end_date, periodDays(l), l.days, l.status,
                     ])
                   )
                 }
               />
               <ExportButton
                 label="Balances (CSV)"
+                disabled={!reportReady(balanceQuery) || (branchId !== 'all' && !reportReady(employeeQuery))}
                 onClick={() =>
                   downloadCsv(
                     `leave-balances-${year}.csv`,
@@ -402,6 +413,7 @@ export default function ReportsAnalytics() {
               />
             </div>
           </div>
+              <ReportData queries={[leaveQuery, allocationQuery, typeQuery]} label="Leave report">
           <ReportTable
             resetKey={`${period}:${branchId}:${tab}`}
             headers={['Leave Type', 'Requests', 'Approved Days', 'Pending Requests']}
@@ -410,7 +422,7 @@ export default function ReportsAnalytics() {
               ...(otherLeaves.length
                 ? [[
                     'Other', otherLeaves.length,
-                    otherLeaves.filter((l) => l.status === 'Approved').reduce((n, l) => n + Number(l.days || 0), 0),
+                    otherLeaves.filter((l) => l.status === 'Approved').reduce((n, l) => n + periodDays(l), 0),
                     otherLeaves.filter((l) => l.status === 'Pending').length,
                   ]]
                 : []),
@@ -418,8 +430,11 @@ export default function ReportsAnalytics() {
           />
           <p className="text-2xs text-neutral-400">
             {periodLeaves.length} request{periodLeaves.length === 1 ? '' : 's'} overlapping {period} in your scope.
-            LOP days appear in the Attendance tab.
+            Approved days count working days in this month, excluding cancelled dates. LOP days appear in the Attendance tab.
           </p>
+          </ReportData>
+          <QueryError error={balanceQuery.error} title="Leave balances could not be loaded." onRetry={balanceQuery.refetch} />
+          {branchId !== 'all' && <QueryError error={employeeQuery.error} title="Employees for balance filtering could not be loaded." onRetry={employeeQuery.refetch} />}
         </section>
       )}
 
@@ -432,6 +447,7 @@ export default function ReportsAnalytics() {
             </h3>
             <ExportButton
               label="Claims (CSV)"
+              disabled={!reportReady(expenseQuery)}
               onClick={() =>
                 downloadCsv(
                   `expense-report-${period}.csv`,
@@ -444,6 +460,7 @@ export default function ReportsAnalytics() {
               }
             />
           </div>
+          <ReportData queries={[expenseQuery]} label="Expense report">
           <ReportTable
             resetKey={`${period}:${branchId}:${tab}`}
             headers={['Category', 'Claims', 'Approved Amount', 'Pending Amount']}
@@ -455,6 +472,7 @@ export default function ReportsAnalytics() {
               inr(expByCategory.reduce((n, r) => n + r.pending, 0)),
             ] : null}
           />
+          </ReportData>
         </section>
       )}
 
@@ -467,19 +485,22 @@ export default function ReportsAnalytics() {
             </h3>
             <ExportButton
               label="Headcount (CSV)"
+              disabled={!headcountReady}
               onClick={() =>
                 downloadCsv(
                   `headcount-${period}.csv`,
-                  ['Branch', 'Active Employees', 'Joiners', 'Exits'],
-                  headByBranch.map((r) => [r.code, r.active, r.joiners, r.exits])
+                  ['Branch', 'Current Active Employees', `Joiners ${period}`, `Exits ${period}`],
+                  headByBranch.map((r) => [r.label, r.active, r.joiners, r.exits])
                 )
               }
             />
           </div>
+          <p className="text-xs text-neutral-500">Current active employees reflect today's roster. Joiners and exits belong to the selected month.</p>
+          <ReportData queries={[employeeQuery, exitsQuery]} label="Headcount report">
           <ReportTable
             resetKey={`${period}:${branchId}:${tab}`}
-            headers={['Branch', 'Active', 'Joiners This Month', 'Exits This Month']}
-            rows={headByBranch.map((r) => [r.code, r.active, r.joiners, r.exits])}
+            headers={['Branch', 'Current Active', 'Joiners This Month', 'Exits This Month']}
+            rows={headByBranch.map((r) => [r.label, r.active, r.joiners, r.exits])}
             footer={headByBranch.length > 1 ? [
               'Total',
               headByBranch.reduce((n, r) => n + r.active, 0),
@@ -487,6 +508,7 @@ export default function ReportsAnalytics() {
               headByBranch.reduce((n, r) => n + r.exits, 0),
             ] : null}
           />
+          </ReportData>
         </section>
       )}
     </div>

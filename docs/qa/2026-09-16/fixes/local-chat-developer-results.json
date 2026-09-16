@@ -1,0 +1,37 @@
+{
+  "mode": "Headless Chrome; fresh context; local QA memory fixtures only; external HTTP blocked",
+  "results": [
+    {
+      "name": "Send synthetic direct message",
+      "status": "pass",
+      "evidence": "Message appears in history and composer clears."
+    },
+    {
+      "name": "Reply to synthetic message",
+      "status": "pass",
+      "evidence": "Reply body and quote navigation appear."
+    },
+    {
+      "name": "Search conversation messages",
+      "status": "pass",
+      "evidence": "Search finds the newly sent synthetic message."
+    },
+    {
+      "name": "Unpin and repin chat preference",
+      "status": "pass",
+      "evidence": "Menu action toggles Unpin → Pin → Unpin, showing saved fixture preference."
+    },
+    {
+      "name": "Create unusable synthetic developer key with API disabled",
+      "status": "pass",
+      "evidence": "One-time fixture key has qa_nonfunctional_ prefix, then hides."
+    },
+    {
+      "name": "Revoke synthetic developer key",
+      "status": "pass",
+      "evidence": "Key row becomes Revoked and its revoke action disappears."
+    }
+  ],
+  "pageErrors": [],
+  "blockedExternalRequests": []
+}

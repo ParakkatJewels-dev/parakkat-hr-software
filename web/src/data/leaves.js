@@ -54,6 +54,16 @@ export function useLeavesForPeriod(from, to, { enabled = true } = {}) {
   });
 }
 
+/** Period allocation comes from the same server rules used to charge leave balances. */
+export function useLeaveDaysForPeriod(from, to, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(from) && Boolean(to),
+    queryKey: ['leaves-period-days', from, to],
+    queryFn: () => fetchCollection(() => supabase.rpc('report_leave_days', { _from: from, _to: to })
+      .order('leave_id'), { key: row => row.leave_id }),
+  });
+}
+
 export function useApplyLeave() {
   const qc = useQueryClient();
   return useMutation({
@@ -64,6 +74,9 @@ export function useApplyLeave() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leaves'] });
+      qc.invalidateQueries({ queryKey: ['leaves-period'] });
+      qc.invalidateQueries({ queryKey: ['leaves-period-days'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
     },
   });
@@ -82,7 +95,7 @@ export function useDecideLeave() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => Promise.all(['leaves', 'leaves-period', 'leave-balances', 'attendance', 'notifications', 'notification-ref-statuses']
+    onSuccess: () => Promise.all(['section-counts', 'leaves', 'leaves-period', 'leaves-period-days', 'leave-balances', 'attendance', 'notifications', 'notification-ref-statuses']
       .map((key) => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }

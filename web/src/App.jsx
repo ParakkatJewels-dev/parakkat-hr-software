@@ -43,7 +43,7 @@ import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
 import LiquidGlassNav from './components/ui/LiquidGlassNav';
-import UnreadMessageBadge, { unreadMessageLabel } from './components/ui/UnreadMessageBadge';
+import { NavigationCountBadge, NavigationCountStatus } from './components/ui/CountBadge';
 import './components/ui/liquidGlassNav.css';
 import { useAuth } from './auth/AuthContext';
 import { useEmployeeAvatars } from './data/documents';
@@ -54,7 +54,9 @@ import { useViewRole } from './lib/viewRole';
 import { appIdentityFor, appNameFor, appRoleFor, documentTitleFor } from './lib/appName';
 import { useRealtimeSync } from './lib/realtime';
 import { useIncomingMessageDelivery } from './data/messages';
+import { useSectionCounts } from './data/sectionCounts';
 import { unreadTotal } from './lib/conversations';
+import { NAVIGATION_COUNT_LABELS, navigationScreenCount, navigationSectionCount, navigationCountLabel, navigationCountTarget } from './lib/navigationCounts';
 import { useClockFormat } from './lib/timeFormat';
 import { useVersionCheck } from './lib/versionCheck';
 import { isStandalonePwa } from './lib/pwa';
@@ -107,7 +109,7 @@ function AccessDenied() {
 
 export default function App() {
   const { employee, user, isSuperAdmin, signOut, assignments, permissions, hiddenScreens } = useAuth();
-  const { canAny, canBeyondSelf } = usePermissions();
+  const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
   useRealtimeSync(); // live-sync data across devices via Supabase Realtime
   const incomingMessages = useIncomingMessageDelivery();
   const unreadMessageCount = unreadTotal(incomingMessages.data);
@@ -485,6 +487,18 @@ export default function App() {
     tabs: sec.tabs.map((t) => ({ ...t, icon: t.icon ?? ESS_ICONS[t.id] })),
   }));
 
+  const countsEnabled = visibleSections.some(section => section.tabs.some(tab => tab.id in NAVIGATION_COUNT_LABELS));
+  const sectionCounts = useSectionCounts({ enabled: countsEnabled, selfOnly: viewingAsEmployee });
+  const screenBadge = (id) => navigationScreenCount(id, sectionCounts.data, unreadMessageCount);
+  const sectionBadge = (section) => navigationSectionCount(section, sectionCounts.data, unreadMessageCount);
+  const navTarget = (tab) => navigationCountTarget(tab, sectionCounts.data);
+  const countStatus = countsEnabled && sectionCounts.isError ? {
+    message: sectionCounts.data
+      ? 'Section counts could not be refreshed. Showing the last available counts.'
+      : 'Section counts are unavailable. Open a section to review its items.',
+    label: sectionCounts.data ? 'Counts may be outdated' : 'Counts unavailable',
+  } : null;
+
   const allTabs = visibleSections.flatMap((sec) => sec.tabs);
   // Every tab the application defines, in either tree. `allTabs` above is only the tabs in THIS
   // user's nav, which is the wrong set to authorise against.
@@ -540,7 +554,7 @@ export default function App() {
     label: MOBILE_NAV_LABELS[section.id] ?? section.label,
     avatarUrl: section.id === 'profile' ? avatarUrl : undefined,
     initials: displayInitials,
-    unreadCount: section.id === 'messages' ? unreadMessageCount : 0,
+    badge: screenBadge(section.id),
   }));
   const needle = menuSearch.trim().toLowerCase();
   const menuSections = visibleSections.map(section => ({
@@ -550,7 +564,8 @@ export default function App() {
 
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {
-    if (isNotFound || !sec.tabs.some((t) => t.id === activeTab)) setActiveTab(sec.tabs[0].id);
+    const target = navTarget(sec.tabs[0]);
+    if (isNotFound || !sec.tabs.some((t) => t.id === activeTab) || target.includes('ticketQueue=needs-action')) setActiveTab(target);
   };
 
   const commandOptions = [
@@ -586,6 +601,8 @@ export default function App() {
         {visibleSections.map((sec) => {
           const Icon = sec.icon;
           const isActive = activeSection?.id === sec.id;
+          const badge = sectionBadge(sec);
+          const label = navigationCountLabel(sec.label, badge);
           return (
             <button
               key={sec.id}
@@ -593,8 +610,8 @@ export default function App() {
                 openSection(sec);
               }}
               aria-current={isActive ? 'page' : undefined}
-              title={isCollapsedDesktop ? (sec.id === 'messages' ? unreadMessageLabel(sec.label, unreadMessageCount) : sec.label) : undefined}
-              aria-label={sec.id === 'messages' ? unreadMessageLabel(sec.label, unreadMessageCount) : isCollapsedDesktop ? sec.label : undefined}
+              title={isCollapsedDesktop ? label : undefined}
+              aria-label={label}
               className={`w-full flex items-center rounded-xl text-base font-semibold cursor-pointer transition-colors duration-200 group relative border border-transparent ${
                 isCollapsedDesktop ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
               } ${
@@ -611,14 +628,14 @@ export default function App() {
                     : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-850 dark:group-hover:text-warm-gray-100'
                 }`}
               />
-              {isCollapsedDesktop && sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} corner />}
+              {isCollapsedDesktop && <NavigationCountBadge badge={badge} corner />}
               </span>
               {!isCollapsedDesktop && <span className="truncate">{sec.label}</span>}
-              {!isCollapsedDesktop && sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} />}
+              {!isCollapsedDesktop && <NavigationCountBadge badge={badge} />}
 
               {isCollapsedDesktop && (
                 <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 absolute left-full ml-4 px-2.5 py-1.5 bg-neutral-900/95 dark:bg-white text-white dark:text-charcoal-900 text-base font-bold rounded-lg shadow-xl transition-opacity duration-200 whitespace-nowrap z-50 pointer-events-none">
-                  {sec.label}
+                  {label}
                 </div>
               )}
             </button>
@@ -665,17 +682,18 @@ export default function App() {
                 const Icon = sec.icon;
                 const sectionActive = activeSection?.id === sec.id;
                 const label = sec.label;
+                const badge = sectionBadge(sec);
                 return (
                   <button
                     key={sec.id}
                     type="button"
                     onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
                     aria-current={sectionActive ? 'page' : undefined}
-                    aria-label={sec.id === 'messages' ? unreadMessageLabel(label, unreadMessageCount) : undefined}
+                    aria-label={navigationCountLabel(label, badge)}
                     className="employee-more-tile"
                   >
                     <span className="nav-message-icon" aria-hidden="true"><Icon size={17} />
-                      {sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} corner />}
+                      <NavigationCountBadge badge={badge} corner />
                     </span>
                     <span>{label}</span>
                   </button>
@@ -698,34 +716,37 @@ export default function App() {
         const Icon = single?.icon ?? sec.icon;
         const sectionActive = !isNotFound && (single ? single.id === activeTab : activeSection?.id === sec.id);
         const screens = sec.tabs.length > 1 ? sec.tabs : [];
+        const badge = sectionBadge(sec);
         return (
           <div key={sec.id} className="mobile-nav-group">
             <button
               type="button"
               onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
               aria-current={sectionActive && screens.length === 0 ? 'page' : undefined}
-              aria-label={sec.id === 'messages' ? unreadMessageLabel(single?.label ?? sec.label, unreadMessageCount) : undefined}
+              aria-label={navigationCountLabel(single?.label ?? sec.label, badge)}
               className="mobile-nav-section"
             >
               <Icon size={15} />
               <span className="truncate">{single?.label ?? sec.label}</span>
-              {sec.id === 'messages' && <UnreadMessageBadge count={unreadMessageCount} />}
+              <NavigationCountBadge badge={badge} />
             </button>
 
             {screens.length > 0 && (
               <div className="mobile-nav-screens">
                 {screens.map((t) => {
-                  const id = t.to ?? t.id;
+                  const id = navTarget(t);
                   const on = !isNotFound && (activeTab === t.id || activeTab === id);
+                  const badge = screenBadge(t.id);
                   return (
                     <button
                       key={t.id}
                       type="button"
                       onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
                       aria-current={on ? 'page' : undefined}
+                      aria-label={navigationCountLabel(t.label, badge)}
                       className={on ? 'is-active' : undefined}
                     >
-                      {t.label}
+                      <span>{t.label}</span><NavigationCountBadge badge={badge} />
                     </button>
                   );
                 })}
@@ -790,6 +811,7 @@ export default function App() {
         {/* Grouped Links Navigation */}
         <nav className="flex-1 py-3 px-2.5 space-y-3 overflow-y-auto max-h-[calc(100vh-140px)]">
           {renderNavLinks()}
+          <NavigationCountStatus {...countStatus} compact={isSidebarCollapsed} />
         </nav>
 
         {/* Footer profile metadata */}
@@ -995,18 +1017,20 @@ export default function App() {
             <div className="section-tab-scroll tab-scroll flex gap-5 -mb-px">
               {activeSection.tabs.map((t) => {
                 const on = activeTab === t.id;
+                const badge = screenBadge(t.id);
                 return (
                   <button
                     key={t.id}
-                    onClick={() => setActiveTab(t.to ?? t.id)}
+                    onClick={() => setActiveTab(navTarget(t))}
                     aria-current={on ? 'page' : undefined}
+                    aria-label={navigationCountLabel(t.label, badge)}
                     className={`section-tab-button shrink-0 whitespace-nowrap py-2.5 text-base font-semibold border-b-2 cursor-pointer transition-colors ${
                       on
                         ? 'border-brand text-brand-ink'
                         : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
                     }`}
                   >
-                    {t.label}
+                    {t.label}<NavigationCountBadge badge={badge} />
                   </button>
                 );
               })}
@@ -1141,9 +1165,10 @@ export default function App() {
           activeId={isNotFound ? '' : activeTab}
           menuOpen={mobileMenuOpen}
           isPwaInstalled={isPwaInstalled}
+          countStatus={countStatus}
           onSelect={(item, event) => {
             if (item.id === 'menu') openMobileMenu(event);
-            else setActiveTab(item.tabs[0].id);
+            else setActiveTab(navTarget(item.tabs[0]));
           }}
         />
 
@@ -1178,7 +1203,9 @@ export default function App() {
               <label className="input-shell profile-navigation-search"><Search size={18} aria-hidden="true" />
                 <input type="search" aria-label="Search menu" placeholder="Search menu" value={menuSearch} onChange={event => setMenuSearch(event.target.value)} />
               </label>
-              <nav aria-label="All sections">{menuSections.length ? renderMobileNavTree() : <p className="profile-navigation-empty" role="status">No sections match “{menuSearch}”.</p>}</nav>
+              <nav aria-label="All sections">{menuSections.length ? renderMobileNavTree() : <p className="profile-navigation-empty" role="status">No sections match “{menuSearch}”.</p>}
+                <NavigationCountStatus {...countStatus} />
+              </nav>
               <button type="button" className="profile-navigation-signout" onClick={signOut}><LogOut size={18} />Sign out</button>
             </div>
           </div>

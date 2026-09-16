@@ -49,7 +49,7 @@ try {
       ...(file.startsWith('0140_') ? ['\\set routine_seed on', `\\i ${quote(routineTests)}`] : []),
       `\\i ${quote(join(migrations, file))}`,
       // This migration promises safe reruns; enforce that before running API assertions.
-      ...(/^(0129|0133|0134|0137|0138|0139|0140)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0129|0133|0134|0137|0138|0139|0140|0141|0142|0143|0144|0145|0146)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     '\\set message_requests_seed off',
     `\\i ${quote(messageTests)}`,
@@ -58,6 +58,10 @@ try {
     `\\i ${quote(join(backend, 'tests', 'ticket_category_routing.sql'))}`,
     '\\set routine_seed off',
     `\\i ${quote(routineTests)}`,
+    `\\i ${quote(join(backend, 'tests', 'section_counts.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'request_integrity.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'immediate_account_revocation.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'report_input_integrity.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, messageDatabase]);
   const messageOutput = run('psql', [...connection, '-d', messageDatabase, '-q', '-f', messageBootstrap]);
@@ -65,7 +69,9 @@ try {
   console.log(run(process.execPath, [join(__dirname, 'testMessageNotificationConcurrency.js'), directory]).trim());
   require('./testAdminPassword')({ run, connection, directory });
   require('./testDeveloperApi')({ run, connection, directory });
+  require('./testPayrollIntegrity')({ run, connection, directory });
   require('./testRoleMatrix')({ run, connection: ['-h', directory, '-U', 'audit_owner'], directory });
+  require('./testMigrationOwnership')({ run, connection, directory });
 } catch (error) {
   console.error(error.message);
   process.exitCode = 1;

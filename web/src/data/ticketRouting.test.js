@@ -75,10 +75,10 @@ test('server management refusals surface and successful mutations refresh both q
   await assert.rejects(tickets.useSetTicketStatus().mutationFn({ id: 'ticket', status: 'Resolved' }), /outside the department/);
   globalThis.ticketInvalidations = [];
   await tickets.useSetTicketStatus().onSuccess();
-  assert.deepEqual(globalThis.ticketInvalidations, [['tickets'], ['notification-ref-statuses']]);
+  assert.deepEqual(globalThis.ticketInvalidations, [['tickets'], ['section-counts'], ['notification-ref-statuses']]);
   globalThis.ticketInvalidations = [];
   await categories.useSaveTicketCategory().onSuccess();
-  assert.deepEqual(globalThis.ticketInvalidations, [['ticket-categories'], ['ticket-access'], ['tickets']]);
+  assert.deepEqual(globalThis.ticketInvalidations, [['ticket-categories'], ['ticket-access'], ['tickets'], ['section-counts']]);
 });
 
 test('ticket access is provided by the server and missing category setup has an actionable error', async () => {

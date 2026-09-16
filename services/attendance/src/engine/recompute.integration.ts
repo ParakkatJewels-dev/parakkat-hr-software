@@ -65,6 +65,51 @@ after(async () => {
 
 const fixtureTest = (name: string, fn: () => Promise<void>) => test(name, { skip: !postgresAvailable && 'PostgreSQL initdb is required for this isolated integration fixture' }, fn);
 
+fixtureTest('ATT corrections persist complete endpoints, measured breaks and cleared exceptions through recompute SQL', async () => {
+  await client.$executeRaw`update shifts set end_time = '17:30', break_minutes = 40,
+    break_policy = 'excess', full_day_minutes = 510, is_flexible = true, weekly_offs = array[0]`;
+  await client.$executeRaw`insert into employees(id, entity_id) values
+    (${id(2)}::uuid, ${id(2000)}::uuid), (${id(3)}::uuid, ${id(2000)}::uuid)`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-07-14 16:30+05:30'),
+    (${id(2)}::uuid, '2026-07-14 09:00+05:30'),
+    (${id(2)}::uuid, '2026-07-14 12:00+05:30'),
+    (${id(2)}::uuid, '2026-07-14 13:30+05:30'),
+    (${id(3)}::uuid, '2026-07-12 09:00+05:30')`;
+  await client.$executeRaw`insert into attendance_regularizations(id, employee_id, work_date, check_in, check_out, status) values
+    (${id(3001)}::uuid, ${id(1)}::uuid, '2026-07-14', '2026-07-14 09:00+05:30', null, 'Approved'),
+    (${id(3002)}::uuid, ${id(2)}::uuid, '2026-07-14', null, '2026-07-14 17:30+05:30', 'Approved'),
+    (${id(3003)}::uuid, ${id(3)}::uuid, '2026-07-12', null, '2026-07-12 11:00+05:30', 'Approved')`;
+  await engine.recompute({ from: '2026-07-12', to: '2026-07-14' });
+  const rows = await client.$queryRaw<Array<{
+    employee_id: string; check_in: Date; check_out: Date; worked_minutes: number; break_minutes: number;
+    is_missing_punch: boolean; breaks_incomplete: boolean; day_fraction: unknown; punch_count: number; ot_minutes: number;
+  }>>`select employee_id, check_in, check_out, worked_minutes, break_minutes, is_missing_punch,
+    breaks_incomplete, day_fraction, punch_count, ot_minutes from attendance
+    where regularization_id is not null order by employee_id`;
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows.map(r => [r.worked_minutes, r.break_minutes, r.is_missing_punch, r.breaks_incomplete,
+    Number(r.day_fraction), r.punch_count]), [[450, 0, false, false, 1, 1], [460, 90, false, false, 1, 3], [120, 0, false, false, 1, 1]]);
+  assert.equal(rows[0]!.check_out.toISOString(), '2026-07-14T11:00:00.000Z');
+  assert.equal(rows[1]!.check_out.toISOString(), '2026-07-14T12:00:00.000Z');
+  assert.equal(rows[2]!.ot_minutes, 120);
+});
+
+fixtureTest('ATT-05: approved checkout-only night correction loads and persists its following-day exit', async () => {
+  await client.$executeRaw`update shifts set start_time = '22:00', end_time = '06:00',
+    crosses_midnight = true, break_minutes = 30, break_policy = 'fixed', full_day_minutes = 450`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time)
+    values (${id(1)}::uuid, '2026-07-14 22:00+05:30')`;
+  await client.$executeRaw`insert into attendance_regularizations(id, employee_id, work_date, check_in, check_out, status)
+    values (${id(3001)}::uuid, ${id(1)}::uuid, '2026-07-14', null, '2026-07-15 06:00+05:30', 'Approved')`;
+  await engine.recompute({ from: '2026-07-14', to: '2026-07-14' });
+  const rows = await client.$queryRaw<Array<{ check_out: Date; worked_minutes: number; is_missing_punch: boolean }>>`
+    select check_out, worked_minutes, is_missing_punch from attendance`;
+  assert.equal(rows[0]!.check_out.toISOString(), '2026-07-15T00:30:00.000Z');
+  assert.equal(rows[0]!.worked_minutes, 450);
+  assert.equal(rows[0]!.is_missing_punch, false);
+});
+
 fixtureTest('queue keeps future work pending and does not let future entries exhaust the batch', async () => {
   await engine.enqueueRecompute(id(1), '2026-07-16', '2026-07-18', 'Future approval');
   await engine.enqueueRecompute(id(1), '2026-07-14', '2026-07-14', 'Past correction');

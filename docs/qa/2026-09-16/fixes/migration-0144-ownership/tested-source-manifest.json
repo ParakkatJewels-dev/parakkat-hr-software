@@ -1,0 +1,33 @@
+{
+  "note": "Files changed for the local 0144 ownership correction; no environment credentials or hosted state accessed.",
+  "files": [
+    {
+      "path": "web/backend/supabase/migrations/0144_immediate_account_revocation.sql",
+      "sha256": "a7e9383add51375f9eb90622c7415732bfa3781050a5a393ecc9edd04e00d445"
+    },
+    {
+      "path": "web/backend/tests/immediate_account_revocation.sql",
+      "sha256": "0c15cc4f94d7ea5e41a63df166300429648a04d9b3bbba955b2f6107b1d10048"
+    },
+    {
+      "path": "web/backend/scripts/testDatabase.js",
+      "sha256": "8a0aebf014b13a71ff2df932cd3715fe6606f31c1f702c4c645fa5d33e7a979c"
+    },
+    {
+      "path": "web/backend/scripts/testMigrationOwnership.js",
+      "sha256": "760383425edc9783c071f89d1beaa5a61e85c78a0ece5b5f57447f6f4ecd6a9f"
+    },
+    {
+      "path": "web/backend/tests/migration_ownership_fixture.sql",
+      "sha256": "6e2c9fd3b5265ce341c33fc890346e659568956fd74f870b5258a7d70f492971"
+    },
+    {
+      "path": "web/backend/tests/migration_ownership.sql",
+      "sha256": "b5f21aba9ae2e7e45a87daedddc5ad7994c420b1cbd2f146a094bbdc5776c997"
+    },
+    {
+      "path": "web/backend/README.md",
+      "sha256": "d805e5547e2ebd4a1221d23ac20fa0eb9b22b2e6aaade5e74b06d8eb0358e6ed"
+    }
+  ]
+}

@@ -27,7 +27,9 @@ export function useAddJob() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (payload) => {
-      const { error } = await supabase.from('jobs').insert({ ...payload, status: 'Open' });
+      const title = String(payload.title ?? '').trim();
+      if (!title) throw new Error('Enter a job title.');
+      const { error } = await supabase.from('jobs').insert({ ...payload, title, status: 'Open' });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
@@ -38,8 +40,11 @@ export function useSetCandidateStage() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ id, stage }) => {
-      const { error } = await supabase.from('candidates').update({ stage }).eq('id', id);
+      const { data, error } = await supabase.from('candidates').update({ stage }).eq('id', id).select('id');
       if (error) throw error;
+      // A stale permission or deleted candidate can make RLS update zero rows without an error.
+      if (!data?.length) throw new Error('This candidate is no longer available to update. Refresh the list and check your access.');
+      return data[0];
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['candidates'] }),
   });

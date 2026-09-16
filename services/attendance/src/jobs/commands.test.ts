@@ -45,7 +45,7 @@ const failure = () => assert.ok(writes.some(w => w.sql.includes("status = 'faile
 const noWork = () => assert.deepEqual(calls.filter(c => c.name !== 'claim'), [], 'denied/invalid commands must not start work');
 
 test('a requester whose authority was revoked cannot run queued global work', async () => {
-  for (const kind of ['sync_transactions', 'sync_employees', 'refresh_suggestions', 'recompute', 'backfill']) {
+  for (const kind of ['sync_transactions', 'sync_employees', 'refresh_suggestions', 'recompute', 'backfill', 'export_register']) {
     auth = null; calls.length = 0; writes.length = 0;
     enqueue(kind, { from: '2026-07-01', to: '2026-07-02' });
     await drain(); failure(); noWork();

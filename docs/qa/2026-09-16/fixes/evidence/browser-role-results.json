@@ -1,0 +1,450 @@
+[
+  {
+    "role": "hr_manager",
+    "designation": "HR Manager",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "HR Manager",
+        "Company Administrator",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "HR Manager"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: hr_manager; viewport: 1440px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (403ms)\nPASS directory (490ms)\nPASS employee-import (403ms)\nPASS organization [denied as expected] (406ms)\nPASS attendance/today (403ms)\nPASS attendance/overview (403ms)\nPASS attendance/exceptions (405ms)\nPASS attendance/regularizations (406ms)\nPASS attendance-person (403ms)\nPASS attendance-admin/mapping (403ms)\nPASS attendance-admin/shifts (404ms)\nPASS attendance-admin/holidays (405ms)\nPASS attendance-admin/leaveTypes (402ms)\nPASS attendance-admin/sync (403ms)\nPASS leave (403ms)\nPASS tasks/board (416ms)\nPASS tasks/todo (403ms)\nPASS tasks/requests (406ms)\nPASS tasks/routine (403ms)\nPASS messages (401ms)\nPASS team (403ms)\nPASS payroll/payslips (404ms)\nPASS payroll/salary (407ms)\nPASS payroll/run (403ms)\nPASS payroll/components (404ms)\nPASS expense (403ms)\nPASS performance/mine (405ms)\nPASS performance/team (403ms)\nPASS assets (402ms)\nPASS my-assets (403ms)\nPASS documents/employee (404ms)\nPASS documents/company (405ms)\nPASS recruitment (404ms)\nPASS onboarding (404ms)\nPASS helpdesk (405ms)\nPASS reports/attendance (405ms)\nPASS reports/leave (402ms)\nPASS reports/expenses (402ms)\nPASS reports/headcount (403ms)\nPASS administration (405ms)\nPASS admin-roles (405ms)\nPASS admin-audit [denied as expected] (403ms)\nPASS admin-chats [denied as expected] (405ms)\nPASS admin-developer [denied as expected] (404ms)\nPASS profile (404ms)\nPASS notifications (403ms)\nPASS settings (404ms)\n\nQueries: 172; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "super_admin",
+    "designation": "Group Administrator",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Group Administrator",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Group Administrator"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: super_admin; viewport: 1440px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (408ms)\nPASS directory (591ms)\nPASS employee-import (407ms)\nPASS organization (403ms)\nPASS attendance/today (403ms)\nPASS attendance/overview (404ms)\nPASS attendance/exceptions (405ms)\nPASS attendance/regularizations (403ms)\nPASS attendance-person (404ms)\nPASS attendance-admin/mapping (405ms)\nPASS attendance-admin/shifts (405ms)\nPASS attendance-admin/holidays (402ms)\nPASS attendance-admin/leaveTypes (404ms)\nPASS attendance-admin/sync (406ms)\nPASS leave (406ms)\nPASS tasks/board (434ms)\nPASS tasks/todo (404ms)\nPASS tasks/requests (405ms)\nPASS tasks/routine (406ms)\nPASS messages (402ms)\nPASS team (403ms)\nPASS payroll/payslips (404ms)\nPASS payroll/salary (405ms)\nPASS payroll/run (404ms)\nPASS payroll/components (402ms)\nPASS expense (403ms)\nPASS performance/mine (403ms)\nPASS performance/team (406ms)\nPASS assets (405ms)\nPASS my-assets (404ms)\nPASS documents/employee (405ms)\nPASS documents/company (405ms)\nPASS recruitment (403ms)\nPASS onboarding (405ms)\nPASS helpdesk (406ms)\nPASS reports/attendance (403ms)\nPASS reports/leave (402ms)\nPASS reports/expenses (402ms)\nPASS reports/headcount (402ms)\nPASS administration (489ms)\nPASS admin-roles (407ms)\nPASS admin-audit (404ms)\nPASS admin-chats (406ms)\nPASS admin-developer (405ms)\nPASS profile (403ms)\nPASS notifications (403ms)\nPASS settings (405ms)\n\nQueries: 191; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "entity_admin",
+    "designation": "Company Administrator",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Company Administrator"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: entity_admin; viewport: 1440px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (404ms)\nPASS directory (629ms)\nPASS employee-import (404ms)\nPASS organization (405ms)\nPASS attendance/today (405ms)\nPASS attendance/overview (403ms)\nPASS attendance/exceptions (404ms)\nPASS attendance/regularizations (407ms)\nPASS attendance-person (404ms)\nPASS attendance-admin/mapping (403ms)\nPASS attendance-admin/shifts (405ms)\nPASS attendance-admin/holidays (406ms)\nPASS attendance-admin/leaveTypes (403ms)\nPASS attendance-admin/sync (401ms)\nPASS leave (407ms)\nPASS tasks/board (436ms)\nPASS tasks/todo (405ms)\nPASS tasks/requests (402ms)\nPASS tasks/routine (403ms)\nPASS messages (404ms)\nPASS team (404ms)\nPASS payroll/payslips (411ms)\nPASS payroll/salary (406ms)\nPASS payroll/run (404ms)\nPASS payroll/components (401ms)\nPASS expense (403ms)\nPASS performance/mine (404ms)\nPASS performance/team (404ms)\nPASS assets (406ms)\nPASS my-assets (403ms)\nPASS documents/employee (406ms)\nPASS documents/company (403ms)\nPASS recruitment (404ms)\nPASS onboarding (403ms)\nPASS helpdesk (403ms)\nPASS reports/attendance (406ms)\nPASS reports/leave (405ms)\nPASS reports/expenses (404ms)\nPASS reports/headcount (405ms)\nPASS administration (442ms)\nPASS admin-roles (403ms)\nPASS admin-audit (405ms)\nPASS admin-chats [denied as expected] (405ms)\nPASS admin-developer [denied as expected] (403ms)\nPASS profile (403ms)\nPASS notifications (403ms)\nPASS settings (405ms)\n\nQueries: 175; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "zonal_manager",
+    "designation": "Regional Manager",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Regional Manager",
+        "Company Administrator",
+        "HR Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Regional Manager"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: zonal_manager; viewport: 1440px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (403ms)\nPASS directory (404ms)\nPASS employee-import (406ms)\nPASS organization [denied as expected] (404ms)\nPASS attendance/today (402ms)\nPASS attendance/overview (402ms)\nPASS attendance/exceptions (403ms)\nPASS attendance/regularizations (406ms)\nPASS attendance-person (405ms)\nPASS attendance-admin/mapping [denied as expected] (403ms)\nPASS attendance-admin/shifts [denied as expected] (401ms)\nPASS attendance-admin/holidays [denied as expected] (403ms)\nPASS attendance-admin/leaveTypes [denied as expected] (404ms)\nPASS attendance-admin/sync [denied as expected] (405ms)\nPASS leave (404ms)\nPASS tasks/board (426ms)\nPASS tasks/todo (404ms)\nPASS tasks/requests (402ms)\nPASS tasks/routine (403ms)\nPASS messages (403ms)\nPASS team (404ms)\nPASS payroll/payslips (403ms)\nPASS payroll/salary (404ms)\nPASS payroll/run (402ms)\nPASS payroll/components (403ms)\nPASS expense (405ms)\nPASS performance/mine (404ms)\nPASS performance/team (404ms)\nPASS assets (403ms)\nPASS my-assets (402ms)\nPASS documents/employee (405ms)\nPASS documents/company (404ms)\nPASS recruitment [denied as expected] (403ms)\nPASS onboarding [denied as expected] (403ms)\nPASS helpdesk (405ms)\nPASS reports/attendance (405ms)\nPASS reports/leave (403ms)\nPASS reports/expenses (403ms)\nPASS reports/headcount (404ms)\nPASS administration (402ms)\nPASS admin-roles (405ms)\nPASS admin-audit [denied as expected] (401ms)\nPASS admin-chats [denied as expected] (402ms)\nPASS admin-developer [denied as expected] (402ms)\nPASS profile (404ms)\nPASS notifications (405ms)\nPASS settings (403ms)\n\nQueries: 141; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "branch_manager",
+    "designation": "Branch Manager",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Branch Manager",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Branch Manager"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: branch_manager; viewport: 1440px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (403ms)\nPASS directory (405ms)\nPASS employee-import (405ms)\nPASS organization [denied as expected] (405ms)\nPASS attendance/today (404ms)\nPASS attendance/overview (402ms)\nPASS attendance/exceptions (402ms)\nPASS attendance/regularizations (404ms)\nPASS attendance-person (405ms)\nPASS attendance-admin/mapping [denied as expected] (405ms)\nPASS attendance-admin/shifts [denied as expected] (401ms)\nPASS attendance-admin/holidays [denied as expected] (403ms)\nPASS attendance-admin/leaveTypes [denied as expected] (402ms)\nPASS attendance-admin/sync [denied as expected] (403ms)\nPASS leave (404ms)\nPASS tasks/board (426ms)\nPASS tasks/todo (403ms)\nPASS tasks/requests (404ms)\nPASS tasks/routine (402ms)\nPASS messages (404ms)\nPASS team (401ms)\nPASS payroll/payslips (402ms)\nPASS payroll/salary (404ms)\nPASS payroll/run (406ms)\nPASS payroll/components (403ms)\nPASS expense (403ms)\nPASS performance/mine (403ms)\nPASS performance/team (405ms)\nPASS assets (402ms)\nPASS my-assets (404ms)\nPASS documents/employee (402ms)\nPASS documents/company (403ms)\nPASS recruitment [denied as expected] (404ms)\nPASS onboarding [denied as expected] (405ms)\nPASS helpdesk (403ms)\nPASS reports/attendance (403ms)\nPASS reports/leave (403ms)\nPASS reports/expenses (406ms)\nPASS reports/headcount (404ms)\nPASS administration (402ms)\nPASS admin-roles (403ms)\nPASS admin-audit [denied as expected] (405ms)\nPASS admin-chats [denied as expected] (406ms)\nPASS admin-developer [denied as expected] (402ms)\nPASS profile (404ms)\nPASS notifications (403ms)\nPASS settings (405ms)\n\nQueries: 140; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "dept_head",
+    "designation": "Department Supervisor",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Department Supervisor",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Department Supervisor"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: dept_head; viewport: 1440px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (405ms)\nPASS directory (405ms)\nPASS employee-import (403ms)\nPASS organization [denied as expected] (403ms)\nPASS attendance/today (404ms)\nPASS attendance/overview (403ms)\nPASS attendance/exceptions (403ms)\nPASS attendance/regularizations (402ms)\nPASS attendance-person (404ms)\nPASS attendance-admin/mapping [denied as expected] (403ms)\nPASS attendance-admin/shifts [denied as expected] (406ms)\nPASS attendance-admin/holidays [denied as expected] (401ms)\nPASS attendance-admin/leaveTypes [denied as expected] (402ms)\nPASS attendance-admin/sync [denied as expected] (402ms)\nPASS leave (404ms)\nPASS tasks/board (414ms)\nPASS tasks/todo (405ms)\nPASS tasks/requests (403ms)\nPASS tasks/routine (404ms)\nPASS messages (402ms)\nPASS team (404ms)\nPASS payroll/payslips (405ms)\nPASS payroll/salary (404ms)\nPASS payroll/run (401ms)\nPASS payroll/components (401ms)\nPASS expense (402ms)\nPASS performance/mine (404ms)\nPASS performance/team (405ms)\nPASS assets (403ms)\nPASS my-assets (401ms)\nPASS documents/employee (402ms)\nPASS documents/company (404ms)\nPASS recruitment [denied as expected] (405ms)\nPASS onboarding [denied as expected] (403ms)\nPASS helpdesk (402ms)\nPASS reports/attendance (403ms)\nPASS reports/leave (406ms)\nPASS reports/expenses (405ms)\nPASS reports/headcount (403ms)\nPASS administration (403ms)\nPASS admin-roles (405ms)\nPASS admin-audit [denied as expected] (405ms)\nPASS admin-chats [denied as expected] (404ms)\nPASS admin-developer [denied as expected] (403ms)\nPASS profile (404ms)\nPASS notifications (406ms)\nPASS settings (404ms)\n\nQueries: 136; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "unassigned",
+    "designation": "Unassigned Trainee",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Sales Associate",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Sales Associate"
+    },
+    "passed": 1,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: unassigned; viewport: 1440px\nPASS unassigned account cannot enter application"
+  },
+  {
+    "role": "employee",
+    "designation": "Sales Associate",
+    "width": 1440,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Sales Associate",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Sales Associate"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: employee; viewport: 1440px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (403ms)\nPASS directory [denied as expected] (403ms)\nPASS employee-import [denied as expected] (401ms)\nPASS organization [denied as expected] (406ms)\nPASS attendance/today (403ms)\nPASS attendance/overview (401ms)\nPASS attendance/exceptions (404ms)\nPASS attendance/regularizations (403ms)\nPASS attendance-person [denied as expected] (404ms)\nPASS attendance-admin/mapping [denied as expected] (405ms)\nPASS attendance-admin/shifts [denied as expected] (401ms)\nPASS attendance-admin/holidays [denied as expected] (403ms)\nPASS attendance-admin/leaveTypes [denied as expected] (403ms)\nPASS attendance-admin/sync [denied as expected] (404ms)\nPASS leave (406ms)\nPASS tasks/board (401ms)\nPASS tasks/todo (403ms)\nPASS tasks/requests (402ms)\nPASS tasks/routine (404ms)\nPASS messages (404ms)\nPASS team [denied as expected] (402ms)\nPASS payroll/payslips (402ms)\nPASS payroll/salary (402ms)\nPASS payroll/run (403ms)\nPASS payroll/components (406ms)\nPASS expense (405ms)\nPASS performance/mine (403ms)\nPASS performance/team (405ms)\nPASS assets [denied as expected] (406ms)\nPASS my-assets (402ms)\nPASS documents/employee (403ms)\nPASS documents/company (403ms)\nPASS recruitment [denied as expected] (404ms)\nPASS onboarding [denied as expected] (405ms)\nPASS helpdesk (401ms)\nPASS reports/attendance [denied as expected] (402ms)\nPASS reports/leave [denied as expected] (402ms)\nPASS reports/expenses [denied as expected] (405ms)\nPASS reports/headcount [denied as expected] (406ms)\nPASS administration [denied as expected] (402ms)\nPASS admin-roles [denied as expected] (401ms)\nPASS admin-audit [denied as expected] (403ms)\nPASS admin-chats [denied as expected] (404ms)\nPASS admin-developer [denied as expected] (406ms)\nPASS profile (402ms)\nPASS notifications (402ms)\nPASS settings (403ms)\n\nQueries: 101; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "super_admin",
+    "designation": "Group Administrator",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Group Administrator",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Group Administrator"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: super_admin; viewport: 390px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (405ms)\nPASS directory (404ms)\nPASS employee-import (408ms)\nPASS organization (403ms)\nPASS attendance/today (406ms)\nPASS attendance/overview (411ms)\nPASS attendance/exceptions (402ms)\nPASS attendance/regularizations (411ms)\nPASS attendance-person (411ms)\nPASS attendance-admin/mapping (404ms)\nPASS attendance-admin/shifts (402ms)\nPASS attendance-admin/holidays (406ms)\nPASS attendance-admin/leaveTypes (402ms)\nPASS attendance-admin/sync (402ms)\nPASS leave (405ms)\nPASS tasks/board (405ms)\nPASS tasks/todo (403ms)\nPASS tasks/requests (402ms)\nPASS tasks/routine (402ms)\nPASS messages (403ms)\nPASS team (404ms)\nPASS payroll/payslips (406ms)\nPASS payroll/salary (403ms)\nPASS payroll/run (403ms)\nPASS payroll/components (404ms)\nPASS expense (406ms)\nPASS performance/mine (403ms)\nPASS performance/team (404ms)\nPASS assets (404ms)\nPASS my-assets (405ms)\nPASS documents/employee (404ms)\nPASS documents/company (403ms)\nPASS recruitment (405ms)\nPASS onboarding (405ms)\nPASS helpdesk (404ms)\nPASS reports/attendance (402ms)\nPASS reports/leave (403ms)\nPASS reports/expenses (405ms)\nPASS reports/headcount (405ms)\nPASS administration (402ms)\nPASS admin-roles (402ms)\nPASS admin-audit (402ms)\nPASS admin-chats (405ms)\nPASS admin-developer (406ms)\nPASS profile (405ms)\nPASS notifications (405ms)\nPASS settings (406ms)\n\nQueries: 191; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "entity_admin",
+    "designation": "Company Administrator",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Company Administrator"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: entity_admin; viewport: 390px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (405ms)\nPASS directory (403ms)\nPASS employee-import (408ms)\nPASS organization (404ms)\nPASS attendance/today (406ms)\nPASS attendance/overview (402ms)\nPASS attendance/exceptions (405ms)\nPASS attendance/regularizations (414ms)\nPASS attendance-person (414ms)\nPASS attendance-admin/mapping (404ms)\nPASS attendance-admin/shifts (401ms)\nPASS attendance-admin/holidays (403ms)\nPASS attendance-admin/leaveTypes (404ms)\nPASS attendance-admin/sync (404ms)\nPASS leave (405ms)\nPASS tasks/board (402ms)\nPASS tasks/todo (404ms)\nPASS tasks/requests (405ms)\nPASS tasks/routine (405ms)\nPASS messages (402ms)\nPASS team (402ms)\nPASS payroll/payslips (403ms)\nPASS payroll/salary (405ms)\nPASS payroll/run (404ms)\nPASS payroll/components (403ms)\nPASS expense (404ms)\nPASS performance/mine (405ms)\nPASS performance/team (403ms)\nPASS assets (404ms)\nPASS my-assets (403ms)\nPASS documents/employee (403ms)\nPASS documents/company (404ms)\nPASS recruitment (403ms)\nPASS onboarding (404ms)\nPASS helpdesk (401ms)\nPASS reports/attendance (402ms)\nPASS reports/leave (404ms)\nPASS reports/expenses (405ms)\nPASS reports/headcount (405ms)\nPASS administration (404ms)\nPASS admin-roles (405ms)\nPASS admin-audit (405ms)\nPASS admin-chats [denied as expected] (404ms)\nPASS admin-developer [denied as expected] (402ms)\nPASS profile (403ms)\nPASS notifications (405ms)\nPASS settings (404ms)\n\nQueries: 175; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "hr_manager",
+    "designation": "HR Manager",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "HR Manager",
+        "Company Administrator",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "HR Manager"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: hr_manager; viewport: 390px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (406ms)\nPASS directory (515ms)\nPASS employee-import (409ms)\nPASS organization [denied as expected] (405ms)\nPASS attendance/today (405ms)\nPASS attendance/overview (411ms)\nPASS attendance/exceptions (406ms)\nPASS attendance/regularizations (411ms)\nPASS attendance-person (412ms)\nPASS attendance-admin/mapping (404ms)\nPASS attendance-admin/shifts (404ms)\nPASS attendance-admin/holidays (405ms)\nPASS attendance-admin/leaveTypes (401ms)\nPASS attendance-admin/sync (403ms)\nPASS leave (405ms)\nPASS tasks/board (405ms)\nPASS tasks/todo (404ms)\nPASS tasks/requests (402ms)\nPASS tasks/routine (404ms)\nPASS messages (403ms)\nPASS team (405ms)\nPASS payroll/payslips (403ms)\nPASS payroll/salary (404ms)\nPASS payroll/run (404ms)\nPASS payroll/components (406ms)\nPASS expense (403ms)\nPASS performance/mine (402ms)\nPASS performance/team (404ms)\nPASS assets (406ms)\nPASS my-assets (403ms)\nPASS documents/employee (402ms)\nPASS documents/company (402ms)\nPASS recruitment (402ms)\nPASS onboarding (404ms)\nPASS helpdesk (407ms)\nPASS reports/attendance (402ms)\nPASS reports/leave (404ms)\nPASS reports/expenses (403ms)\nPASS reports/headcount (405ms)\nPASS administration (403ms)\nPASS admin-roles (402ms)\nPASS admin-audit [denied as expected] (402ms)\nPASS admin-chats [denied as expected] (404ms)\nPASS admin-developer [denied as expected] (406ms)\nPASS profile (402ms)\nPASS notifications (402ms)\nPASS settings (404ms)\n\nQueries: 172; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "zonal_manager",
+    "designation": "Regional Manager",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Regional Manager",
+        "Company Administrator",
+        "HR Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Regional Manager"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: zonal_manager; viewport: 390px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (406ms)\nPASS directory (402ms)\nPASS employee-import (409ms)\nPASS organization [denied as expected] (405ms)\nPASS attendance/today (404ms)\nPASS attendance/overview (402ms)\nPASS attendance/exceptions (404ms)\nPASS attendance/regularizations (410ms)\nPASS attendance-person (413ms)\nPASS attendance-admin/mapping [denied as expected] (404ms)\nPASS attendance-admin/shifts [denied as expected] (402ms)\nPASS attendance-admin/holidays [denied as expected] (403ms)\nPASS attendance-admin/leaveTypes [denied as expected] (406ms)\nPASS attendance-admin/sync [denied as expected] (406ms)\nPASS leave (402ms)\nPASS tasks/board (403ms)\nPASS tasks/todo (405ms)\nPASS tasks/requests (404ms)\nPASS tasks/routine (403ms)\nPASS messages (401ms)\nPASS team (402ms)\nPASS payroll/payslips (404ms)\nPASS payroll/salary (405ms)\nPASS payroll/run (405ms)\nPASS payroll/components (402ms)\nPASS expense (402ms)\nPASS performance/mine (404ms)\nPASS performance/team (405ms)\nPASS assets (404ms)\nPASS my-assets (402ms)\nPASS documents/employee (404ms)\nPASS documents/company (405ms)\nPASS recruitment [denied as expected] (404ms)\nPASS onboarding [denied as expected] (403ms)\nPASS helpdesk (403ms)\nPASS reports/attendance (405ms)\nPASS reports/leave (404ms)\nPASS reports/expenses (403ms)\nPASS reports/headcount (403ms)\nPASS administration (404ms)\nPASS admin-roles (404ms)\nPASS admin-audit [denied as expected] (405ms)\nPASS admin-chats [denied as expected] (403ms)\nPASS admin-developer [denied as expected] (402ms)\nPASS profile (404ms)\nPASS notifications (404ms)\nPASS settings (404ms)\n\nQueries: 141; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "branch_manager",
+    "designation": "Branch Manager",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Branch Manager",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Department Supervisor",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Branch Manager"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: branch_manager; viewport: 390px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (406ms)\nPASS directory (404ms)\nPASS employee-import (408ms)\nPASS organization [denied as expected] (404ms)\nPASS attendance/today (404ms)\nPASS attendance/overview (413ms)\nPASS attendance/exceptions (404ms)\nPASS attendance/regularizations (413ms)\nPASS attendance-person (410ms)\nPASS attendance-admin/mapping [denied as expected] (404ms)\nPASS attendance-admin/shifts [denied as expected] (404ms)\nPASS attendance-admin/holidays [denied as expected] (404ms)\nPASS attendance-admin/leaveTypes [denied as expected] (403ms)\nPASS attendance-admin/sync [denied as expected] (402ms)\nPASS leave (404ms)\nPASS tasks/board (405ms)\nPASS tasks/todo (403ms)\nPASS tasks/requests (402ms)\nPASS tasks/routine (402ms)\nPASS messages (402ms)\nPASS team (404ms)\nPASS payroll/payslips (402ms)\nPASS payroll/salary (403ms)\nPASS payroll/run (403ms)\nPASS payroll/components (403ms)\nPASS expense (402ms)\nPASS performance/mine (405ms)\nPASS performance/team (405ms)\nPASS assets (402ms)\nPASS my-assets (404ms)\nPASS documents/employee (404ms)\nPASS documents/company (404ms)\nPASS recruitment [denied as expected] (404ms)\nPASS onboarding [denied as expected] (402ms)\nPASS helpdesk (404ms)\nPASS reports/attendance (404ms)\nPASS reports/leave (405ms)\nPASS reports/expenses (403ms)\nPASS reports/headcount (402ms)\nPASS administration (404ms)\nPASS admin-roles (405ms)\nPASS admin-audit [denied as expected] (404ms)\nPASS admin-chats [denied as expected] (403ms)\nPASS admin-developer [denied as expected] (402ms)\nPASS profile (405ms)\nPASS notifications (405ms)\nPASS settings (402ms)\n\nQueries: 140; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "unassigned",
+    "designation": "Unassigned Trainee",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Sales Associate",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Sales Associate"
+    },
+    "passed": 1,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: unassigned; viewport: 390px\nPASS unassigned account cannot enter application"
+  },
+  {
+    "role": "dept_head",
+    "designation": "Department Supervisor",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Department Supervisor",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Sales Associate",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Department Supervisor"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: dept_head; viewport: 390px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (406ms)\nPASS directory (424ms)\nPASS employee-import (409ms)\nPASS organization [denied as expected] (403ms)\nPASS attendance/today (404ms)\nPASS attendance/overview (403ms)\nPASS attendance/exceptions (404ms)\nPASS attendance/regularizations (405ms)\nPASS attendance-person (405ms)\nPASS attendance-admin/mapping [denied as expected] (403ms)\nPASS attendance-admin/shifts [denied as expected] (404ms)\nPASS attendance-admin/holidays [denied as expected] (406ms)\nPASS attendance-admin/leaveTypes [denied as expected] (402ms)\nPASS attendance-admin/sync [denied as expected] (401ms)\nPASS leave (402ms)\nPASS tasks/board (404ms)\nPASS tasks/todo (405ms)\nPASS tasks/requests (404ms)\nPASS tasks/routine (404ms)\nPASS messages (403ms)\nPASS team (405ms)\nPASS payroll/payslips (530ms)\nPASS payroll/salary (404ms)\nPASS payroll/run (404ms)\nPASS payroll/components (401ms)\nPASS expense (402ms)\nPASS performance/mine (402ms)\nPASS performance/team (404ms)\nPASS assets (406ms)\nPASS my-assets (402ms)\nPASS documents/employee (403ms)\nPASS documents/company (403ms)\nPASS recruitment [denied as expected] (404ms)\nPASS onboarding [denied as expected] (403ms)\nPASS helpdesk (404ms)\nPASS reports/attendance (403ms)\nPASS reports/leave (405ms)\nPASS reports/expenses (405ms)\nPASS reports/headcount (403ms)\nPASS administration (403ms)\nPASS admin-roles (403ms)\nPASS admin-audit [denied as expected] (404ms)\nPASS admin-chats [denied as expected] (404ms)\nPASS admin-developer [denied as expected] (403ms)\nPASS profile (404ms)\nPASS notifications (404ms)\nPASS settings (406ms)\n\nQueries: 136; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  },
+  {
+    "role": "employee",
+    "designation": "Sales Associate",
+    "width": 390,
+    "fixtureSummary": {
+      "employees": 525,
+      "entities": 3,
+      "zones": 6,
+      "branches": 12,
+      "departments": 24,
+      "designations": [
+        "Sales Associate",
+        "Company Administrator",
+        "HR Manager",
+        "Regional Manager",
+        "Branch Manager",
+        "Department Supervisor",
+        "Group Administrator"
+      ],
+      "signedInEmployee": "Sample Employee 0001",
+      "signedInDesignation": "Sales Associate"
+    },
+    "passed": 48,
+    "failed": [],
+    "pageErrors": [],
+    "externalRequests": [],
+    "output": "Role: employee; viewport: 390px\nPASS keyboard skip preserves route and focuses content\nPASS dashboard (404ms)\nPASS directory [denied as expected] (402ms)\nPASS employee-import [denied as expected] (405ms)\nPASS organization [denied as expected] (406ms)\nPASS attendance/today (404ms)\nPASS attendance/overview (404ms)\nPASS attendance/exceptions (403ms)\nPASS attendance/regularizations (402ms)\nPASS attendance-person [denied as expected] (405ms)\nPASS attendance-admin/mapping [denied as expected] (403ms)\nPASS attendance-admin/shifts [denied as expected] (401ms)\nPASS attendance-admin/holidays [denied as expected] (402ms)\nPASS attendance-admin/leaveTypes [denied as expected] (402ms)\nPASS attendance-admin/sync [denied as expected] (405ms)\nPASS leave (405ms)\nPASS tasks/board (436ms)\nPASS tasks/todo (404ms)\nPASS tasks/requests (407ms)\nPASS tasks/routine (402ms)\nPASS messages (406ms)\nPASS team [denied as expected] (405ms)\nPASS payroll/payslips (404ms)\nPASS payroll/salary (402ms)\nPASS payroll/run (403ms)\nPASS payroll/components (404ms)\nPASS expense (406ms)\nPASS performance/mine (405ms)\nPASS performance/team (402ms)\nPASS assets [denied as expected] (405ms)\nPASS my-assets (405ms)\nPASS documents/employee (404ms)\nPASS documents/company (403ms)\nPASS recruitment [denied as expected] (404ms)\nPASS onboarding [denied as expected] (404ms)\nPASS helpdesk (405ms)\nPASS reports/attendance [denied as expected] (402ms)\nPASS reports/leave [denied as expected] (402ms)\nPASS reports/expenses [denied as expected] (403ms)\nPASS reports/headcount [denied as expected] (405ms)\nPASS administration [denied as expected] (405ms)\nPASS admin-roles [denied as expected] (402ms)\nPASS admin-audit [denied as expected] (402ms)\nPASS admin-chats [denied as expected] (404ms)\nPASS admin-developer [denied as expected] (404ms)\nPASS profile (406ms)\nPASS notifications (402ms)\nPASS settings (403ms)\n\nQueries: 101; attempted writes: 0.\nTimes include test settling; these are not production latency measurements."
+  }
+]

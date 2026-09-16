@@ -1,19 +1,27 @@
 import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import React, { useMemo, useState } from 'react';
-import { Briefcase, Users, Plus, Award, ChevronRight, X, User, Loader2, AlertTriangle } from 'lucide-react';
+import { Briefcase, Users, Plus, Award, ChevronRight, X, User, Loader2 } from 'lucide-react';
 import { useJobs, useCandidates, useAddJob, useSetCandidateStage } from '../data/recruitment';
 import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import PageHeader from './ui/PageHeader';
 import PagedCollection from './ui/PagedCollection';
 import ListSearch from './ui/ListSearch';
+import QueryError from './ui/QueryError';
 
-const STAGES = ['Applied', 'Shortlisted', 'Interview', 'Offered'];
-const nextStage = (s) => STAGES[STAGES.indexOf(s) + 1] || s;
+const PIPELINE = ['Applied', 'Shortlisted', 'Interview', 'Offered', 'Hired'];
+const STAGES = [...PIPELINE, 'Rejected'];
+const nextStage = (s) => PIPELINE[PIPELINE.indexOf(s) + 1] || s;
 
 export default function Recruitment() {
-  const { data: jobs = [], isLoading: jobsLoading, error: jobsError } = useJobs();
-  const { data: candidates = [], isLoading: candidatesLoading, error: candidatesError } = useCandidates();
+  const jobsQuery = useJobs();
+  const candidatesQuery = useCandidates();
+  const { data: jobs = [], error: jobsError } = jobsQuery;
+  const { data: candidates = [], error: candidatesError } = candidatesQuery;
+  const hasJobs = Array.isArray(jobsQuery.data);
+  const hasCandidates = Array.isArray(candidatesQuery.data);
+  const jobsLoading = !hasJobs && !jobsError;
+  const candidatesLoading = !hasCandidates && !candidatesError;
   const { data: org } = useVisibleOrg();
   const { canAny } = usePermissions();
   const addJob = useAddJob();
@@ -29,6 +37,7 @@ export default function Recruitment() {
   const matchingCandidates = useMemo(() => candidates.filter((c) => (!company || c.job?.entity_id === company)
     && [c.name, c.email, c.job?.title, c.job?.entity?.code].join(' ').toLowerCase().includes(search.trim().toLowerCase())), [candidates, company, search]);
   const [job, setJob] = useState({ entity_id: '', title: '', type: 'Full-time', location: '' });
+  const [formError, setFormError] = useState('');
   const pipelineStats = useMemo(() => {
     const openJobs = jobs.filter((j) => j.status === 'Open').length;
     const offered = candidates.filter((c) => c.stage === 'Offered').length;
@@ -37,18 +46,20 @@ export default function Recruitment() {
       ? Math.round(scored.reduce((sum, c) => sum + Number(c.match_score || 0), 0) / scored.length)
       : 0;
     return [
-      { label: 'Open roles', value: openJobs, sub: `${jobs.length} total postings`, tone: 'green' },
-      { label: 'Candidates', value: candidates.length, sub: 'Across pipeline', tone: 'blue' },
-      { label: 'Offers', value: offered, sub: 'Reached final stage', tone: 'amber' },
-      { label: 'Avg match', value: avgMatch ? `${avgMatch}%` : '—', sub: scored.length ? `${scored.length} scored` : 'No scores yet', tone: 'violet' },
+      { label: 'Open roles', value: hasJobs ? openJobs : jobsError ? 'Unavailable' : 'Loading…', sub: hasJobs ? `${jobs.length} total postings` : 'Job postings', tone: 'green' },
+      { label: 'Candidates', value: hasCandidates ? candidates.length : candidatesError ? 'Unavailable' : 'Loading…', sub: 'Across pipeline and history', tone: 'blue' },
+      { label: 'Offers', value: hasCandidates ? offered : candidatesError ? 'Unavailable' : 'Loading…', sub: 'Offer stage', tone: 'amber' },
+      { label: 'Avg match', value: hasCandidates ? avgMatch ? `${avgMatch}%` : '—' : candidatesError ? 'Unavailable' : 'Loading…', sub: hasCandidates ? scored.length ? `${scored.length} scored` : 'No scores yet' : 'Candidate match', tone: 'violet' },
     ];
-  }, [jobs, candidates]);
+  }, [jobs, candidates, hasJobs, hasCandidates, jobsError, candidatesError]);
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!job.title || !job.entity_id) return;
+    if (addJob.isPending) return;
+    if (!job.title.trim() || !job.entity_id) { setFormError('Choose a company and enter a job title.'); return; }
+    setFormError('');
     try {
-      await addJob.mutateAsync({ entity_id: job.entity_id, title: job.title, type: job.type, location: job.location, openings: 1 });
+      await addJob.mutateAsync({ entity_id: job.entity_id, title: job.title.trim(), type: job.type, location: job.location.trim(), openings: 1 });
       setJob({ entity_id: '', title: '', type: 'Full-time', location: '' });
       setShowForm(false);
     } catch { /* shown below */ }
@@ -84,7 +95,8 @@ export default function Recruitment() {
           <option value="">All companies</option>{entities.map((e) => <option key={e.id} value={e.id}>{e.code} · {e.name}</option>)}
         </select>
       </div>
-      {candidatesError && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{candidatesError.message}</p>}
+      <QueryError error={jobsError} title="Job openings could not be loaded." onRetry={jobsQuery.refetch} hasData={hasJobs} />
+      <QueryError error={candidatesError} title="Candidates could not be loaded." onRetry={candidatesQuery.refetch} hasData={hasCandidates} />
       {moveCand.error && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{moveCand.error.message}</p>}
 
       <div className="people-workspace grid grid-cols-1 xl:grid-cols-4 gap-5">
@@ -92,9 +104,9 @@ export default function Recruitment() {
           <div className="premium-card people-board space-y-4">
             <div className="people-panel-head">
               <span><Users size={15} /> Candidate pipeline</span>
-              <em>{candidatesLoading ? <Skeleton as="span" className="inline-block h-3 w-28" /> : `${matchingCandidates.length} matching profiles`}</em>
+              <em>{candidatesLoading ? <Skeleton as="span" className="inline-block h-3 w-28" /> : hasCandidates ? `${matchingCandidates.length} matching profiles` : 'Candidates unavailable'}</em>
             </div>
-            <div className="people-kanban-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3" role={candidatesLoading ? 'status' : undefined} aria-label={candidatesLoading ? 'Loading candidate pipeline' : undefined}>
+            {(candidatesLoading || hasCandidates) && <div className="people-kanban-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3" role={candidatesLoading ? 'status' : undefined} aria-label={candidatesLoading ? 'Loading candidate pipeline' : undefined}>
               {STAGES.map((stage) => {
                 const list = matchingCandidates.filter((c) => c.stage === stage);
                 return (
@@ -127,9 +139,9 @@ export default function Recruitment() {
                               <div className="flex items-center text-2xs font-mono px-1 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 rounded-md font-bold"><Award size={10} className="mr-0.5" />{can.match_score}%</div>
                             )}
                           </div>
-                          {canManage && (
+                          {canManage && !['Hired', 'Rejected'].includes(stage) && (
                             <div className="people-card-actions">
-                              {stage !== 'Offered' && (
+                              {stage !== 'Hired' && (
                                 <button disabled={moveCand.isPending} onClick={() => moveCand.mutate({ id: can.id, stage: nextStage(stage) })} title="Advance" aria-label="Advance"><ChevronRight size={12} /></button>
                               )}
                               <button disabled={moveCand.isPending} onClick={() => moveCand.mutate({ id: can.id, stage: 'Rejected' })} title="Reject" aria-label="Reject" className="is-danger"><X size={12} /></button>
@@ -147,7 +159,7 @@ export default function Recruitment() {
                 );
               })}
               {candidatesLoading && <span className="sr-only">Loading candidate pipeline…</span>}
-            </div>
+            </div>}
           </div>
         </div>
 
@@ -166,6 +178,7 @@ export default function Recruitment() {
                   <Field label="Location"><input value={job.location} onChange={(e) => setJob({ ...job, location: e.target.value })} placeholder="Kochi" className={INPUT} /></Field>
                 </div>
                 {addJob.error && <p className="text-xs text-red-500">{addJob.error.message}</p>}
+                {formError && <p role="alert" className="text-xs text-red-500">{formError}</p>}
                 <div className="people-form-actions">
                   <button type="button" onClick={() => setShowForm(false)} className="people-action-button people-action-button-secondary">Cancel</button>
                   <button type="submit" disabled={addJob.isPending} className="people-action-button people-action-button-primary">{addJob.isPending && <Loader2 size={13} className="animate-spin" />} Publish</button>
@@ -179,9 +192,7 @@ export default function Recruitment() {
               </div>
               {jobsLoading ? (
                 <SkeletonRows rows={3} avatar={false} label="Loading job openings" />
-              ) : jobsError ? (
-                <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300 py-2"><AlertTriangle size={14} className="shrink-0 mt-0.5" /> <span>{jobsError.message}</span></div>
-              ) : matchingJobs.length === 0 ? (
+              ) : !hasJobs ? null : matchingJobs.length === 0 ? (
                 <p className="people-empty-mini">No matching openings.</p>
               ) : (
                 <PagedCollection items={matchingJobs} pageSize={8} noun="openings" resetKey={`${search}:${company}`}>

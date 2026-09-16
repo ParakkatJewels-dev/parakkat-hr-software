@@ -173,9 +173,11 @@ export function useUpdateEmployee() {
       if (error) throw describeEmployeeError(error);
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['employees'] });
-      qc.invalidateQueries({ queryKey: ['employee'] });
-    },
+    onSuccess: (_data, patch) => Promise.all([
+      qc.invalidateQueries({ queryKey: ['employees'] }),
+      qc.invalidateQueries({ queryKey: ['employee'] }),
+      ...('entity_id' in patch || 'branch_id' in patch
+        ? [qc.invalidateQueries({ queryKey: ['leaves-period-days'] })] : []),
+    ]),
   });
 }

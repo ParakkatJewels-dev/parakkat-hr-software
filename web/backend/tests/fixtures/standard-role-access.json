@@ -143,7 +143,8 @@
     "0137_read_chat_notifications.sql",
     "0138_leave_approval_workflow.sql",
     "0139_ticket_category_routing.sql",
-    "0140_named_scheduled_routines.sql"
+    "0140_named_scheduled_routines.sql",
+    "0141_section_counts.sql"
   ],
   "roles": [
     {
