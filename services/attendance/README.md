@@ -81,6 +81,7 @@ Full list with commentary inside `.env` itself. The ones that matter:
 | `BIOTIME_TIMEZONE` | Timezone the BioTime server reports punch times in. Verify with `npm run doctor` |
 | `APP_TIMEZONE` | Business timezone, `Asia/Kolkata`. Timestamps are stored UTC and converted at the edges |
 | `SYNC_TRANSACTIONS_CRON` | Punch poll, default every 2 minutes |
+| `SYNC_EMPLOYEES_CRON` | Employee roster poll, default every 5 minutes; existing `.env` values override this |
 | `SUPABASE_URL` / `SUPABASE_ANON_KEY` | Used to verify caller tokens on the API |
 
 ## Running
@@ -153,6 +154,27 @@ Two failure modes are handled explicitly because they are not obvious:
   off exponentially with jitter.
 
 ## Device code mapping
+
+### New employees from Easy Time Pro
+
+Apply `0147_auto_provision_device_employees.sql` to enable automatic HR employee creation when
+the worker receives a new active enrolment. This database migration also works with an existing
+worker installation. It creates a basic employee record in the sole active company, uses the
+device code as the HR employee code, and links previously unassigned punches for recomputation.
+HR completes missing department, branch, payroll and personal details later. Existing HR fields,
+manual mappings and ignored enrolments are preserved.
+
+Possible duplicates, conflicting codes and deployments with multiple active companies stay in
+the mapping queue for review. A name similarity score never merges two employees automatically.
+Roster refreshes are idempotent, including after HR edits a provisioned employee's code.
+
+The migration acts when roster data arrives; it does not contact Easy Time Pro itself. On the
+Windows machine running the service, set `SYNC_EMPLOYEES_CRON="*/5 * * * *"` in `.env` and restart
+the service. The updated Windows installer upgrades the previous daily default when rerun.
+Until that configuration is updated, an existing daily schedule remains daily. A Git push or a
+Vercel deployment does not restart this separate worker.
+
+### Existing employees and mappings
 
 **This is the step that makes the pipeline usable, and it needs a human once.**
 

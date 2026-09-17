@@ -106,6 +106,23 @@ if ($envText -match 'FILL_ME') {
   Write-Host '.env already configured  OK' -ForegroundColor Green
 }
 
+# Replace the old daily roster default so new Easy Time Pro employees arrive promptly.
+# Preserve any other custom schedule; credentials and other settings are not changed here.
+$rosterLine = [regex]::Match($envText, '(?m)^SYNC_EMPLOYEES_CRON[ \t]*=[ \t]*([^\r\n]*)')
+$rosterSchedule = ''
+if ($rosterLine.Success) { $rosterSchedule = $rosterLine.Groups[1].Value.Trim().Trim('"').Trim("'") }
+if (-not $rosterLine.Success -or $rosterSchedule -eq '' -or $rosterSchedule -eq '15 1 * * *') {
+  if ($rosterLine.Success) {
+    $envText = [regex]::Replace($envText, '(?m)^SYNC_EMPLOYEES_CRON[ \t]*=[^\r\n]*', 'SYNC_EMPLOYEES_CRON="*/5 * * * *"')
+  } else {
+    $envText = $envText.TrimEnd() + "`r`n" + 'SYNC_EMPLOYEES_CRON="*/5 * * * *"' + "`r`n"
+  }
+  Set-Content '.env' $envText -NoNewline -Encoding UTF8
+  Write-Host 'Employee roster sync: every 5 minutes' -ForegroundColor Green
+} else {
+  Write-Host "Keeping employee roster schedule: $rosterSchedule" -ForegroundColor Green
+}
+
 # --- 3. install, build, doctor ----------------------------------------------
 # Stop the service FIRST. On a re-run the service is already running, and it holds
 # node_modules\.prisma\client\query_engine-windows.dll.node open. Windows will not let anything

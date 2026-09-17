@@ -8,6 +8,12 @@ let controller: AbortController | undefined;
 let cancelAfterLookup = false;
 let existing: Record<string, unknown> | null = null;
 let candidates: Array<Record<string, unknown>> = [];
+let persistedLink: { employeeId: string | null; linkStatus: string } | undefined;
+let resolvedCodes: unknown[] = [];
+const save = async ({ data }: { data: Record<string, unknown> }) => {
+  updates.push(data);
+  return { ...existing, ...data, ...persistedLink };
+};
 mock.module(require.resolve('../lib/logger'), { namedExports: {
   logger: { debug() {}, info() {}, warn() {}, error() {} },
 } });
@@ -16,11 +22,17 @@ mock.module(require.resolve('../biotime/employees'), { namedExports: {
   fetchAllTerminals: async () => [],
 } });
 mock.module(require.resolve('../lib/db'), { namedExports: { prisma: {
-  $queryRaw: async () => candidates,
+  $queryRaw: async (sql: TemplateStringsArray, ...values: unknown[]) => {
+    if (sql.join('').includes('resolve_punch_links')) {
+      resolvedCodes.push(values[0]);
+      return [{ punches_linked: 2, employee_id: persistedLink?.employeeId, first_date: null, last_date: null }];
+    }
+    return candidates;
+  },
   biotimeEmployee: {
     findUnique: async () => { if (cancelAfterLookup) controller?.abort(); return existing; },
-    update: async ({ data }: { data: Record<string, unknown> }) => { updates.push(data); },
-    create: async ({ data }: { data: Record<string, unknown> }) => { updates.push(data); },
+    update: save,
+    create: save,
   },
 } } });
 mock.module(require.resolve('./cursor'), { namedExports: {
@@ -37,6 +49,7 @@ const { syncEmployees } = require('./syncEmployees') as typeof import('./syncEmp
 beforeEach(() => {
   updates = []; finished = []; successes = 0; failures = 0; existing = null;
   controller = undefined; cancelAfterLookup = false; candidates = [];
+  persistedLink = undefined; resolvedCodes = [];
 });
 
 test('roster cancellation while reading a mapping prevents the subsequent mutation and success', async () => {
@@ -55,6 +68,7 @@ for (const linkStatus of ['manual', 'ignored']) {
     assert.equal(updates.length, 1);
     assert.equal('employeeId' in updates[0]!, false);
     assert.equal('linkStatus' in updates[0]!, false);
+    assert.deepEqual(resolvedCodes, []);
     assert.equal(successes, 1);
   });
 }
@@ -69,3 +83,25 @@ test('duplicate employee codes across entities remain ambiguous with no automati
   assert.equal(updates[0]?.linkStatus, 'ambiguous');
   assert.equal(updates[0]?.employeeId, null);
 });
+
+for (const hasExisting of [false, true]) {
+  test(`database provisioning during roster ${hasExisting ? 'update' : 'creation'} counts and adopts the saved link`, async () => {
+    existing = hasExisting ? { employeeId: null, linkStatus: 'unmatched' } : null;
+    persistedLink = { employeeId: 'provisioned-person', linkStatus: 'auto' };
+
+    const result = await syncEmployees();
+
+    // The worker proposes no match; the BEFORE trigger supplies the actual persisted link.
+    assert.equal(updates[0]?.employeeId, null);
+    assert.equal(updates[0]?.linkStatus, 'unmatched');
+    assert.equal(result.autoLinked, 1);
+    assert.equal(result.unmatched, 0);
+    assert.equal(result.ambiguous, 0);
+    assert.equal(result.created, hasExisting ? 0 : 1);
+    assert.equal(result.updated, hasExisting ? 1 : 0);
+    assert.deepEqual(resolvedCodes, ['101']);
+    assert.equal(result.punchesAdopted, 2);
+    assert.equal(successes, 1);
+    assert.deepEqual(finished, ['success']);
+  });
+}

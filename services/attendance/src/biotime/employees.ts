@@ -1,8 +1,8 @@
 // Personnel and terminal retrieval from BioTime.
 //
-// Remember what this data is for: BioTime is the DEVICE layer. These records populate
-// biotime_employees and devices — they never create or modify public.employees, whose org data
-// (entity/zone/branch/department/designation) comes from the HR rosters and is authoritative.
+// These records populate biotime_employees and devices. Database provisioning can create a basic
+// HR employee from a new enrolment when its guards allow it; roster refreshes leave existing
+// HR-maintained employee details and organisation assignments untouched.
 import { biotime } from './client';
 import { parseBiotimeDateTime } from '../lib/time';
 import { asBigInt, asString, namedValue, type BiotimeEmployeeRecord, type BiotimeTerminal } from './types';

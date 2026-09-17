@@ -56,7 +56,7 @@ const schema = z.object({
   APP_TIMEZONE: timezone('Asia/Kolkata'),
 
   SYNC_TRANSACTIONS_CRON: z.string().default('*/2 * * * *'),
-  SYNC_EMPLOYEES_CRON: z.string().default('15 1 * * *'),
+  SYNC_EMPLOYEES_CRON: z.string().default('*/5 * * * *'),
   ENGINE_CRON: z.string().default('30 2 * * *'),
   ENGINE_LOOKBACK_DAYS: int(3, 0, 90),
   SYNC_OVERLAP_MINUTES: int(5, 0, 1_440),

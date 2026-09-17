@@ -1,13 +1,13 @@
 // Employee and device roster sync.
 //
-// The rule that governs this whole file: BioTime is the DEVICE layer, and public.employees is
-// owned by HR. Nothing here inserts, updates or deactivates an employee. BioTime's view of a
-// person lands in biotime_employees, and the only thing that crosses over is a LINK.
+// BioTime's view of a person lands in biotime_employees. The database may create and link a basic
+// HR employee when its provisioning guards allow it; this worker leaves HR-maintained employee
+// fields untouched. Use the saved mapping below because a database trigger can supply that link.
 //
 // Link policy:
 //   - an exact, unambiguous employee_code match auto-links
 //   - two employees sharing a code -> 'ambiguous', HR decides
-//   - no code match -> 'unmatched', with ranked name suggestions for the HR mapping screen
+//   - no code match -> database provisioning where safe, otherwise HR mapping suggestions
 //   - a human's 'manual' or 'ignored' decision is never overwritten
 import { prisma } from '../lib/db';
 import { logger } from '../lib/logger';
@@ -170,28 +170,31 @@ export async function syncEmployees(signal?: AbortSignal): Promise<EmployeeSyncR
             ...(decision.employeeId && decision.linkStatus === 'auto' ? { linkedAt: new Date() } : {}),
           };
 
+      let saved: { employeeId: string | null; linkStatus: string };
       if (existing) {
-        await prisma.biotimeEmployee.update({
+        saved = await prisma.biotimeEmployee.update({
           where: { empCode: person.empCode },
           data: { ...deviceFields, ...linkFields },
+          select: { employeeId: true, linkStatus: true },
         });
         result.updated += 1;
       } else {
-        await prisma.biotimeEmployee.create({
+        saved = await prisma.biotimeEmployee.create({
           data: { empCode: person.empCode, ...deviceFields, ...linkFields },
+          select: { employeeId: true, linkStatus: true },
         });
         result.created += 1;
       }
 
       if (!humanDecided) {
-        if (decision.linkStatus === 'auto') result.autoLinked += 1;
-        else if (decision.linkStatus === 'ambiguous') result.ambiguous += 1;
-        else result.unmatched += 1;
+        if (saved.linkStatus === 'auto') result.autoLinked += 1;
+        else if (saved.linkStatus === 'ambiguous') result.ambiguous += 1;
+        else if (saved.linkStatus === 'unmatched') result.unmatched += 1;
       }
       signal?.throwIfAborted();
 
       // Newly linked? Adopt any punches already sitting unassigned under this code.
-      const nowLinked = decision.employeeId && existing?.employeeId !== decision.employeeId;
+      const nowLinked = saved.employeeId && existing?.employeeId !== saved.employeeId;
       if (nowLinked) {
         const adopted = await resolvePunchLinks(person.empCode);
         result.punchesAdopted += adopted.punchesLinked;

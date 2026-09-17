@@ -49,7 +49,7 @@ try {
       ...(file.startsWith('0140_') ? ['\\set routine_seed on', `\\i ${quote(routineTests)}`] : []),
       `\\i ${quote(join(migrations, file))}`,
       // This migration promises safe reruns; enforce that before running API assertions.
-      ...(/^(0129|0133|0134|0137|0138|0139|0140|0141|0142|0143|0144|0145|0146)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0129|0133|0134|0137|0138|0139|0140|0141|0142|0143|0144|0145|0146|0147)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     '\\set message_requests_seed off',
     `\\i ${quote(messageTests)}`,
@@ -62,6 +62,7 @@ try {
     `\\i ${quote(join(backend, 'tests', 'request_integrity.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'immediate_account_revocation.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'report_input_integrity.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'device_employee_provisioning.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, messageDatabase]);
   const messageOutput = run('psql', [...connection, '-d', messageDatabase, '-q', '-f', messageBootstrap]);

@@ -80,6 +80,29 @@ copy C:\parakkat\attendance\.env C:\parakkat\attendance-new\.env
 It stops the service, installs, rebuilds and starts it back up. It is safe to re-run any number of
 times and skips whatever is already done. Wait for **ALL GOOD**.
 
+### Automatic new employees
+
+After database migration `0147_auto_provision_device_employees.sql`, new active Easy Time Pro
+enrolments create basic HRMS employee records as soon as the roster sync receives them. Possible
+duplicates and uncertain company assignments still require review in Devices & mapping.
+
+The updated installer changes the old daily roster schedule to every five minutes. To update only
+the schedule on an existing installation, edit this line in the service folder's `.env`:
+
+```dotenv
+SYNC_EMPLOYEES_CRON="*/5 * * * *"
+```
+
+Then, from an administrator terminal in that same service folder:
+
+```powershell
+node deploy/windows/service.cjs restart
+```
+
+This configuration change works with the existing worker build. Keep the other `.env` values.
+Use **Sync roster** in HRMS for an immediate check. With the machine online, subsequent new
+employees normally appear after the next five-minute poll and the roster download completes.
+
 ### Confirming the update actually took
 
 `services.msc` showing *Running* only proves something is running — not that it is the new build.
