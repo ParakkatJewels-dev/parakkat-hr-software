@@ -1,0 +1,329 @@
+// API authentication.
+//
+// This service does NOT invent its own identity system. The web app already authenticates with
+// Supabase Auth and its permissions come from the Role x Scope model in the database, so the API
+// verifies the caller's Supabase access token and asks the database what that user may do, via the
+// same get_my_access() RPC the frontend uses. One source of truth for permissions, not two.
+//
+// Note the asymmetry that makes this safe: the token is verified by Supabase, but the work itself
+// runs on the privileged Prisma connection that bypasses RLS. So every route MUST declare a
+// required permission — there is no RLS backstop here.
+import type { Request, Response, NextFunction } from 'express';
+import { createHash } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
+import { env, canVerifyTokens } from '../config/env';
+import { logger } from '../lib/logger';
+import { prisma } from '../lib/db';
+import { selectionFor, narrow, type VisibleScope } from './scopeSelection';
+
+export interface Grant {
+  permission: string;
+  scope_type: string;
+  scope_id: string | null;
+}
+
+export interface AuthContext {
+  userId: string;
+  email: string | null;
+  isSuperAdmin: boolean;
+  permissions: Grant[];
+  employee: { id: string; full_name: string; employee_code: string | null } | null;
+}
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      auth?: AuthContext;
+    }
+  }
+}
+
+/** Cache verified token identity only. Account state and grants must be checked on every request. */
+type VerifiedIdentity = Pick<AuthContext, 'userId' | 'email'>;
+const CACHE_TTL_MS = 60_000;
+const MAX_CACHE_ENTRIES = 2_000;
+const cache = new Map<string, { identity: VerifiedIdentity; expiresAt: number }>();
+const inFlight = new Map<string, Promise<VerifiedIdentity | null>>();
+const MAX_PENDING_VERIFICATIONS = 100;
+
+function cacheKey(token: string): string {
+  // A non-cryptographic hash lets a different token reuse a verified caller's privileges.
+  // Keep credentials out of the cache without making authentication depend on 32-bit collisions.
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function bearerToken(req: Request): string | null {
+  const header = req.headers.authorization;
+  if (!header) return null;
+  return /^Bearer\s+(\S+)\s*$/i.exec(header)?.[1] ?? null;
+}
+
+function clientForToken(token: string) {
+  return createClient(env.SUPABASE_URL!, env.SUPABASE_ANON_KEY!, {
+    global: {
+      headers: { Authorization: `Bearer ${token}` },
+      fetch: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(8_000) }),
+    },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+async function resolveIdentity(token: string, supabase: ReturnType<typeof clientForToken>): Promise<VerifiedIdentity | null> {
+  const key = cacheKey(token);
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > Date.now()) return hit.identity;
+  if (hit) cache.delete(key);
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+  if (inFlight.size >= MAX_PENDING_VERIFICATIONS) {
+    throw Object.assign(new Error('Session verification is busy. Try again shortly.'), { status: 503 });
+  }
+  const verification = verifyIdentity(token, key, supabase).finally(() => { inFlight.delete(key); });
+  inFlight.set(key, verification);
+  return verification;
+}
+
+async function verifyIdentity(token: string, key: string, supabase: ReturnType<typeof clientForToken>): Promise<VerifiedIdentity | null> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData?.user) return null;
+  const identity: VerifiedIdentity = {
+    userId: userData.user.id,
+    email: userData.user.email ?? null,
+  };
+
+  // Token refreshes must not grow this process-wide map for the lifetime of the worker.
+  if (cache.size >= MAX_CACHE_ENTRIES) {
+    const now = Date.now();
+    for (const [cachedKey, entry] of cache) {
+      if (entry.expiresAt <= now) cache.delete(cachedKey);
+    }
+    if (cache.size >= MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value!);
+  }
+  let expiresAt = Date.now() + CACHE_TTL_MS;
+  // getUser has already verified the token. Never let the local cache outlive its JWT expiry.
+  try {
+    const claims = JSON.parse(Buffer.from(token.split('.')[1] ?? '', 'base64url').toString());
+    if (typeof claims.exp === 'number' && Number.isFinite(claims.exp)) expiresAt = Math.min(expiresAt, claims.exp * 1000);
+  } catch { /* Non-JWT test identities and future opaque tokens use only the short TTL. */ }
+  cache.set(key, { identity, expiresAt });
+  return identity;
+}
+
+async function resolveContext(token: string): Promise<AuthContext | null> {
+  const supabase = clientForToken(token);
+  const identity = await resolveIdentity(token, supabase);
+  if (!identity) return null;
+
+  // Never cache or share this result across requests. get_my_access rejects inactive/banned/
+  // deleted accounts immediately, even when the unchanged JWT identity is still cached.
+  const { data: access, error: accessError } = await supabase.rpc('get_my_access');
+  if (accessError) {
+    logger.warn({ err: accessError.message }, 'get_my_access failed');
+    return null;
+  }
+  const payload = (access ?? {}) as {
+    is_super_admin?: boolean;
+    permissions?: Grant[];
+    employee?: { id: string; full_name: string; employee_code: string | null } | null;
+  };
+  return {
+    ...identity,
+    isSuperAdmin: Boolean(payload.is_super_admin),
+    permissions: Array.isArray(payload.permissions) ? payload.permissions : [],
+    employee: payload.employee ?? null,
+  };
+}
+
+/** Populate req.auth, rejecting anything without a valid token. */
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
+  if (!canVerifyTokens) {
+    res.status(503).json({
+      error: 'auth_unavailable',
+      message: 'SUPABASE_URL and SUPABASE_ANON_KEY must be set for the API to verify callers.',
+    });
+    return;
+  }
+
+  const token = bearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'unauthenticated', message: 'Missing bearer token.' });
+    return;
+  }
+
+  try {
+    const context = await resolveContext(token);
+    if (!context) {
+      res.status(401).json({ error: 'unauthenticated', message: 'Invalid or expired session.' });
+      return;
+    }
+    req.auth = context;
+    next();
+  } catch (err) {
+    if ((err as { status?: number }).status === 503) {
+      res.setHeader('Retry-After', '5');
+      res.status(503).json({ error: 'auth_unavailable', message: 'Session verification is busy. Try again shortly.' });
+      return;
+    }
+    logger.error({ err }, 'authentication failed');
+    res.status(500).json({ error: 'auth_error', message: 'Could not verify the session.' });
+  }
+}
+
+export function hasPermission(auth: AuthContext | undefined, permission: string): boolean {
+  if (!auth) return false;
+  if (auth.isSuperAdmin) return true;
+  return auth.permissions.some((p) => p.permission === permission);
+}
+
+/**
+ * Gate a route on a permission held at ANY scope.
+ *
+ * Scope-level filtering of the *rows* a caller sees is applied inside each handler (reports filter
+ * by branch), because this service reads through a connection that bypasses RLS.
+ */
+export function requirePermission(...permissions: string[]) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    const ok = permissions.some((p) => hasPermission(req.auth, p));
+    if (!ok) {
+      res.status(403).json({
+        error: 'forbidden',
+        message: `Requires one of: ${permissions.join(', ')}`,
+      });
+      return;
+    }
+    next();
+  };
+}
+
+/**
+ * What the caller may see, resolved FAIL-CLOSED.
+ *
+ * `all: true` only for super admins and global grants. Zone grants are widened to that zone's
+ * branches (DB lookup — this service bypasses RLS, so scope must be exact here). Department and
+ * self grants deliberately contribute NOTHING: they exist for in-app views where RLS narrows the
+ * rows, and a whole-branch export would silently over-grant them. A caller whose grants resolve
+ * to nothing gets empty lists — routes must treat that as 403, never as "everything".
+ */
+// Declared in scopeSelection.ts, which the fail-closed rules live in and which imports no database.
+export type { VisibleScope } from './scopeSelection';
+
+export async function resolveVisibleScope(
+  auth: AuthContext | undefined,
+  permissions: string[]
+): Promise<VisibleScope> {
+  if (!auth) return { all: false, branchIds: [], entityIds: [] };
+  if (auth.isSuperAdmin) return { all: true, branchIds: [], entityIds: [] };
+
+  const grants = auth.permissions.filter((p) => permissions.includes(p.permission));
+  if (grants.some((g) => g.scope_type === 'global')) return { all: true, branchIds: [], entityIds: [] };
+
+  const branchIds = new Set(
+    grants.filter((g) => g.scope_type === 'branch' && g.scope_id).map((g) => g.scope_id!)
+  );
+  const entityIds = new Set(
+    grants.filter((g) => g.scope_type === 'entity' && g.scope_id).map((g) => g.scope_id!)
+  );
+
+  const zoneIds = [
+    ...new Set(grants.filter((g) => g.scope_type === 'zone' && g.scope_id).map((g) => g.scope_id!)),
+  ];
+  if (zoneIds.length) {
+    const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+      select id from public.branches where zone_id = any(${zoneIds}::uuid[])`;
+    for (const row of rows) branchIds.add(row.id);
+  }
+
+  return { all: false, branchIds: [...branchIds], entityIds: [...entityIds] };
+}
+
+/**
+ * The grants of a user identified by id rather than by token — for queued work.
+ *
+ * A command row carries `requested_by` and nothing else: by the time the service collects it the
+ * request is minutes old and there is no session to read. Everything downstream (resolveVisibleScope,
+ * resolveScopedEmployeeIds) takes an AuthContext, so one is assembled here instead of giving queued
+ * commands a second, looser notion of scope — which is exactly how the two paths would drift apart.
+ *
+ * Reads role_assignments directly, which is what get_my_access does for the token path. Returns null
+ * for an unknown or absent user, and callers must treat that as no authority rather than as full
+ * authority: a command whose requester was deleted has nobody's permission behind it.
+ */
+export async function contextForUserId(userId: string | null): Promise<AuthContext | null> {
+  if (!userId) return null;
+
+  // Queued work has no bearer token, but the requester must still be active when work starts.
+  // This service-only database helper uses the same ban/deletion/employee-status rule as RPC/RLS.
+  const account = await prisma.$queryRaw<Array<{ active: boolean }>>`
+    select app.account_is_active(${userId}::uuid) as active`;
+  if (!account[0]?.active) return null;
+
+  const rows = await prisma.$queryRaw<Array<{ permission: string; scope_type: string; scope_id: string | null }>>`
+    select p.key as permission, ra.scope_type::text as scope_type, ra.scope_id::text as scope_id
+      from public.role_assignments ra
+      join public.role_permissions rp on rp.role_id = ra.role_id
+      join public.permissions p on p.id = rp.permission_id
+     where ra.user_id = ${userId}::uuid`;
+
+  const profile = await prisma.$queryRaw<Array<{ is_super_admin: boolean; employee_id: string | null }>>`
+    select coalesce(is_super_admin, false) as is_super_admin, employee_id::text as employee_id
+      from public.profiles where user_id = ${userId}::uuid`;
+
+  if (!profile.length && !rows.length) return null;
+
+  return {
+    userId,
+    email: null,
+    isSuperAdmin: Boolean(profile[0]?.is_super_admin),
+    permissions: rows,
+    employee: null,
+  };
+}
+
+/**
+ * Which employees may the caller ACT on — the write-side counterpart of resolveVisibleScope.
+ *
+ * Returns null for "everyone" (super admin or a global grant) and an explicit id list otherwise.
+ * `requested` narrows further; it never widens, so asking for an employee outside your scope drops
+ * them rather than granting them.
+ *
+ * Needed because requirePermission only asks whether a permission is held at SOME scope, and this
+ * service reads through a connection that bypasses RLS. Without this, a branch manager holding
+ * attendance.manage over one branch could drive an operation across every employee in the company:
+ * the permission check passes and there is no RLS underneath to narrow the rows.
+ *
+ * FAIL CLOSED throughout — an empty result is a refusal, which the caller must turn into a 403.
+ * Note that recompute() treats an empty id array as "no employees", so even a missed 403 does
+ * nothing rather than everything.
+ */
+export async function resolveScopedEmployeeIds(
+  auth: AuthContext | undefined,
+  permissions: string[],
+  requested?: string[]
+): Promise<string[] | null> {
+  const selection = selectionFor(await resolveVisibleScope(auth, permissions), requested);
+  if (selection.kind === 'all') return selection.ids;
+  if (selection.kind === 'none') return [];
+
+  // `x = any('{}')` is false, so an empty grant list contributes no rows — which is what makes the
+  // OR safe. Written as `array = '{}' or ...` it would read as "no branch grants means every
+  // branch", the exact fail-open this function exists to prevent.
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    select id from public.employees
+     where branch_id = any(${selection.branchIds}::uuid[])
+        or entity_id = any(${selection.entityIds}::uuid[])`;
+
+  return narrow(rows.map((r) => r.id), requested);
+}
+
+/** Branches that fall under a set of entities — used to intersect a requested branch filter. */
+export async function branchesOfEntities(entityIds: string[]): Promise<string[]> {
+  if (!entityIds.length) return [];
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    select id from public.branches where entity_id = any(${entityIds}::uuid[])`;
+  return rows.map((r) => r.id);
+}
+
+export function clearAuthCache(): void {
+  cache.clear();
+}

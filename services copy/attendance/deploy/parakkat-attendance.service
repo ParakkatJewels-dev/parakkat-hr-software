@@ -1,0 +1,59 @@
+# systemd unit for the attendance service (the alternative to pm2 — use one or the other).
+#
+# Install:
+#   sudo cp deploy/parakkat-attendance.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now parakkat-attendance
+#   journalctl -u parakkat-attendance -f
+#
+# Adjust User, WorkingDirectory and ExecStart to match the host.
+
+[Unit]
+Description=Parakkat HRMS attendance service (BioTime sync + attendance engine + API)
+Documentation=file:///opt/parakkat/services/attendance/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=parakkat
+Group=parakkat
+WorkingDirectory=/opt/parakkat/services/attendance
+
+# Secrets live in the env file, not in this unit — unit files are world-readable.
+EnvironmentFile=/opt/parakkat/services/attendance/.env
+Environment=NODE_ENV=production
+
+ExecStart=/usr/bin/node dist/index.js
+
+# SIGTERM lets index.ts stop the scheduler and drain in-flight syncs before exiting.
+KillSignal=SIGTERM
+TimeoutStopSec=40
+
+Restart=always
+RestartSec=5
+# Stop trying after 10 failures in 5 minutes: at that point it is a configuration problem
+# that restarting will not solve, and the alert should be the unit sitting in `failed`.
+StartLimitBurst=10
+StartLimitIntervalSec=300
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=parakkat-attendance
+
+# --- hardening -------------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+# The service only needs to write its own logs.
+ReadWritePaths=/opt/parakkat/services/attendance/logs
+
+[Install]
+WantedBy=multi-user.target

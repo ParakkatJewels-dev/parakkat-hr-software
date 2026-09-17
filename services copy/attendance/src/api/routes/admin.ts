@@ -1,0 +1,361 @@
+// Operations the frontend triggers: manual syncs, backfills, recomputes, and code mapping.
+//
+// The long-running ones (backfill, recompute) return 202 immediately and run in the background —
+// a browser request should not be held open for four minutes while six months of history loads.
+// Progress is visible through /api/status, which reads the same sync_runs rows.
+import { asyncRoute } from '../asyncRoute';
+import { limitApiWork } from '../rateLimit';
+import { Router, type Request, type Response } from 'express';
+import { z } from 'zod';
+import { dateString, catchupSchema } from '../validation';
+import { prisma, jsonSafe } from '../../lib/db';
+import { logger } from '../../lib/logger';
+import { authenticate, requirePermission, resolveScopedEmployeeIds, resolveVisibleScope } from '../auth';
+import { syncTransactions, catchUpTransactions, runTransactionSync } from '../../sync/syncTransactions';
+import { syncEmployees, refreshSuggestions, resolvePunchLinks } from '../../sync/syncEmployees';
+import { recompute, drainRecomputeQueue, enqueueRecompute } from '../../engine/recompute';
+import { workDateStart, workDateEnd, todayWorkDate, eachWorkDate } from '../../lib/time';
+import { backgroundJobs } from '../../jobs/background';
+
+export const adminRouter = Router();
+
+/** Run work detached, logging failures rather than crashing the request. */
+function background(label: string, fn: (signal: AbortSignal) => Promise<unknown>): void {
+  void backgroundJobs.start(label, fn).catch((err) => logger.error({ err, task: label }, 'background task failed'));
+}
+
+/**
+ * Guard for operations that cannot be narrowed to the caller's scope.
+ *
+ * Pulling punches off the terminal, or draining a queue somebody else filled, touches every branch
+ * by construction — there is no per-branch version of it to run instead. requirePermission on its
+ * own only asks whether the permission is held SOMEWHERE, and this service reads through a
+ * connection that bypasses RLS, so without this a grant over one branch would drive the lot.
+ *
+ * Returns true when the caller was rejected, so handlers read: `if (await refuseUnlessOrgWide(...)) return;`
+ */
+async function refuseUnlessOrgWide(
+  req: Request,
+  res: Response,
+  permission: string,
+  what: string
+): Promise<boolean> {
+  const scope = await resolveVisibleScope(req.auth, [permission]);
+  if (scope.all) return false;
+  res.status(403).json({
+    error: 'forbidden',
+    message: `${what} affects every branch and needs an organisation-wide ${permission} grant.`,
+  });
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// sync
+// ---------------------------------------------------------------------------
+
+adminRouter.post('/api/sync/transactions', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A transaction sync')) return;
+  try {
+    const result = await syncTransactions();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(502).json({
+      ok: false,
+      error: 'sync_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}));
+
+adminRouter.post('/api/sync/employees', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'An employee sync')) return;
+  try {
+    const result = await syncEmployees();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(502).json({
+      ok: false,
+      error: 'sync_failed',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}));
+
+adminRouter.post('/api/sync/catchup', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A catch-up scan')) return;
+  const parsed = catchupSchema.safeParse(req.body ?? {});
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
+    return;
+  }
+  const { days } = parsed.data;
+  background('catchup', (signal) => catchUpTransactions(days, signal));
+  res.status(202).json({ ok: true, message: `Catch-up scan started for the last ${days} days.` });
+}));
+
+// ---------------------------------------------------------------------------
+// backfill
+// ---------------------------------------------------------------------------
+
+const backfillSchema = z.object({
+  from: dateString,
+  to: dateString.optional(),
+  recompute: z.boolean().optional(),
+});
+
+adminRouter.post('/api/backfill', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'A backfill')) return;
+  const parsed = backfillSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
+    return;
+  }
+
+  const { from } = parsed.data;
+  const to = parsed.data.to ?? todayWorkDate();
+
+  if (from > to) {
+    res.status(400).json({ error: 'invalid_range', message: '`from` is after `to`.' });
+    return;
+  }
+
+  const days = eachWorkDate(from, to);
+
+  background('backfill', async (signal) => {
+    // Weekly chunks, same reasoning as the CLI: keep each BioTime request small.
+    for (let i = 0; i < days.length; i += 7) {
+      signal.throwIfAborted();
+      const slice = days.slice(i, i + 7);
+      await runTransactionSync({
+        kind: 'backfill',
+        source: 'backfill',
+        startTime: workDateStart(slice[0]!),
+        endTime: workDateEnd(slice[slice.length - 1]!),
+        advanceCursorAfter: false,
+        maxPages: 10_000,
+        signal,
+      });
+      signal.throwIfAborted();
+    }
+    if (parsed.data.recompute) await recompute({ from, to }, { signal });
+  });
+
+  res.status(202).json({
+    ok: true,
+    message: `Backfill started for ${from} .. ${to} (${days.length} days). Watch progress on the status page.`,
+  });
+}));
+
+// ---------------------------------------------------------------------------
+// recompute
+// ---------------------------------------------------------------------------
+
+const recomputeSchema = z.object({
+  from: dateString,
+  to: dateString.optional(),
+  employeeIds: z.array(z.string().uuid()).min(1, 'Choose at least one employee or omit the filter.').optional(),
+  includeLocked: z.boolean().optional(),
+});
+
+adminRouter.post('/api/recompute', authenticate, requirePermission('attendance.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  const parsed = recomputeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
+    return;
+  }
+
+  const { from, includeLocked } = parsed.data;
+  const to = parsed.data.to ?? from;
+  if (from > to) {
+    res.status(400).json({ error: 'invalid_range', message: '`from` is after `to`.' });
+    return;
+  }
+  const days = eachWorkDate(from, to).length;
+
+  // requirePermission only asked whether attendance.manage is held SOMEWHERE. A recompute rewrites
+  // attendance rows, and this service bypasses RLS, so without this a branch manager's click would
+  // rebuild every employee in the company. 0071 closed the equivalent hole on the RPC path; this is
+  // the HTTP one. null means the whole organisation, which only a global grant or super admin gets.
+  const scopedEmployeeIds = await resolveScopedEmployeeIds(
+    req.auth,
+    ['attendance.manage'],
+    parsed.data.employeeIds
+  );
+  if (scopedEmployeeIds !== null && scopedEmployeeIds.length === 0) {
+    res.status(403).json({
+      error: 'forbidden',
+      message:
+        'No employees in your scope. A recompute needs attendance.manage over a branch, zone, ' +
+        'entity or the whole organisation.',
+    });
+    return;
+  }
+  const employeeIds = scopedEmployeeIds ?? undefined;
+
+  // A short range is fast enough to answer synchronously, which makes the UI feel immediate.
+  // Anything larger goes to the background.
+  if (days <= 31) {
+    try {
+      const summary = await recompute({ from, to, employeeIds, includeLocked });
+      res.json({ ok: true, ...summary });
+    } catch (err) {
+      res.status(500).json({
+        ok: false,
+        error: 'recompute_failed',
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+    return;
+  }
+
+  background('recompute', (signal) => recompute({ from, to, employeeIds, includeLocked }, { signal }));
+  res.status(202).json({ ok: true, message: `Recompute started for ${from} .. ${to} (${days} days).` });
+}));
+
+// The queue holds whatever the sync enqueued, with no way to drain only one caller's share of it —
+// so this takes an org-wide grant rather than being narrowed like /api/recompute above.
+adminRouter.post('/api/recompute/queue', authenticate, requirePermission('attendance.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'attendance.manage', 'Draining the recompute queue')) return;
+  const summary = await drainRecomputeQueue();
+  res.json({ ok: true, drained: summary !== null, ...(summary ?? {}) });
+}));
+
+// ---------------------------------------------------------------------------
+// device code mapping
+// ---------------------------------------------------------------------------
+
+const mappingQuerySchema = z.object({
+  status: z.enum(['auto', 'manual', 'unmatched', 'ambiguous', 'ignored']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+adminRouter.get('/api/mapping', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Viewing the device roster')) return;
+  const parsed = mappingQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_query', issues: parsed.error.issues });
+    return;
+  }
+  const { status, page, pageSize } = parsed.data;
+  const where = status ? { linkStatus: status } : undefined;
+
+  const rows = await prisma.biotimeEmployee.findMany({
+    where,
+    orderBy: [{ linkStatus: 'asc' }, { empCode: 'asc' }],
+    take: page === undefined ? 1000 : pageSize,
+    skip: page === undefined ? undefined : (page - 1) * pageSize,
+    include: { employee: { select: { id: true, fullName: true, employeeCode: true } } },
+  });
+
+  if (page === undefined) {
+    res.json(jsonSafe(rows));
+    return;
+  }
+  const total = await prisma.biotimeEmployee.count({ where });
+  res.json(jsonSafe({ rows, page, pageSize, total, pageCount: Math.ceil(total / pageSize) }));
+}));
+
+const linkSchema = z.object({
+  empCode: z.string().min(1),
+  // null clears the link; 'ignored' marks a device-only enrolment.
+  employeeId: z.string().uuid().nullable(),
+  ignore: z.boolean().optional(),
+});
+
+/**
+ * Map a device code to an employee.
+ *
+ * This is the step that makes historical punches meaningful, so it does three things atomically
+ * from the caller's point of view: set the link, adopt the orphaned punches already stored under
+ * that code, and queue those dates for recompute.
+ */
+adminRouter.post('/api/mapping/link', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Changing device mappings')) return;
+  const parsed = linkSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'invalid_request', issues: parsed.error.issues });
+    return;
+  }
+
+  const { empCode, employeeId, ignore } = parsed.data;
+
+  const existing = await prisma.biotimeEmployee.findUnique({ where: { empCode } });
+  if (!existing) {
+    res.status(404).json({ error: 'not_found', message: `No BioTime enrolment with code ${empCode}.` });
+    return;
+  }
+
+  if (employeeId) {
+    const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { id: true } });
+    if (!employee) {
+      res.status(404).json({ error: 'not_found', message: 'That employee does not exist.' });
+      return;
+    }
+    // Linking a device code adopts that code's punch history onto the employee, so it must be an
+    // employee the caller may act on — device.manage held over one branch is not authority over
+    // everyone enrolled on the terminal.
+    const allowed = await resolveScopedEmployeeIds(req.auth, ['device.manage'], [employeeId]);
+    if (allowed !== null && !allowed.length) {
+      res.status(403).json({ error: 'forbidden', message: 'That employee is outside your scope.' });
+      return;
+    }
+  }
+
+  await prisma.biotimeEmployee.update({
+    where: { empCode },
+    data: {
+      employeeId: ignore ? null : employeeId,
+      // 'manual' and 'ignored' are human decisions; the roster sync will not overwrite either.
+      linkStatus: ignore ? 'ignored' : employeeId ? 'manual' : 'unmatched',
+      linkedAt: employeeId ? new Date() : null,
+      linkedBy: req.auth?.userId ?? null,
+      updatedAt: new Date(),
+    },
+  });
+
+  let adopted = { punchesLinked: 0, firstDate: null as string | null, lastDate: null as string | null };
+  let recomputeStatus: 'not-needed' | 'started' | 'queued' = 'not-needed';
+
+  if (employeeId && !ignore) {
+    adopted = await resolvePunchLinks(empCode);
+
+    if (adopted.punchesLinked > 0 && adopted.firstDate && adopted.lastDate) {
+      await enqueueRecompute(employeeId, adopted.firstDate, adopted.lastDate, `code ${empCode} mapped`);
+      try {
+        background('recompute-after-link', (signal) =>
+          recompute({ from: adopted.firstDate!, to: adopted.lastDate!, employeeIds: [employeeId] }, { signal })
+        );
+        recomputeStatus = 'started';
+      } catch (err) {
+        // Only immediate admission can throw here; asynchronous work failures are logged by
+        // background(). The saved mapping and durable queue must not become a failed save
+        // merely because all workers are busy or this process is shutting down. The worker
+        // scheduler drains pending queue rows every two minutes (or via /api/recompute/queue).
+        const status = (err as { status?: number } | null)?.status;
+        if (status !== 429 && status !== 503) throw err;
+        recomputeStatus = 'queued';
+        logger.warn({ err, empCode, employeeId, from: adopted.firstDate, to: adopted.lastDate },
+          'device mapping saved; attendance recompute deferred to durable queue');
+      }
+    }
+  }
+
+  logger.info({ empCode, employeeId, ignore, adopted: adopted.punchesLinked }, 'device code mapping updated');
+
+  res.json({
+    ok: true,
+    empCode,
+    employeeId: ignore ? null : employeeId,
+    punchesAdopted: adopted.punchesLinked,
+    recomputedFrom: adopted.firstDate,
+    recomputedTo: adopted.lastDate,
+    recomputeStatus,
+  });
+}));
+
+adminRouter.post('/api/mapping/suggest', authenticate, requirePermission('device.manage'), limitApiWork, asyncRoute(async (req, res) => {
+  if (await refuseUnlessOrgWide(req, res, 'device.manage', 'Refreshing device suggestions')) return;
+  const updated = await refreshSuggestions();
+  res.json({ ok: true, updated });
+}));

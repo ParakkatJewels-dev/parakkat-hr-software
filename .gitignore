@@ -33,3 +33,6 @@ dist-ssr
 # employees — useful to compare against, not something to publish into the repository.
 easy pro time data/
 .gstack/
+
+# Local attendance-service backup archive
+/services copy.zip
