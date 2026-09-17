@@ -2,6 +2,8 @@ const VERSION = 'parakkat-hr-pwa-v7';
 const SHELL_CACHE = `${VERSION}-shell`;
 const RUNTIME_CACHE = `${VERSION}-runtime`;
 const MAX_RUNTIME_ENTRIES = 90;
+// The build stamps initial shared chunks here, without emitting HTML modulepreload hints.
+const BUILD_SHELL_ASSETS = [];
 
 const APP_SHELL = [
   '/',
@@ -54,10 +56,22 @@ async function cacheShell() {
   const indexResponse = (await cache.match('/index.html')) || (await cache.match('/'));
   if (!indexResponse) return;
 
-  const discoveredAssets = shellAssetUrlsFrom(await indexResponse.clone().text());
+  const discoveredAssets = new Set([
+    ...BUILD_SHELL_ASSETS,
+    ...shellAssetUrlsFrom(await indexResponse.clone().text()),
+  ]);
   await Promise.allSettled(
-    discoveredAssets.map((url) => cache.add(new Request(url, { cache: 'reload' })))
+    [...discoveredAssets].map((url) => cache.add(new Request(url, { cache: 'reload' })))
   );
+}
+
+async function cachedResponse(request) {
+  try {
+    return await caches.match(request);
+  } catch {
+    // Storage can be blocked or evicted independently of the network.
+    return undefined;
+  }
 }
 
 async function trimRuntimeCache() {
@@ -69,9 +83,13 @@ async function trimRuntimeCache() {
 
 async function putRuntime(request, response) {
   if (!isCacheable(response)) return;
-  const cache = await caches.open(RUNTIME_CACHE);
-  await cache.put(request, response.clone());
-  await trimRuntimeCache();
+  try {
+    const cache = await caches.open(RUNTIME_CACHE);
+    await cache.put(request, response.clone());
+    await trimRuntimeCache();
+  } catch {
+    // A failed cache write must not discard a usable network response.
+  }
 }
 
 async function putShellResponse(request, response) {
@@ -79,11 +97,15 @@ async function putShellResponse(request, response) {
   // A standalone 404/offline document or another successful page is not the application shell.
   if (!['/', '/index.html'].includes(path) || !isCacheable(response)
       || !response.headers.get('Content-Type')?.includes('text/html')) return;
-  const cache = await caches.open(SHELL_CACHE);
-  await Promise.all([
-    cache.put('/index.html', response.clone()),
-    cache.put('/', response.clone()),
-  ]);
+  try {
+    const cache = await caches.open(SHELL_CACHE);
+    await Promise.all([
+      cache.put('/index.html', response.clone()),
+      cache.put('/', response.clone()),
+    ]);
+  } catch {
+    // Keep serving the network document even if storage is unavailable or full.
+  }
 }
 
 self.addEventListener('install', (event) => {
@@ -118,9 +140,9 @@ self.addEventListener('message', (event) => {
 
 async function cachedShellFallback() {
   return (
-    (await caches.match('/index.html')) ||
-    (await caches.match('/')) ||
-    (await caches.match('/offline.html')) ||
+    (await cachedResponse('/index.html')) ||
+    (await cachedResponse('/')) ||
+    (await cachedResponse('/offline.html')) ||
     new Response(
       '<!doctype html><title>Offline</title><h1>Parakkat is offline</h1><p>Please reconnect and try again.</p>',
       { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
@@ -129,8 +151,13 @@ async function cachedShellFallback() {
 }
 
 async function navigationResponse(event) {
+  let preload;
   try {
-    const preload = await event.preloadResponse;
+    preload = await event.preloadResponse;
+  } catch {
+    // A rejected speculative load does not mean the ordinary network request will fail.
+  }
+  try {
     // A preload that failed is still a truthy Response. Returning it unchecked hands the user
     // Vercel's error body instead of the shell we already have cached.
     if (preload) {
@@ -174,7 +201,7 @@ async function fetchRepairing(request) {
 }
 
 async function cacheFirstAsset(request) {
-  const cached = await caches.match(request);
+  const cached = await cachedResponse(request);
   if (isCacheable(cached)) return cached;
   const response = await fetchRepairing(request);
   if (response) await putRuntime(request, response.clone());
@@ -182,7 +209,7 @@ async function cacheFirstAsset(request) {
 }
 
 async function staleWhileRevalidate(request, event) {
-  const cached = await caches.match(request);
+  const cached = await cachedResponse(request);
   const network = fetchRepairing(request)
     .then(async (response) => {
       if (response) await putRuntime(request, response.clone());
@@ -227,7 +254,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache only the explicitly handled public shell/assets. Unknown same-origin endpoints may
-  // return private data and must never receive an unrelated cached HTML document on failure.
-  event.respondWith(fetch(request));
+  // Leave all other requests to the browser. A pass-through respondWith(fetch(request)) adds
+  // an unhandled FetchEvent rejection on network failure, without providing any offline benefit.
+  // In particular, a non-navigation fetch of '/' is not a request for the offline app shell.
 });

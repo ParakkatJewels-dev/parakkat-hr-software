@@ -8,12 +8,16 @@ import { join } from 'node:path'
 // polls version.json (see src/lib/versionCheck.js) and reloads when it changes — so a redeploy of
 // the hosted web app updates every device with no reinstall.
 const BUILD_ID = String(Date.now())
+const buildShellAssets = new Set()
 
 // Writes dist/version.json, and stamps the same build id into the service worker.
 function versionStamp() {
   return {
     name: 'version-stamp',
     apply: 'build',
+    buildStart() {
+      buildShellAssets.clear()
+    },
     closeBundle() {
       const dist = join(process.cwd(), 'dist')
       writeFileSync(join(dist, 'version.json'), JSON.stringify({ version: BUILD_ID }))
@@ -46,7 +50,20 @@ function versionStamp() {
             'worker cache name must be stamped with the build id — see the comment in vite.config.js.'
         )
       }
-      writeFileSync(swPath, sw.replace(marker, `const VERSION = 'parakkat-hr-${BUILD_ID}'`))
+      const shellAssetsMarker = /const BUILD_SHELL_ASSETS = \[\]/
+      if (!shellAssetsMarker.test(sw)) {
+        throw new Error(
+          'version-stamp: could not find `const BUILD_SHELL_ASSETS = []` in dist/sw.js. ' +
+            'The initial module dependencies must be stamped into the offline shell.'
+        )
+      }
+      writeFileSync(
+        swPath,
+        sw.replace(marker, `const VERSION = 'parakkat-hr-${BUILD_ID}'`).replace(
+          shellAssetsMarker,
+          `const BUILD_SHELL_ASSETS = ${JSON.stringify([...buildShellAssets].sort())}`
+        )
+      )
     },
   }
 }
@@ -61,6 +78,18 @@ export default defineConfig({
     // /assets ever missed the filesystem, Vercel's SPA fallback for Asset Management could answer
     // with index.html, which browsers reject as a module MIME mismatch.
     assetsDir: 'app-assets',
+    modulePreload: {
+      resolveDependencies(_filename, dependencies, { hostType }) {
+        if (hostType !== 'html') return dependencies
+
+        // Initial HTML modulepreloads can race service-worker control and produce Chromium's
+        // "cross-world service worker resource mismatch" warning. Preserve lazy-route preloads,
+        // but let the initial module graph load through ordinary imports. The worker still needs
+        // these shared chunks for offline startup, so stamp their URLs into sw.js during the build.
+        for (const dependency of dependencies) buildShellAssets.add(`/${dependency}`)
+        return []
+      },
+    },
   },
   plugins: [
     react(),

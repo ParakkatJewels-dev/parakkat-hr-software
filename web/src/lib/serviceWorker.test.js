@@ -15,23 +15,29 @@ const html = (body, status = 200) => new BrowserResponse(body, { status, headers
 
 function worker() {
   const listeners = new Map(), stores = new Map(), reads = [];
+  const cacheFailures = {};
+  const checkCache = operation => {
+    if (cacheFailures[operation]) throw new Error(`Cache ${operation} unavailable`);
+  };
   const key = request => new URL(typeof request === 'string' ? request : request.url, 'https://example.test').href;
   const caches = {
     async open(name) {
+      checkCache('open');
       if (!stores.has(name)) stores.set(name, new Map());
       const store = stores.get(name);
       return {
-        async match(request) { return store.get(key(request))?.clone(); },
-        async put(request, response) { store.set(key(request), response.clone()); },
+        async match(request) { checkCache('match'); return store.get(key(request))?.clone(); },
+        async put(request, response) { checkCache('put'); store.set(key(request), response.clone()); },
         async keys() { return [...store.keys()].map(url => ({ url })); },
         async delete(request) { return store.delete(key(request)); },
       };
     },
     async match(request) {
+      checkCache('match');
       for (const store of stores.values()) if (store.has(key(request))) return store.get(key(request)).clone();
     },
   };
-  const state = { respond: () => new BrowserResponse('asset'), reads, caches, stores };
+  const state = { respond: () => new BrowserResponse('asset'), reads, caches, stores, cacheFailures };
   vm.runInNewContext(source, { self: { location: { origin: 'https://example.test' },
     addEventListener: (name, handler) => listeners.set(name, handler) },
     URL, Request, Response: BrowserResponse, caches,
@@ -98,6 +104,89 @@ test('standalone pages cannot overwrite the application shell and outages still 
   assert.equal(await (await sw.request('/', { mode: 'navigate' })).text(), 'home');
 });
 
+for (const warm of [false, true]) {
+  test(`a rejected navigation preload retries the network with a ${warm ? 'warm' : 'cold'} shell cache`, async () => {
+    const sw = worker();
+    if (warm) {
+      sw.respond = () => html('cached shell');
+      await sw.request('/', { mode: 'navigate' });
+    }
+    const reads = sw.reads.length;
+    sw.respond = () => html('fresh shell');
+    const response = await sw.request('/', {
+      mode: 'navigate',
+      preload: Promise.reject(new TypeError('Navigation preload unavailable')),
+    });
+    assert.equal(await response.text(), 'fresh shell');
+    assert.equal(sw.reads.length, reads + 1);
+  });
+
+  test(`preload and network failures resolve an offline document with a ${warm ? 'warm' : 'cold'} shell cache`, async () => {
+    const sw = worker();
+    if (warm) {
+      sw.respond = () => html('cached shell');
+      await sw.request('/', { mode: 'navigate' });
+    }
+    const reads = sw.reads.length;
+    sw.respond = () => { throw new TypeError('Network unavailable'); };
+    const response = await sw.request('/', {
+      mode: 'navigate',
+      preload: Promise.reject(new TypeError('Navigation preload unavailable')),
+    });
+    const body = await response.text();
+    if (warm) assert.equal(body, 'cached shell');
+    else assert.match(body, /Parakkat is offline/);
+    assert.equal(sw.reads.length, reads + 1);
+    assert.match(response.headers.get('Content-Type'), /text\/html/);
+  });
+}
+
+for (const operation of ['open', 'put']) {
+  test(`healthy network and preload HTML survive a cache ${operation} failure`, async () => {
+    const sw = worker();
+    sw.respond = () => html('old shell');
+    await sw.request('/', { mode: 'navigate' });
+    sw.cacheFailures[operation] = true;
+    sw.respond = () => html('fresh network shell');
+    assert.equal(await (await sw.request('/', { mode: 'navigate' })).text(), 'fresh network shell');
+    const reads = sw.reads.length;
+    assert.equal(await (await sw.request('/', {
+      mode: 'navigate', preload: html('fresh preload shell'),
+    })).text(), 'fresh preload shell');
+    assert.equal(sw.reads.length, reads, 'healthy preload still avoids a second network request');
+  });
+}
+
+test('offline navigation resolves a built-in HTML page when cache reads fail', async () => {
+  const sw = worker();
+  sw.cacheFailures.match = true;
+  sw.cacheFailures.open = true;
+  sw.respond = () => { throw new TypeError('Network unavailable'); };
+  const response = await sw.request('/', { mode: 'navigate' });
+  assert.match(await response.text(), /Parakkat is offline/);
+  assert.match(response.headers.get('Content-Type'), /text\/html/);
+});
+
+for (const operation of ['match', 'open', 'put']) {
+  test(`healthy hashed assets survive a cache ${operation} failure`, async () => {
+    const sw = worker();
+    sw.cacheFailures[operation] = true;
+    sw.respond = () => new BrowserResponse('fresh JavaScript');
+    const response = await sw.request('/app-assets/App-Abcd1234.js');
+    assert.equal(await response.text(), 'fresh JavaScript');
+    assert.equal(sw.reads.length, 1, 'storage failure does not retry a healthy network request');
+  });
+}
+
+test('an uncached ordinary static asset survives a runtime cache write failure', async () => {
+  const sw = worker();
+  sw.cacheFailures.put = true;
+  sw.respond = () => new BrowserResponse('fresh logo');
+  const response = await sw.request('/brand-mark.png');
+  assert.equal(await response.text(), 'fresh logo');
+  assert.equal(sw.reads.length, 1);
+});
+
 test('API and deploy checks always bypass caches; cross-origin requests and writes remain untouched', async () => {
   const sw = worker();
   for (const path of ['/api/v1/employees', '/version.json', '/sw.js']) {
@@ -111,11 +200,12 @@ test('API and deploy checks always bypass caches; cross-origin requests and writ
   assert.equal(sw.stores.size, 0);
 });
 
-test('unknown same-origin data is never cached and never replaced by an offline HTML response', async () => {
+test('unhandled same-origin GETs bypass the worker, including non-navigation shell requests', async () => {
   const sw = worker();
-  await sw.request('/private-report'); await sw.request('/private-report');
-  assert.equal(sw.reads.length, 2);
-  assert.equal(sw.stores.size, 0);
   sw.respond = () => { throw new TypeError('Offline'); };
-  await assert.rejects(sw.request('/private-report'), /Offline/);
+  for (const path of ['/private-report', '/', '/#/attendance-person', '/index.html']) {
+    assert.equal(await sw.request(path), undefined, `${path} should use the browser's native fetch`);
+  }
+  assert.equal(sw.reads.length, 0, 'no worker fetch is started for unhandled requests');
+  assert.equal(sw.stores.size, 0, 'private data is never cached or replaced with offline HTML');
 });
