@@ -23,7 +23,7 @@ import { btnClass } from './ui/Btn';
 import Avatar from './ui/Avatar';
 import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import {
-  buildThread, mentionFor, replyToggleLabel, threadingAvailable,
+  buildThread, commentAuthorName, mentionFor, replyToggleLabel, threadingAvailable,
 } from '../lib/commentThread';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 import {
@@ -670,7 +670,7 @@ function Thread({ taskId, rows, loading, attachmentRows, attachmentsLoading, myU
             <CornerDownRight size={11} className="text-[var(--work-accent)] shrink-0" />
             <span className="min-w-0 truncate">
               Replying to <span className="font-semibold text-neutral-700 dark:text-neutral-300">
-                {replyTo.to?.author?.full_name ?? 'someone'}
+                {commentAuthorName(replyTo.to)}
               </span>
             </span>
             <button
@@ -786,7 +786,7 @@ function CommentReplies({ rows, myUserId, focusId, onReply, onDelete }) {
 
 /** One remark: who said it, when, what, and the two things you can do about it. */
 function CommentRow({ comment, mine, compact = false, onReply, onDelete }) {
-  const name = comment.author?.full_name ?? 'Someone';
+  const name = commentAuthorName(comment);
   return (
     <div className="flex items-start gap-2">
       <Avatar name={name} size={compact ? 'xs' : 'sm'} />

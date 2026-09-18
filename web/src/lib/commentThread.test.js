@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildThread, totalComments, mentionFor, replyToggleLabel, threadingAvailable,
+  buildThread, commentAuthorName, totalComments, mentionFor, replyToggleLabel, threadingAvailable,
 } from './commentThread.js';
 
 const c = (id, at, parent_id = null, name = 'Ramesh Kumar') => ({
@@ -60,6 +60,19 @@ test('the count includes replies — the card badge is the whole conversation', 
 test('answering someone seeds their first name only', () => {
   assert.equal(mentionFor(c('a', 1, null, 'Ramesh Kumar Nair')), '@Ramesh ');
   assert.equal(mentionFor(c('a', 1, null, 'Priya')), '@Priya ');
+});
+
+test('a cross-scope sender or unlinked account keeps its name and reply mention', () => {
+  const comment = { author: null, author_name: '  Priya Nair  ' };
+  assert.equal(commentAuthorName(comment), 'Priya Nair');
+  assert.equal(mentionFor(comment), '@Priya ');
+  assert.equal(commentAuthorName({ ...comment, author: { full_name: 'Changed later' } }), 'Priya Nair');
+});
+
+test('author names handle pre-migration comments and genuinely missing historical identities', () => {
+  assert.equal(commentAuthorName({ author_name: '  ', author: { full_name: ' Ramesh ' } }), 'Ramesh');
+  assert.equal(commentAuthorName({ author: null }), 'Unknown user');
+  assert.equal(commentAuthorName(null), 'Unknown user');
 });
 
 test('a comment with no readable author seeds nothing rather than "@undefined"', () => {

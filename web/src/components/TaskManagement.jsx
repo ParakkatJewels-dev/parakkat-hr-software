@@ -39,6 +39,7 @@ import { TaskListSkeleton } from './TaskSkeletons';
 import { useTaskCommentCounts } from '../data/taskComments';
 import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
+import TaskAttachmentDraft from './TaskAttachmentDraft';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
@@ -414,6 +415,7 @@ export default function TaskManagement() {
           canReassign={composer.task ? (rowCan.manage(composer.task) && !isRequestedByMe(composer.task)) : true}
           defaultAssignee={composer.defaultAssignee}
           busy={composer.task ? (edit.isPending || editRequested.isPending) : create.isPending}
+          createdTaskId={!composer.task ? create.error?.createdTaskId : null}
           error={humanDbError(
             composer.task ? (isRequestedByMe(composer.task) ? editRequested.error : edit.error) : create.error,
             'tasks'
@@ -436,7 +438,8 @@ export default function TaskManagement() {
                 await edit.mutateAsync({ id: composer.task.id, ...fields });
                 await syncAssignees(composer.task, wanted);
               } else {
-                await create.mutateAsync(payload);
+                const created = await create.mutateAsync(payload);
+                setOpenDetail(created.id);
               }
               setComposer(null);
             } catch { /* shown in the panel */ }
@@ -562,7 +565,7 @@ function StaleWarning({ error }) {
 
 function TaskComposer({
   employees, canAssignTo, currentEmployeeId, task, canReassign = true,
-  defaultAssignee, busy, error, onClose, onSubmit,
+  defaultAssignee, busy, error, onClose, onSubmit, createdTaskId,
 }) {
   const editing = Boolean(task);
   const [title, setTitle] = useState(task?.title ?? '');
@@ -570,6 +573,7 @@ function TaskComposer({
   const [priority, setPriority] = useState(task?.priority ?? 'Medium');
   const [dueDate, setDueDate] = useState(task?.due_date ?? '');
   const [q, setQ] = useState('');
+  const [attachments, setAttachments] = useState({ files: [], links: [] });
 
   /*
    * The steps, written on the same form as the task.
@@ -653,7 +657,7 @@ function TaskComposer({
     //
     // assigneeIds rides alongside in both modes: on create the hook writes the junction rows, on
     // edit the caller diffs them against what the task already has.
-    onSubmit(
+    return onSubmit(
       editing
         ? { ...fields, assigneeIds: chosenIds }
         : {
@@ -662,6 +666,7 @@ function TaskComposer({
             // A step half-typed and never added is still what the person meant to include, so it
             // is taken along rather than silently dropped when they press Create instead of +.
             checklist: stepDraft.trim() ? [...steps, stepDraft.trim()] : steps,
+            attachments,
             assigned_by: currentEmployeeId || null,
             parent_task_id: null,
           }
@@ -675,12 +680,12 @@ function TaskComposer({
       icon={editing ? PenLine : Plus}
       onClose={onClose}
       onSubmit={submit}
-      submitLabel={editing ? 'Save changes' : 'Create task'}
+      submitLabel={editing ? 'Save changes' : createdTaskId ? 'Retry saving' : 'Create task'}
       busy={busy}
       disabled={!title.trim() || !assigneeId}
       error={error}
     >
-        <div className="space-y-3">
+        <fieldset disabled={Boolean(createdTaskId)} className="min-w-0 space-y-3 border-0 p-0 m-0">
           <div className="space-y-1">
             <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Title</label>
             <input autoFocus className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs to be done?" required />
@@ -865,6 +870,8 @@ function TaskComposer({
             )}
           </div>
 
+          {!editing && <TaskAttachmentDraft value={attachments} onChange={setAttachments} disabled={busy} />}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-base font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><Flag size={11} /> Priority</label>
@@ -878,7 +885,7 @@ function TaskComposer({
             </div>
           </div>
 
-        </div>
+        </fieldset>
     </FormSection>
   );
 }

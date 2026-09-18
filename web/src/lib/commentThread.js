@@ -47,6 +47,11 @@ export function totalComments(rows = []) {
   return rows.length;
 }
 
+/** The server-stamped name is visible with the task even when the employee record is not. */
+export function commentAuthorName(comment, fallback = 'Unknown user') {
+  return comment?.author_name?.trim() || comment?.author?.full_name?.trim() || fallback;
+}
+
 /**
  * Who to address when answering.
  *
@@ -55,7 +60,7 @@ export function totalComments(rows = []) {
  * name; this returns the handle to seed it with.
  */
 export function mentionFor(comment) {
-  const name = comment?.author?.full_name?.trim();
+  const name = commentAuthorName(comment, '');
   if (!name) return '';
   // First name only: a thread of "@Ramesh Kumar Nair" three times over is mostly punctuation.
   return `@${name.split(/\s+/)[0]} `;

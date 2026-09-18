@@ -17,6 +17,8 @@ import { useClockFormat } from '../lib/timeFormat';
 import { explainDay, asHoursMinutes, onSiteMinutes, insideMinutes } from '../lib/attendanceSummary';
 import { useEmployees } from '../data/employees';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
+import PunchDetails from './ui/PunchDetails';
+import { recordedPunches, firstRecordedPunch, latestRecordedPunch, punchDate } from '../lib/recordedPunches';
 import { attendanceTimeline } from '../lib/attendanceTimeline';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
@@ -102,15 +104,15 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   const peoplePager = usePagination(matches, 8, null, q);
 
   const exportCsv = () => {
-    const head = ['Date', 'Day', 'Status', 'In', 'Out', 'Worked (h)', 'On site (h)', 'Inside (h)', 'Breaks', 'Break (min)',
+    const head = ['Date', 'Day', 'Status', 'First punch', 'Latest punch', 'Attendance in', 'Attendance out', 'Worked (h)', 'On site (h)', 'Inside (h)', 'Breaks', 'Break (min)',
       'Break complete', 'Late (min)', 'Early (min)', 'OT (min)', 'Leave', 'All punches'];
     const body = filtered.map((r) => {
-      const punches = Array.isArray(r.punches) ? r.punches : [];
+      const punches = recordedPunches(r);
       const corrected = attendanceTimeline(r);
       const breaks = corrected.length >= 4 ? Math.floor((corrected.length - 2) / 2) : 0;
       return [
         r.work_date, DOW[new Date(`${r.work_date}T00:00:00`).getDay()], r.status,
-        fmtTime(r.check_in), fmtTime(r.check_out),
+        fmtTime(firstRecordedPunch(r)), fmtTime(latestRecordedPunch(r)), fmtTime(r.check_in), fmtTime(r.check_out),
         ((r.worked_minutes || 0) / 60).toFixed(2),
         // Same two helpers the table uses, so the exported file and the screen cannot disagree —
         // this column used to recompute the on-site window inline and would have drifted.
@@ -119,7 +121,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
         breaks, r.break_minutes || 0, r.breaks_incomplete ? 'no' : 'yes',
         r.late_minutes || 0, r.early_exit_minutes || 0, r.ot_minutes || 0, r.leave_type || '',
         // Quoted: a space-separated list would otherwise split across columns.
-        `"${punches.map((p) => fmtTime(p, hour12)).join(' ')}"`,
+        `"${punches.map((p) => `${punchDate(p)} ${fmtTime(p, hour12)}`).join(' | ')}"`,
       ];
     });
     const csv = [head, ...body].map((line) => line.join(',')).join('\n');
@@ -341,8 +343,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                         <th className="w-24">Date</th>
                         <th className="w-14">Day</th>
                         <th>Status</th>
-                        <th>In</th>
-                        <th>Out</th>
+                        <th>First punch</th>
+                        <th>Latest punch</th>
+                        <th>Punches</th>
                         <th className="hidden sm:table-cell" title="Payable hours: time on site less any break beyond the allowance">
                           Worked
                         </th>
@@ -363,8 +366,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                       {pager.slice.map((r) => {
                         const dow = new Date(`${r.work_date}T00:00:00`).getDay();
                         const punches = attendanceTimeline(r);
-                        // Two punches are just in and out — there is no timeline worth opening.
-                        const hasTimeline = punches.length > 2;
+                        // Even a single punch has a recorded time worth inspecting.
+                        const hasTimeline = punches.length > 0;
                         const open = openDay === r.id;
                         // Device times plus approved corrections. Schedule reconstructions are
                         // excluded: they have not been verified by an attendance reviewer.
@@ -382,16 +385,17 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                                 <span>
                                   {r.status}
                                   {r.leave_type && <span className="text-neutral-450 font-normal"> · {r.leave_type}</span>}
-                                  {r.is_missing_punch && <span className="ml-1.5 text-2xs text-amber-600 dark:text-amber-400">no punch out</span>}
+                                  {r.is_missing_punch && <span className="ml-1.5 text-2xs text-amber-600 dark:text-amber-400">review punches</span>}
                                 </span>
                               </div>
                             </td>
-                            <td data-label="In" className={`font-mono ${r.is_late ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-                              {fmtTime(r.check_in)}
+                            <td data-label="First punch" className={`font-mono ${r.is_late ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                              {fmtTime(firstRecordedPunch(r))}
                             </td>
-                            <td data-label="Out" className={`font-mono ${r.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-                              {fmtTime(r.check_out)}
+                            <td data-label="Latest punch" className={`font-mono ${r.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                              {fmtTime(latestRecordedPunch(r))}
                             </td>
+                            <td data-label="Punches"><PunchDetails row={r} /></td>
                             <td data-label="Payable" className="hidden sm:table-cell tabular-nums">
                               {r.worked_minutes ? `${(r.worked_minutes / 60).toFixed(1)} h` : '—'}
                             </td>
@@ -422,7 +426,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                           </tr>
                           {open && (
                             <tr>
-                              <td colSpan={10} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
+                              <td colSpan={12} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
                                 <PunchTimeline
                                   punches={punches}
                                   breakMinutes={r.break_minutes}
@@ -474,7 +478,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                       })}
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={10} className="py-8 text-center text-sm text-neutral-500">
+                          <td colSpan={12} className="py-8 text-center text-sm text-neutral-500">
                             {rows.length === 0
                               ? 'No attendance recorded in this range.'
                               : `No ${SHOW.find((s) => s.key === show)?.label.toLowerCase()} in this range.`}

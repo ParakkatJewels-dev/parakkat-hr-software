@@ -45,6 +45,7 @@ const stubs = {
   './LeaveReviewPanel': 'export default "test-leave-review";',
   './ui/Btn': 'export const btnClass=()=>"";',
   './ui/PunchTimeline': 'export default "test-punches"; export const BreakSummary="test-breaks";',
+  './ui/PunchDetails': 'export default "test-punch-details";',
   './ui/DateRangeFilter': 'export default "test-dates"; export const useDateRange=()=>({});',
   './ui/FilterSelect': 'export default "test-filter";',
   './ui/ListSearch': 'export default "test-search";',

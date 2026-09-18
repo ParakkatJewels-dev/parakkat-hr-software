@@ -8,11 +8,8 @@ import { supabase } from '../lib/supabaseClient';
 import { fetchCollection, fetchInCollection } from '../lib/fetchCollection';
 import { useAuth } from '../auth/AuthContext';
 
-const BUCKET = 'task-files';
-
-/** Matches the bucket's own limit in 0106. Checked here so the reader hears why before the upload. */
-export const MAX_TASK_FILE_BYTES = 10 * 1024 * 1024;
-export const ACCEPTED_TASK_FILES = '.pdf,.jpg,.jpeg,.png,.webp,.heic,.csv,.txt,.xlsx,.docx';
+import { TASK_FILE_BUCKET as BUCKET, addTaskLink, addTaskFile } from '../lib/taskAttachments';
+export { MAX_TASK_FILE_BYTES, ACCEPTED_TASK_FILES } from '../lib/taskAttachments';
 
 /** Signed links live an hour: long enough to open, short enough not to become a public URL. */
 const SIGNED_SECONDS = 3600;
@@ -53,62 +50,21 @@ function useAttachmentCaches() {
   };
 }
 
-/** A link. Nothing is uploaded, so this is just a row. */
+/** Both creation and the open task use the same validated attachment writes. */
 export function useAddTaskLink() {
   const { employee, user } = useAuth();
   const invalidate = useAttachmentCaches();
   return useMutation({
-    mutationFn: async ({ taskId, url, label }) => {
-      const href = (url ?? '').trim();
-      if (!href) throw new Error('Paste a link first.');
-      // A bare "drive.google.com/…" is what people paste; without a scheme the browser treats it as
-      // a relative path and the link goes nowhere.
-      const normalised = /^https?:\/\//i.test(href) ? href : `https://${href}`;
-      const { error } = await supabase.from('task_attachments').insert({
-        task_id: taskId, kind: 'link', url: normalised,
-        label: (label ?? '').trim() || null,
-        added_by: employee?.id ?? null, added_user: user?.id,
-      });
-      if (error) throw error;
-    },
+    mutationFn: (params) => addTaskLink(supabase, { ...params, employeeId: employee?.id, userId: user?.id }),
     onSuccess: invalidate,
   });
 }
 
-/**
- * A file: upload first, then the row.
- *
- * That order matters. The storage insert policy cannot ask whether the attachment row is visible —
- * it does not exist yet — so it checks the TASK id that leads the path instead (0106). Which is
- * also why the path must start with the task id.
- */
 export function useAddTaskFile() {
   const { employee, user } = useAuth();
   const invalidate = useAttachmentCaches();
   return useMutation({
-    mutationFn: async ({ taskId, file }) => {
-      if (!file) return;
-      if (file.size > MAX_TASK_FILE_BYTES) {
-        throw new Error(`That file is ${(file.size / 1048576).toFixed(1)} MB. The limit is 10 MB.`);
-      }
-      const safe = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
-      const path = `${taskId}/${crypto.randomUUID()}-${safe}`;
-
-      const { error: upload } = await supabase.storage
-        .from(BUCKET).upload(path, file, { contentType: file.type || undefined, upsert: false });
-      if (upload) throw upload;
-
-      const { error } = await supabase.from('task_attachments').insert({
-        task_id: taskId, kind: 'file', storage_path: path, label: file.name,
-        size_bytes: file.size, content_type: file.type || null,
-        added_by: employee?.id ?? null, added_user: user?.id,
-      });
-      if (error) {
-        // Don't leave an orphan in the bucket that nothing points at and nobody can reach.
-        await supabase.storage.from(BUCKET).remove([path]);
-        throw error;
-      }
-    },
+    mutationFn: (params) => addTaskFile(supabase, { ...params, employeeId: employee?.id, userId: user?.id }),
     onSuccess: invalidate,
   });
 }

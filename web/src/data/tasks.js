@@ -1,11 +1,14 @@
 // Data hooks for the Task module. RLS scopes what each user sees: an employee sees tasks assigned
 // to them; a branch manager / HR sees their branch's; a zonal manager, their zone; and so on up the
 // hierarchy. Ancestry columns are stamped automatically from the assignee (employee_id) by the DB.
+import { useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
 import { openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS } from '../lib/taskBoard';
-import { withSchemaFallback, isMissingSchema } from '../lib/pendingMigration';
+import { withSchemaFallback } from '../lib/pendingMigration';
+import { useAuth } from '../auth/AuthContext';
+import { saveTaskDraft } from '../lib/createTask';
 
 export { CLOSED_TASK_WINDOW_DAYS };
 
@@ -58,83 +61,30 @@ export function useTasks({ enabled = true } = {}) {
 
 export function useCreateTask() {
   const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ assigneeIds = [], checklist = [], ...payload }) => {
-      // ancestry is stamped by the DB trigger from employee_id — the PRIMARY assignee, which is
-      // what decides the task's branch and department and therefore which managers can see it.
-      const { data, error } = await supabase
-        .from('tasks')
-        .insert({ ...payload, status: 'To Do' })
-        .select('id')
-        .single();
-      if (error) throw error;
-
-      // Everyone on the task, primary included, so `task_assignees` is the one place that answers
-      // "who is on this" and no reader has to remember to also check employee_id.
-      const rows = [...new Set([payload.employee_id, ...assigneeIds])].filter(Boolean).map((id) => ({
-        task_id: data.id,
-        employee_id: id,
-        added_by: payload.assigned_by ?? null,
-      }));
-      const { error: linkError } = await supabase.from('task_assignees').insert(rows);
-      // A pending 0114 is not a failure: the task is filed and has its primary assignee, which is
-      // exactly the behaviour this screen had before multi-assignee existed. Anything else IS a
-      // failure, and the task exists by then — so the message says what is actually true (the work
-      // was filed, the people were not all attached) rather than letting the caller believe
-      // nothing happened and file it a second time.
-      if (linkError && !isMissingSchema(linkError)) {
-        throw new Error(
-          `The task was created, but the people could not all be added to it (${linkError.message}). Open the task and add them.`
-        );
+  const { employee, user } = useAuth();
+  const progress = useRef({});
+  const inFlight = useRef(null);
+  const invalidate = () => {
+    for (const key of ['tasks', 'section-counts', 'task-checklist', 'notification-ref-statuses', 'task-attachments', 'task-attachment-counts']) {
+      qc.invalidateQueries({ queryKey: [key] });
+    }
+  };
+  const mutation = useMutation({
+    mutationFn: (draft) => {
+      // Also cover two submit events arriving before React can disable the button.
+      if (!inFlight.current) {
+        inFlight.current = saveTaskDraft(supabase, draft, {
+          employeeId: employee?.id ?? null, userId: user?.id,
+        }, progress.current).finally(() => { inFlight.current = null; });
       }
-
-      /*
-       * The steps, written on the same form as the task.
-       *
-       * Last, after the assignee rows. That order is a preference and not a requirement, which is
-       * worth stating because the reverse looks like it should matter and does not: an earlier
-       * version of this comment claimed writing the steps first would be refused for somebody
-       * filing work on their own board, and a test against the real policies showed it succeeds.
-       * task_checklist_items' insert policy asks app.can_write_task, and its task.update arm
-       * matches at SELF scope — every employee holds task.update on their own row (0096), so the
-       * junction row is not what earns them the right to write the list.
-       *
-       * Kept in this order anyway: it means every row that references the task exists before
-       * anything hangs off it, which is the arrangement that stays correct if can_write_task is
-       * ever narrowed to membership alone.
-       *
-       * Positions are handed out here rather than left to default, so the list reads back in the
-       * order it was typed instead of the order the rows happen to come off disk.
-       */
-      const steps = (checklist ?? [])
-        .map((title) => String(title ?? '').trim())
-        .filter(Boolean)
-        .slice(0, 50);
-
-      if (steps.length > 0) {
-        const { error: stepError } = await supabase.from('task_checklist_items').insert(
-          steps.map((title, index) => ({
-            task_id: data.id,
-            title: title.slice(0, 200),
-            position: index,
-            created_by: payload.assigned_by ?? null,
-          }))
-        );
-        // Same reasoning as the assignees above: the task exists, so say what actually happened.
-        if (stepError && !isMissingSchema(stepError)) {
-          throw new Error(
-            `The task was created, but its checklist could not be saved (${stepError.message}). Open the task and add the steps.`
-          );
-        }
-      }
+      return inFlight.current;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks'] });
-      qc.invalidateQueries({ queryKey: ['section-counts'] });
-      qc.invalidateQueries({ queryKey: ['task-checklist'] });
-      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
-    },
+    onSuccess: () => { progress.current = {}; invalidate(); },
+    // A task may exist even though a later upload failed. Refresh the board immediately and keep
+    // the same task ID for Retry saving; closing the composer explicitly abandons pending extras.
+    onError: (error) => { if (error.createdTaskId) invalidate(); },
   });
+  return { ...mutation, reset: () => { progress.current = {}; mutation.reset(); } };
 }
 
 export function useUpdateTask() {

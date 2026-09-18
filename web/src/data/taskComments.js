@@ -48,9 +48,11 @@ export function useTaskComments(taskId, { enabled = true } = {}) {
           .eq('task_id', taskId)
           .order('created_at', { ascending: true })
           .order('id'));
+      // author_name is stamped by 0149 and can be read with the task even when employees' RLS
+      // hides the sender's personnel record. Keep both older schema shapes usable during rollout.
       return withSchemaFallback(
-        read(`${COMMENT_FIELDS}, parent_id`),
-        read(COMMENT_FIELDS)
+        read(`${COMMENT_FIELDS}, parent_id, author_name`),
+        () => withSchemaFallback(read(`${COMMENT_FIELDS}, parent_id`), read(COMMENT_FIELDS))
       );
     },
   });
@@ -72,8 +74,8 @@ export function useAddTaskComment() {
     mutationFn: async ({ taskId, body, parentId = null }) => {
       const text = (body ?? '').trim();
       if (!text) return;
-      // author_user is what the policy checks; author_id is who to show. Both, because an employee
-      // link can be removed later and the thread should still say who spoke.
+      // author_user is checked by RLS. 0149 derives author_id and author_name on the server;
+      // keep sending the employee link for databases awaiting that migration.
       //
       // parentId is the comment being answered. Answering a REPLY is allowed and lands on that
       // reply's own parent — 0110's trigger does that, so the client never has to walk the chain

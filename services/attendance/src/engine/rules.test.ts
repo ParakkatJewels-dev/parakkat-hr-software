@@ -1372,6 +1372,41 @@ test('three punches is a missing punch, not a complete short day', () => {
   assert.match(r.remarks ?? '', /one stretch of the day is unaccounted for/);
 });
 
+test('a break return preserves the first arrival and the complete recorded punch history', () => {
+  const arrival = punchAt('2026-07-15', '09:00');
+  const breakStart = punchAt('2026-07-15', '10:00');
+  const breakEnd = punchAt('2026-07-15', '10:10');
+  const departure = punchAt('2026-07-15', '18:00');
+  // Sync may supply records out of order; an afternoon refresh must never replace the arrival.
+  const returned = processDay(day({ shift: FLEXIBLE, punches: [breakEnd, arrival, breakStart] }));
+
+  assert.deepEqual(returned.firstPunchAt, arrival.punchTime);
+  assert.deepEqual(returned.checkIn, arrival.punchTime);
+  assert.deepEqual(returned.lastPunchAt, breakEnd.punchTime);
+  assert.deepEqual(returned.punches, [arrival, breakStart, breakEnd].map((p) => p.punchTime));
+  assert.equal(returned.punchCount, 3);
+  // The terminal supplies no direction: preserve the evidence without claiming which endpoint
+  // is missing or silently changing the existing payable-hours rule.
+  assert.equal(returned.breaksIncomplete, true);
+  assert.equal(returned.isMissingPunch, true);
+  assert.equal(returned.workedMinutes, 70);
+
+  const completed = processDay(day({
+    shift: FLEXIBLE, punches: [breakEnd, departure, arrival, breakStart],
+  }));
+
+  assert.deepEqual(completed.firstPunchAt, arrival.punchTime);
+  assert.deepEqual(completed.checkIn, arrival.punchTime);
+  assert.deepEqual(completed.lastPunchAt, departure.punchTime);
+  assert.deepEqual(completed.checkOut, departure.punchTime);
+  assert.deepEqual(completed.punches, [arrival, breakStart, breakEnd, departure].map((p) => p.punchTime));
+  assert.equal(completed.punchCount, 4);
+  assert.equal(completed.breakMinutes, 10);
+  assert.equal(completed.breaksIncomplete, false);
+  assert.equal(completed.isMissingPunch, false);
+  assert.equal(completed.workedMinutes, 540, 'the 10-minute break remains within the allowance');
+});
+
 test('five and seven punches too — any odd count means one was missed', () => {
   assert.equal(oddDay(['09:00', '11:00', '11:15', '13:00', '13:30']).isMissingPunch, true);
   assert.equal(oddDay(['09:00', '11:00', '11:15', '13:00', '13:30', '15:00', '15:20']).isMissingPunch, true);

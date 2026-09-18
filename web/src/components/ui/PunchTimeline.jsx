@@ -199,7 +199,7 @@ export default function PunchTimeline({ punches, breakMinutes = 0, incomplete = 
                     : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
                 }`}
                 style={{ left: `${labelPct}%`, top: `${row * 20 + 3}px`, transform: 'translateX(-50%)' }}
-                title={first ? 'Arrived' : last ? 'Left' : unknown ? 'Unpaired punch' : leaving ? 'Went out' : 'Came back'}
+                title={first ? 'First punch' : last ? 'Latest punch' : unknown ? 'Unpaired punch' : leaving ? 'Went out' : 'Came back'}
               >{time(punch)}</span>
             </React.Fragment>
           );

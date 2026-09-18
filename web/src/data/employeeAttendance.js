@@ -15,7 +15,7 @@ export { summarise } from '../lib/attendanceSummary';
 
 const SELECT = `
   id, employee_id, entity_id, zone_id, branch_id, department_id,
-  work_date, status, day_type, check_in, check_out, hours, is_locked,
+  work_date, status, day_type, check_in, check_out, first_punch_at, last_punch_at, hours, is_locked,
   worked_minutes, late_minutes, early_exit_minutes, ot_minutes,
   is_late, is_early_exit, is_missing_punch, is_lop, day_fraction,
   leave_type, remarks, punch_count, scheduled_in, scheduled_out, source, regularization_id,

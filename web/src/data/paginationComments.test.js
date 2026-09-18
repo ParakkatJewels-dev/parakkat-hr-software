@@ -34,7 +34,7 @@ rows.push({ id: 'comment-1250', task_id: 'task-1', body: 'Orphan reply',
 rows.push({ id: 'other-task', task_id: 'task-2', body: 'Outside this task', parent_id: null,
   created_at: '2026-01-01T00:00:00Z' });
 
-function installDb({ legacy = false, failAfter = Infinity, cap = 97 } = {}) {
+function installDb({ legacy = false, namedAuthors = true, failAfter = Infinity, cap = 97 } = {}) {
   const calls = [];
   globalThis.commentTestDb = {
     from(table) {
@@ -48,6 +48,7 @@ function installDb({ legacy = false, failAfter = Infinity, cap = 97 } = {}) {
         range(start, end) { from = start; to = end; return query; },
         then(resolve, reject) {
           calls.push({ fields, taskId, from, to, orders });
+          if (!namedAuthors && fields.includes('author_name')) return Promise.resolve({ error: { code: '42703', message: 'column author_name does not exist' } }).then(resolve, reject);
           if (legacy && fields.includes('parent_id')) return Promise.resolve({ error: { code: '42703', message: 'column parent_id does not exist' } }).then(resolve, reject);
           if (from >= failAfter) return Promise.resolve({ error: new Error('Task access changed') }).then(resolve, reject);
           const all = rows.filter(row => row.task_id === taskId).sort((a, b) => {
@@ -57,7 +58,8 @@ function installDb({ legacy = false, failAfter = Infinity, cap = 97 } = {}) {
             return 0;
           });
           const data = all.slice(from, Math.min(to + 1, from + cap)).map(row => {
-            if (fields.includes('parent_id')) return { ...row };
+            const identity = fields.includes('author_name') ? { author: null, author_name: 'Cross-branch sender' } : {};
+            if (fields.includes('parent_id')) return { ...row, ...identity };
             const { parent_id: _parent, ...flat } = row;
             return flat;
           });
@@ -84,6 +86,7 @@ test('a task loads beyond 500 comments under the API row cap without losing repl
   assert.equal(thread.find(root => root.id === 'comment-0096').replies.length, 3, 'reply groups spanning query boundaries stay together');
   assert.ok(thread.some(root => root.id === 'comment-1250'), 'a deleted parent cannot hide its surviving reply');
   assert.equal(threadingAvailable(comments), true);
+  assert.equal(comments[0].author_name, 'Cross-branch sender');
 });
 
 test('pre-threading schemas still load the complete task beyond 500 flat comments', async () => {
@@ -91,10 +94,19 @@ test('pre-threading schemas still load the complete task beyond 500 flat comment
   const comments = await useTaskComments('task-1').queryFn();
   assert.equal(comments.length, 1251);
   assert.equal(comments.at(-1).id, 'comment-1250');
-  assert.equal(calls.filter(call => call.fields.includes('parent_id')).length, 1);
+  assert.equal(calls.filter(call => call.fields.includes('parent_id')).length, 2);
   assert.ok(calls.filter(call => !call.fields.includes('parent_id')).length > 12);
   assert.equal(threadingAvailable(comments), false);
   assert.equal(buildThread(comments).length, 1251);
+});
+
+test('pending author-name migration preserves complete threaded comments', async () => {
+  const calls = installDb({ namedAuthors: false });
+  const comments = await useTaskComments('task-1').queryFn();
+  assert.equal(comments.length, 1251);
+  assert.equal(threadingAvailable(comments), true);
+  assert.equal(calls.filter(call => call.fields.includes('author_name')).length, 1);
+  assert.ok(calls.slice(1).every(call => call.fields.includes('parent_id')));
 });
 
 test('later-page access errors reject the whole task read for both current and legacy schemas', async () => {

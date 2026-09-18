@@ -22,6 +22,8 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
+import PunchDetails from './ui/PunchDetails';
+import { firstRecordedPunch, latestRecordedPunch, punchDate } from '../lib/recordedPunches';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import ListSearch from './ui/ListSearch';
@@ -152,7 +154,7 @@ function MyAttendanceHero({ employee, onOpenCalendar, onFixAttendance }) {
   const state = (() => {
     if (!row) return { title: 'No punch recorded yet', detail: 'Your day will appear here after the terminal syncs.', tone: 'amber' };
     if (row.is_missing_punch) return { title: 'Fix attendance', detail: 'A punch is missing from today. Raise a correction if the terminal missed it.', tone: 'amber' };
-    if (row.check_in && !row.check_out) return { title: 'You are checked in', detail: `Started at ${fmtTime(row.check_in)}.`, tone: 'green' };
+    if (row.check_in && !row.check_out) return { title: 'You are checked in', detail: `Started at ${fmtTime(firstRecordedPunch(row))}.`, tone: 'green' };
     if (row.check_out) return { title: 'Attendance recorded', detail: `Worked ${fmtMinutes(row.worked_minutes)} today.`, tone: 'green' };
     return { title: row.status || 'My attendance', detail: 'Your attendance status for today.', tone: 'neutral' };
   })();
@@ -174,8 +176,8 @@ function MyAttendanceHero({ employee, onOpenCalendar, onFixAttendance }) {
       </div>
       <div className="self-service-hero-stats">
         <button type="button" onClick={onOpenCalendar}>
-          <span>Today in</span>
-          <strong>{isLoading ? <Skeleton as="span" className="inline-block h-5 w-12 align-middle" /> : row?.check_in ? fmtTime(row.check_in) : '—'}</strong>
+          <span>First punch</span>
+          <strong>{isLoading ? <Skeleton as="span" className="inline-block h-5 w-12 align-middle" /> : fmtTime(firstRecordedPunch(row))}</strong>
         </button>
         <button type="button" onClick={onOpenCalendar}>
           <span>Worked</span>
@@ -444,7 +446,7 @@ function TodayView({ workDate, setWorkDate }) {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <SkeletonTable rows={6} columns={9} label="Loading daily attendance" />
+          <SkeletonTable rows={6} columns={10} label="Loading daily attendance" />
         ) : filtered.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">
             No attendance rows for {workDate}.
@@ -461,8 +463,9 @@ function TodayView({ workDate, setWorkDate }) {
                   <th className="text-left">Employee</th>
                   <th className="text-left">Branch</th>
                   <th className="text-left">Shift</th>
-                  <th className="text-left">In</th>
-                  <th className="text-left">Out</th>
+                  <th className="text-left">First punch</th>
+                  <th className="text-left">Latest punch</th>
+                  <th className="text-left">Punches</th>
                   <th className="text-left">Worked</th>
                   <th className="text-left hidden lg:table-cell" title="Breaks taken today and total time out">Breaks</th>
                   <th className="text-left">OT</th>
@@ -482,13 +485,14 @@ function TodayView({ workDate, setWorkDate }) {
                     </td>
                     <td data-label="Branch" className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
                     <td data-label="Shift" className="text-neutral-500">{row.shift?.code ?? '—'}</td>
-                    <td data-label="In" className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
-                      {fmtTime(row.check_in)}
+                    <td data-label="First punch" className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                      {fmtTime(firstRecordedPunch(row))}
                       {row.is_late ? <span className="ml-1 text-2xs">+{row.late_minutes}m</span> : null}
                     </td>
-                    <td data-label="Out" className={`font-mono ${row.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-                      {fmtTime(row.check_out)}
+                    <td data-label="Latest punch" className={`font-mono ${row.is_early_exit ? 'text-amber-600 dark:text-amber-400' : ''}`}>
+                      {fmtTime(latestRecordedPunch(row))}
                     </td>
+                    <td data-label="Punches"><PunchDetails row={row} /></td>
                     <td data-label="Worked" className="font-mono">{fmtMinutes(row.worked_minutes)}</td>
                     <td data-label="Breaks" className="hidden lg:table-cell font-mono"><BreakSummary row={row} /></td>
                     <td data-label="OT" className="font-mono text-emerald-600 dark:text-emerald-400">
@@ -562,8 +566,10 @@ function CalendarView({ employeeId, employeeName }) {
 
   const selectedRow = selected ? byDate.get(selected) : null;
   const punchTimes = useMemo(
-    () => punches.map((p) => p.punch_time).filter(Boolean).sort(),
-    [punches]
+    // The raw query includes adjacent dates for night shifts. Without a computed row, show
+    // only records on the selected calendar date rather than merging neighboring workdays.
+    () => punches.map((p) => p.punch_time).filter((time) => punchDate(time) === selected).sort(),
+    [punches, selected]
   );
 
   if (!employeeId) {
@@ -681,11 +687,11 @@ function CalendarView({ employeeId, employeeName }) {
                 <StatusBadge status={selectedRow.status} isLop={selectedRow.is_lop} />
               </div>
               <div>
-                <div className="text-2xs text-neutral-400 uppercase">In / Out</div>
+                <div className="text-2xs text-neutral-400 uppercase">First / latest punch</div>
                 <span className="flex flex-wrap items-center gap-x-1 font-mono">
-                  <span className="whitespace-nowrap">{fmtTime(selectedRow.check_in)}</span>
+                  <span className="whitespace-nowrap">{fmtTime(firstRecordedPunch(selectedRow))}</span>
                   <span aria-hidden="true">–</span>
-                  <span className="whitespace-nowrap">{fmtTime(selectedRow.check_out)}</span>
+                  <span className="whitespace-nowrap">{fmtTime(latestRecordedPunch(selectedRow))}</span>
                 </span>
               </div>
               <div>
@@ -705,6 +711,7 @@ function CalendarView({ employeeId, employeeName }) {
           )}
 
           <div className="soft-divider" />
+          <PunchDetails row={selectedRow ?? { work_date: selected, punches: punchTimes }} expanded />
           {attendanceTimeline(selectedRow, punchTimes).length > 0 ? (
             <PunchTimeline
               punches={attendanceTimeline(selectedRow, punchTimes)}
@@ -725,7 +732,7 @@ function CalendarView({ employeeId, employeeName }) {
         </div>
 
         {isLoading ? (
-          <SkeletonTable rows={6} columns={6} label="Loading monthly attendance" />
+          <SkeletonTable rows={6} columns={7} label="Loading monthly attendance" />
         ) : data.length === 0 ? (
           <div className="p-8 text-center text-xs text-neutral-500">No attendance rows computed for this month yet.</div>
         ) : (
@@ -735,8 +742,9 @@ function CalendarView({ employeeId, employeeName }) {
                 <tr>
                   <th className="text-left">Date</th>
                   <th className="text-left">Status</th>
-                  <th className="text-left">In</th>
-                  <th className="text-left">Out</th>
+                  <th className="text-left">First punch</th>
+                  <th className="text-left">Latest punch</th>
+                  <th className="text-left">Punches</th>
                   <th className="text-left">Worked</th>
                   <th className="text-left">OT</th>
                 </tr>
@@ -748,10 +756,11 @@ function CalendarView({ employeeId, employeeName }) {
                     <td data-label="Status">
                       <AttendanceStatusControl row={row} />
                     </td>
-                    <td data-label="In" className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
-                      {fmtTime(row.check_in)}
+                    <td data-label="First punch" className={`font-mono ${row.is_late ? 'text-amber-600 dark:text-amber-400 font-bold' : ''}`}>
+                      {fmtTime(firstRecordedPunch(row))}
                     </td>
-                    <td data-label="Out" className="font-mono">{fmtTime(row.check_out)}</td>
+                    <td data-label="Latest punch" className="font-mono">{fmtTime(latestRecordedPunch(row))}</td>
+                    <td data-label="Punches"><PunchDetails row={row} /></td>
                     <td data-label="Worked" className="font-mono">{fmtMinutes(row.worked_minutes)}</td>
                     <td data-label="OT" className="font-mono text-emerald-600 dark:text-emerald-400">{fmtMinutes(row.ot_minutes)}</td>
                   </tr>
@@ -891,7 +900,7 @@ export function ExceptionsView() {
 
       <div className="premium-card overflow-hidden">
         {isLoading ? (
-          <SkeletonTable rows={6} columns={7} label="Loading attendance exceptions" />
+          <SkeletonTable rows={6} columns={8} label="Loading attendance exceptions" />
         ) : error ? null : matching.length === 0 ? (
           <div className="p-10 text-center text-xs text-neutral-500">{search.trim() || issue !== 'All exceptions' ? 'No exceptions match your filters.' : 'No exceptions in this range.'}</div>
         ) : (
@@ -903,8 +912,9 @@ export function ExceptionsView() {
                   <th className="text-left">Employee</th>
                   <th className="text-left">Branch</th>
                   <th className="text-left">Issue</th>
-                  <th className="text-left">In</th>
-                  <th className="text-left">Out</th>
+                  <th className="text-left">First punch</th>
+                  <th className="text-left">Latest punch</th>
+                  <th className="text-left">Punches</th>
                   <th className="text-left">Status</th>
                 </tr>
               </thead>
@@ -946,8 +956,9 @@ export function ExceptionsView() {
                           ))}
                         </div>
                       </td>
-                      <td data-label="In" className="font-mono">{fmtTime(row.check_in)}</td>
-                      <td data-label="Out" className="font-mono">{fmtTime(row.check_out)}</td>
+                      <td data-label="First punch" className="font-mono">{fmtTime(firstRecordedPunch(row))}</td>
+                      <td data-label="Latest punch" className="font-mono">{fmtTime(latestRecordedPunch(row))}</td>
+                      <td data-label="Punches"><PunchDetails row={row} /></td>
                       <td data-label="Status">
                         <AttendanceStatusControl
                           row={row}

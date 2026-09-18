@@ -14,6 +14,7 @@ import TaskDetail from './TaskDetail';
 import Pagination, { usePagination } from './ui/Pagination';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { TaskListSkeleton } from './TaskSkeletons';
+import TaskAttachmentDraft from './TaskAttachmentDraft';
 
 export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowProps }) {
   const { employee } = useAuth();
@@ -25,6 +26,7 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
   const [title, setTitle] = useState('');
   const [priority, setPriority] = useState('Medium');
   const [due, setDue] = useState('');
+  const [attachments, setAttachments] = useState({ files: [], links: [] });
   const [query, setQuery] = useState('');
   const [showClosed, setShowClosed] = useState(false);
   const [openDetail, setOpenDetail] = useState(null);
@@ -55,6 +57,8 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
   const { data: commentCounts = {} } = useTaskCommentCounts(visibleIds);
   const { data: attachmentCounts = {} } = useTaskAttachmentCounts(visibleIds);
   const error = humanDbError(create.error || update.error || remove.error, 'tasks');
+  const createdTaskId = create.error?.createdTaskId;
+  const draftLocked = create.isPending || Boolean(createdTaskId);
 
   if (!me) {
     return <div className="work-empty">Your login is not linked to an employee record yet. An administrator can link it in Administration → Users &amp; Access.</div>;
@@ -64,12 +68,14 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
     event.preventDefault();
     if (!title.trim() || create.isPending) return;
     try {
-      await create.mutateAsync({
-        employee_id: me, assigned_by: me, title: title.trim(), priority, due_date: due || null,
+      const created = await create.mutateAsync({
+        employee_id: me, assigned_by: me, title: title.trim(), priority, due_date: due || null, attachments,
       });
       setTitle('');
       setDue('');
       setPriority('Medium');
+      setAttachments({ files: [], links: [] });
+      setOpenDetail(created.id);
       setQuery('');
       openPager.setPage(1);
     } catch { /* shown below; keep the draft */ }
@@ -119,20 +125,29 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
         <label htmlFor="todo-title">Add a task for yourself</label>
         <div className="work-quick-fields">
           <input id="todo-title" value={title} onChange={(event) => setTitle(event.target.value)}
-            placeholder="What needs to get done?" maxLength={200} disabled={create.isPending} required />
+            placeholder="What needs to get done?" maxLength={200} disabled={draftLocked} required />
           <button type="submit" disabled={!title.trim() || create.isPending} className="work-button work-button-primary">
-            {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} Add task
+            {create.isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />} {createdTaskId ? 'Retry saving' : 'Add task'}
           </button>
         </div>
         <details className="work-quick-options">
           <summary>{priority === 'Medium' && !due ? 'Priority & due date' : `${priority} priority${due ? ` · Due ${due}` : ''}`}</summary>
           <div className="work-quick-fields">
-            <label>Priority<select aria-label="Priority for new task" value={priority} onChange={(event) => setPriority(event.target.value)} disabled={create.isPending}>
+            <label>Priority<select aria-label="Priority for new task" value={priority} onChange={(event) => setPriority(event.target.value)} disabled={draftLocked}>
               {TASK_PRIORITIES.map((value) => <option key={value}>{value}</option>)}
             </select></label>
-            <label>Due date<input aria-label="Due date for new task" type="date" value={due} onChange={(event) => setDue(event.target.value)} disabled={create.isPending} /></label>
+            <label>Due date<input aria-label="Due date for new task" type="date" value={due} onChange={(event) => setDue(event.target.value)} disabled={draftLocked} /></label>
           </div>
         </details>
+        <details className="work-quick-options">
+          <summary>Files &amp; links{attachments.files.length + attachments.links.filter((link) => link.url.trim()).length > 0
+            ? ` (${attachments.files.length + attachments.links.filter((link) => link.url.trim()).length})` : ''}</summary>
+          <div className="pt-3"><TaskAttachmentDraft value={attachments} onChange={setAttachments} disabled={draftLocked} /></div>
+        </details>
+        {createdTaskId && !create.isPending && <button type="button" className="work-button mt-3" onClick={() => {
+          setOpenDetail(createdTaskId);
+          create.reset(); setTitle(''); setDue(''); setPriority('Medium'); setAttachments({ files: [], links: [] });
+        }}>Finish later — keep the created task</button>}
       </form>
       {error && <p role="alert" className="text-sm text-rose-600 dark:text-rose-300">{error}</p>}
       {loadError && <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">
