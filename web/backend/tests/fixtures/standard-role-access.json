@@ -152,7 +152,8 @@
     "0146_recruitment_title_validation.sql",
     "0147_auto_provision_device_employees.sql",
     "0148_administration_role_access.sql",
-    "0149_task_comment_author_names.sql"
+    "0149_task_comment_author_names.sql",
+    "0150_sync_run_history_performance.sql"
   ],
   "roles": [
     {

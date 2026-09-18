@@ -133,6 +133,12 @@ PostgREST transport, Storage HTTP and Realtime are not started by these PostgreS
 existing `0113` exception is tested explicitly: a linked login without a role may insert a personal
 root task without requesting returned rows, while it remains unable to read or update that task.
 
+Migration `0150_sync_run_history_performance.sql` fixes Sync runs statement timeouts by evaluating
+the existing device-manager permission once per query and indexing history in its displayed
+`started_at DESC, id DESC` order. It preserves exact totals, role scopes and immediate account
+revocation. The standard-role suite loads 20,000 synthetic runs and checks actual query plans for
+bounded ordered reads and a single permission evaluation, plus account-revocation and scope tests.
+
 ## Leave review and department ticket routing
 
 Apply `0138_leave_approval_workflow.sql` and `0139_ticket_category_routing.sql` before deploying
