@@ -60,7 +60,8 @@ export function expectsDeniedScreen(route) {
   if (qaRole === 'super_admin') return false;
   if (['admin-chats', 'admin-developer'].includes(screen)) return true;
   if (['organization', 'admin-audit'].includes(screen)) return qaRole !== 'entity_admin';
+  if (['administration', 'admin-roles'].includes(screen)) return !['entity_admin', 'hr_manager'].includes(qaRole);
   if (['attendance-admin', 'recruitment', 'onboarding'].includes(screen)) return !['entity_admin', 'hr_manager'].includes(qaRole);
-  if (['directory', 'employee-import', 'attendance-person', 'team', 'assets', 'reports', 'administration', 'admin-roles'].includes(screen)) return qaRole === 'employee';
+  if (['directory', 'employee-import', 'attendance-person', 'team', 'assets', 'reports'].includes(screen)) return qaRole === 'employee';
   return false;
 }

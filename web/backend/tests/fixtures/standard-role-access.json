@@ -144,7 +144,14 @@
     "0138_leave_approval_workflow.sql",
     "0139_ticket_category_routing.sql",
     "0140_named_scheduled_routines.sql",
-    "0141_section_counts.sql"
+    "0141_section_counts.sql",
+    "0142_request_integrity.sql",
+    "0143_payroll_output_integrity.sql",
+    "0144_immediate_account_revocation.sql",
+    "0145_leave_report_days.sql",
+    "0146_recruitment_title_validation.sql",
+    "0147_auto_provision_device_employees.sql",
+    "0148_administration_role_access.sql"
   ],
   "roles": [
     {
@@ -170,7 +177,6 @@
         "leave.create",
         "leave.read",
         "performance.manage",
-        "rbac.manage",
         "regularization.approve",
         "regularization.create",
         "report.read",
@@ -205,7 +211,6 @@
         "leave.create",
         "leave.read",
         "performance.manage",
-        "rbac.manage",
         "regularization.approve",
         "regularization.create",
         "report.read",
@@ -418,7 +423,6 @@
         "leave.create",
         "leave.read",
         "performance.manage",
-        "rbac.manage",
         "regularization.approve",
         "regularization.create",
         "report.read",
@@ -441,7 +445,7 @@
         "name": "Audit zone 1",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.522209+05:30"
+        "updated_at": "2026-09-18T09:52:26.695668+05:30"
       },
       {
         "id": "20000000-0000-0000-0000-000000000002",
@@ -449,7 +453,7 @@
         "name": "Audit zone 2",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.522209+05:30"
+        "updated_at": "2026-09-18T09:52:26.695668+05:30"
       },
       {
         "id": "20000000-0000-0000-0000-000000000003",
@@ -457,7 +461,7 @@
         "name": "Audit zone 3",
         "entity_id": "10000000-0000-0000-0000-000000000002",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.522209+05:30"
+        "updated_at": "2026-09-18T09:52:26.695668+05:30"
       }
     ],
     "branches": [
@@ -470,7 +474,7 @@
         "zone_id": "20000000-0000-0000-0000-000000000001",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.522613+05:30",
+        "updated_at": "2026-09-18T09:52:26.696121+05:30",
         "holiday_calendar_id": null
       },
       {
@@ -482,7 +486,7 @@
         "zone_id": "20000000-0000-0000-0000-000000000001",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.522613+05:30",
+        "updated_at": "2026-09-18T09:52:26.696121+05:30",
         "holiday_calendar_id": null
       },
       {
@@ -494,7 +498,7 @@
         "zone_id": "20000000-0000-0000-0000-000000000002",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.522613+05:30",
+        "updated_at": "2026-09-18T09:52:26.696121+05:30",
         "holiday_calendar_id": null
       },
       {
@@ -506,7 +510,7 @@
         "zone_id": "20000000-0000-0000-0000-000000000003",
         "entity_id": "10000000-0000-0000-0000-000000000002",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.522613+05:30",
+        "updated_at": "2026-09-18T09:52:26.696121+05:30",
         "holiday_calendar_id": null
       }
     ],
@@ -519,7 +523,7 @@
         "address": null,
         "is_active": true,
         "legal_name": null,
-        "updated_at": "2026-09-14T15:22:04.520762+05:30"
+        "updated_at": "2026-09-18T09:52:26.694134+05:30"
       },
       {
         "id": "10000000-0000-0000-0000-000000000002",
@@ -529,7 +533,7 @@
         "address": null,
         "is_active": true,
         "legal_name": null,
-        "updated_at": "2026-09-14T15:22:04.520762+05:30"
+        "updated_at": "2026-09-18T09:52:26.694134+05:30"
       }
     ],
     "employees": [
@@ -685,7 +689,7 @@
         "branch_id": "30000000-0000-0000-0000-000000000001",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.523118+05:30"
+        "updated_at": "2026-09-18T09:52:26.696681+05:30"
       },
       {
         "id": "40000000-0000-0000-0000-000000000002",
@@ -694,7 +698,7 @@
         "branch_id": "30000000-0000-0000-0000-000000000001",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.523118+05:30"
+        "updated_at": "2026-09-18T09:52:26.696681+05:30"
       },
       {
         "id": "40000000-0000-0000-0000-000000000003",
@@ -703,7 +707,7 @@
         "branch_id": "30000000-0000-0000-0000-000000000002",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.523118+05:30"
+        "updated_at": "2026-09-18T09:52:26.696681+05:30"
       },
       {
         "id": "40000000-0000-0000-0000-000000000004",
@@ -712,7 +716,7 @@
         "branch_id": "30000000-0000-0000-0000-000000000003",
         "entity_id": "10000000-0000-0000-0000-000000000001",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.523118+05:30"
+        "updated_at": "2026-09-18T09:52:26.696681+05:30"
       },
       {
         "id": "40000000-0000-0000-0000-000000000005",
@@ -721,7 +725,7 @@
         "branch_id": "30000000-0000-0000-0000-000000000004",
         "entity_id": "10000000-0000-0000-0000-000000000002",
         "is_active": true,
-        "updated_at": "2026-09-14T15:22:04.523118+05:30"
+        "updated_at": "2026-09-18T09:52:26.696681+05:30"
       }
     ]
   },
@@ -1884,11 +1888,6 @@
           },
           {
             "scope_id": "20000000-0000-0000-0000-000000000001",
-            "permission": "rbac.manage",
-            "scope_type": "zone"
-          },
-          {
-            "scope_id": "20000000-0000-0000-0000-000000000001",
             "permission": "regularization.approve",
             "scope_type": "zone"
           },
@@ -2163,11 +2162,6 @@
           },
           {
             "scope_id": "30000000-0000-0000-0000-000000000001",
-            "permission": "rbac.manage",
-            "scope_type": "branch"
-          },
-          {
-            "scope_id": "30000000-0000-0000-0000-000000000001",
             "permission": "regularization.approve",
             "scope_type": "branch"
           },
@@ -2428,11 +2422,6 @@
           {
             "scope_id": "40000000-0000-0000-0000-000000000001",
             "permission": "performance.manage",
-            "scope_type": "department"
-          },
-          {
-            "scope_id": "40000000-0000-0000-0000-000000000001",
-            "permission": "rbac.manage",
             "scope_type": "department"
           },
           {

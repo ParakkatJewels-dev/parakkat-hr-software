@@ -74,9 +74,9 @@ test('super admin can manage passwords directly from collapsed account rows', ()
   assert.equal(summaries.filter((summary) => summary.includes('Manage password for ')).length, users.length);
   assert.match(html, /Link employee/);
 });
-test('delegated admin sees user actions only below their rank, in their scope', () => {
-  const html = render(Administration, {}, { isSuperAdmin: false, rank: 40,
-    assignments: [{ role: 'branch_manager', scope_type: 'branch', scope_id: 'b1' }],
+test('scoped HR admin sees user actions only below their rank, in their scope', () => {
+  const html = render(Administration, {}, { isSuperAdmin: false, rank: 60,
+    assignments: [{ role: 'hr_manager', scope_type: 'branch', scope_id: 'b1' }],
     permissions: [{ permission: 'rbac.manage', scope_type: 'branch', scope_id: 'b1' }] });
   assert.match(html, /Manage password for staff@example.test/);
   assert.match(html, /Delete the login for Sample Employee/);

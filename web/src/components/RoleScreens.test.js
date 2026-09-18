@@ -14,6 +14,7 @@ import { rangeFor } from '../lib/dateRange.js';
 // Expected visible behavior below is stated separately from navMap/usePermissions.
 const KEYS = ['super_admin', 'entity_admin', 'hr_manager', 'zonal_manager', 'branch_manager', 'dept_head', 'employee'];
 const MANAGERS = KEYS.filter((key) => key !== 'employee');
+const ADMINISTRATORS = ['super_admin', 'entity_admin', 'hr_manager'];
 const PAYROLL = ['super_admin', 'entity_admin', 'hr_manager'];
 const EXPENSE_APPROVERS = ['super_admin', 'entity_admin', 'hr_manager', 'zonal_manager', 'branch_manager'];
 const EXPORTERS = EXPENSE_APPROVERS;
@@ -172,7 +173,7 @@ test('failed Home reads do not claim everything is caught up', () => {
 
 const ROUTES = [
   ['directory', MANAGERS], ['employee-import', MANAGERS], ['team', MANAGERS], ['attendance-person', MANAGERS],
-  ['assets', MANAGERS], ['reports', MANAGERS], ['administration', MANAGERS], ['admin-roles', MANAGERS],
+  ['assets', MANAGERS], ['reports', MANAGERS], ['administration', ADMINISTRATORS], ['admin-roles', ADMINISTRATORS],
   ['organization', ['super_admin', 'entity_admin']], ['admin-audit', ['super_admin', 'entity_admin']],
   ['admin-developer', ['super_admin']],
   ['attendance-admin', PAYROLL], ['recruitment', PAYROLL], ['onboarding', PAYROLL], ['admin-chats', ['super_admin']],
@@ -184,15 +185,21 @@ test('role fixture covers every real standard role and preserves distinct author
   assert.ok(!matrix.employee.permissions.includes('leave.approve'));
   assert.ok(!matrix.dept_head.permissions.includes('expense.approve'));
   assert.ok(!matrix.hr_manager.permissions.includes('org.manage'));
+  for (const key of KEYS) {
+    assert.equal(matrix[key].permissions.includes('rbac.manage'), ADMINISTRATORS.includes(key), key);
+  }
 });
 
 for (const key of KEYS) {
-  test(`${key}: real App renders or blocks 19 routes with the final standard grants`, async () => {
+  test(`${key}: real App renders or blocks routes with the final standard grants`, async () => {
     for (const [route, allowed] of ROUTES) {
       const html = await renderApp(actor(key), `/${route}`);
       assert.equal(html.includes('Access restricted'), !allowed.includes(key), `${key} /${route}`);
       assert.match(html, /id="main-content"/);
       assert.doesNotMatch(html, /Switched to client rendering because the server rendering errored/);
+      if (!ADMINISTRATORS.includes(key)) {
+        assert.doesNotMatch(html, /aria-label="Administration(?:,|")|>Administration<|href="\/(?:administration|admin-roles)"/, `${key}: no admin navigation or shortcut`);
+      }
     }
   });
   test(`${key}: leave, expense and correction decisions exclude self and outside scope`, () => {
@@ -279,7 +286,7 @@ for (const key of KEYS) {
       employee_name: employee.full_name, is_super_admin: i === 0,
       roles: [{ assignment_id: `assignment-${i}`, role_key: KEYS[i] ?? 'employee', scope_type: 'self' }] }));
     const html = render(Administration, actor(key), [[['employees'], [...people, ...targetPeople]], [['managed-users'], users]]);
-    const expected = key === 'super_admin' ? users.length : key === 'employee' ? 0 : KEYS.filter((target) => matrix[target].rank < matrix[key].rank).length;
+    const expected = key === 'super_admin' ? users.length : !ADMINISTRATORS.includes(key) ? 0 : KEYS.filter((target) => matrix[target].rank < matrix[key].rank).length;
     assert.equal(count(html, /Manage password for /g), expected);
     if (key !== 'super_admin') assert.doesNotMatch(html, /Manage password for 7@example.test/);
   });
@@ -359,6 +366,7 @@ test('combined HR and department roles retain both scopes without acquiring comp
   const combined = { ...hr, assignments: [...hr.assignments, { role: 'dept_head', scope_type: 'department', scope_id: 'department-b' }],
     permissions: [...hr.permissions, ...matrix.dept_head.permissions.map((permission) => ({ permission, scope_type: 'department', scope_id: 'department-b' }))] };
   assert.match(await renderApp(combined, '/organization'), /Access restricted/);
+  assert.doesNotMatch(await renderApp(combined, '/administration'), /Access restricted/);
   assert.doesNotMatch(await renderApp(combined, '/payroll/run'), /Access restricted/);
   const combinedLeaves = workflowLeaves('super_admin').map((row) => ({ ...row, approval_stage: row.employee_id === 'outside' ? 'department' : 'hr' }));
   const leave = render(Leave, combined, [[['leaves'], combinedLeaves]], '/leave');

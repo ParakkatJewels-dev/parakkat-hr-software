@@ -50,12 +50,12 @@ update public.profiles set is_super_admin = true where user_id in (audit_passwor
 update public.profiles set must_change_password = false;
 insert into public.role_assignments(user_id, role_id, scope_type, scope_id)
   select audit_password.id(3,n), r.id, 'branch', audit_password.id(2,1)
-  from generate_series(1,12)n join public.roles r on r.key = 'branch_manager' where n in (2,5);
+  from generate_series(1,12)n join public.roles r on r.key = 'hr_manager' where n in (2,5);
 insert into public.role_assignments(user_id, role_id, scope_type)
   select audit_password.id(3,n), r.id, 'self'
   from generate_series(1,12)n join public.roles r on r.key = 'employee' where n in (3,4,9);
 insert into public.role_assignments(user_id, role_id, scope_type, scope_id)
-  select audit_password.id(3,6), id, 'entity', audit_password.id(1,1) from public.roles where key = 'hr_manager';
+  select audit_password.id(3,6), id, 'entity', audit_password.id(1,1) from public.roles where key = 'entity_admin';
 insert into public.role_assignments(user_id, role_id, scope_type)
   select audit_password.id(3,8), id, 'global' from public.roles where key = 'super_admin';
 insert into public.roles(key, name, rank) values ('password_audit_no_rbac', 'High rank without account authority', 90);

@@ -83,8 +83,8 @@ begin
       where (u->>'employee_id')::uuid between audit_test.id(5,1) and audit_test.id(5,5)
         or (u->>'employee_id')::uuid=a.employee_id;
     select coalesce(jsonb_agg(eid::text order by eid),'[]'::jsonb) into expected from (
-      select audit_test.id(5,n) eid from generate_series(1,5)n where n<=a.visible_targets
-      union all select a.employee_id where a.ordinal<=6
+      select audit_test.id(5,n) eid from generate_series(1,5)n where n<=a.visible_targets and a.ordinal<=3
+      union all select a.employee_id where a.ordinal<=3
     )s;
     perform audit_test.expect(prefix||'role administration/exact managed users',actual,expected);
     foreach module in array array['employees','attendance','leaves','expenses','tasks','goals','payslips'] loop
@@ -168,10 +168,10 @@ begin
       if not own then
         perform audit_test.write_expect(prefix||'role administration/employee grant',format(
           'insert into public.role_assignments(user_id,role_id,scope_type) select %L,id,''self'' from public.roles where key=''employee''',audit_test.id(7,t)),
-          t<=a.visible_targets and a.ordinal<=6,'[1]',false);
+          t<=a.visible_targets and a.ordinal<=3,'[1]',false);
         perform audit_test.write_expect(prefix||'role administration/revoke with returned row',format(
           'select audit_test.grant_then_revoke(%L)',audit_test.id(7,t)),
-          t<=a.visible_targets and a.ordinal<=6,'["self"]');
+          t<=a.visible_targets and a.ordinal<=3,'["self"]');
       end if;
     end loop;
     prefix:=a.key||'/';
@@ -189,7 +189,7 @@ begin
       a.ordinal=1,'[1]',false);
     perform audit_test.write_expect(prefix||'role administration/branch manager grant',format(
       'insert into public.role_assignments(user_id,role_id,scope_type,scope_id) select %L,id,''branch'',%L from public.roles where key=''branch_manager''',audit_test.id(7,1),audit_test.id(3,1)),
-      a.ordinal in(1,2,4),'[1]',false);
+      a.ordinal in(1,2),'[1]',false);
     perform audit_test.write_expect(prefix||'role administration/invalid built-in scope',format(
       'insert into public.role_assignments(user_id,role_id,scope_type,scope_id) select %L,id,''entity'',%L from public.roles where key=''branch_manager''',audit_test.id(7,1),audit_test.id(1,1)),
       false,'[]',false);

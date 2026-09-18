@@ -145,11 +145,12 @@ export const OVERSIGHT_NAV = [
     id: 'admin',
     label: 'Administration',
     tabs: [
+      // Standard-role access is limited by 0148 to super_admin, entity_admin and hr_manager.
+      // Use the same permission as the backend so sidebar, direct routes and custom grants agree.
       { id: 'administration', label: 'Users & Access', perm: 'rbac.manage' },
       { id: 'admin-roles', label: 'Roles', perm: 'rbac.manage' },
-      // audit.read, not rbac.manage: the audit_log policy requires audit.read, which only
-      // entity_admin and super_admin hold. Gating on rbac.manage handed the tab to four more
-      // roles, all of whom then saw a permanently empty screen.
+      // The audit_log policy requires audit.read, held by entity_admin and super_admin; HR's
+      // user-administration access does not include the audit log.
       { id: 'admin-audit', label: 'Audit Log', perm: 'audit.read' },
       { id: 'admin-developer', label: 'Developer Settings', perm: null, superOnly: true },
       // superOnly, not a permission: reading other people's conversations is the one power that

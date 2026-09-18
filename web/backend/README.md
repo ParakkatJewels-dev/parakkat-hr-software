@@ -80,6 +80,13 @@ redirect/email setup.
   implicit because each row carries its full ancestry (entity/zone/branch/department ids).
 - **Roles × Scope.** A role (e.g. `hr_manager`) is granted at a scope (branch=CDA), giving
   branch/department-level HR without extra roles.
+- **Administration access.** Among standard roles, only Super Admin, Entity Admin and HR Manager
+  hold `rbac.manage`. Apply `0148_administration_role_access.sql` through the normal migration runner
+  to remove the earlier delegation from Zonal Manager, Branch Manager, Department Head and Employee.
+  The database then refuses their account provisioning, password administration and role changes,
+  as well as returning no managed users. HR and Entity Admin remain limited to their assigned scope
+  and grant ceiling. Employee management and approvals keep their existing permissions; explicitly
+  configured custom roles keep their own grants.
 - **Module rows** carry `employee_id` + ancestry stamped by a trigger, so RLS filters without joins.
   Note: PostgREST embeds must disambiguate tables with two FKs to `employees` (e.g.
   `employee:employees!leaves_employee_id_fkey(...)` because of `employee_id` + `approver_id`).

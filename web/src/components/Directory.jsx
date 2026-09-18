@@ -173,7 +173,7 @@ export default function Directory() {
    */
   const rowScope = (emp) => ({
     entityId: emp.entity_id,
-    zoneId: emp.zone_id,
+    zoneId: emp.zone_id ?? (org?.branches ?? []).find((branch) => branch.id === emp.branch_id)?.zone_id,
     branchId: emp.branch_id,
     deptId: emp.department_id,
     employeeId: emp.id,
@@ -183,8 +183,8 @@ export default function Directory() {
   const canExport = canAcrossBranches('report.read') || canAcrossBranches('employee.read');
   const canGrantRow = (emp) => isSuperAdmin || can('rbac.manage', rowScope(emp));
   // Matches grant_app_access's own rule (0030): super admins anywhere, rbac.manage holders
-  // inside their own scope. This was hardcoded to isSuperAdmin, which hid the action from the
-  // entity admins and (since 0044) the managers who can actually perform it.
+  // inside their own scope. Standard entity admins and HR retain this grant after 0148;
+  // zonal, branch and department managers can edit staff but cannot provision app access.
   const [editing, setEditing] = useState(null); // null = closed, {} = new, {...emp} = edit
   const [grantFor, setGrantFor] = useState(null);
   const [newLogin, setNewLogin] = useState(null); // credentials to hand over after a create+access
@@ -474,7 +474,10 @@ export default function Directory() {
               } else {
                 // wantAccess means the operator typed an address and password themselves; the
                 // derived login stands down so the person does not end up with two.
-                const created = await createEmployee.mutateAsync({ ...payload, provisionLogin: !wantAccess });
+                const created = await createEmployee.mutateAsync({
+                  ...payload,
+                  provisionLogin: !wantAccess && canGrantRow(payload),
+                });
                 employeeId = created.id;
                 employeeName = created.full_name;
                 provisioned = created.login;
@@ -1206,8 +1209,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     return 'placement';
   }, [permissions, savePermission]);
   const [access, setAccess] = useState(() => ({
-    // Every new person gets a login; Employee (self-service) is the default because it is what
-    // most of them need — it exposes only their own attendance, leave and payslips.
+    // Authorized administrators can include a login. Employee (self-service) is the default:
+    // it exposes only the new person's own attendance, leave and payslips.
     roleKey: 'employee',
     email: '',
     touched: false,
@@ -1229,10 +1232,6 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     return { type: preset.scopeType, id, noun, missing: !id };
   }, [access.roleKey, roleOptions, form, org]);
 
-  const wantsAccess = !isEdit && roleOptions.length > 0;
-  const accessReady =
-    !wantsAccess || (accessEmail && access.password.length >= 6 && !accessScope.missing);
-
   // Will the database accept this placement from THIS user?
   //
   // The employees INSERT policy is app.has_perm('employee.create', entity, zone, branch, dept, id),
@@ -1247,13 +1246,19 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   // means the form stops asking for something the database is going to refuse.
   const derivedZoneId =
     (org?.branches ?? []).find((b) => b.id === form.branch_id)?.zone_id ?? null;
-  const placementAllowed = can(savePermission, {
+  const placementScope = {
     entityId: form.entity_id || null,
     zoneId: derivedZoneId,
     branchId: form.branch_id || null,
     deptId: form.department_id || null,
     employeeId: null,
-  });
+  };
+  const placementAllowed = can(savePermission, placementScope);
+  // Employee creation and login administration are separate permissions. Managers can add
+  // staff without being asked to provision a login they are no longer allowed to create.
+  const wantsAccess = !isEdit && roleOptions.length > 0 && can('rbac.manage', placementScope);
+  const accessReady =
+    !wantsAccess || (accessEmail && access.password.length >= 6 && !accessScope.missing);
 
   const canSubmit = form.full_name.trim() && form.entity_id && accessReady && placementAllowed;
   const selectedDocuments = EMPLOYEE_DOCUMENT_TYPES
@@ -1436,8 +1441,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         ? `${savedDocumentCount} saved${selectedDocumentCount ? ` · ${selectedDocumentCount} new` : ''}`
         : `${selectedDocumentCount}/${EMPLOYEE_DOCUMENT_TYPES.length} selected`,
     },
-    { label: 'Access', done: !wantsAccess || Boolean(accessReady), sub: isEdit ? 'Managed from profile' : rolePreset?.label || 'Login' },
-  ];
+    (isEdit || wantsAccess) && { label: 'Access', done: !wantsAccess || Boolean(accessReady), sub: isEdit ? 'Managed from profile' : rolePreset?.label || 'Login' },
+  ].filter(Boolean);
   const completion = pct(completionItems.filter((item) => item.done).length, completionItems.length);
   const formatProblems = Object.values(formatErrors);
 
@@ -1456,8 +1461,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                 <input id="emp-code" className={FORM_INPUT} value={form.employee_code} onChange={(e) => patch({ employee_code: e.target.value })} placeholder="e.g. PPI-0243" />
               </div>
               {/* Two addresses, because they answer different questions and outlive each other.
-                  The office one is the company's channel and the default for the login below; the
-                  personal one is how you reach somebody after they hand the office one back. */}
+                  The office one is the company's channel and, when provisioning access, the login
+                  default; the personal one remains useful after they hand the office one back. */}
               <div>
                 <label className={L} htmlFor="emp-email">Office email</label>
                 <input id="emp-email" type="email" className={FORM_INPUT} value={form.email} onChange={(e) => patch({ email: e.target.value })} placeholder="name@parakkatjewels.com" />
@@ -1776,7 +1781,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         {/* App access — part of adding a person, not a separate errand in another section.
             Only on create: an existing employee's access is managed from their profile, where
             you can see what they already have. */}
-        {!isEdit && roleOptions.length > 0 && (
+        {wantsAccess && (
           <FormBlock step={5} title="App access" hint="Everyone added here gets a login. Pick what it lets them reach.">
                 <div className="space-y-3">
                   <div>
@@ -1948,7 +1953,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
             )}
           </div>
 
-          {!isEdit && roleOptions.length > 0 && (
+          {wantsAccess && (
             <div className="mt-3.5 pt-3.5 border-t border-neutral-100 dark:border-neutral-855">
               <p className="text-2xs font-bold uppercase tracking-wider text-neutral-400 mb-1.5">App access</p>
               <p className="text-sm font-bold text-neutral-800 dark:text-neutral-100">{rolePreset?.label}</p>
