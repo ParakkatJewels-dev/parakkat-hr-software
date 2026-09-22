@@ -17,6 +17,9 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import RoutineForm from './RoutineForm';
 import RoutineStatistics from './RoutineStatistics';
 import RoutineOrgFilters from './RoutineOrgFilters';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 const INPUT = 'w-full min-h-11 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200';
 const FREQUENCIES = [['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly'], ['interval', 'Every N days'], ['once', 'Once']];
@@ -38,6 +41,9 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
   const chooseView = (next) => setParams((previous) => { const copy = new URLSearchParams(previous); copy.set('routineView', next); return copy; }, { replace: true });
   const [dayOverride, setDayOverride] = useState(null);
   const day = dayOverride ?? today;
+  const sectionCounts = useSectionCounts({ selfOnly: viewingAsEmployee });
+  // The shared queue counts today's unfinished jobs, never the historical date being inspected.
+  const myRoutinesBadge = day === today ? navigationScreenCount('tasks/routine', sectionCounts.data) : null;
   const [range, setRange] = useState(() => ({ from: startOfMonth(today), to: today }));
   const invalidRange = !range.from || !range.to ? 'Choose both dates.'
     : range.from > range.to ? 'The start date must be on or before the end date.'
@@ -85,7 +91,8 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
       {canDefine && !editing && <button type="button" className={btnClass('primary')} onClick={() => beginEdit()}><Plus size={16} />Create routine</button>}
     </div>
     <nav className="flex flex-wrap gap-2" aria-label="Routine views">
-      {employee?.id && <button type="button" className={btnClass(view === 'mine' ? 'primary' : 'ghost')} aria-pressed={view === 'mine'} onClick={() => chooseView('mine')}>My routines</button>}
+      {employee?.id && <button type="button" className={btnClass(view === 'mine' ? 'primary' : 'ghost')} aria-pressed={view === 'mine'}
+        aria-label={navigationCountLabel('My routines', myRoutinesBadge)} onClick={() => chooseView('mine')}>My routines <NavigationCountBadge badge={myRoutinesBadge} /></button>}
       {seesTeam && <button type="button" className={btnClass(view === 'team' ? 'primary' : 'ghost')} aria-pressed={view === 'team'} onClick={() => chooseView('team')}>Team overview</button>}
       {canDefine && <button type="button" className={btnClass(view === 'manage' ? 'primary' : 'ghost')} aria-pressed={view === 'manage'} onClick={() => chooseView('manage')}>Manage routines</button>}
     </nav>

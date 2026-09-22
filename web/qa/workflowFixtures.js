@@ -1,6 +1,8 @@
 // Local UI fixtures only. Database authorization and complete multi-user flows run in SQL tests.
 import { fixture, tables, today } from './fixtures';
+import { routineRpc } from './routineFixtures';
 import { isAssignedTo } from '../src/lib/taskBoard.js';
+import { NAVIGATION_COUNT_KEYS } from '../src/lib/navigationCounts.js';
 export const workflowFixtures = new URL(window.location.href).searchParams.has('qa-workflow');
 const hrRoles = ['super_admin', 'entity_admin', 'hr_manager'];
 const waiting = (row) => ['Pending', 'On Hold'].includes(row.status);
@@ -38,6 +40,33 @@ if (workflowFixtures) {
       status: index === 30 ? 'Resolved' : 'Open', priority: 'Medium', created_at: at(),
       entity_id: me.entity_id, zone_id: me.zone_id, branch_id: me.branch_id, department_id: me.department_id };
   });
+}
+
+// Explicitly opt into the queues that the broad roster/workflow fixtures leave empty. Every row
+// stays synthetic and in memory; the production entry never imports this module.
+if (new URL(window.location.href).searchParams.has('qa-counts')) {
+  const me = fixture.employees[0];
+  const colleague = fixture.employees.find(person => person.id !== me.id && person.department_id === me.department_id);
+  const otherDepartment = fixture.org.departments.find(row => row.entity_id === me.entity_id && row.id !== me.department_id);
+  const scope = person => ({ entity_id: person.entity_id, zone_id: person.zone_id,
+    branch_id: person.branch_id, department_id: person.department_id });
+  const ownGoal = tables.goals.find(row => row.employee_id === me.id);
+  if (ownGoal) Object.assign(ownGoal, { status: 'Active', progress: 25 });
+  tables.expenses.push({ id: 'qa-count-expense', employee_id: colleague.id, employee: colleague, ...scope(colleague),
+    amount: 850, category: 'Travel', description: 'Synthetic travel claim for count verification.', status: 'Pending', created_at: at() });
+  tables.payroll_runs.push({ id: 'qa-count-payroll', entity_id: me.entity_id, period: today.slice(0, 7),
+    status: 'Draft', employee_count: 1, total_net: 20000, created_at: at() });
+  tables.biotime_employees.push(...['unmatched', 'ambiguous'].map((link_status, index) => ({
+    id: `qa-count-device-${index}`, emp_code: `QA-COUNT-${index + 1}`, first_name: 'QA',
+    last_name: `Unlinked ${index + 1}`, employee_id: null, link_status,
+  })));
+  if (otherDepartment) tables.help_requests.push(...Array.from({ length: 2 }, (_, index) => ({
+    id: `qa-count-request-${index}`, status: 'Pending', title: `Synthetic incoming request ${index + 1}`,
+    description: 'Review this synthetic departmental request.', priority: 'Medium', created_at: at(),
+    entity_id: me.entity_id, from_department_id: otherDepartment.id, from_branch_id: otherDepartment.branch_id,
+    to_department_id: me.department_id, to_branch_id: me.branch_id,
+    from_department: otherDepartment, to_department: fixture.org.departments.find(row => row.id === me.department_id),
+  })));
 }
 
 export function workflowLeaveRows(rows, { role, employee, allows }) {
@@ -84,6 +113,37 @@ export function workflowRpc(name, args, context) {
       attendance: pendingReview(tables.attendance_regularizations, 'attendance.read', 'regularization.approve'),
       helpdesk: personal ? 0 : tickets().filter(row => row.can_manage && ['Open', 'In Progress', 'On Hold'].includes(row.status)).length,
     }] };
+  }
+  if (name === 'get_navigation_counts') {
+    const personal = args._self_only === true;
+    const base = workflowRpc('get_section_counts', args, context).rows[0];
+    const myDepartments = fixture.org.departments.filter(row => row.is_active
+      && allows('employee.assign', { ...row, department_id: row.id }));
+    const activeGoals = (tables.goals ?? []).filter(row => row.status === 'Active' && allows('goal.read', row));
+    const ownRoutines = employee?.id
+      ? routineRpc('routine_day', { _on_date: today, _employee_id: employee.id }, context).rows : [];
+    const deviceScope = ['super_admin', 'entity_admin', 'hr_manager'].includes(role);
+    const counts = {
+      ...base,
+      task_requests: personal ? 0 : (tables.help_requests ?? []).filter(row => row.status === 'Pending'
+        && myDepartments.some(dept => dept.id === row.to_department_id)
+        && allows('task.request', { entity_id: row.entity_id, branch_id: row.to_branch_id, department_id: row.to_department_id })).length,
+      task_routine: ownRoutines.filter(row => row.can_tick && !row.done).length,
+      performance_mine: activeGoals.filter(row => row.employee_id === employee?.id
+        && (allows('goal.update', row) || allows('performance.manage', row))).length,
+      performance_team: personal ? 0 : activeGoals.filter(row => row.employee_id !== employee?.id && allows('performance.manage', row)).length,
+      payroll: personal ? 0 : (tables.payroll_runs ?? []).filter(row => row.status === 'Draft' && row.entity_id
+        && allows('payroll.manage', { entity_id: row.entity_id })).length,
+      onboarding: personal ? 0 : (tables.onboarding ?? []).filter(row => (row.progress ?? 0) < 100 && allows('onboarding.manage', row)).length,
+      recruitment: personal ? 0 : (tables.candidates ?? []).filter(row => ['Applied', 'Shortlisted', 'Interview', 'Offered'].includes(row.stage)
+        && allows('recruitment.manage', row)).length,
+      exits: personal ? 0 : (tables.exits ?? []).filter(row => ['Clearance in Progress', 'Cleared'].includes(row.status)
+        && row.employee_id !== employee?.id && row.created_by !== context.userId && allows('exit.manage', row)).length,
+      notifications: (tables.notifications ?? []).filter(row => !row.read_at && (!row.user_id || row.user_id === context.userId)).length,
+      attendance_mapping: personal || !deviceScope ? 0 : (tables.biotime_employees ?? []).filter(row => ['unmatched', 'ambiguous'].includes(row.link_status)
+        && (!row.employee_id || allows('device.manage', row))).length,
+    };
+    return { one: true, rows: [Object.fromEntries(NAVIGATION_COUNT_KEYS.map(key => [key, counts[key]]))] };
   }
   if (name === 'get_ticket_access') return { one: true, rows: [{ is_hr: isHr, can_manage_categories: admin,
     can_view_queue: isHr || role === 'dept_head' || (workflowFixtures && role === 'employee'), can_create: Boolean(employee?.id) }] };

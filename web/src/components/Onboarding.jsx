@@ -5,15 +5,24 @@ import { useOnboarding, useUpdateOnboarding } from '../data/onboarding';
 import PageHeader from './ui/PageHeader';
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
+import { useSectionCounts } from '../data/sectionCounts';
+import { usePermissions } from '../auth/usePermissions';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
+import { btnClass } from './ui/Btn';
 
 export default function Onboarding() {
   const { data: list = [], isLoading, error } = useOnboarding();
+  const { viewingAsEmployee } = usePermissions();
+  const { data: sectionCounts } = useSectionCounts({ selfOnly: viewingAsEmployee });
+  const incompleteBadge = navigationScreenCount('onboarding', sectionCounts);
   const update = useUpdateOnboarding();
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState('');
-  const shown = useMemo(() => list.filter((c) =>
-    [c.name, c.job_title, c.entity?.code, c.branch?.code].join(' ').toLowerCase().includes(search.trim().toLowerCase())), [list, search]);
-  const pager = usePagination(shown, 10, null, search);
+  const [inProgressOnly, setInProgressOnly] = useState(false);
+  const shown = useMemo(() => list.filter((c) => (!inProgressOnly || Number(c.progress || 0) < 100)
+    && [c.name, c.job_title, c.entity?.code, c.branch?.code].join(' ').toLowerCase().includes(search.trim().toLowerCase())), [list, search, inProgressOnly]);
+  const pager = usePagination(shown, 10, null, `${search}:${inProgressOnly}`);
   const selected = pager.slice.find((c) => c.id === selectedId) || pager.slice[0] || null;
   const stats = useMemo(() => {
     const complete = list.filter((c) => c.progress === 100).length;
@@ -104,8 +113,15 @@ export default function Onboarding() {
           <div className="lg:col-span-1">
             <div className="premium-card people-side-panel paged-collection space-y-4">
               <div className="people-panel-head">
-                <span><UserCheck size={15} /> Incoming hires</span>
+                <span aria-label={navigationCountLabel('Incoming hires', incompleteBadge)}><UserCheck size={15} /> Incoming hires <NavigationCountBadge badge={incompleteBadge} /></span>
                 <em>{shown.length} of {list.length} records</em>
+              </div>
+              <div className="flex flex-wrap gap-2" role="group" aria-label="Onboarding checklist filters">
+                <button type="button" className={btnClass(!inProgressOnly ? 'primary' : 'ghost')} aria-pressed={!inProgressOnly}
+                  onClick={() => { setInProgressOnly(false); setSearch(''); }}>All hires</button>
+                <button type="button" className={btnClass(inProgressOnly ? 'primary' : 'ghost')} aria-pressed={inProgressOnly}
+                  aria-label={navigationCountLabel('In progress', incompleteBadge)}
+                  onClick={() => { setInProgressOnly(true); setSearch(''); }}>In progress <NavigationCountBadge badge={incompleteBadge} /></button>
               </div>
               <ListSearch value={search} onChange={setSearch} label="Search onboarding" placeholder="Name, role, company or branch…" />
               <div className="space-y-3">
@@ -124,7 +140,7 @@ export default function Onboarding() {
                   </button>
                 ))}
               </div>
-              {shown.length === 0 && <p className="text-sm text-neutral-500">No hires match your search.</p>}
+              {shown.length === 0 && <p className="text-sm text-neutral-500">{inProgressOnly && !search ? 'No onboarding checklists need follow-up.' : 'No hires match your search.'}</p>}
               <Pagination {...pager} noun="hires" sizes={[10, 25, 50]} disabled={update.isPending} />
             </div>
           </div>

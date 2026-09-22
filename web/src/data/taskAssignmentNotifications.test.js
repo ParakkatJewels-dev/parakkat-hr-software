@@ -147,7 +147,7 @@ test('only opened task details acknowledge matching assignments; cache rerenders
     await setImmediate();
     assert.deepEqual(db.writes.map(write => write.ids), [['assignment-a', 'assignment-c']]);
     assert.equal(rows.find(row => row.id === 'assignment-b').read_at, null, 'another task remains unread');
-    assert.deepEqual(harness.invalidations, [['notifications']]);
+    assert.deepEqual(harness.invalidations, [['notifications'], ['section-counts']]);
 
     // A stale query snapshot can survive a successful write until invalidation resolves.
     harness.result = { ...harness.result, dataUpdatedAt: 2 };

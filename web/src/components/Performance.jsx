@@ -18,6 +18,9 @@ import { istToday } from '../lib/dates';
 import GoalForm from './GoalForm';
 import QueryError from './ui/QueryError';
 import { FormError } from './ui/FormSection';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 const INPUT =
   'w-full min-h-11 text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200';
@@ -38,6 +41,7 @@ export default function Performance() {
   const hasData = Array.isArray(goalsQuery.data);
   const { employee } = useAuth();
   const { canAny, can, viewingAsEmployee } = usePermissions();
+  const counts = useSectionCounts({ selfOnly: viewingAsEmployee });
   const canManage = !viewingAsEmployee && canAny('performance.manage');
   const canManageGoal = (goal) => can('performance.manage', {
     entityId: goal.entity_id, zoneId: goal.zone_id, branchId: goal.branch_id,
@@ -101,22 +105,26 @@ export default function Performance() {
       {created && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">Goal assigned to {created.employeeName}.</p>}
 
       {canManage && (
-        <div className="mobile-segmented flex gap-1.5">
-          {[['mine', `My goals${hasData ? ` (${mine.length})` : ''}`], ['team', `Team goals${hasData ? ` (${team.length})` : ''}`]].map(([k, label]) => (
+        <nav aria-label="Goal views" className="mobile-segmented mobile-segmented-dense flex gap-1.5">
+          {[['mine', 'My goals'], ['team', 'Team goals']].map(([k, label]) => {
+            const badge = navigationScreenCount(`performance/${k}`, counts.data);
+            return (
             <button
               key={k}
               onClick={() => { setCreated(null); setView(k); }}
               aria-current={view === k ? 'page' : undefined}
-              className={`rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
+              aria-label={navigationCountLabel(label, badge)}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
                 view === k
                   ? 'bg-brand/15 text-brand-ink border border-brand/25'
                   : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
               }`}
             >
               {label}
+              <NavigationCountBadge badge={badge} />
             </button>
-          ))}
-        </div>
+          ); })}
+        </nav>
       )}
 
       <FormError message={save.error || del.error} />

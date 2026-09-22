@@ -31,6 +31,7 @@ const stubs = {
   '../data/leaves': queryStubs(['useLeaves']) + mutationStubs(['useApplyLeave']),
   '../data/leaveTypes': queryStubs(['useLeaveTypes', 'useLeaveBalances']),
   '../data/holidays': queryStubs(['useHolidays']),
+  '../data/sectionCounts': 'export const useSectionCounts = () => ({});',
   '../data/regularizations': queryStubs(['useRegularizations', 'useMyRegularizations']) + mutationStubs(['useCreateRegularization', 'useDecideRegularization']),
   '../data/attendance': queryStubs(['useAttendanceSummary', 'useMonthlyAttendance', 'useAttendanceExceptions', 'useRawPunches'])
     + 'export const todayIso=()=>"2026-09-15", STATUS_STYLES={}, STATUS_CODES={}, fmtTime=()=>"", fmtMinutes=()=>"";',
@@ -44,6 +45,7 @@ const stubs = {
   './ui/QueryError': 'export default "test-query-error";',
   './LeaveReviewPanel': 'export default "test-leave-review";',
   './ui/Btn': 'export const btnClass=()=>"";',
+  './ui/CountBadge': 'export const NavigationCountBadge="test-count-badge";',
   './ui/PunchTimeline': 'export default "test-punches"; export const BreakSummary="test-breaks";',
   './ui/PunchDetails': 'export default "test-punch-details";',
   './ui/DateRangeFilter': 'export default "test-dates"; export const useDateRange=()=>({});',

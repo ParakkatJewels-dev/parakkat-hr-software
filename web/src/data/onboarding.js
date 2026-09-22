@@ -20,6 +20,9 @@ export function useUpdateOnboarding() {
       const { error } = await supabase.from('onboarding').update({ progress, tasks }).eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['onboarding'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['onboarding'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }

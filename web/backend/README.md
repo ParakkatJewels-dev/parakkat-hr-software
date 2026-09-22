@@ -192,6 +192,23 @@ The QA role picker supports manager/admin comparisons; fixture writes stay in me
 
 ## Navigation section counts
 
+Apply `0151_navigation_counts.sql` before deploying the current navigation client. Its
+`get_navigation_counts(_self_only boolean default false)` RPC includes the original five queues
+plus incoming task requests, unfinished routine jobs due today in IST, personal and managed active
+goals, draft payroll runs, incomplete onboarding checklists, active hiring candidates, outstanding
+exit clearances, unlinked device employees and the full unread notification count. All values use
+the caller's permissions; employee view retains personal work and suppresses management queues.
+Parent menus sum distinct queues and their submenus use the corresponding count. Reports and
+configuration screens without an actionable queue have no badge. Missing counts remain unknown.
+
+The client uses a versioned cache so an old five-key response cannot become an understated total.
+Queue mutations, batched Realtime changes and the visible-only minute refresh update parent and
+child badges together. The notification preview remains limited to forty rows, but its badge and
+the Notifications menu count the whole unread inbox. `tests/navigation_counts.sql` verifies the
+new envelope, per-role scope, completion transitions, inactive callers and more than 1,000 unread
+notifications in the isolated database test runner. The original RPC below remains available for
+older clients.
+
 Apply `0141_section_counts.sql` **before deploying the client that displays section badges**.
 The authenticated `get_section_counts(_self_only boolean default false)` RPC returns only five
 integer counts: `tasks`, `leave`, `expense`, `attendance`, and `helpdesk`. Identity and scope come

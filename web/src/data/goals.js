@@ -29,7 +29,10 @@ export function useSaveGoal() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goals'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['goals'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -41,6 +44,9 @@ export function useDeleteGoal() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['goals'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['goals'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }

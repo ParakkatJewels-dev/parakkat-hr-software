@@ -11,7 +11,7 @@ import { mergeConversationReceipts } from './messageReceipts';
 
 const CHAT_TABLES = new Set(['messages', 'conversations', 'conversation_members']);
 const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']];
-const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats']];
+const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['section-counts']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
 // a staff transfer or a permission change can alter the queue without changing its request rows.
 const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['ticket-access'],
@@ -20,14 +20,14 @@ const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'],
 // public table → query-key prefixes to invalidate when it changes. A prefix invalidates every
 // query whose key starts with it (e.g. ['attendance'] covers ['attendance','day',date]).
 const TABLE_KEYS = {
-  notifications: [['notifications']],
+  notifications: [['notifications'], ['section-counts']],
   tasks: [['section-counts'], ['tasks'], ['notification-ref-statuses']],
   task_assignees: [['tasks'], ['section-counts'], ['notification-ref-statuses']],
-  goals: [['goals']],
+  goals: [['goals'], ['section-counts']],
   // A help request is answered by somebody else, on another screen, and the person who raised it is
   // sitting looking at it. Without this the answer only arrives on the 5-minute safety poll.
   // ['tasks'] is here too: accepting a request CREATES a task, and the requester can see it (0101).
-  help_requests: [['help-requests'], ['tasks'], ['notification-ref-statuses']],
+  help_requests: [['help-requests'], ['tasks'], ['section-counts'], ['notification-ref-statuses']],
   // A thread that needs a refresh is not a conversation, and a completion board a head is watching
   // should fill in as the floor ticks things off.
   task_comments:    [['task-comments'], ['task-comment-counts']],
@@ -54,8 +54,12 @@ const TABLE_KEYS = {
   asset_assignments: [['assets'], ['asset-history']],
   employees: [['employees'], ['employee'], ['messaging-people'], ...WORKFLOW_ACCESS_KEYS],
   documents: [['documents'], ['employee-avatars']],
-  exits: [['exits']],
-  onboarding: [['onboarding']],
+  exits: [['exits'], ['section-counts']],
+  onboarding: [['onboarding'], ['section-counts']],
+  candidates: [['candidates'], ['section-counts']],
+  jobs: [['jobs'], ['candidates'], ['section-counts']],
+  payroll_runs: [['payroll-runs'], ['payslips'], ['section-counts']],
+  biotime_employees: [['device-mappings'], ['mapping-counts'], ['section-counts']],
   role_assignments: [['managed-users'], ...WORKFLOW_ACCESS_KEYS],
   roles: [['roles'], ['roles-with-perms'], ...WORKFLOW_ACCESS_KEYS],
   role_permissions: [['roles'], ['roles-with-perms'], ...WORKFLOW_ACCESS_KEYS],

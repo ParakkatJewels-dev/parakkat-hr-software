@@ -25,7 +25,10 @@ export function useDecideExitClearance() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['exits'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['exits'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -37,7 +40,10 @@ export function useCompleteExit() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['exits'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['exits'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -48,6 +54,9 @@ export function useAddExit() {
       const { error } = await supabase.from('exits').insert(payload);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['exits'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['exits'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }

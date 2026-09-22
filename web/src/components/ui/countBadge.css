@@ -26,6 +26,7 @@
 }
 .dark .count-badge { background: #b91c1c; }
 .section-tab-button .count-badge { margin-left: .45rem; vertical-align: middle; }
+.drawer-tab .count-badge, .work-view-tab .count-badge { margin-left: 0; }
 .mobile-nav-screens > button { display: flex; align-items: center; gap: .6rem; }
 .mobile-nav-screens > button > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .navigation-count-status {

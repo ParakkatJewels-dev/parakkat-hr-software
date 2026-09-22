@@ -8,6 +8,9 @@ import PageHeader from './ui/PageHeader';
 import PagedCollection from './ui/PagedCollection';
 import ListSearch from './ui/ListSearch';
 import QueryError from './ui/QueryError';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 const PIPELINE = ['Applied', 'Shortlisted', 'Interview', 'Offered', 'Hired'];
 const STAGES = [...PIPELINE, 'Rejected'];
@@ -23,7 +26,9 @@ export default function Recruitment() {
   const jobsLoading = !hasJobs && !jobsError;
   const candidatesLoading = !hasCandidates && !candidatesError;
   const { data: org } = useVisibleOrg();
-  const { canAny } = usePermissions();
+  const { canAny, viewingAsEmployee } = usePermissions();
+  const { data: sectionCounts } = useSectionCounts({ selfOnly: viewingAsEmployee });
+  const pipelineBadge = navigationScreenCount('recruitment', sectionCounts);
   const addJob = useAddJob();
   const moveCand = useSetCandidateStage();
   const canManage = canAny('recruitment.manage');
@@ -103,18 +108,23 @@ export default function Recruitment() {
         <div className={`${showForm ? 'xl:col-span-3' : 'xl:col-span-4'}`}>
           <div className="premium-card people-board space-y-4">
             <div className="people-panel-head">
-              <span><Users size={15} /> Candidate pipeline</span>
+              <span aria-label={navigationCountLabel('Candidate pipeline', pipelineBadge)}><Users size={15} /> Candidate pipeline <NavigationCountBadge badge={pipelineBadge} /></span>
               <em>{candidatesLoading ? <Skeleton as="span" className="inline-block h-3 w-28" /> : hasCandidates ? `${matchingCandidates.length} matching profiles` : 'Candidates unavailable'}</em>
             </div>
             {(candidatesLoading || hasCandidates) && <div className="people-kanban-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3" role={candidatesLoading ? 'status' : undefined} aria-label={candidatesLoading ? 'Loading candidate pipeline' : undefined}>
               {STAGES.map((stage) => {
                 const list = matchingCandidates.filter((c) => c.stage === stage);
+                const activeStage = !['Hired', 'Rejected'].includes(stage);
+                const stageBadge = { count: hasCandidates && canManage && !viewingAsEmployee ? candidates.filter((c) => c.stage === stage).length : null,
+                  singular: 'candidate in progress', plural: 'candidates in progress' };
                 return (
                   <div key={stage} className="people-kanban-column">
-                    <div className="people-kanban-head">
+                    <div className="people-kanban-head" aria-label={activeStage ? navigationCountLabel(stage, stageBadge) : stage}>
                       <span>{stage}</span>
-                      <b>{candidatesLoading ? <Skeleton as="span" className="inline-block h-3 w-4" /> : list.length}</b>
+                      {activeStage && !candidatesLoading ? <NavigationCountBadge badge={stageBadge} />
+                        : <b>{candidatesLoading ? <Skeleton as="span" className="inline-block h-3 w-4" /> : list.length}</b>}
                     </div>
+                    {activeStage && hasCandidates && (search.trim() || company) && <p className="text-xs text-neutral-500">{list.length} matching</p>}
                     {candidatesLoading ? (
                       <div className="space-y-2">
                         {Array.from({ length: 3 }, (_, index) => (

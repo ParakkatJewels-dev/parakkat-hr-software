@@ -94,6 +94,7 @@ export function useRunPayroll() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
     },
   });
@@ -108,6 +109,7 @@ export function usePublishPayroll() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
     },
   });
@@ -122,6 +124,7 @@ export function useDeletePayrollRun() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
       qc.invalidateQueries({ queryKey: ['payslip-lines'] });
     },

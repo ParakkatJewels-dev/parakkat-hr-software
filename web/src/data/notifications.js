@@ -183,7 +183,10 @@ export function useMarkNotificationsRead() {
       if (error) throw error;
       if (!data?.length) throw new Error('Those notifications could not be marked read — they may already be gone.');
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['notifications'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -227,7 +230,10 @@ export function useMarkAllNotificationsRead() {
         .is('read_at', null);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['notifications'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -238,6 +244,9 @@ export function useClearNotifications() {
       const { error } = await supabase.from('notifications').delete().not('read_at', 'is', null);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['notifications'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['notifications'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }

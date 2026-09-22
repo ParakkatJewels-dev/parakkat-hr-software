@@ -1,5 +1,5 @@
 import { SkeletonCards, SkeletonRows } from './ui/Skeleton';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { FileText, Check, Ban, Plus } from 'lucide-react';
 import { useExpenses, useAddExpense, useSetExpenseStatus } from '../data/expenses';
 import { useAuth } from '../auth/AuthContext';
@@ -11,6 +11,9 @@ import { useFocusRow } from '../lib/useFocusRow';
 import { usePermissions } from '../auth/usePermissions';
 import { useMineOnly } from '../lib/useMineOnly';
 import { todayIso } from '../data/attendance';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 const CATEGORIES = ['Local Conveyance', 'Travel Expenses', 'Telephone/Mobile Bills', 'Medical Claims', 'Office Supplies', 'Other'];
 const blankExpenseForm = () => ({ category: 'Local Conveyance', amount: '', expense_date: todayIso(), description: '' });
@@ -27,7 +30,9 @@ export default function Expense() {
   const { data: expenses = [], isLoading, error, refetch, isFetching } = expensesQuery;
   const hasData = Array.isArray(expensesQuery.data);
   const { employee } = useAuth();
-  const { can, canBeyondSelf } = usePermissions();
+  const { can, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  const { data: sectionCounts } = useSectionCounts({ selfOnly: viewingAsEmployee });
+  const reviewBadge = navigationScreenCount('expense', sectionCounts);
   const { user } = useAuth();
   const add = useAddExpense();
   const setStatus = useSetExpenseStatus();
@@ -40,7 +45,7 @@ export default function Expense() {
    * Drawing the buttons from canAny alone put them on every branch's claims, and pressing one there
    * silently did nothing — the update matched no rows and PostgREST called that success.
    */
-  const canDecide = (exp) =>
+  const canDecide = useCallback((exp) =>
     can('expense.approve', {
       entityId: exp.entity_id,
       zoneId: exp.zone_id,
@@ -49,20 +54,22 @@ export default function Expense() {
       employeeId: exp.employee_id,
     })
     && exp.employee_id !== employee?.id
-    && !(exp.created_by && exp.created_by === user?.id);
+    && !(exp.created_by && exp.created_by === user?.id), [can, employee?.id, user?.id]);
   const canClaim = Boolean(employee?.id);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(blankExpenseForm);
   const [statusFilter, setStatusFilter] = useState('All');
   // A manager's list is their whole branch; this is how they find their own claims in it.
   const [mineOnly, setMineOnly, canPickWhose] = useMineOnly(canBeyondSelf('expense.read'));
+  const canReviewQueue = !viewingAsEmployee && canPickWhose && canBeyondSelf('expense.approve');
 
   const visibleExpenses = useMemo(() => {
     const scoped = mineOnly ? expenses.filter((e) => e.employee_id === employee?.id) : expenses;
     if (statusFilter === 'All') return scoped;
+    if (statusFilter === 'My review queue') return scoped.filter((e) => e.status === 'Pending' && canDecide(e));
     if (statusFilter === 'Approved') return scoped.filter((e) => e.status === 'Approved' || e.status === 'Paid');
     return scoped.filter((e) => e.status === statusFilter);
-  }, [expenses, statusFilter, mineOnly, employee?.id]);
+  }, [expenses, statusFilter, mineOnly, employee?.id, canDecide]);
 
   const totals = useMemo(() => {
     // Over the visible rows, not the whole scope — see the same fix in Leave.
@@ -172,7 +179,7 @@ export default function Expense() {
                 <button
                   key={label}
                   type="button"
-                  onClick={() => setMineOnly(v)}
+                  onClick={() => { setMineOnly(v); if (v && statusFilter === 'My review queue') setStatusFilter('All'); }}
                   aria-pressed={mineOnly === v}
                   className={`px-2.5 py-1 text-2xs font-bold rounded-lg transition-colors cursor-pointer ${
                     mineOnly === v
@@ -212,11 +219,18 @@ export default function Expense() {
             <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
               <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Claim History
             </h3>
+            {canReviewQueue && <button type="button"
+              className={btnClass(statusFilter === 'My review queue' ? 'primary' : 'ghost')}
+              aria-pressed={statusFilter === 'My review queue'} aria-label={navigationCountLabel('My review queue', reviewBadge)}
+              onClick={() => { setMineOnly(false); setStatusFilter('My review queue'); }}>
+              My review queue <NavigationCountBadge badge={reviewBadge} />
+            </button>}
             {isLoading ? (
               <SkeletonRows rows={4} avatar={false} label="Loading expense claims" />
             ) : visibleExpenses.length === 0 ? error ? null : (
               <p className="text-xs text-neutral-500 py-8 text-center">
-                No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}expense claims visible to you yet.
+                {statusFilter === 'My review queue' ? 'No expense claims need your review.'
+                  : `No ${statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}expense claims visible to you yet.`}
               </p>
             ) : (
               <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">

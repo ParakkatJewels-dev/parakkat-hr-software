@@ -13,6 +13,10 @@ import {
 } from '../data/notifications';
 import { NotificationRow, EmptyState } from './ui/NotificationRow';
 import { useMediaQuery } from '../lib/useMediaQuery';
+import { useSectionCounts } from '../data/sectionCounts';
+import { usePermissions } from '../auth/usePermissions';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 export default function NotificationBell({ onNavigate }) {
   const [open, setOpen] = useState(false);
@@ -22,11 +26,19 @@ export default function NotificationBell({ onNavigate }) {
   const hasRoomForDropdown = useMediaQuery('(min-width: 1024px)');
 
   const { data: notifications = [] } = useNotifications();
+  const { viewingAsEmployee } = usePermissions();
+  const sectionCounts = useSectionCounts({ selfOnly: viewingAsEmployee });
+  // The preview deliberately stops at 40 rows. Its unread subset is not the inbox total.
+  const badge = navigationScreenCount('notifications', sectionCounts.data);
+  const unreadCount = badge?.count;
+  const label = navigationCountLabel('Notifications', badge);
   // `open` is taken by the dropdown's own state, so name the shared action for what it does.
   const { open: openNotification } = useOpenNotification(onNavigate);
   const markAllRead = useMarkAllNotificationsRead();
 
-  const unread = notifications.filter((n) => !n.read_at);
+  // Keep acknowledgement available if the summary is unavailable but the preview proves there
+  // is unread work. That partial preview must never be presented as an exact navigation count.
+  const hasUnread = unreadCount == null ? notifications.some((n) => !n.read_at) : unreadCount > 0;
 
   // Close on outside click / Escape
   useEffect(() => {
@@ -53,14 +65,12 @@ export default function NotificationBell({ onNavigate }) {
       <button
         onClick={() => (hasRoomForDropdown ? setOpen((v) => !v) : onNavigate?.('notifications'))}
         className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer relative"
-        title="Notifications" aria-label="Notifications"
+        title={label} aria-label={label}
       >
-        <Bell size={16} />
-        {unread.length > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[15px] h-[15px] px-0.5 bg-brand-action dark:bg-brand-action text-brand-on text-2xs font-bold rounded-full border border-white dark:border-charcoal-900 flex items-center justify-center leading-none">
-            {unread.length > 9 ? '9+' : unread.length}
-          </span>
-        )}
+        <span className="relative inline-flex">
+          <Bell size={16} />
+          <NavigationCountBadge badge={badge} corner />
+        </span>
       </button>
 
       {open && hasRoomForDropdown && (
@@ -68,13 +78,13 @@ export default function NotificationBell({ onNavigate }) {
           <div className="flex items-center justify-between px-3.5 py-2.5 border-b border-neutral-150 dark:border-neutral-900">
             <span className="text-xs font-bold text-neutral-800 dark:text-warm-gray-100">
               Notifications
-              {unread.length > 0 && (
+              {unreadCount > 0 && (
                 <span className="ml-1.5 text-2xs font-semibold text-neutral-450 dark:text-neutral-500">
-                  {unread.length} unread
+                  {unreadCount} unread
                 </span>
               )}
             </span>
-            {unread.length > 0 && (
+            {hasUnread && (
               <button
                 onClick={() => markAllRead.mutate()}
                 className="flex items-center gap-1 text-2xs font-bold text-neutral-500 hover:text-black dark:hover:text-brand-ink px-1.5 py-0.5 bg-neutral-100 dark:bg-charcoal-800 rounded transition-all cursor-pointer"

@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createServer } from 'vite';
-import { navigationScreenCount } from '../../lib/navigationCounts.js';
+import { NAVIGATION_COUNT_KEYS, navigationScreenCount } from '../../lib/navigationCounts.js';
 
 let server, CountBadge, LiquidGlassNav, App, AuthContext, originalWindow, originalStorage;
 let collapsed = false;
@@ -27,7 +27,8 @@ after(async () => {
   await server?.close();
 });
 
-const counts = { tasks: 127, leave: 4, expense: 7, attendance: 3, helpdesk: 2 };
+const counts = { ...Object.fromEntries(NAVIGATION_COUNT_KEYS.map(key => [key, 0])),
+  tasks: 127, leave: 4, expense: 7, attendance: 3, helpdesk: 2 };
 const auth = {
   user: { id: 'badge-user', email: 'badge@example.test' }, employee: { id: 'badge-self', full_name: 'Test Person' },
   isSuperAdmin: true, assignments: [], permissions: [], hiddenScreens: [], signOut() {},
@@ -35,7 +36,7 @@ const auth = {
 const render = (Component, props) => renderToStaticMarkup(React.createElement(Component, props));
 function renderApp({ data = counts, error = false, actor = auth, path = '/attendance' } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, staleTime: Infinity, gcTime: 0 } } });
-  const key = ['section-counts', actor.user.id, false];
+  const key = ['section-counts', actor.user.id, false, 'navigation-v2'];
   if (data !== null) client.setQueryData(key, data);
   if (error) client.getQueryCache().build(client, { queryKey: key }).setState({ status: 'error', fetchStatus: 'idle', error: new Error('Fixture unavailable') });
   client.setQueryData(['message-delivery', actor.employee.id], [{ id: 'chat', unread_count: 205 }, { id: 'declined', unread_count: 9, request_status: 'declined' }]);

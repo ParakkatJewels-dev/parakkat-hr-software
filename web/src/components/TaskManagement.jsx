@@ -40,6 +40,9 @@ import { useTaskCommentCounts } from '../data/taskComments';
 import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
 import TaskAttachmentDraft from './TaskAttachmentDraft';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
@@ -60,13 +63,18 @@ const ASSIGNEE_HIDDEN = 'Assignee not visible';
 const WINDOW_MONTHS = Math.round(CLOSED_TASK_WINDOW_DAYS / 30);
 const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelled ones are kept for ${WINDOW_MONTHS} months.`;
 const TASKS_PER_PAGE = 10;
+const EMPTY_ROWS = [];
 
 export default function TaskManagement() {
   const { data: tasks = [], isLoading, error } = useTasks();
   const employeesQuery = useEmployees();
   const { data: employees = [] } = employeesQuery;
   const { employee } = useAuth();
-  const { canAny, can, canBeyondSelf } = usePermissions();
+  const { canAny, can, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  const sectionCounts = useSectionCounts({ selfOnly: viewingAsEmployee });
+  // Each submenu shows its own part of the shared Work count, independent of board filters.
+  const myTasksBadge = navigationScreenCount('tasks/todo', sectionCounts.data);
+  const routineBadge = navigationScreenCount('tasks/routine', sectionCounts.data);
 
   const create = useCreateTask();
   const update = useUpdateTask();   // the status dropdown
@@ -145,9 +153,17 @@ export default function TaskManagement() {
 
   // Only what is waiting on YOU. A request you raised is waiting on somebody else, and badging it
   // would read as work you owe. See pendingCount.
-  const { data: myDepartments = [] } = useMyDepartments({ enabled: canUseRequests });
-  const { data: helpRequests = [] } = useHelpRequests({ enabled: canUseRequests });
-  const waitingOnMe = pendingCount(helpRequests, myDepartments.map((d) => d.id));
+  const departmentsQuery = useMyDepartments({ enabled: canUseRequests });
+  const helpRequestsQuery = useHelpRequests({ enabled: canUseRequests });
+  const myDepartments = departmentsQuery.data ?? EMPTY_ROWS;
+  const helpRequests = helpRequestsQuery.data ?? EMPTY_ROWS;
+  const requestsBadge = navigationScreenCount('tasks/requests', sectionCounts.data);
+  // During a staged backend rollout the old summary has no request field. Fall back only to
+  // fully loaded lists; a missing or failed query is not evidence that the queue is empty.
+  if (!Object.hasOwn(sectionCounts.data ?? {}, 'task_requests')
+      && departmentsQuery.data !== undefined && helpRequestsQuery.data !== undefined) {
+    requestsBadge.count = pendingCount(helpRequests, myDepartments.map((d) => d.id));
+  }
 
   /**
    * Tasks that exist because THIS person asked another department for them.
@@ -337,9 +353,10 @@ export default function TaskManagement() {
       </header>
       <nav className="work-view-tabs" aria-label="Task views">
         {canViewTeamTasks && <ViewBtn active={isBoard} onClick={() => setView('board')} icon={ListChecks} label="Team tasks" />}
-        <ViewBtn active={effectiveView === 'todo'} onClick={() => setView('todo')} icon={User} label="My tasks" />
-        {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests" badge={waitingOnMe} />}
-        <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" />
+        <ViewBtn active={effectiveView === 'todo'} onClick={() => setView('todo')} icon={User} label="My tasks" badge={myTasksBadge} />
+        {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests"
+          badge={requestsBadge} />}
+        <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" badge={routineBadge} />
       </nav>
       {isBoard && <>
         <div className="work-overview" aria-label="Task summary">
@@ -890,11 +907,12 @@ function TaskComposer({
   );
 }
 
-function ViewBtn({ active, onClick, icon: Icon, label, badge = 0 }) {
+function ViewBtn({ active, onClick, icon: Icon, label, badge = null }) {
   return (
-    <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined} className="work-view-tab">
+    <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined}
+      aria-label={navigationCountLabel(label, badge)} className="work-view-tab">
       <Icon size={15} /> {label}
-      {badge > 0 && <span className="work-tab-count" aria-label={`${badge} waiting for you`}>{badge}</span>}
+      <NavigationCountBadge badge={badge} />
     </button>
   );
 }

@@ -36,6 +36,9 @@ import EmployeeAttendanceDetail from './EmployeeAttendanceDetail';
 import { humanDbError } from '../lib/dbErrors';
 import { correctionDateLabel, regularizationTimes } from '../lib/regularizationTimes';
 import { attendanceTimeline } from '../lib/attendanceTimeline';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -1238,6 +1241,11 @@ export default function Attendance() {
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
   const [tab, setTab] = useUrlTab(visibleTabs[0]?.id ?? 'calendar', visibleTabs.map((t) => t.id));
   const canApprove = canAny('regularization.approve');
+  const reviewing = canApprove && !viewingAsEmployee;
+  const sectionCounts = useSectionCounts({ enabled: reviewing, selfOnly: viewingAsEmployee });
+  // Carry the shell's review count through to the tab containing those requests. Attendance
+  // exceptions and today's roster are separate views, not additional approval queues.
+  const reviewBadge = reviewing ? navigationScreenCount('attendance', sectionCounts.data) : null;
   const showSourceNote = canAny('device.manage');
 
   return (
@@ -1262,23 +1270,27 @@ export default function Attendance() {
         />
       ) : null}
 
-      <div className="mobile-segmented flex flex-wrap gap-1.5">
+      <nav aria-label="Attendance views" className="mobile-segmented mobile-segmented-dense flex flex-wrap gap-1.5">
         {visibleTabs.map((t) => {
           const Icon = t.icon;
           const label = selfAttendanceMode && t.id === 'regularizations' ? 'Fix attendance' : t.label;
+          const badge = t.id === 'regularizations' ? reviewBadge : null;
           return (
             <button
               key={t.id}
+              type="button"
               onClick={() => setTab(t.id)}
               aria-current={tab === t.id ? 'page' : undefined}
+              aria-label={navigationCountLabel(label, badge)}
               className={`drawer-tab flex items-center gap-1.5 ${tab === t.id ? 'drawer-tab-active' : ''}`}
             >
               <Icon size={13} />
               {label}
+              <NavigationCountBadge badge={badge} />
             </button>
           );
         })}
-      </div>
+      </nav>
 
       {tab === 'today' ? (
         <TodayView workDate={workDate} setWorkDate={setWorkDate} />

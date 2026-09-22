@@ -14,6 +14,9 @@ import { canReviewLeave, leaveDecisionsFor, leaveStageLabel, matchesLeaveFilter 
 import LeaveReviewPanel from './LeaveReviewPanel';
 import FormSection from './ui/FormSection';
 import QueryError from './ui/QueryError';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 /**
  * The catalog decides what a leave is called — this file no longer does.
@@ -112,6 +115,8 @@ export default function Leave() {
   const hasLeaves = Array.isArray(leaveQuery.data);
   const { employee } = useAuth();
   const { canBeyondSelf, viewingAsEmployee } = usePermissions();
+  const { data: sectionCounts } = useSectionCounts({ selfOnly: viewingAsEmployee });
+  const reviewBadge = navigationScreenCount('leave', sectionCounts);
   const apply = useApplyLeave();
   const canReview = (request) => canReviewLeave(request, employee?.id, viewingAsEmployee);
   const canApply = Boolean(employee?.id); // only employee-linked logins can request leave
@@ -136,6 +141,11 @@ export default function Leave() {
   // Self-only unless this viewer's grants reach other people. Covers a genuine employee AND a
   // manager who switched to the employee view — usePermissions narrows the grants, this follows.
   const [mineOnly, setMineOnly, canPickWhose] = useMineOnly(canBeyondSelf('leave.read'));
+  const canReviewQueue = !viewingAsEmployee && canPickWhose && canBeyondSelf('leave.approve');
+  const chooseFilter = (filter) => {
+    if (filter === 'My review queue') setMineOnly(false);
+    setStatusFilter(filter);
+  };
 
   const scopedLeaves = useMemo(() => mineOnly ? leaves.filter((l) => l.employee_id === employee?.id) : leaves,
     [leaves, mineOnly, employee?.id]);
@@ -217,7 +227,7 @@ export default function Leave() {
                 <button
                   key={label}
                   type="button"
-                  onClick={() => setMineOnly(v)}
+                  onClick={() => { setMineOnly(v); if (v && statusFilter === 'My review queue') setStatusFilter('All'); }}
                   aria-pressed={mineOnly === v}
                   className={`px-2.5 py-1 text-2xs font-bold rounded-lg transition-colors cursor-pointer ${
                     mineOnly === v
@@ -278,19 +288,30 @@ export default function Leave() {
               <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" />
               {selfServiceMode ? 'My Requests' : 'Leave Requests'}
             </h3>
-            <label className="flex flex-wrap items-center gap-2 text-xs font-semibold">
-              Show requests
-              <select aria-label="Filter leave requests" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}
-                className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2 max-w-full">
-                {LEAVE_FILTERS.filter((filter) => filter !== 'My review queue' || canPickWhose).map((filter) => <option key={filter}>{filter}</option>)}
-              </select>
-            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              {canReviewQueue && <button type="button"
+                className={btnClass(statusFilter === 'My review queue' ? 'primary' : 'ghost')}
+                aria-pressed={statusFilter === 'My review queue'} aria-label={navigationCountLabel('My review queue', reviewBadge)}
+                onClick={() => chooseFilter('My review queue')}>
+                My review queue <NavigationCountBadge badge={reviewBadge} />
+              </button>}
+              <label className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+                Show requests
+                <select aria-label="Filter leave requests" value={statusFilter} onChange={(event) => chooseFilter(event.target.value)}
+                  className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 px-3 py-2 max-w-full">
+                  {LEAVE_FILTERS.filter((filter) => filter !== 'My review queue' || canReviewQueue).map((filter) => <option key={filter} value={filter}>
+                    {filter}{filter === 'My review queue' && reviewBadge?.count > 0 ? ` (${reviewBadge.count})` : ''}
+                  </option>)}
+                </select>
+              </label>
+            </div>
 
             {isLoading ? (
               <SkeletonRows rows={4} avatar={false} label="Loading leave requests" />
             ) : visibleLeaves.length === 0 ? error ? null : (
               <p className="text-xs text-neutral-500 py-8 text-center">
-                No {statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}leave requests yet.
+                {statusFilter === 'My review queue' ? 'No leave requests need your review.'
+                  : `No ${statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}leave requests yet.`}
               </p>
             ) : (
               <div className="space-y-3.5">

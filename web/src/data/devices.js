@@ -109,6 +109,7 @@ export function useLinkDeviceCode() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['device-mappings'] });
       qc.invalidateQueries({ queryKey: ['mapping-counts'] });
+      qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['attendance'] });
     },
   });

@@ -23,6 +23,9 @@ import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
 import { useUrlTab } from '../lib/useUrlTab';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 import { todayIso } from '../data/attendance';
 import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
@@ -87,8 +90,10 @@ const TAB_DEFS = [
 ];
 
 export default function Payroll() {
-  const { canAny } = usePermissions();
+  const { canAny, viewingAsEmployee } = usePermissions();
   const canManage = canAny('payroll.manage');
+  const counts = useSectionCounts({ enabled: canManage, selfOnly: viewingAsEmployee });
+  const runBadge = canManage ? navigationScreenCount('payroll/run', counts.data) : null;
 
   const TABS = TAB_DEFS.filter((t) => !t.managerOnly || canManage);
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
@@ -108,12 +113,13 @@ export default function Payroll() {
       </div>
 
       {TABS.length > 1 && (
-        <div className="mobile-segmented tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
+        <nav aria-label="Payroll views" className="mobile-segmented mobile-segmented-dense tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
           {TABS.map((t) => (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
               aria-current={tab === t.id ? 'page' : undefined}
+              aria-label={navigationCountLabel(t.label, t.id === 'run' ? runBadge : null)}
               className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
                 tab === t.id
                   ? 'border-brand text-brand-ink'
@@ -121,9 +127,10 @@ export default function Payroll() {
               }`}
             >
               <t.icon size={13} /> {t.label}
+              {t.id === 'run' && <NavigationCountBadge badge={runBadge} />}
             </button>
           ))}
-        </div>
+        </nav>
       )}
 
       {tab === 'payslips' && <PayslipsTab />}

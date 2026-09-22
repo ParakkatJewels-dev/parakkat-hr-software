@@ -11,10 +11,16 @@ import { SkeletonRows } from './ui/Skeleton';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { canManageExit, EXIT_DEPARTMENTS, exitReadyToComplete } from '../lib/exitClearance';
 import { humanDbError } from '../lib/dbErrors';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 
 export default function HelpdeskExit() {
   const { employee, user } = useAuth();
   const { can, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  const counts = useSectionCounts({ selfOnly: viewingAsEmployee });
+  const exitBadge = !viewingAsEmployee && canBeyondSelf('exit.manage')
+    ? navigationScreenCount('helpdesk/exits', counts.data) : null;
   const addExit = useAddExit();
   const decide = useDecideExitClearance();
   const complete = useCompleteExit();
@@ -91,8 +97,9 @@ export default function HelpdeskExit() {
         {canSeeExits && (
         <div className="space-y-4">
           <div className="premium-card space-y-3.5">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-850 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2 flex items-center">
+            <h3 aria-label={navigationCountLabel('Exit Clearances', exitBadge)} className="font-bold text-xs uppercase tracking-wider text-neutral-850 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2 flex items-center">
               <MailOpen size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Exit Clearances
+              <NavigationCountBadge badge={exitBadge} />
             </h3>
             <QueryError error={exitsQuery.error} title={hasExits ? 'Exit records could not be refreshed.' : 'Exit records could not be loaded.'}
               hasData={hasExits} onRetry={exitsQuery.refetch} retrying={exitsQuery.isFetching} />

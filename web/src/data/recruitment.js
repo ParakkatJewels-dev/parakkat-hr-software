@@ -32,7 +32,10 @@ export function useAddJob() {
       const { error } = await supabase.from('jobs').insert({ ...payload, title, status: 'Open' });
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['jobs'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['jobs'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }
 
@@ -46,6 +49,9 @@ export function useSetCandidateStage() {
       if (!data?.length) throw new Error('This candidate is no longer available to update. Refresh the list and check your access.');
       return data[0];
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['candidates'] }),
+    onSuccess: () => Promise.all([
+      qc.invalidateQueries({ queryKey: ['candidates'] }),
+      qc.invalidateQueries({ queryKey: ['section-counts'] }),
+    ]),
   });
 }

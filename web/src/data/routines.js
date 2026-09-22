@@ -81,7 +81,7 @@ export function useRoutineStats(from, to, { enabled = true, employeeIds } = {}) 
 
 function useRoutineCaches() {
   const qc = useQueryClient();
-  return () => Promise.all(['routine-items', 'routine-ticks', 'routine-sets', 'routine-day', 'routine-stats']
+  return () => Promise.all(['routine-items', 'routine-ticks', 'routine-sets', 'routine-day', 'routine-stats', 'section-counts']
     .map((key) => qc.invalidateQueries({ queryKey: [key] })));
 }
 

@@ -28,6 +28,9 @@ import { useAuth } from '../auth/AuthContext';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useUrlTab } from '../lib/useUrlTab';
+import { useSectionCounts } from '../data/sectionCounts';
+import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
+import { NavigationCountBadge } from './ui/CountBadge';
 import { paginationWindow } from '../lib/pagination';
 
 const TABS = [
@@ -1096,7 +1099,8 @@ export function SyncTab() {
 // ---------------------------------------------------------------------------
 
 export default function AttendanceAdmin() {
-  const { canAny } = usePermissions();
+  const { canAny, viewingAsEmployee } = usePermissions();
+  const counts = useSectionCounts({ enabled: canAny('device.manage'), selfOnly: viewingAsEmployee });
   const visible = TABS.filter((t) => !t.perm || canAny(t.perm));
   // In the URL, so a refresh comes back to the tab you were reading. Validated against the
   // tabs this user can actually see, so a link to one they lack permission for lands on the
@@ -1120,17 +1124,20 @@ export default function AttendanceAdmin() {
         </p>
       </div>
 
-      <div className="mobile-segmented flex flex-wrap gap-1.5">
+      <nav aria-label="Attendance setup views" className="mobile-segmented mobile-segmented-dense flex flex-wrap gap-1.5">
         {visible.map((t) => {
           const Icon = t.icon;
+          const badge = navigationScreenCount(`attendance-admin/${t.id}`, counts.data);
           return (
             <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}
+              aria-label={navigationCountLabel(t.label, badge)}
               className={`drawer-tab flex items-center gap-1.5 ${tab === t.id ? 'drawer-tab-active' : ''}`}>
               <Icon size={13} /> {t.label}
+              <NavigationCountBadge badge={badge} />
             </button>
           );
         })}
-      </div>
+      </nav>
 
       {tab === 'mapping' ? <MappingTab /> : null}
       {tab === 'shifts' ? <ShiftsTab /> : null}

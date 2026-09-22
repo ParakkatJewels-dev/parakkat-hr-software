@@ -53,7 +53,9 @@ test('section counts refresh once for a burst of queue, assignment and access ch
   live.status('SUBSCRIBED');
   live.invalidations.length = 0;
   for (const table of ['tickets', 'ticket_categories', 'tasks', 'task_assignees', 'leaves',
-    'leave_decisions', 'expenses', 'attendance_regularizations', 'departments', 'role_assignments']) {
+    'leave_decisions', 'expenses', 'attendance_regularizations', 'departments', 'role_assignments',
+    'notifications', 'goals', 'help_requests', 'routine_sets', 'routine_items', 'routine_ticks',
+    'onboarding', 'candidates', 'jobs', 'payroll_runs', 'biotime_employees', 'exits']) {
     live.handlers.get(table)({ eventType: 'UPDATE', new: { id: 'changed', user_id: 'me' } });
   }
   assert.equal(live.invalidations.length, 0);
@@ -66,7 +68,7 @@ test('section counts refresh once for a burst of queue, assignment and access ch
 test('a resolved ticket reduces the active navigation summary without loading its collection', async (t) => {
   const live = useLiveHarness(t);
   let unresolved = 2, reads = 0;
-  const observer = new QueryObserver(live.client, { queryKey: ['section-counts', 'me', false],
+  const observer = new QueryObserver(live.client, { queryKey: ['section-counts', 'me', false, 'navigation-v2'],
     staleTime: Infinity, queryFn: async () => { reads++; return { helpdesk: unresolved }; } });
   const unsubscribe = observer.subscribe(() => {});
   t.after(unsubscribe);
@@ -159,7 +161,10 @@ test('task notifications refresh newly granted assignments without a task row ev
   live.invalidations.length = 0;
   notify({ eventType: 'INSERT', new: { id: 'chat-1', type: 'message', ref_id: 'room-1' } });
   t.mock.timers.tick(1_000);
-  assert.deepEqual(live.invalidations, [{ queryKey: ['notifications'], refetchType: 'active' }],
+  assert.deepEqual(live.invalidations, [
+    { queryKey: ['notifications'], refetchType: 'active' },
+    { queryKey: ['section-counts'], refetchType: 'active' },
+  ],
     'other notifications do not reload task collections');
 });
 
