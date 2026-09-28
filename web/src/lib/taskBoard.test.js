@@ -408,6 +408,14 @@ test('the age limit is a real date, N days back', () => {
   assert.equal(Math.round((near - far) / 86400000), 364);
 });
 
+test('restored completed work gets a fresh visibility window without changing its saved status', () => {
+  const legacy = openOrRecentlyClosedFilter();
+  const recovery = openOrRecentlyClosedFilter(365, { includeRestored: true });
+  const cutoff = legacy.match(/created_at\.gte\.(\d{4}-\d{2}-\d{2})/)[1];
+  assert.equal(recovery, `${legacy},restored_at.gte.${cutoff}`);
+  assert.doesNotMatch(legacy, /restored_at/);
+});
+
 test('no value in the filter contains a space', () => {
   // The trap this formulation exists to avoid. Written the obvious way — as a positive list of the
   // open statuses — the filter carries "To Do" and "In Progress", and the query string serialises

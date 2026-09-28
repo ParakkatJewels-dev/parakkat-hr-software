@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useState, useCallback, useMemo } 
 import { supabase, passwordRecoveryCapture } from '../lib/supabaseClient';
 import { createAccessLoader } from '../lib/accessLoader';
 import { clearRecoveryUrl } from '../lib/passwordRecovery';
+import { signInWithEmail } from '../lib/login';
 
 export const AuthContext = createContext(null);
 
@@ -119,7 +120,7 @@ export function AuthProvider({ children }) {
   }, [session?.user?.id, session?.access_token, loadAccess]);
 
   const signIn = useCallback(
-    (email, password) => supabase.auth.signInWithPassword({ email: email.trim(), password }),
+    (email, password) => signInWithEmail(supabase.auth, email, password),
     []
   );
   const signOut = useCallback(() => supabase.auth.signOut(), []);

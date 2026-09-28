@@ -1,7 +1,7 @@
 // Named routines contain jobs that share a schedule, with completion recorded on each due date.
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, CheckSquare, Plus, Square, PenLine, Archive } from 'lucide-react';
+import { AlertTriangle, CheckSquare, Plus, Square, PenLine, Archive, Undo2 } from 'lucide-react';
 import { useRoutineSets, useRoutineDay, useRoutineStats, useSetRoutineTick,
   useCreateRoutineSet, useReplaceRoutineSet, useRetireRoutineSet } from '../data/routines';
 import { filterRoutineGroups, groupRoutineDay, routineScheduleLabel } from '../lib/routines';
@@ -27,6 +27,10 @@ const scopeOf = (employee) => ({ employeeId: employee?.id, entityId: employee?.e
   zoneId: employee?.zone_id, branchId: employee?.branch_id, deptId: employee?.department_id });
 const lastScheduledDay = (routine) => [routine.end_date, routine.retired_on,
   routine.frequency === 'once' ? routine.start_date : null].filter(Boolean).sort()[0] ?? null;
+const editableRoutine = (routine, today) => routine?.can_manage === true && !routine.replaced_by && !routine.retired_on
+  && (!lastScheduledDay(routine) || lastScheduledDay(routine) >= today);
+const routineDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '') && Number.isFinite(Date.parse(`${value}T12:00:00Z`))
+  && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value ? value : null;
 
 export default function TaskRoutine({ employees = [], employeesLoading = false, employeesError, onRetryEmployees }) {
   const today = useIstToday();
@@ -39,8 +43,10 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
   const defaultView = employee?.id ? 'mine' : seesTeam ? 'team' : 'manage';
   const view = requestedView === 'team' && seesTeam ? 'team' : requestedView === 'manage' && canDefine ? 'manage' : defaultView;
   const chooseView = (next) => setParams((previous) => { const copy = new URLSearchParams(previous); copy.set('routineView', next); return copy; }, { replace: true });
-  const [dayOverride, setDayOverride] = useState(null);
-  const day = dayOverride ?? today;
+  const day = routineDate(params.get('routineDate')) ?? today;
+  const setDay = (next) => setParams((previous) => { const copy = new URLSearchParams(previous);
+    if (next) copy.set('routineDate', next); else copy.delete('routineDate');
+    return copy; }, { replace: true });
   const sectionCounts = useSectionCounts({ selfOnly: viewingAsEmployee });
   // The shared queue counts today's unfinished jobs, never the historical date being inspected.
   const myRoutinesBadge = day === today ? navigationScreenCount('tasks/routine', sectionCounts.data) : null;
@@ -56,7 +62,8 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
   const [manageFrequency, setManageFrequency] = useState('');
   const [manageStatus, setManageStatus] = useState('active');
   const [manageOrg, setManageOrg] = useState({});
-  const [teamSection, setTeamSection] = useState('statistics');
+  const teamSection = params.get('routineSection') === 'daily' ? 'daily' : 'statistics';
+  const setTeamSection = (next) => setParams((previous) => { const copy = new URLSearchParams(previous); copy.set('routineSection', next); return copy; }, { replace: true });
   const ownDay = useRoutineDay(day, { employeeId: employee?.id, enabled: Boolean(employee?.id) && view === 'mine' });
   const teamDay = useRoutineDay(day, { enabled: seesTeam && view === 'team' && teamSection === 'daily' });
   const stats = useRoutineStats(range.from, range.to, { enabled: seesTeam && view === 'team' && teamSection === 'statistics' && !invalidRange });
@@ -69,6 +76,7 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
   const eligibleEmployees = employees.filter((person) => person.status === 'Active'
     && (!viewingAsEmployee || person.id === employee?.id) && can('task.create', scopeOf(person)));
   const visibleSets = (sets.data ?? []).filter((routine) => (seesTeam || routine.employee_id === employee?.id)
+    && (manageStatus !== 'active' || !routine.replaced_by)
     && (!manageFrequency || routine.frequency === manageFrequency)
     && (!manageOrg.designationId || routine.employee?.designation_id === manageOrg.designationId)
     && (!manageOrg.departmentId || routine.employee?.department_id === manageOrg.departmentId)
@@ -81,10 +89,15 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
   const save = async (payload) => {
     if (editing?.id) await replace.mutateAsync(payload);
     else await create.mutateAsync(payload);
-    setMessage(editing?.id ? 'Future changes saved. Earlier completion history is preserved.' : `Routine assigned to ${payload.employeeIds.length} employee${payload.employeeIds.length === 1 ? '' : 's'}.`);
+    setMessage(editing?.id ? `Routine saved. Changes begin ${payload.schedule.start_date === today ? 'today' : `on ${payload.schedule.start_date}`}; earlier completion history is preserved.` : `Routine assigned to ${payload.employeeIds.length} employee${payload.employeeIds.length === 1 ? '' : 's'}.`);
     setEditing(null);
   };
   const beginEdit = (routine = {}) => { create.reset(); replace.reset(); setMessage(''); setEditing(routine); };
+  const editableSets = viewingAsEmployee ? [] : (sets.data ?? []).filter((routine) => editableRoutine(routine, today));
+  const editDayRoutine = (routineId, addJob = false) => {
+    const routine = editableSets.find((item) => item.id === routineId);
+    if (routine) beginEdit({ ...routine, addJob });
+  };
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-neutral-900 dark:text-white">Routines</h2>
       <p className="mt-1 text-sm text-neutral-500">Scheduled jobs, grouped into routines. Completion stays with each due date.</p></div>
@@ -98,7 +111,7 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
     </nav>
     {message && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{message}</p>}
     {setTick.error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{humanDbError(setTick.error)}</p>}
-    {editing && canDefine && <RoutineForm key={editing.id ?? 'new'} initial={editing.id ? editing : undefined} employees={eligibleEmployees} today={today}
+    {editing && canDefine && <RoutineForm key={`${editing.id ?? 'new'}:${Boolean(editing.addJob)}`} initial={editing.id ? editing : undefined} employees={eligibleEmployees} today={today}
       employeesLoading={employeesLoading} employeesError={employeesError} onRetryEmployees={onRetryEmployees}
       onSave={save} onClose={() => setEditing(null)} busy={create.isPending || replace.isPending} error={humanDbError(create.error || replace.error)} />}
     {view === 'team' && seesTeam && <nav className="flex flex-wrap gap-2" aria-label="Team routine view">
@@ -106,19 +119,21 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
       <button type="button" className={btnClass(teamSection === 'daily' ? 'primary' : 'ghost')} aria-pressed={teamSection === 'daily'} onClick={() => setTeamSection('daily')}>Daily checklists</button>
     </nav>}
     {(view === 'mine' || (view === 'team' && teamSection === 'daily')) && <div className="flex flex-wrap items-end gap-3">
-      <label className="space-y-1 text-sm"><span>Routine date</span><input type="date" required className={INPUT} value={day} onChange={(event) => setDayOverride(event.target.value || null)} /></label>
-      <button type="button" className={btnClass('ghost')} onClick={() => setDayOverride(null)}>Today</button>
+      <label className="space-y-1 text-sm"><span>Routine date</span><input type="date" required className={INPUT} value={day} onChange={(event) => setDay(event.target.value || null)} /></label>
+      <button type="button" className={btnClass('ghost')} onClick={() => setDay(null)}>Today</button>
       <p className="pb-2 text-xs text-neutral-500">{day > today ? 'Upcoming jobs can be completed on their due date.' : day < today ? 'Past completions remain in history. Authorized managers can correct them.' : 'Tick each job when it is complete.'}</p>
     </div>}
-    {view === 'mine' && employee?.id && <RoutineDayList title="My routines" rows={myRows} day={day} today={today} query={ownDay} onTick={setTick} viewingAsEmployee={viewingAsEmployee} />}
+    {view === 'mine' && employee?.id && <RoutineDayList title="My routines" rows={myRows} day={day} today={today} query={ownDay} onTick={setTick} viewingAsEmployee={viewingAsEmployee}
+      editableIds={editableSets.map((item) => item.id)} onEditRoutine={editDayRoutine} />}
     {view === 'team' && seesTeam && <>
-      {teamSection === 'daily' ? <RoutineDayList title="Team routines" rows={teamDay.data ?? []} day={day} today={today} query={teamDay} onTick={setTick} showEmployee viewingAsEmployee={viewingAsEmployee} />
+      {teamSection === 'daily' ? <RoutineDayList title="Team routines" rows={teamDay.data ?? []} day={day} today={today} query={teamDay} onTick={setTick} showEmployee viewingAsEmployee={viewingAsEmployee}
+        editableIds={editableSets.map((item) => item.id)} onEditRoutine={editDayRoutine} />
         : <RoutineStatistics rows={stats.data ?? []} {...range} today={today} onRangeChange={setRange} invalidRange={invalidRange}
           isLoading={stats.isLoading} error={stats.error} onRetry={stats.refetch} />}
     </>}
     {view === 'manage' && canDefine && <section className="premium-card space-y-4" aria-label="Manage routine assignments">
       <h3 className="text-base font-bold">Assigned routines</h3>
-      <p className="text-sm text-neutral-500">Each row is one employee’s routine. Changes to its jobs or schedule begin on a future date.</p>
+      <p className="text-sm text-neutral-500">Add jobs or edit dates within an assigned routine. The active list shows its latest schedule; earlier versions remain in All schedules.</p>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="space-y-1 text-sm"><span>Search assigned routines</span><input type="search" className={INPUT} value={manageSearch} onChange={(event) => setManageSearch(event.target.value)} placeholder="Routine, employee or designation" /></label>
         <label className="space-y-1 text-sm"><span>Frequency</span><select className={INPUT} value={manageFrequency} onChange={(event) => setManageFrequency(event.target.value)}><option value="">All frequencies</option>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -131,14 +146,18 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
             : <div className="divide-y divide-neutral-200 dark:divide-neutral-800">{managePager.slice.map((routine) => <article key={routine.id} className="flex flex-wrap items-start justify-between gap-3 py-4">
               <div className="min-w-0 flex-1"><h4 className="break-words text-sm font-bold">{routine.title}</h4><p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{routine.employee?.full_name ?? 'Employee'} · {routine.employee?.employee_code}</p>
                 <p className="mt-1 text-xs text-neutral-500">{routineScheduleLabel(routine)} · {routine.jobs?.filter((job) => job.is_active !== false).length ?? 0} jobs</p>
-                {routine.jobs?.some((job) => job.is_active === false) && <p className="mt-1 text-xs text-neutral-500">Retired jobs remain in completion history.</p>}
+                {routine.jobs?.some((job) => job.is_active === false && job.deleted_at) && <p className="mt-1 text-xs text-neutral-500">{routine.jobs.filter((job) => job.is_active === false && job.deleted_at).length} deleted jobs.{editableRoutine(routine, today) ? ' Edit routine to restore them.' : ''}</p>}
+                {routine.jobs?.some((job) => job.is_active === false && !job.deleted_at) && <p className="mt-1 text-xs text-neutral-500">Retired jobs remain in completion history.</p>}
                 <p className="mt-1 text-xs text-neutral-500">{routine.start_date}{lastScheduledDay(routine) ? ` to ${lastScheduledDay(routine)}` : ' onwards'}{lastScheduledDay(routine) === today ? ' · Ends today' : ''}</p>
                 {routine.detail && <p className="mt-2 break-words text-sm text-neutral-500">{routine.detail}</p>}</div>
-              {routine.can_manage === true && !viewingAsEmployee && !routine.replaced_by && !routine.retired_on
-                && (!lastScheduledDay(routine) || lastScheduledDay(routine) > today) && <div className="flex flex-wrap gap-2">
+              {editableRoutine(routine, today) && !viewingAsEmployee && <div className="flex flex-wrap gap-2">
+                <button type="button" className={btnClass('ghost')} disabled={(routine.jobs?.filter((job) => job.is_active !== false).length ?? 0) >= 100} onClick={() => beginEdit({ ...routine, addJob: true })}><Plus size={15} />Add jobs</button>
                 <button type="button" className={btnClass('ghost')} onClick={() => beginEdit(routine)}><PenLine size={15} />Edit routine</button>
                 <button type="button" className={btnClass('ghost')} onClick={() => { retire.reset(); setRetiring(routine); }}><Archive size={15} />Retire routine</button>
               </div>}
+              {!editableRoutine(routine, today) && routine.can_manage === true && !routine.replaced_by && !viewingAsEmployee
+                && routine.jobs?.some((job) => job.is_active === false && job.deleted_at) && <button type="button" className={btnClass('ghost')}
+                  onClick={() => beginEdit({ ...routine, resume: true })}><Undo2 size={15} />Restore deleted jobs</button>}
             </article>)}</div>}
       <div className="paged-collection"><Pagination {...managePager} noun="routine assignments" sizes={[25, 50, 100]} /></div>
     </section>}
@@ -155,7 +174,8 @@ function RoutineError({ error, onRetry }) {
     <span>{humanDbError(error)} <button type="button" className="underline" onClick={onRetry}>Retry routines</button></span></div>;
 }
 
-export function RoutineDayList({ title, rows, day, today, query, onTick, showEmployee = false, viewingAsEmployee = false }) {
+export function RoutineDayList({ title, rows, day, today, query, onTick, showEmployee = false, viewingAsEmployee = false,
+  editableIds = [], onEditRoutine }) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const [frequency, setFrequency] = useState('');
@@ -174,18 +194,23 @@ export function RoutineDayList({ title, rows, day, today, query, onTick, showEmp
     {query.isLoading ? <SkeletonRows rows={5} avatar={false} label="Loading scheduled routines" />
       : query.error ? <RoutineError error={query.error} onRetry={query.refetch} />
         : filtered.length === 0 ? <p className="premium-card py-8 text-center text-sm text-neutral-500">{groups.length ? 'No routines match these filters.' : `No routines are due on ${day}.`}</p>
-          : filtered && pager.slice.map((group) => <RoutineJobCard key={`${group.employeeId}:${group.routineId}`} group={group} day={day} today={today} onTick={onTick} showEmployee={showEmployee} viewingAsEmployee={viewingAsEmployee} />)}
+          : filtered && pager.slice.map((group) => <RoutineJobCard key={`${group.employeeId}:${group.routineId}`} group={group} day={day} today={today} onTick={onTick} showEmployee={showEmployee} viewingAsEmployee={viewingAsEmployee}
+            onEdit={editableIds.includes(group.routineId) && group.canManage && onEditRoutine ? (addJob) => onEditRoutine(group.routineId, addJob) : undefined} />)}
     <Pagination {...pager} noun={showEmployee ? 'team routines' : 'my routines'} sizes={[10, 25, 50]} />
   </section>;
 }
 
-export function RoutineJobCard({ group, day, today, onTick, showEmployee, viewingAsEmployee }) {
+export function RoutineJobCard({ group, day, today, onTick, showEmployee, viewingAsEmployee, onEdit }) {
   const pager = usePagination(group.list, 10, null, `${day}:${group.routineId}`);
   return <article className="premium-card space-y-3">
     <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><h4 className="break-words text-sm font-bold">{group.routineName}</h4>
       {showEmployee && <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{group.employee?.full_name ?? 'Employee'} · {group.employee?.employee_code}</p>}
       <p className="mt-1 text-xs text-neutral-500">{routineScheduleLabel(group.schedule)} · {day}</p></div>
       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${group.complete ? 'bg-brand-soft text-brand-ink' : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-300'}`} aria-label={`${group.done} of ${group.total} jobs completed`}>{group.done}/{group.total}</span></div>
+    {onEdit && !viewingAsEmployee && <div className="flex flex-wrap gap-2">
+      <button type="button" className={btnClass('ghost')} disabled={group.total >= 100} onClick={() => onEdit(true)}><Plus size={15} />Add jobs</button>
+      <button type="button" className={btnClass('ghost')} onClick={() => onEdit(false)}><PenLine size={15} />Edit routine</button>
+    </div>}
     <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">{pager.slice.map((item) => {
       const Icon = item.done ? CheckSquare : Square;
       const enabled = item.can_tick === true && (!viewingAsEmployee || day === today);

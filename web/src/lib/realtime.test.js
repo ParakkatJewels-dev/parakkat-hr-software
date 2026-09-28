@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { QueryClient, QueryObserver } from '@tanstack/query-core';
 import { messageDeliveryStatus } from './messageReceipts.js';
+import { employeeRoutineStatus } from './routineStatus.js';
 
 const stubs = {
   react: 'export const useEffect = effect => { globalThis.liveTest.cleanup = effect(); };',
@@ -81,6 +82,29 @@ test('a resolved ticket reduces the active navigation summary without loading it
   assert.deepEqual(observer.getCurrentResult().data, { helpdesk: 1 });
   assert.equal(reads, 2);
   assert.equal(live.client.getQueryCache().findAll({ queryKey: ['tickets'] }).length, 0);
+});
+
+test('task delete and restore events refresh active work, trash and reminder counts together', async (t) => {
+  const live = useLiveHarness(t);
+  let deleted = false;
+  const active = new QueryObserver(live.client, { queryKey: ['tasks'], staleTime: Infinity, queryFn: async () => deleted ? [] : [{ id: 'task-1' }] });
+  const trash = new QueryObserver(live.client, { queryKey: ['deleted-tasks'], staleTime: Infinity, queryFn: async () => deleted ? [{ id: 'task-1' }] : [] });
+  t.after(active.subscribe(() => {}));
+  t.after(trash.subscribe(() => {}));
+  await settle();
+  live.status('SUBSCRIBED');
+  for (const next of [true, false]) {
+    deleted = next;
+    live.invalidations.length = 0;
+    live.handlers.get('tasks')({ eventType: 'UPDATE', new: { id: 'task-1', deleted_at: deleted ? '2026-09-28T10:00:00Z' : null } });
+    t.mock.timers.tick(1000);
+    await settle();
+    assert.equal(active.getCurrentResult().data.length, deleted ? 0 : 1);
+    assert.equal(trash.getCurrentResult().data.length, deleted ? 1 : 0);
+    for (const key of ['section-counts', 'notifications', 'task-checklist', 'task-comments', 'task-attachments']) {
+      assert.equal(live.invalidations.filter(value => value.queryKey?.[0] === key).length, 1, key);
+    }
+  }
 });
 
 test('recipient receipt UPDATEs change sender ticks before refetching the inbox', (t) => {
@@ -222,6 +246,27 @@ test('routine assignment and completion events refresh Home and period statistic
   for (const key of ['routine-day', 'routine-sets', 'routine-stats', 'employees']) {
     assert.ok(live.invalidations.some(entry => entry.queryKey[0] === key));
   }
+});
+
+test('heads see employee completion and reopening update through the routine statistics subscription', async (t) => {
+  const live = useLiveHarness(t);
+  let completed = 1;
+  const observer = new QueryObserver(live.client, { queryKey: ['routine-stats', '2026-09-28', '2026-09-28', null],
+    staleTime: Infinity, queryFn: async () => [{ employee_id: 'team-member', scheduled: 2, completed }] });
+  t.after(observer.subscribe(() => {}));
+  await settle();
+  live.status('SUBSCRIBED');
+  assert.equal(employeeRoutineStatus(observer.getCurrentResult().data)[0].status, 'In progress');
+  completed = 2;
+  live.handlers.get('routine_ticks')({ eventType: 'INSERT', new: { id: 'final-tick' } });
+  t.mock.timers.tick(1000);
+  await settle();
+  assert.equal(employeeRoutineStatus(observer.getCurrentResult().data)[0].status, 'Completed');
+  completed = 1;
+  live.handlers.get('routine_ticks')({ eventType: 'DELETE', old: { id: 'final-tick' } });
+  t.mock.timers.tick(1000);
+  await settle();
+  assert.equal(employeeRoutineStatus(observer.getCurrentResult().data)[0].status, 'In progress');
 });
 
 test('hidden realtime changes mark mounted and cached screens stale without fetching until visible', async (t) => {

@@ -12,16 +12,18 @@ import { mergeConversationReceipts } from './messageReceipts';
 const CHAT_TABLES = new Set(['messages', 'conversations', 'conversation_members']);
 const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']];
 const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['section-counts']];
+const TASK_KEYS = [['tasks'], ['deleted-tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],
+  ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
 // a staff transfer or a permission change can alter the queue without changing its request rows.
 const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['ticket-access'],
-  ['ticket-categories'], ['tickets'], ['notification-ref-statuses'], ...ROUTINE_KEYS];
+  ['ticket-categories'], ['tickets'], ['notification-ref-statuses'], ...ROUTINE_KEYS, ...TASK_KEYS];
 
 // public table → query-key prefixes to invalidate when it changes. A prefix invalidates every
 // query whose key starts with it (e.g. ['attendance'] covers ['attendance','day',date]).
 const TABLE_KEYS = {
   notifications: [['notifications'], ['section-counts']],
-  tasks: [['section-counts'], ['tasks'], ['notification-ref-statuses']],
+  tasks: [...TASK_KEYS, ['help-requests']],
   task_assignees: [['tasks'], ['section-counts'], ['notification-ref-statuses']],
   goals: [['goals'], ['section-counts']],
   // A help request is answered by somebody else, on another screen, and the person who raised it is
@@ -201,7 +203,7 @@ export function useRealtimeSync() {
         // Adding a secondary assignee emits a task notification without updating the task row.
         // Refresh newly granted tasks when that notification arrives, using the same burst batch.
         const relatedKeys = table === 'notifications' && payload.new?.type === 'task'
-          ? [...keys, ...TABLE_KEYS.tasks]
+          ? [...keys, ['tasks'], ['notification-ref-statuses']]
           : keys;
         queueInvalidation(relatedKeys, touchesCurrentAccess(table, payload));
       });

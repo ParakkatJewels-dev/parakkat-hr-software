@@ -71,18 +71,36 @@ test('bulk assignment keeps the 1000-person limit visible and never offers an ov
   assert.match(html, /Assign up to 1,000 employees at a time/);
 });
 
-test('future edits keep one assignee and all jobs, with schedule validation aligned to the server', () => {
+test('edits allow today and keep one assignee and all jobs, with history guidance', () => {
   const html = render(RoutineForm, { props: { today, initial: { id: 'routine-1', title: 'Opening checks', employee_id: 'employee-1', employee: person(1),
     frequency: 'monthly', month_day: 31, start_date: addDays(today, -10), jobs: [{ title: 'Unlock' }, { title: 'Count stock' }, { title: 'Retired check', is_active: false }] }, onSave() {}, onClose() {} } });
-  assert.match(html, /Save future changes/);
-  assert.match(html, /Completed work and earlier schedules stay in history/);
-  assert.match(html, new RegExp(`min="${addDays(today, 1)}"`));
+  assert.match(html, /Save routine/);
+  assert.match(html, /earlier completion history is preserved/);
+  assert.match(html, new RegExp(`min="${today}"`));
   assert.match(html, /value="Count stock"/);
   assert.doesNotMatch(html, /Retired check/);
   assert.match(html, /Shorter months use their last day/);
   assert.match(html, /Other employees keep their existing routines/);
   assert.doesNotMatch(html, /Search employees/);
-  assert.doesNotMatch(html, /disabled=""[^>]*>Save future changes/);
+  assert.doesNotMatch(html, /disabled=""[^>]*>Save routine/);
+});
+
+test('adding jobs opens an existing checklist with a new row without creating a separate routine', () => {
+  const html = render(RoutineForm, { props: { today, initial: { id: 'routine-1', title: 'Opening checks', employee_id: 'employee-1', employee: person(1),
+    addJob: true, frequency: 'once', start_date: today, jobs: [{ id: 'job-1', title: 'Unlock' }] }, onSave() {}, onClose() {} } });
+  assert.match(html, /value="Unlock"/);
+  assert.match(html, /Job 2 name/);
+  assert.match(html, /type="date" min="[^"]+"[^>]*value="[^"]+"/);
+  assert.match(html, /Jobs already completed today stay checked/);
+  assert.match(html, /type="submit" disabled=""/);
+  assert.doesNotMatch(html, /Assign routine to/);
+});
+
+test('adding jobs to an interval routine defaults to its next due date without shifting cadence', () => {
+  const html = render(RoutineForm, { props: { today, initial: { id: 'routine-1', title: 'Stock review', employee_id: 'employee-1', employee: person(1),
+    addJob: true, frequency: 'interval', interval_days: 3, start_date: addDays(today, -2), jobs: [{ id: 'job-1', title: 'Count stock' }] }, onSave() {}, onClose() {} } });
+  assert.match(html, new RegExp(`<input[^>]*type="date"[^>]*min="${today}"[^>]*value="${addDays(today, 1)}"`));
+  assert.match(html, /suggested date keeps the existing repeat schedule/);
 });
 
 test('daily checklists page whole routines and their jobs without hiding full progress', () => {
@@ -134,14 +152,29 @@ test('the Home team link opens statistics first and self-only readers cannot act
   assert.doesNotMatch(own, /Team overview/);
 });
 
-test('management offers future changes only for live server-authorized assignments and exposes organization filters', () => {
+test('management allows editing routines due today, hides replaced copies, and respects server authority', () => {
   const routine = { id: 'routine-1', title: 'Current opening', employee_id: 'employee-1', employee: person(1), frequency: 'daily', start_date: today, jobs: [job(0)], can_manage: true };
   const rows = [routine, { ...routine, id: 'closing', title: 'Ending routine', retired_on: today },
-    { ...routine, id: 'replaced', title: 'Earlier version', replaced_by: 'routine-1' }, { ...routine, id: 'denied', can_manage: undefined }];
+    { ...routine, id: 'replaced', title: 'Earlier version', replaced_by: 'routine-1' }, { ...routine, id: 'denied', can_manage: undefined },
+    { ...routine, id: 'once', title: 'One-time check', frequency: 'once', end_date: today }];
   const html = render(TaskRoutine, { route: '/tasks/routine?routineView=manage', auth: { isSuperAdmin: true }, seeds: [[['routine-sets', 'all', false], rows]] });
-  assert.equal((html.match(/Edit routine<\/button>/g) ?? []).length, 1);
-  assert.equal((html.match(/Retire routine<\/button>/g) ?? []).length, 1);
+  assert.equal((html.match(/Edit routine<\/button>/g) ?? []).length, 2);
+  assert.equal((html.match(/Add jobs<\/button>/g) ?? []).length, 2);
+  assert.equal((html.match(/Retire routine<\/button>/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /Earlier version/);
   for (const label of ['Ends today', 'All designations', 'All departments', 'All branches']) assert.ok(html.includes(label), label);
+});
+
+test('heads can open dashboard daily status for the selected date and invalid dates fall back to today', () => {
+  const selected = addDays(today, -1);
+  const manager = render(TaskRoutine, { route: `/tasks/routine?routineView=team&routineSection=daily&routineDate=${selected}`,
+    auth: { isSuperAdmin: true }, seeds: [[['routine-day', selected, 'all'], [job(0)]]] });
+  assert.match(manager, new RegExp(`Team routines for ${selected}`));
+  assert.match(manager, /Untick Opening job 0/);
+  for (const invalid of ['not-a-date', '2026-02-30']) {
+    const html = render(TaskRoutine, { route: `/tasks/routine?routineView=team&routineSection=daily&routineDate=${invalid}`, auth: { isSuperAdmin: true } });
+    assert.match(html, new RegExp(`Team routines for ${today}`));
+  }
 });
 
 test('routine read errors offer a retry and avoid declaring an empty schedule', () => {
@@ -149,4 +182,25 @@ test('routine read errors offer a retry and avoid declaring an empty schedule', 
   assert.match(html, /Routine connection unavailable/);
   assert.match(html, /Retry routines/);
   assert.doesNotMatch(html, /No routines are due/);
+});
+
+test('only the authorized latest archived routine exposes deleted-job restoration', () => {
+  const routine = { id: 'routine-1', title: 'Retired opening', employee_id: 'employee-1', employee: person(1), frequency: 'daily',
+    start_date: addDays(today, -10), retired_on: today, can_manage: true,
+    jobs: [job(0), { id: 'deleted', title: 'Deleted check', is_active: false, deleted_at: `${today}T00:00:00Z` }] };
+  const rows = [routine, { ...routine, id: 'old', replaced_by: routine.id }, { ...routine, id: 'denied', can_manage: false },
+    { ...routine, id: 'legacy', jobs: [{ id: 'legacy-job', is_active: false, title: 'Legacy retired job' }] }];
+  const html = render(TaskRoutine, { route: '/tasks/routine?routineView=manage', auth: { isSuperAdmin: true }, seeds: [[['routine-sets', 'all', false], rows]] });
+  assert.equal((html.match(/Restore deleted jobs<\/button>/g) ?? []).length, 1);
+  assert.match(html, /Retired jobs remain in completion history/);
+  assert.doesNotMatch(html, /Edit routine<\/button>/);
+});
+
+test('restoring from an archived routine explains that saving resumes its schedule', () => {
+  const html = render(RoutineForm, { props: { today, initial: { id: 'routine-1', resume: true, title: 'Opening', employee_id: 'employee-1',
+    frequency: 'daily', start_date: addDays(today, -10), retired_on: addDays(today, -2),
+    jobs: [job(0), { id: 'deleted', title: 'Deleted check', is_active: false, deleted_at: `${today}T00:00:00Z` }] }, onSave() {}, onClose() {} } });
+  assert.match(html, /Saving resumes this routine from that date/);
+  assert.match(html, /aria-label="Restore job Deleted check"/);
+  assert.match(html, new RegExp(`<input[^>]*type="date"[^>]*min="${today}"[^>]*value="${today}"`));
 });

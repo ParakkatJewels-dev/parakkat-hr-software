@@ -87,7 +87,7 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
     setStatus: (id, status) => update.mutate({ id, status }),
     busy: update.isPending,
     canUpdate: () => true, // myBoard only includes work assigned to this employee.
-    canManage: (task) => isSelfSet(task, me),
+    canManage: (task) => !task.parent_task_id && isSelfSet(task, me),
     remove: (task) => { remove.reset(); setConfirmDelete(task); },
   };
 
@@ -177,13 +177,14 @@ export default function TaskTodo({ tasks = [], loading, loadError, focusId, rowP
         </section>
       )}
       {confirmDelete && (
-        <ConfirmDialog title={`Delete “${confirmDelete.title}”?`} confirmLabel="Delete task" busy={remove.isPending} error={remove.error?.message}
+        <ConfirmDialog title={`Delete “${confirmDelete.title}”?`} confirmLabel="Delete task" busy={remove.isPending} error={humanDbError(remove.error, 'tasks')}
           onCancel={() => { remove.reset(); setConfirmDelete(null); }}
           onConfirm={async () => {
             try { await remove.mutateAsync(confirmDelete.id); setConfirmDelete(null); }
             catch { /* shown in the dialog */ }
           }}>
-          <p>This task and its subtasks will be removed for everyone assigned to it. This cannot be undone.</p>
+          <p>This task and its subtasks will be removed from everyone’s task list. You can restore them from Deleted tasks.</p>
+          <p>Its checklist, comments and attachments will be kept.</p>
         </ConfirmDialog>
       )}
     </div>

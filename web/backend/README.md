@@ -164,7 +164,8 @@ for Department Head, Employee and Entity Admin scenarios. These browser writes s
 
 ## Named routines and completion history
 
-Apply `0140_named_scheduled_routines.sql` before deploying the matching frontend. In
+Apply `0140_named_scheduled_routines.sql`, `0154_routine_edits.sql` and
+`0156_routine_job_trash.sql` before deploying the matching frontend. In
 **Tasks → Routine**, managers create a named routine containing multiple jobs with one shared
 schedule, then assign it to selected employees within their permission scope.
 
@@ -177,9 +178,25 @@ schedule, then assign it to selected employees within their permission scope.
 - Employees complete today's jobs. Managers with scoped task-update access can correct earlier
   due dates. Future or non-due completions are rejected, and the server records the owner, actor
   and completion time.
-- Editing creates a replacement effective tomorrow or later. Retirement ends future occurrences
-  after today. Previous schedules, jobs and legitimate completion ticks remain available for
-  historical reporting. Completion rates count individual jobs within the selected date range.
+- Use **Add jobs** on an assigned routine or checklist to extend it without creating a separate
+  routine. Editing can take effect today or later, including a one-time routine due today.
+  Upcoming routines are updated in place; established schedules retain an earlier version for
+  history. The active management list shows only the latest version of each assignment.
+- Existing job IDs accompany edits so today's completed jobs keep their original completion
+  record, actor and time. Adding or reordering jobs is allowed today. Removing or changing a job
+  already completed today requires a future effective date. Moving an upcoming replacement
+  cannot erase completions on its predecessor. Retirement ends future occurrences after today.
+  Historical completion rates retain the schedule and job counts that applied on those dates.
+- In the routine editor, **Delete** moves a saved job to **Deleted jobs**. **Restore job** adds it
+  back; **Save** commits either change. Deleted jobs remain available across schedule versions,
+  while earlier completion history stays unchanged. A routine must retain at least one active
+  job; use **Retire** to stop the whole routine. Restoring jobs on an archived routine resumes it
+  from the selected effective date. Jobs physically removed before this migration cannot be
+  recovered through this feature.
+- Home shows each employee's **Not started**, **In progress**, or **Completed** status, combining
+  all routines due today. Heads and higher roles see only their permitted team, with unfinished
+  employees first and a link to the full daily checklist. Existing realtime updates refresh the
+  dashboard after ticks and reopened jobs. These status updates do not send notifications.
 - Legacy routine history has no reliable activation/retirement dates. Expected and missed-job
   rates therefore start at rollout; earlier recorded completions remain visible as unscored
   history. Invalid legacy owner/future ticks are retained privately for audit.
@@ -189,6 +206,29 @@ history checks. For browser checks, run `npm run qa:browser` and open
 `http://127.0.0.1:5174/?qa-role=dept_head&qa-routines#/tasks/routine` or
 `http://127.0.0.1:5174/?qa-role=employee&qa-routines#/dashboard`.
 The QA role picker supports manager/admin comparisons; fixture writes stay in memory.
+
+## Task deletion and recovery
+
+Apply `0155_recoverable_tasks.sql` before deploying the matching frontend; apply all pending
+migrations in order. **Delete** moves a task and its active subtasks into **Tasks → Deleted tasks**.
+**Restore task** restores that deletion batch with its original status, dates, comments, files,
+assignees and checklist progress. Subtasks deleted separately stay deleted, and a deleted parent
+must be restored before a separately deleted child. Restored older completed tasks return to the
+board's recent-history window without changing their original completion date.
+
+Deletion and restoration require the existing scoped task-management permission for every
+affected task, or ownership of a self-created, self-assigned personal root task. Deleted tasks
+leave operational lists, queue counts and task reminders; editing their content is blocked.
+Records stay available for restoration with no automatic purge. Realtime updates refresh both
+active and deleted lists. Direct permanent deletion by authenticated clients is disabled, and
+the frontend never falls back to permanent deletion if the recovery migration is missing.
+Previously permanently deleted tasks need a backup; this migration cannot recreate them.
+
+The backend suite covers permissions, batch recovery, child tasks, content protection, counters,
+notifications and concurrent writes. For an isolated browser check, run `npm run qa:browser`
+in `web` and open
+`http://127.0.0.1:5174/?qa-role=dept_head&qa-task-trash&qa-routines#/tasks/board`.
+All fixture changes stay in memory.
 
 ## Navigation section counts
 

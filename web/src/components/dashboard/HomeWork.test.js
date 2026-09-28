@@ -93,6 +93,30 @@ test('manager Home totals weight scheduled jobs and employees cannot see the tea
   assert.equal(render(RoutineOverview, seeds), '');
 });
 
+test('heads see employee status across all due routines, with incomplete employees first and exact team totals', () => {
+  const people = Array.from({ length: 7 }, (_, index) => ({ employee_id: `person-${index}`,
+    employee: { full_name: `Employee ${index}` }, scheduled: 2, completed: index === 0 ? 0 : 2, pending: index === 0 ? 2 : 0 }));
+  people.push({ employee_id: 'person-1', employee: { full_name: 'Employee 1' }, scheduled: 3, completed: 0, pending: 3 });
+  const html = render(RoutineOverview, [[['routine-stats', istToday(), istToday(), null], people]], {
+    permissions: [{ permission: 'task.read', scope_type: 'department', scope_id: 'department-1' }],
+  });
+  assert.match(html, /5 employees completed · 1 in progress · 1 not started/);
+  assert.match(html, /2 of 5 jobs completed/);
+  assert.match(html, /View all 7 employee statuses/);
+  assert.match(html, /Not started/);
+  assert.match(html, /In progress/);
+  assert.ok(html.indexOf('Employee 0') < html.indexOf('Employee 1'));
+  assert.equal((html.match(/<li\b/g) ?? []).length, 5);
+  assert.doesNotMatch(html, /Employee 6/);
+});
+
+test('routine status query failures stay visible to managers and never imply that staff are finished', () => {
+  const html = render(RoutineOverview, [[['routine-stats', istToday(), istToday(), null], new Error('Status unavailable')]], { isSuperAdmin: true });
+  assert.match(html, /role="alert"/);
+  assert.match(html, /Status unavailable/);
+  assert.doesNotMatch(html, /employees completed|not started/);
+});
+
 test('Home keeps the exact task count while showing five readable rows and protecting incomplete subtasks', () => {
   const tasks = Array.from({ length: 8 }, (_, i) => ({ id: `task-${i}`, employee_id: i === 7 ? 'other' : 'self', title: `My fixture task ${i}`, status: 'To Do', priority: 'Medium', due_date: '2026-09-12',
     checklist: i === 0 ? [{ id: 'step', completed_at: null, completed_by: null }] : [] }));

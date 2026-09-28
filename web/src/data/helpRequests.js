@@ -7,6 +7,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
+import { withSchemaFallback } from '../lib/pendingMigration';
 
 const SELECT = `
   id, status, title, description, priority, due_date, created_at, decided_at, decision_note, task_id,
@@ -17,8 +18,9 @@ const SELECT = `
   preferred:employees!help_requests_preferred_employee_id_fkey(id, full_name, employee_code),
   assignee:employees!help_requests_assigned_employee_id_fkey(id, full_name, employee_code),
   decider:employees!help_requests_decided_by_fkey(id, full_name),
-  task:tasks!help_requests_task_id_fkey(id, status, due_date)
+  task:tasks!help_requests_task_id_fkey(id, status, due_date, deleted_at)
 `;
+const LEGACY_SELECT = SELECT.replace(', deleted_at)', ')');
 
 /**
  * Every request this person is either side of. RLS returns both ends, so the split into "asked"
@@ -36,13 +38,19 @@ export function useHelpRequests({ enabled = true } = {}) {
       //
       // The same shape as the task board's own window (CLOSED_TASK_WINDOW_DAYS in taskBoard.js).
       const since = new Date(Date.now() - 365 * 86_400_000).toISOString();
-      return fetchCollection(() => supabase
+      const read = (fields) => () => fetchCollection(() => supabase
         .from('help_requests')
-        .select(SELECT)
+        .select(fields)
         // Anything still Pending stays visible however old it is; only settled requests age out.
         .or(`status.eq.Pending,created_at.gte.${since}`)
         .order('created_at', { ascending: false })
         .order('id'));
+      return withSchemaFallback(read(SELECT), (error) => {
+        // A staged task-recovery rollout must not hide the request queue. Only the new missing
+        // column permits the legacy read; unrelated schema/access/network errors stay visible.
+        if (!/\bdeleted_at\b/.test(`${error.message ?? ''} ${error.details ?? ''}`)) throw error;
+        return read(LEGACY_SELECT)();
+      });
     },
   });
 }

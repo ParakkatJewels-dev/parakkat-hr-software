@@ -22,6 +22,8 @@ import ProfileDrawer from './EmployeeProfile';
 import GrantAccessPanel, { grantableRoles, randomPassword } from './GrantAccessPanel';
 import { useAuth } from '../auth/AuthContext';
 import { useGrantAppAccess } from '../data/admin';
+import { loginHandover } from '../lib/login';
+import LoginHandoverNotice from './LoginHandoverNotice';
 import { SkeletonForm, SkeletonRows } from './ui/Skeleton';
 import FilterSelect from './ui/FilterSelect';
 import { btnClass } from './ui/Btn';
@@ -516,18 +518,12 @@ export default function Directory() {
                 // Show HR what to read out. A password nobody can see is a login nobody can use,
                 // and this is the only moment it is visible — 0111 makes the person replace it the
                 // first time they sign in.
-                if (provisioned?.created) {
-                  setNewLogin({
-                    name: employeeName,
-                    email: provisioned.email,
-                    password: provisioned.password,
-                  });
-                }
+                setNewLogin(loginHandover(provisioned, { name: employeeName }));
                 return;
               }
-              await grantAccess.mutateAsync({ employee_id: employeeId, ...wantAccess });
+              const granted = await grantAccess.mutateAsync({ employee_id: employeeId, ...wantAccess });
               setEditing(null);
-              setNewLogin({ name: employeeName, email: wantAccess.email, password: wantAccess.password });
+              setNewLogin(loginHandover(granted, { name: employeeName, password: wantAccess.password }));
             } catch (err) {
               if (employeeId && !editing.id) {
                 setEditing({ id: employeeId, ...payload, full_name: employeeName });
@@ -574,52 +570,7 @@ export default function Directory() {
       {/* The one thing that must not be lost when the form closes: the password. It is shown
           once, is not recoverable, and the admin has to hand it over. */}
       {newLogin && (
-        <div className="premium-card border-brand/40 animate-fade-in">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-2.5 min-w-0">
-              <span className="shrink-0 w-8 h-8 rounded-xl bg-brand/10 text-brand-ink flex items-center justify-center">
-                <Check size={16} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-base font-bold text-neutral-900 dark:text-white">
-                  {newLogin.name} can now sign in
-                </p>
-                <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                  No email was sent — pass these on yourself. The password is not shown again.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setNewLogin(null)}
-              aria-label="Dismiss the new login details"
-              className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-            >
-              <X size={15} />
-            </button>
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {[['Email', newLogin.email], ['Temporary password', newLogin.password]].map(([label, value]) => (
-              <div
-                key={label}
-                className="flex items-center justify-between gap-2 rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-855 px-3 py-2"
-              >
-                <div className="min-w-0">
-                  <p className="text-2xs uppercase tracking-wider font-bold text-neutral-400">{label}</p>
-                  <p className="text-base font-mono text-neutral-800 dark:text-neutral-200 truncate">{value}</p>
-                </div>
-                <button
-                  onClick={() => navigator.clipboard?.writeText(value)}
-                  title={`Copy ${label.toLowerCase()}`}
-                  aria-label={`Copy ${label.toLowerCase()}`}
-                  className="shrink-0 p-1.5 rounded-lg text-neutral-400 hover:text-brand-ink cursor-pointer transition-colors"
-                >
-                  <Copy size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+        <LoginHandoverNotice login={newLogin} onDismiss={() => setNewLogin(null)} />
       )}
 
       {/* Give app access — inline section above the list, not an overlay */}

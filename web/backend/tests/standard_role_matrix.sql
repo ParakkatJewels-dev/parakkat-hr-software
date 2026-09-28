@@ -45,8 +45,8 @@ $$;
 create function audit_test.delete_parent_and_check_child() returns jsonb language plpgsql as $$
 declare n integer;
 begin
-  delete from public.tasks where id=audit_test.id(5,1);
-  get diagnostics n=row_count;
+  perform public.soft_delete_task(audit_test.id(5,1));
+  n:=1;
   return jsonb_build_array(jsonb_build_object('deleted',n,'childParent',audit_test.task_parent(audit_test.id(5,5))));
 end $$;
 create function audit_test.create_then_delete_own_task() returns jsonb language plpgsql as $$
@@ -54,8 +54,8 @@ declare _id uuid:=gen_random_uuid(); n integer;
 begin
   insert into public.tasks(id,employee_id,assigned_by,title)
     values(_id,app.current_employee_id(),app.current_employee_id(),'Personal task');
-  delete from public.tasks where id=_id;
-  get diagnostics n=row_count;
+  perform public.soft_delete_task(_id);
+  n:=1;
   return jsonb_build_array(n);
 end $$;
 create function audit_test.accept_help_request() returns jsonb language plpgsql as $$
@@ -145,7 +145,7 @@ begin
         'with changed as (delete from public.goals where id=%L returning id) select coalesce(jsonb_agg(id::text),''[]''::jsonb) from changed',e),
         in_scope and a.ordinal<=6,jsonb_build_array(e::text));
       perform audit_test.write_expect(prefix||'tasks/delegated delete',format(
-        'with changed as (delete from public.tasks where id=%L returning id) select coalesce(jsonb_agg(id::text),''[]''::jsonb) from changed',e),
+        'select jsonb_build_array(public.soft_delete_task(%L)::text)',e),
         in_scope and a.ordinal<=6,jsonb_build_array(e::text));
       perform audit_test.write_expect(prefix||'tasks/delegator identity',format(
         'with changed as (update public.tasks set assigned_by=%L where id=%L returning assigned_by) select coalesce(jsonb_agg(assigned_by::text),''[]''::jsonb) from changed',a.employee_id,e),
@@ -223,13 +223,13 @@ do $$ begin
     'select audit_test.create_then_delete_own_task()',true,'[1]');
 end $$;
 reset role;
--- A historical cross-scope child must not strand an otherwise authorized parent deletion.
+-- Recoverable family deletion must not delete a historical child outside the manager's scope.
 update public.tasks set parent_task_id=audit_test.id(5,1) where id=audit_test.id(5,5);
 set role authenticated;
 do $$ begin
   perform set_config('request.jwt.claim.sub',audit_test.id(6,5)::text,true);
-  perform audit_test.write_expect('branch_manager/task ancestry/FK cleanup after parent deletion',
-    'select audit_test.delete_parent_and_check_child()',true,'[{"deleted":1,"childParent":null}]');
+  perform audit_test.write_expect('branch_manager/task ancestry/cannot delete cross-scope family',
+    'select audit_test.delete_parent_and_check_child()',false,'[]');
 end $$;
 reset role;
 

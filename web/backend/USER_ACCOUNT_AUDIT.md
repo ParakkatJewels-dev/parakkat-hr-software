@@ -3,6 +3,26 @@
 This is a focused source-code and isolated-test audit, not a certification of the live Supabase
 project. No production passwords, employee links, roles, or email settings were changed.
 
+## Follow-up — 28 September 2026
+
+The employee-creation handover could display a proposed temporary password even when
+`grant_app_access` reused an existing login and left its password unchanged. The automatic
+`provision_employee_login` path also incorrectly reported `created: true` for that case.
+Migration `0152_login_handover_matches_account_creation.sql` now reports the actual grant result,
+and both Directory paths display a temporary password only for a newly created account. Existing
+logins show their email and explain that their current password still applies. No existing
+password is reset by this migration; HR can use the existing account password action when needed.
+
+Sign-in now reads the current named form fields for password-manager autofill, trims and lowercases
+only the email, and leaves the password byte-for-byte intact. Invalid credentials, connection
+failures, rate limits and unconfirmed/disabled accounts have distinct messages. The identifier
+remains the work login email issued by HR; employee codes and display names are not login aliases.
+
+The focused frontend regressions and the private PostgreSQL password suite verify these changes,
+including reused-account hash preservation and matching newly handed-over passwords against the
+stored hash. They do not verify a hosted sign-in or diagnose an individual employee's live account.
+Apply migration `0152` and deploy the frontend through the normal release process.
+
 ## Follow-up — 14 September 2026
 
 The original rollout notes below describe the 10 September work. The recovery follow-up found

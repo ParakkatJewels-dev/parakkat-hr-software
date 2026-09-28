@@ -62,8 +62,8 @@ export function routineRpc(name, args, { employee, role, allows, event, canWrite
   const scope = set => ({ ...set, ...person(set.employee_id), employee_id: set.employee_id });
   const readable = () => tables.routine_sets.filter(set => allows('task.read', scope(set)));
   const jobs = id => tables.routine_items.filter(job => job.routine_id === id && job.is_active !== false);
-  const sets = () => readable().map(set => ({ ...set, employee: person(set.employee_id), jobs: jobs(set.id), can_manage: allows('task.create', scope(set)) }));
-  const dayRows = day => sets().filter(set => due(set, day)).flatMap(set => set.jobs.map(job => ({ ...job,
+  const sets = () => readable().map(set => ({ ...set, employee: person(set.employee_id), jobs: tables.routine_items.filter(job => job.routine_id === set.id), can_manage: allows('task.create', scope(set)) }));
+  const dayRows = day => sets().filter(set => due(set, day)).flatMap(set => set.jobs.filter(job => job.is_active !== false).map(job => ({ ...job,
     routine_name: set.title, employee: set.employee, frequency: set.frequency, weekdays: set.weekdays,
     month_day: set.month_day, interval_days: set.interval_days, start_date: set.start_date, end_date: set.end_date,
     on_date: day, can_manage: set.can_manage,
@@ -81,7 +81,7 @@ export function routineRpc(name, args, { employee, role, allows, event, canWrite
       let scheduled = 0, completed = 0, missed = 0, pending = 0;
       for (let day = args._from; day <= end; day = addDays(day, 1)) {
         if (!due(set, day)) continue;
-        for (const job of set.jobs) {
+        for (const job of set.jobs.filter(job => job.is_active !== false)) {
           scheduled++;
           if (tables.routine_ticks.some(tick => tick.routine_item_id === job.id && tick.on_date === day)) completed++;
           else if (day < today) missed++; else pending++;
@@ -118,19 +118,55 @@ export function routineRpc(name, args, { employee, role, allows, event, canWrite
   const ids = name === 'create_routine_set' ? [...new Set(args._employee_ids ?? [])] : [previous.employee_id];
   if (!ids.length || !args._title?.trim() || !args._jobs?.length || !args._schedule?.start_date
       || ids.some(id => !person(id) || !allows('task.create', { ...person(id), employee_id: id }))) return { error: { message: 'Choose valid jobs and employees in your assignment scope.' } };
-  if (args._schedule.start_date < (previous ? addDays(today, 1) : today)) return { error: { message: 'Choose an available start date.' } };
-  if (previous) {
-    const row = tables.routine_sets.find(set => set.id === previous.id);
-    row.retired_on = addDays(args._schedule.start_date, -1); event('routine_sets', 'UPDATE', row, previous);
+  if (args._schedule.start_date < today) return { error: { message: 'Choose an available start date.' } };
+  if (previous?.replaced_by) return { error: { message: 'Edit the latest routine version.' } };
+  const todayTicks = previous ? tables.routine_ticks.filter(tick => tick.on_date === today && previous.jobs.some(job => job.id === tick.routine_item_id && job.is_active !== false)) : [];
+  if (previous && args._schedule.start_date === today && todayTicks.length) {
+    const retainsTicks = due({ ...args._schedule }, today) && todayTicks.every(tick => {
+      const oldJob = previous.jobs.find(job => job.id === tick.routine_item_id);
+      const newJob = args._jobs.find(job => job.id === oldJob.id);
+      return newJob && newJob.title === oldJob.title && (newJob.detail ?? '') === (oldJob.detail ?? '');
+    });
+    if (!retainsTicks) return { error: { message: 'Keep jobs completed today unchanged, or choose tomorrow or later.' } };
   }
-  const batchId = crypto.randomUUID(); const routineIds = [];
+  const inPlace = previous && !previous.is_legacy && !previous.retired_on && previous.start_date >= today
+    && !tables.routine_ticks.some(tick => tick.on_date < args._schedule.start_date && previous.jobs.some(job => job.id === tick.routine_item_id));
+  const predecessor = inPlace && tables.routine_sets.find(set => set.id === previous.replaces_id);
+  if (predecessor) {
+    const priorJobs = jobs(predecessor.id);
+    if (tables.routine_ticks.some(tick => tick.on_date >= args._schedule.start_date && priorJobs.some(job => job.id === tick.routine_item_id))) {
+      return { error: { message: 'The earlier version has completed jobs on that date. Choose a start date after those completed jobs.' } };
+    }
+    predecessor.retired_on = [predecessor.end_date, addDays(args._schedule.start_date, -1)].filter(Boolean).sort()[0];
+  }
+  const batchId = previous?.batch_id ?? crypto.randomUUID(); const routineIds = [];
   for (const id of ids) {
-    const set = { id: crypto.randomUUID(), batch_id: batchId, employee_id: id, employee: person(id), title: args._title,
+    const set = { id: inPlace ? previous.id : crypto.randomUUID(), batch_id: batchId, employee_id: id, employee: person(id), title: args._title,
       detail: args._detail, ...args._schedule, retired_on: null, history_start_date: args._schedule.start_date, created_at: stamp() };
-    tables.routine_sets.push(set); routineIds.push(set.id);
-    args._jobs.forEach((job, index) => tables.routine_items.push({ id: crypto.randomUUID(), routine_id: set.id, employee_id: id,
-      title: job.title, detail: job.detail, sort_order: job.sort_order ?? index, is_active: true }));
-    event('routine_sets', 'INSERT', set);
+    if (inPlace) {
+      Object.assign(tables.routine_sets.find(row => row.id === previous.id), set);
+      tables.routine_items = tables.routine_items.filter(job => job.routine_id !== previous.id);
+    } else {
+      if (previous) {
+        const row = tables.routine_sets.find(row => row.id === previous.id);
+        row.retired_on = [row.retired_on, row.end_date, addDays(args._schedule.start_date, -1)].filter(Boolean).sort()[0]; row.replaced_by = set.id; set.replaces_id = previous.id;
+        event('routine_sets', 'UPDATE', row, previous);
+      }
+      tables.routine_sets.push(set);
+    }
+    routineIds.push(set.id);
+    args._jobs.forEach((job, index) => {
+      const newJob = { id: inPlace && job.id ? job.id : crypto.randomUUID(), routine_id: set.id, employee_id: id,
+        title: job.title, detail: job.detail, sort_order: job.sort_order ?? index, is_active: true, deleted_at: null };
+      tables.routine_items.push(newJob);
+      if (previous && args._schedule.start_date === today) for (const tick of todayTicks.filter(tick => tick.routine_item_id === job.id)) tick.routine_item_id = newJob.id;
+    });
+    for (const job of previous?.jobs ?? []) {
+      if (args._jobs.some(active => active.id === job.id) || (job.is_active === false && !job.deleted_at)) continue;
+      tables.routine_items.push({ ...job, id: inPlace ? job.id : crypto.randomUUID(), routine_id: set.id,
+        is_active: false, deleted_at: job.deleted_at ?? stamp() });
+    }
+    event('routine_sets', inPlace ? 'UPDATE' : 'INSERT', set);
   }
   return { one: true, rows: [previous ? routineIds[0] : { batch_id: batchId, routine_ids: routineIds, assigned_count: ids.length }], mutated: true };
 }

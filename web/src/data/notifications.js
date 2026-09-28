@@ -93,10 +93,12 @@ function useNotificationRefStatuses(type, ids) {
     enabled: ids.length > 0,
     queryKey: ['notification-ref-statuses', type, ids],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from(REF_TABLES[type])
         .select('id, status')
         .in('id', ids);
+      if (type === 'task') query = query.is('deleted_at', null);
+      const { data, error } = await query;
       if (error) throw error;
       return Object.fromEntries((data ?? []).map((row) => [row.id, row.status]));
     },

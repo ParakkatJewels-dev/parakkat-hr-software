@@ -6,11 +6,12 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createServer } from 'vite';
 
-let server, AuthContext, Login, ForgotPassword, SetYourPassword, ChangePassword, Administration, ManagePasswordDialog;
+let server, AuthContext, Login, ForgotPassword, SetYourPassword, ChangePassword, Administration, ManagePasswordDialog, LoginHandoverNotice;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
   ({ default: Login } = await server.ssrLoadModule('/src/pages/Login.jsx'));
+  ({ default: LoginHandoverNotice } = await server.ssrLoadModule('/src/components/LoginHandoverNotice.jsx'));
   ({ default: ForgotPassword } = await server.ssrLoadModule('/src/pages/ForgotPassword.jsx'));
   ({ default: SetYourPassword } = await server.ssrLoadModule('/src/components/SetYourPassword.jsx'));
   ({ default: ChangePassword } = await server.ssrLoadModule('/src/components/ChangePassword.jsx'));
@@ -49,6 +50,24 @@ function render(Component, props = {}, authChanges = {}) {
 
 test('login exposes a navigable Forgot password link', () => {
   assert.match(render(Login), /href="\/forgot-password"[^>]*>Forgot password\?/);
+});
+test('login identifies existing credentials to password managers and disables email autocorrection', () => {
+  const html = render(Login);
+  const email = html.match(/<input\b[^>]*name="email"[^>]*>/)?.[0] ?? '';
+  const password = html.match(/<input\b[^>]*name="password"[^>]*>/)?.[0] ?? '';
+  for (const attribute of ['autoComplete="username"', 'autoCapitalize="none"', 'autoCorrect="off"', 'spellCheck="false"']) {
+    assert.ok(email.includes(attribute), attribute);
+  }
+  assert.match(password, /autoComplete="current-password"/);
+});
+test('existing-login handover explains unchanged password and never renders a proposed secret', () => {
+  const html = render(LoginHandoverNotice, { login: { name: 'Staff', created: false, email: 'staff@example.test', password: 'NotSaved!42' }, onDismiss() {} });
+  assert.match(html, /staff@example.test/);
+  assert.match(html, /password is unchanged/);
+  assert.doesNotMatch(html, /NotSaved!42|Copy temporary password/);
+  const created = render(LoginHandoverNotice, { login: { name: 'Staff', created: true, email: 'staff@example.test', password: 'Saved!42' }, onDismiss() {} });
+  assert.match(created, /Saved!42/);
+  assert.match(created, /Copy temporary password/);
 });
 test('forgot-password form has an email field, submit and sign-in return path', () => {
   const html = render(ForgotPassword);

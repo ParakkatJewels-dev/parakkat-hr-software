@@ -154,7 +154,11 @@
     "0148_administration_role_access.sql",
     "0149_task_comment_author_names.sql",
     "0150_sync_run_history_performance.sql",
-    "0151_navigation_counts.sql"
+    "0151_navigation_counts.sql",
+    "0152_login_handover_matches_account_creation.sql",
+    "0154_routine_edits.sql",
+    "0155_recoverable_tasks.sql",
+    "0156_routine_job_trash.sql"
   ],
   "roles": [
     {

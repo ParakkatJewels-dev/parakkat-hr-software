@@ -70,6 +70,7 @@ function fixtureDb(tables, { serverCap = 97, rejectAtOffset = null, beforeRead }
         select() { return q; },
         order(column, options = {}) { ordering.push([column, options.ascending !== false]); return q; },
         eq(column, value) { conditions.push(r => r[column] === value); return q; },
+        is(column, value) { conditions.push(r => (r[column] ?? null) === value); return q; },
         gte(column, value) { conditions.push(r => r[column] >= value); return q; },
         lte(column, value) { conditions.push(r => r[column] <= value); return q; },
         or(expression) {

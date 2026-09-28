@@ -107,7 +107,7 @@ export function workflowRpc(name, args, context) {
       row.status === 'Pending' && row.employee_id !== employee?.id && allows(read, row) && allows(approve, row)).length;
     return { one: true, rows: [{
       tasks: (tables.tasks ?? []).filter(row => isAssignedTo(row, employee?.id)
-        && !['Done', 'Cancelled'].includes(row.status) && allows('task.read', row)).length,
+        && !row.deleted_at && !['Done', 'Cancelled'].includes(row.status) && allows('task.read', row)).length,
       leave: personal ? 0 : workflowLeaveRows(tables.leaves ?? [], context).filter(row => row.can_decide).length,
       expense: pendingReview(tables.expenses, 'expense.read', 'expense.approve'),
       attendance: pendingReview(tables.attendance_regularizations, 'attendance.read', 'regularization.approve'),
@@ -139,7 +139,8 @@ export function workflowRpc(name, args, context) {
         && allows('recruitment.manage', row)).length,
       exits: personal ? 0 : (tables.exits ?? []).filter(row => ['Clearance in Progress', 'Cleared'].includes(row.status)
         && row.employee_id !== employee?.id && row.created_by !== context.userId && allows('exit.manage', row)).length,
-      notifications: (tables.notifications ?? []).filter(row => !row.read_at && (!row.user_id || row.user_id === context.userId)).length,
+      notifications: (tables.notifications ?? []).filter(row => !row.read_at && (!row.user_id || row.user_id === context.userId)
+        && (row.type !== 'task' || !tables.tasks.some(task => task.id === row.ref_id && task.deleted_at))).length,
       attendance_mapping: personal || !deviceScope ? 0 : (tables.biotime_employees ?? []).filter(row => ['unmatched', 'ambiguous'].includes(row.link_status)
         && (!row.employee_id || allows('device.manage', row))).length,
     };

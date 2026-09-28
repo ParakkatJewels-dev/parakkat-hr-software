@@ -15,9 +15,10 @@ module.exports = function testAdminPassword({ run, connection, directory }) {
         "insert into public.shifts(code,name,start_time,end_time) values ('GN','Synthetic configured baseline','09:00','17:30');",
       ] : []),
       `\\i ${quote(join(migrations, file))}`,
-      ...(/^(0131|0132)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0131|0132|0152)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     `\\i ${quote(join(backend, 'tests', 'admin_password_reset.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'login_handover.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-q', '-f', bootstrap]);

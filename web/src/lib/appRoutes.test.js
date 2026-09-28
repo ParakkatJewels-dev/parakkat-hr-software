@@ -12,6 +12,7 @@ test('all defined screens and real nested tabs remain routable', () => {
     for (const tab of tabs) assert.equal(resolveAppRoute(`/${screen}/${tab}`).valid, true, `${screen}/${tab}`);
   }
   assert.equal(resolveAppRoute('/').screen, 'dashboard');
+  assert.equal(resolveAppRoute('/tasks/deleted').valid, true);
   assert.equal(resolveAppRoute('//attendance//overview/').valid, true);
 });
 
@@ -71,6 +72,8 @@ test('route tab catalog stays aligned with the page definitions that use useUrlT
     const hook = source.match(/useUrlTab\([^;]+;/)?.[0];
     assert.ok(hook, `${filename} route tabs`);
     for (const tab of APP_TAB_PATHS[screen]) assert.ok(hook.includes(`'${tab}'`), `${filename}/${tab}`);
+    const inlineTabs = hook.match(/\[([^\]]+)\]/)?.[1];
+    if (inlineTabs) assert.deepEqual([...inlineTabs.matchAll(/'([^']+)'/g)].map(match => match[1]), APP_TAB_PATHS[screen]);
   }
 });
 

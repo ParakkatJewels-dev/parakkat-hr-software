@@ -8,7 +8,7 @@ export const APP_TAB_PATHS = {
   payroll: ['payslips', 'run', 'salary', 'components'],
   documents: ['employee', 'company'],
   performance: ['mine', 'team'],
-  tasks: ['board', 'todo', 'requests', 'routine'],
+  tasks: ['board', 'todo', 'requests', 'routine', 'deleted'],
   reports: ['attendance', 'leave', 'expenses', 'headcount'],
 };
 

@@ -5,10 +5,11 @@ import { qaRole, roleMode, qaAccess, fixtureAllows, qaVisibleEmployees } from '.
 import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib/passwordRecovery.js';
 import { workflowFixtures, workflowLeaveRows, workflowRpc } from './workflowFixtures';
 import { routineFixtures, routineRpc } from './routineFixtures';
+import { taskTrashFixtures, taskTrashRpc } from './taskTrashFixtures';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
 const slowRequests = new URL(window.location.href).searchParams.has('qa-slow');
-const user = { id: `qa-user-v3-${qaRole}${workflowFixtures ? '-workflow' : ''}${routineFixtures ? '-routines' : ''}${goalsFixtures ? '-goals' : ''}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v3-${qaRole}${workflowFixtures ? '-workflow' : ''}${routineFixtures ? '-routines' : ''}${taskTrashFixtures ? '-task-trash' : ''}${goalsFixtures ? '-goals' : ''}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
@@ -245,10 +246,19 @@ export const supabase = {
     if (roleMode && tablePermissions[name]) rows = rows.filter((row) => fixtureAllows(tablePermissions[name], row));
     if (name === 'leaves') rows = workflowLeaveRows(rows, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows });
     if (name === 'exits' && roleMode) rows = rows.filter(row => row.employee_id === fixture.employees[0].id || fixtureAllows('exit.manage', row));
+    if (name === 'notifications') rows = rows.filter(row => row.type !== 'task' || !tables.tasks.some(task => task.id === row.ref_id && task.deleted_at));
     return new Query(rows, name);
   },
   rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    const trash = taskTrashRpc(name, args, { employee: fixture.employees[0], userId: user.id, allows: fixtureAllows,
+      event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
+    if (trash) {
+      if (trash.error) return Promise.resolve({ data: null, error: trash.error });
+      if (trash.mutated) qaState.mutations += 1;
+      const query = new Query(trash.rows);
+      return trash.one ? query.single() : query;
+    }
     const routine = routineRpc(name, args, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows,
       event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
     if (routine) {

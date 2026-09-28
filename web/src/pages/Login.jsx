@@ -15,6 +15,7 @@ import {
 import BrandMark from '../components/ui/BrandMark';
 import { useAuth } from '../auth/AuthContext';
 import { isSupabaseConfigured } from '../lib/supabaseClient';
+import { loginCredentials, loginErrorMessage } from '../lib/login';
 
 const LOGIN_INPUT =
   'w-full rounded-xl border border-neutral-200 bg-white/85 px-10 py-3 text-[16px] text-neutral-900 shadow-sm outline-none transition focus:border-brand focus:ring-4 focus:ring-brand/10 dark:border-neutral-800 dark:bg-neutral-950/70 dark:text-warm-gray-100';
@@ -48,13 +49,17 @@ export default function Login() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (busy) return;
+    // Read the actual fields so browser/password-manager autofill is used even without a change event.
+    const credentials = loginCredentials(new FormData(e.currentTarget));
+    setEmail(credentials.email);
+    setPassword(credentials.password);
     setError('');
     setBusy(true);
     try {
-      const { error: err } = await signIn(email.trim(), password);
+      const { error: err } = await signIn(credentials.email, credentials.password);
       if (err) throw err;
     } catch (err) {
-      setError(err.message || 'Sign in failed. Check your credentials.');
+      setError(loginErrorMessage(err));
     } finally { setBusy(false); }
     // On success, the auth listener flips the session and the router shows the app.
   };
@@ -128,7 +133,7 @@ export default function Login() {
                   </p>
                   <h2 className="mt-3 text-2xl font-black tracking-normal">Welcome back</h2>
                   <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-                    Use your work login to continue.
+                    Use the work email given by HR and your current password.
                   </p>
                 </div>
                 <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-action text-brand-on sm:flex">
@@ -149,6 +154,11 @@ export default function Login() {
                 <LoginField icon={Mail} label="Work email">
                   <input
                     type="email"
+                    name="email"
+                    autoComplete="username"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     required
                     autoFocus
                     value={email}
@@ -161,6 +171,8 @@ export default function Login() {
                 <LoginField icon={KeyRound} label="Password">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    autoComplete="current-password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -182,7 +194,7 @@ export default function Login() {
                 </div>
 
                 {error && (
-                  <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
+                  <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-400">
                     {error}
                   </p>
                 )}

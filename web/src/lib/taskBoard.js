@@ -275,6 +275,9 @@ export const CLOSED_TASK_WINDOW_DAYS = 365;
  * up depending on whether the server reads `+` as a space — `status.in.("To Do",…)` serialises to
  * `"To+Do"` and would quietly match nothing.
  */
-export function openOrRecentlyClosedFilter(days = CLOSED_TASK_WINDOW_DAYS) {
-  return `status.not.in.(Done,Cancelled),created_at.gte.${windowStartIso(days)}`;
+export function openOrRecentlyClosedFilter(days = CLOSED_TASK_WINDOW_DAYS, { includeRestored = false } = {}) {
+  const cutoff = windowStartIso(days);
+  // Recovery brings old completed work back into the visible window without changing when
+  // it was originally created or completed. Legacy schemas omit this arm during rollout.
+  return `status.not.in.(Done,Cancelled),created_at.gte.${cutoff}${includeRestored ? `,restored_at.gte.${cutoff}` : ''}`;
 }

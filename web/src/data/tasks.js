@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
 import { openOrRecentlyClosedFilter, CLOSED_TASK_WINDOW_DAYS } from '../lib/taskBoard';
-import { withSchemaFallback } from '../lib/pendingMigration';
+import { isMissingSchema, withSchemaFallback } from '../lib/pendingMigration';
 import { useAuth } from '../auth/AuthContext';
 import { saveTaskDraft } from '../lib/createTask';
 
@@ -33,26 +33,33 @@ export function useTasks({ enabled = true } = {}) {
     enabled,
     queryKey: ['tasks'],
     queryFn: async () => {
-      const read = (fields) => () => fetchCollection(() => supabase
+      const read = (fields, activeOnly = true) => () => fetchCollection(() => {
+        const query = supabase
           .from('tasks')
           .select(fields)
           // Everything still open, plus a year of what is finished — see openOrRecentlyClosedFilter.
           // Without it this was the only operational list with no bound at all, growing with the
           // company's whole history; Leave, Expenses and Tickets have each carried a window for as
           // long as they have existed.
-          .or(openOrRecentlyClosedFilter())
+          .or(openOrRecentlyClosedFilter(CLOSED_TASK_WINDOW_DAYS, { includeRestored: activeOnly }))
           .order('created_at', { ascending: false })
-          .order('id'));
+          .order('id');
+        return activeOnly ? query.is('deleted_at', null) : query;
+      });
 
       // 0114 ships separately from this client, and PostgREST rejects the WHOLE query when one
       // embed in it is unknown — which is how threading once took the entire comment thread down.
       // So the board asks for the assignee set, and falls back to the single-assignee shape it has
       // always had if the migration is not in yet. assigneeIds() treats a missing set as "just the
       // primary", so every screen keeps working; multi-assignee is simply absent until 0114 lands.
-      const data = await withSchemaFallback(
-        read(TASK_FIELDS_WITH_ASSIGNEES),
-        read(TASK_FIELDS)
-      );
+      const data = await withSchemaFallback(() => withSchemaFallback(
+        read(TASK_FIELDS_WITH_ASSIGNEES), read(TASK_FIELDS)
+      ), (error) => {
+        // Old databases have no trash column. Keep reading their board until rollout; deletion
+        // still fails closed below and never falls back to a permanent DELETE.
+        if (!/\b(deleted_at|restored_at)\b/.test(`${error.message ?? ''} ${error.details ?? ''}`)) throw error;
+        return withSchemaFallback(read(TASK_FIELDS_WITH_ASSIGNEES, false), read(TASK_FIELDS, false));
+      });
 
       return data;
     },
@@ -157,17 +164,47 @@ export function useRemoveAssignee() {
 }
 
 export function useDeleteTask() {
+  return useTaskTrashMutation('soft_delete_task');
+}
+
+export function useRestoreTask() {
+  return useTaskTrashMutation('restore_task');
+}
+
+/** The RPC returns manageable deleted roots, their restore eligibility and their batch size. */
+export function useDeletedTasks({ enabled = true } = {}) {
+  return useQuery({
+    enabled,
+    queryKey: ['deleted-tasks'],
+    queryFn: async () => {
+      try {
+        return await fetchCollection(() => supabase.rpc('list_deleted_tasks')
+          .order('deleted_at', { ascending: false }).order('id'));
+      } catch (error) { throw taskTrashError(error); }
+    },
+  });
+}
+
+function taskTrashError(error) {
+  return error?.code === 'PGRST202' || isMissingSchema(error)
+    ? new Error('Task recovery is not available yet. Ask your administrator to apply the task recovery database update.')
+    : error;
+}
+
+function useTaskTrashMutation(operation) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id) => {
-      const { data, error } = await supabase.from('tasks').delete().eq('id', id).select('id');
-      if (error) throw error;
-      if (!data?.length) throw new Error('This task could not be deleted. Your access may have changed, or the task was already deleted.');
+      const { data, error } = await supabase.rpc(operation, { _task_id: id });
+      if (error) throw taskTrashError(error);
+      if (!data) throw new Error('This task could not be changed. Refresh the list and check your access.');
+      return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['tasks'] });
-      qc.invalidateQueries({ queryKey: ['section-counts'] });
-      qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
-    },
+    onSuccess: () => Promise.all(['tasks', 'deleted-tasks', 'section-counts', 'notifications', 'notification-ref-statuses',
+      'task-comments', 'task-comment-counts', 'task-attachments', 'task-attachment-counts', 'task-checklist', 'help-requests']
+      // Initial reads have no cached data, so invalidateQueries alone can join a pre-mutation
+      // request. Cancel those snapshots too before refetching the current deletion state.
+      .map((key) => qc.cancelQueries({ queryKey: [key], fetchStatus: 'fetching' })
+        .then(() => qc.invalidateQueries({ queryKey: [key] }, { cancelRefetch: false })))),
   });
 }

@@ -32,6 +32,7 @@ const stubs = {
     export const randomPassword = () => "Temporary123"; export default "grant-access";`,
   './EmployeeOrgFields': 'export const EmployeeOrgFields = "employee-org-fields";',
   './EmployeeProfile': 'export default "employee-profile";',
+  './LoginHandoverNotice': 'export default "login-handover";',
   './ui/Skeleton': 'export const SkeletonForm = "skeleton-form", SkeletonRows = "skeleton-rows";',
   './ui/FilterSelect': 'export default "filter-select";',
   './ui/Btn': 'export const btnClass = () => "button";',
@@ -65,7 +66,7 @@ function find(element, predicate) {
 }
 const placement = { entity_id: 'company', branch_id: 'branch', department_id: 'department' };
 const grant = (permission, scope_type = 'entity', scope_id = 'company') => ({ permission, scope_type, scope_id });
-function mount(role, rank, grants, isSuperAdmin = false) {
+function mount(role, rank, grants, isSuperAdmin = false, { loginResult, grantResult } = {}) {
   const slots = { directory: [], form: [] };
   let component = 'directory', cursor = 0;
   const writes = [], accessWrites = [];
@@ -78,8 +79,8 @@ function mount(role, rank, grants, isSuperAdmin = false) {
       if (!(index in state)) state[index] = typeof initial === 'function' ? initial() : initial;
       return [state[index], next => { state[index] = typeof next === 'function' ? next(state[index]) : next; }];
     },
-    create: { reset() {}, async mutateAsync(payload) { writes.push(payload); return { id: 'new-person', full_name: payload.full_name }; } },
-    grant: { reset() {}, async mutateAsync(payload) { accessWrites.push(payload); } },
+    create: { reset() {}, async mutateAsync(payload) { writes.push(payload); return { id: 'new-person', full_name: payload.full_name, login: loginResult }; } },
+    grant: { reset() {}, async mutateAsync(payload) { accessWrites.push(payload); return grantResult ?? { created: true, email: payload.email }; } },
     other: { reset() {}, async mutateAsync() {} },
   };
   harness.permissions = {
@@ -99,6 +100,7 @@ function mount(role, rank, grants, isSuperAdmin = false) {
   input('emp-full-name').props.onChange({ target: { value: 'New Staff Member' } });
   find(render(), node => node.type === 'employee-org-fields').props.onChange(placement);
   return { writes, accessWrites, render, input, formElement,
+    handover: () => find(renderDirectory(), node => node.type === 'login-handover')?.props.login,
     async submit() {
       find(render(), node => node.type === 'form').props.onSubmit({ preventDefault() {} });
       // The React handler calls an async save callback without returning it.
@@ -148,4 +150,26 @@ test('automatic provisioning checks the selected branch ancestry for a zone-scop
   assert.ok(form.input('emp-login-email'));
   await form.formElement().props.onSubmit({ ...placement, full_name: 'Default Login' }, null, [], null);
   assert.equal(form.writes[0].provisionLogin, true);
+});
+
+for (const created of [true, false]) {
+  test(`manual employee save reports ${created ? 'the installed temporary password' : 'a reused login without an unsaved password'}`, async () => {
+    const form = mount('super_admin', 1000, [grant('employee.create'), grant('rbac.manage')], true,
+      { grantResult: { created, email: 'canonical.login@example.test' } });
+    form.input('emp-email').props.onChange({ target: { value: 'proposed.login@example.test' } });
+    await form.submit();
+    assert.equal(form.accessWrites.length, 1);
+    assert.deepEqual(form.handover(), {
+      name: 'New Staff Member', email: 'canonical.login@example.test', created,
+      password: created ? form.accessWrites[0].password : null,
+    });
+  });
+}
+
+test('automatic employee save does not hand over a password rejected by an older provisioning response', async () => {
+  const form = mount('super_admin', 1000, [grant('employee.create'), grant('rbac.manage')], true,
+    { loginResult: { created: true, email: 'existing@example.test', password: 'NotInstalled!42', grant: { created: false } } });
+  await form.formElement().props.onSubmit({ ...placement, full_name: 'Existing Login' }, null, [], null);
+  assert.equal(form.writes[0].provisionLogin, true);
+  assert.deepEqual(form.handover(), { name: 'Existing Login', email: 'existing@example.test', created: false, password: null });
 });

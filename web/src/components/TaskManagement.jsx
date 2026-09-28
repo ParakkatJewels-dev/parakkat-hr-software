@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
 import {
   ListChecks, Plus, X, AlertTriangle, Flag,
   CalendarClock, User, Search, PenLine, ShieldAlert, HandHelping,
-  CheckSquare, Square, ArrowDownWideNarrow,
+  CheckSquare, Square, ArrowDownWideNarrow, Trash2,
 } from 'lucide-react';
 import {
   useTasks, useCreateTask, useUpdateTask, useDeleteTask, useAddAssignee, useRemoveAssignee,
@@ -35,6 +35,8 @@ import { humanDbError } from '../lib/dbErrors';
 import TaskDetail from './TaskDetail';
 import TaskRoutine from './TaskRoutine';
 import TaskTodo from './TaskTodo';
+import DeletedTasks from './DeletedTasks';
+import { isSelfSet } from '../lib/todoPipeline';
 import { TaskListSkeleton } from './TaskSkeletons';
 import { useTaskCommentCounts } from '../data/taskComments';
 import { useTaskAttachmentCounts } from '../data/taskAttachments';
@@ -61,7 +63,7 @@ const ASSIGNEE_HIDDEN = 'Assignee not visible';
 // because that is how people talk about it, and said AT ALL because a search that quietly cannot
 // reach a task is worse than one that says where it stops looking.
 const WINDOW_MONTHS = Math.round(CLOSED_TASK_WINDOW_DAYS / 30);
-const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelled ones are kept for ${WINDOW_MONTHS} months.`;
+const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelled ones are kept for ${WINDOW_MONTHS} months; restoring a task brings it back into this window.`;
 const TASKS_PER_PAGE = 10;
 const EMPTY_ROWS = [];
 
@@ -88,6 +90,7 @@ export default function TaskManagement() {
   // the creator need NOT be linked to an employee themselves. Only the permission matters.
   const canCreate = canAny('task.create');
   const canViewTeamTasks = canBeyondSelf('task.read');
+  const canUseDeletedTasks = canAny('task.manage') || Boolean(employee?.id);
   // Asking another department, and answering when asked. Held by department heads and up (0101).
   const canUseRequests = canAny('task.request');
 
@@ -121,7 +124,7 @@ export default function TaskManagement() {
   // 'flow' and 'people' were retired in 0114. tabFromPath falls back to the default for an id it
   // does not recognise, so an old link or a bookmarked ?tab=flow lands on the board rather than
   // rendering nothing — which is the whole reason that fallback exists.
-  const [view, setView] = useUrlTab('board', ['board', 'todo', 'requests', 'routine']);
+  const [view, setView] = useUrlTab('board', ['board', 'todo', 'requests', 'routine', 'deleted']);
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   // What the By Person view used to answer — "who is carrying what" — as a narrowing of the one
@@ -146,6 +149,7 @@ export default function TaskManagement() {
   const effectiveView =
     view === 'requests' ? (canUseRequests ? 'requests' : 'board')
     : view === 'routine' ? 'routine'
+    : view === 'deleted' && canUseDeletedTasks ? 'deleted'
     : view === 'todo' ? 'todo'
     : canViewTeamTasks ? 'board'
     : 'todo';
@@ -327,9 +331,7 @@ export default function TaskManagement() {
     // be fixed by deleting it and filing it again — losing its sub-tasks and its history with it.
     // `task.manage` has advertised "Reassign / delete" since 0017 with no way to reassign.
     edit: (task) => { edit.reset(); setComposer({ task }); },
-    // Deleting asks first, like every other destructive action in the app (Payroll drafts,
-    // documents, org units). It was a single unguarded click on an icon sitting next to
-    // "add sub-task", it cannot be undone, and it detaches any sub-tasks filed under it.
+    // Deletion removes work from everyone's board; it can be restored from Deleted tasks.
     remove: (task) => { del.reset(); setToDelete(task); },
     // Functions of the row, not booleans: tasks_update, _delete and _insert each check the whole
     // ancestry, so "may I" is a question about THIS task and not about the module.
@@ -357,6 +359,7 @@ export default function TaskManagement() {
         {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests"
           badge={requestsBadge} />}
         <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" badge={routineBadge} />
+        {canUseDeletedTasks && <ViewBtn active={effectiveView === 'deleted'} onClick={() => setView('deleted')} icon={Trash2} label="Deleted tasks" />}
       </nav>
       {isBoard && <>
         <div className="work-overview" aria-label="Task summary">
@@ -472,6 +475,8 @@ export default function TaskManagement() {
       ) : effectiveView === 'routine' ? (
         <TaskRoutine employees={employees} employeesLoading={employeesQuery.isLoading}
           employeesError={employeesQuery.error} onRetryEmployees={employeesQuery.refetch} />
+      ) : effectiveView === 'deleted' ? (
+        <DeletedTasks canRestore={(task) => rowCan.manage(task) || (!task.parent_task_id && isSelfSet(task, employee?.id))} />
       ) : isLoading ? (
         <TaskListSkeleton />
       ) : error && tasks.length === 0 ? (
@@ -548,14 +553,14 @@ export default function TaskManagement() {
           title="Delete this task?"
           confirmLabel="Delete task"
           busy={del.isPending}
-          error={del.error?.message}
+          error={humanDbError(del.error, 'tasks')}
           onCancel={() => { del.reset(); setToDelete(null); }}
           onConfirm={async () => {
             try { await del.mutateAsync(toDelete.id); setToDelete(null); } catch { /* shown in the dialog */ }
           }}
         >
-          <p><span className="font-semibold">{toDelete.title}</span> will be removed for everyone. This cannot be undone.</p>
-          <p>Its checklist goes with it, and everybody on the task loses it from their list.</p>
+          <p><span className="font-semibold">{toDelete.title}</span> and its subtasks will be removed from everyone’s task list.</p>
+          <p>You can restore it from Deleted tasks. Its checklist, comments and attachments will be kept.</p>
         </ConfirmDialog>
       )}
     </div>

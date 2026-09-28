@@ -167,9 +167,9 @@ do $$ begin
 end $$;
 select audit_routine.expect_error($q$select public.routine_completion_stats(audit_routine.today()-366,audit_routine.today())$q$,'22023');
 
--- Schedule/job replacement starts tomorrow and never changes another employee's batch instance.
+-- Future changes preserve today's jobs and never change another employee's batch instance.
 select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('checks3'),'Too soon','[{"title":"Replacement"}]',
-  jsonb_build_object('frequency','daily','start_date',audit_routine.today()))$q$,'22023');
+  jsonb_build_object('frequency','daily','start_date',audit_routine.today()-1))$q$,'22023');
 insert into audit_routine.refs values('replacement',public.replace_routine_set(audit_routine.ref('checks3'),'New checks','[{"title":"One new job"}]',
   jsonb_build_object('frequency','daily','start_date',audit_routine.today()+1)));
 do $$ begin
@@ -186,6 +186,123 @@ do $$ begin
   assert (select count(*)=2 from public.routine_day(audit_routine.today(),audit_routine.id(5,4))where routine_id=audit_routine.ref('checks4')),'retirement preserves current due jobs';
   assert not exists(select 1 from public.routine_day(audit_routine.today()+1,audit_routine.id(5,4))where routine_id=audit_routine.ref('checks4')),'retirement removes future reminders';
 end $$;
+
+-- A one-time routine can be edited today; adding/reordering jobs preserves completed work.
+do $$ declare _result jsonb; _id uuid; _jobs jsonb; begin
+  _result:=public.create_routine_set(array[audit_routine.id(5,4)],'Today only','[{"title":"Keep completed","detail":"Original detail"},{"title":"Pending"}]',
+    jsonb_build_object('frequency','once','start_date',audit_routine.today(),'end_date',audit_routine.today()));
+  _id:=(_result->'routine_ids'->>0)::uuid;
+  insert into audit_routine.refs values('today_edit',_id);
+  insert into audit_routine.refs select'today_done_job',id from public.routine_items where routine_id=_id and sort_order=0;
+  perform public.set_routine_job_tick(audit_routine.ref('today_done_job'),audit_routine.today(),true);
+  insert into audit_routine.refs select'today_tick',id from public.routine_ticks where routine_item_id=audit_routine.ref('today_done_job');
+  select jsonb_agg(jsonb_build_object('id',id,'title',title,'detail',detail) order by sort_order desc) into _jobs
+    from public.routine_items where routine_id=_id;
+  assert public.replace_routine_set(_id,'Today only',_jobs||'[{"title":"Additional job"}]'::jsonb,
+    jsonb_build_object('frequency','once','start_date',audit_routine.today(),'end_date',audit_routine.today()))=_id,
+    'a routine starting today edits in place';
+  assert (select count(*)=3 from public.routine_day(audit_routine.today(),audit_routine.id(5,4))where routine_id=_id),
+    'additional job appears within the existing one-time routine today';
+  assert (select routine_item_id=audit_routine.ref('today_done_job') and done_by=audit_routine.id(5,2)
+    from public.routine_ticks where id=audit_routine.ref('today_tick')),'in-place edits retain completion identity and actor';
+  assert (select sort_order=1 from public.routine_items where id=audit_routine.ref('today_done_job')),'completed jobs can be reordered';
+  assert (select replaced_by is null and replaces_id is null from public.routine_sets where id=_id),'in-place edit creates no version';
+end $$;
+select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('today_edit'),'Today only','[{"title":"Different"}]',
+  jsonb_build_object('frequency','once','start_date',audit_routine.today()))$q$,'22023');
+select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('today_edit'),'Today only',
+  jsonb_build_array(jsonb_build_object('id',audit_routine.ref('today_done_job'),'title','Changed completed job')),
+  jsonb_build_object('frequency','once','start_date',audit_routine.today()))$q$,'22023');
+select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('today_edit'),'Today only',
+  jsonb_build_array(jsonb_build_object('id',audit_routine.ref('today_done_job'),'title','Keep completed','detail','Original detail')),
+  jsonb_build_object('frequency','weekly','weekdays',jsonb_build_array(extract(isodow from audit_routine.today())::integer%7+1),
+    'start_date',audit_routine.today()))$q$,'22023');
+select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('today_edit'),'Foreign job',
+  jsonb_build_array(jsonb_build_object('id',audit_routine.ref('job3a'),'title','Keep completed')),
+  jsonb_build_object('frequency','daily','start_date',audit_routine.today()))$q$,'22023');
+select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('today_edit'),'Duplicate job',
+  jsonb_build_array(jsonb_build_object('id',audit_routine.ref('today_done_job'),'title','Keep completed'),
+    jsonb_build_object('id',audit_routine.ref('today_done_job'),'title','Keep completed')),
+  jsonb_build_object('frequency','daily','start_date',audit_routine.today()))$q$,'22023');
+do $$ begin
+  assert (select count(*)=3 from public.routine_items where routine_id=audit_routine.ref('today_edit')),
+    'failed edits leave all existing jobs intact';
+  assert exists(select 1 from public.routine_ticks where id=audit_routine.ref('today_tick')),'failed edits preserve the completion record';
+end $$;
+
+-- A date change on an upcoming routine reuses its ID and does not accumulate draft versions.
+do $$ declare _id uuid; _result jsonb; begin
+  _result:=public.create_routine_set(array[audit_routine.id(5,4)],'Upcoming','[{"title":"Future job"}]',
+    jsonb_build_object('frequency','once','start_date',audit_routine.today()+5));
+  _id:=(_result->'routine_ids'->>0)::uuid;
+  insert into audit_routine.refs values('upcoming',_id);
+  assert public.replace_routine_set(_id,'Upcoming','[{"title":"Future job"},{"title":"Another job"}]',
+    jsonb_build_object('frequency','once','start_date',audit_routine.today()+2))=_id,'upcoming date and jobs edit in place';
+  assert public.replace_routine_set(_id,'Upcoming','[{"title":"Future job"}]',
+    jsonb_build_object('frequency','once','start_date',audit_routine.today()))=_id,'an upcoming routine can move to today';
+  assert (select count(*)=1 from public.routine_sets where title='Upcoming'and employee_id=audit_routine.id(5,4)),
+    'repeated edits keep one assignment';
+end $$;
+
+-- Today's changes on an established routine version its history and carry completed jobs forward.
+do $$ declare _result jsonb; begin
+  _result:=public.create_routine_set(array[audit_routine.id(5,4)],'Established','[{"title":"Carry completion","detail":"Recorded detail"},{"title":"Old pending"}]',
+    jsonb_build_object('frequency','daily','start_date',audit_routine.today()));
+  insert into audit_routine.refs values('established',(_result->'routine_ids'->>0)::uuid);
+  insert into audit_routine.refs select'established_job',id from public.routine_items
+    where routine_id=audit_routine.ref('established')and sort_order=0;
+end $$;
+reset role;
+set request.jwt.claim.sub='';
+update public.routine_sets set start_date=audit_routine.today()-2,history_start_date=audit_routine.today()-2
+  where id=audit_routine.ref('established');
+set role authenticated;
+set request.jwt.claim.sub='e4000004-0000-0000-0000-000000000002';
+select public.set_routine_job_tick(audit_routine.ref('established_job'),audit_routine.today()-1,true);
+select public.set_routine_job_tick(audit_routine.ref('established_job'),audit_routine.today(),true);
+insert into audit_routine.refs select'established_tick',id from public.routine_ticks
+  where routine_item_id=audit_routine.ref('established_job')and on_date=audit_routine.today();
+do $$ declare _jobs jsonb; _new uuid; _done_at timestamptz; begin
+  select done_at into _done_at from public.routine_ticks where id=audit_routine.ref('established_tick');
+  select jsonb_agg(jsonb_build_object('id',id,'title',title,'detail',detail) order by sort_order) into _jobs
+    from public.routine_items where routine_id=audit_routine.ref('established');
+  _new:=public.replace_routine_set(audit_routine.ref('established'),'Established',_jobs||'[{"title":"Added today"}]'::jsonb,
+    jsonb_build_object('frequency','daily','start_date',audit_routine.today()));
+  insert into audit_routine.refs values('established_new',_new);
+  assert _new<>audit_routine.ref('established'),'earlier occurrences require a preserved version';
+  assert (select retired_on=audit_routine.today()-1 and replaced_by=_new from public.routine_sets where id=audit_routine.ref('established')),
+    'earlier version ends yesterday';
+  assert (select count(*)=3 from public.routine_day(audit_routine.today(),audit_routine.id(5,4))where routine_id=_new),
+    'today has all three jobs in one current routine';
+  assert not exists(select 1 from public.routine_day(audit_routine.today(),audit_routine.id(5,4))where routine_id=audit_routine.ref('established')),
+    'today does not duplicate the earlier version';
+  assert (select i.routine_id=_new and t.done_at=_done_at and t.done_by=audit_routine.id(5,2)
+    from public.routine_ticks t join public.routine_items i on i.id=t.routine_item_id where t.id=audit_routine.ref('established_tick')),
+    'today completion keeps its UUID, original timestamp and actor';
+  assert (select scheduled=4 and completed=1 and missed=3 and pending=0 from public.routine_completion_stats(audit_routine.today()-2,audit_routine.today())
+    where routine_id=audit_routine.ref('established')),'past job totals and ticks stay unchanged';
+  assert (select scheduled=3 and completed=1 and missed=0 and pending=2 from public.routine_completion_stats(audit_routine.today(),audit_routine.today())
+    where routine_id=_new),'current statistics include added jobs and preserved completion';
+end $$;
+select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('established'),'Stale version','[{"title":"Job"}]',
+  jsonb_build_object('frequency','daily','start_date',audit_routine.today()))$q$,'22023');
+select audit_routine.expect_error($q$select public.set_routine_job_tick(audit_routine.ref('established_job'),audit_routine.today(),true)$q$,'42501');
+
+-- Editing the date of the latest upcoming version keeps its predecessor's boundary consistent.
+do $$ declare _new uuid; _again uuid; begin
+  _new:=public.replace_routine_set(audit_routine.ref('today_edit'),'Tomorrow changes','[{"title":"Changed next day"}]',
+    jsonb_build_object('frequency','daily','start_date',audit_routine.today()+1));
+  insert into audit_routine.refs values('tomorrow_edit',_new);
+  assert _new<>audit_routine.ref('today_edit'),'moving a completed routine into the future preserves today';
+  assert exists(select 1 from public.routine_ticks where id=audit_routine.ref('today_tick')),'future change leaves today completion in place';
+  _again:=public.replace_routine_set(_new,'Tomorrow changes','[{"title":"Changed next day"},{"title":"One more"}]',
+    jsonb_build_object('frequency','daily','start_date',audit_routine.today()+3));
+  assert _again=_new,'upcoming replacement can change date without another version';
+  assert (select retired_on=audit_routine.today() from public.routine_sets where id=audit_routine.ref('today_edit')),
+    'moving a replacement later does not extend its predecessor beyond the explicit end date';
+end $$;
+select audit_routine.expect_error($q$select public.replace_routine_set(audit_routine.ref('tomorrow_edit'),'Earlier changes','[{"title":"Job"}]',
+  jsonb_build_object('frequency','daily','start_date',audit_routine.today()))$q$,'22023');
 
 -- Calendar recurrence uses ISO weekdays, month-end clamping, and the start-day interval anchor.
 reset role;

@@ -133,6 +133,7 @@
     { "source": "/tasks/todo", "destination": "/index.html" },
     { "source": "/tasks/requests", "destination": "/index.html" },
     { "source": "/tasks/routine", "destination": "/index.html" },
+    { "source": "/tasks/deleted", "destination": "/index.html" },
     { "source": "/reports/attendance", "destination": "/index.html" },
     { "source": "/reports/leave", "destination": "/index.html" },
     { "source": "/reports/expenses", "destination": "/index.html" },

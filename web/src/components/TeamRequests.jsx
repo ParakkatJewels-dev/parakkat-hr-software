@@ -203,6 +203,7 @@ function IncomingCard({ request, busy, onRespond }) {
   const [choosing, setChoosing] = useState(false);
   const [note, setNote] = useState('');
   const pending = request.status === 'Pending';
+  const taskDeleted = Boolean(request.task?.deleted_at);
 
   return (
     <div className="premium-card space-y-3">
@@ -219,10 +220,11 @@ function IncomingCard({ request, busy, onRespond }) {
         </p>
       )}
 
+      {!pending && taskDeleted && <p className="text-xs text-neutral-500">Task deleted</p>}
       {!pending && request.assignee && (
         <p className="text-xs text-neutral-500">
           Given to <span className="font-semibold text-neutral-700 dark:text-neutral-300">{request.assignee.full_name}</span>
-          {request.task?.status && <span className="font-mono text-2xs"> · now {request.task.status}</span>}
+          {!taskDeleted && request.task?.status && <span className="font-mono text-2xs"> · now {request.task.status}</span>}
         </p>
       )}
       {!pending && request.decision_note && (
@@ -375,6 +377,7 @@ function AssignPanel({ request, busy, note, onNote, onCancel, onAssign }) {
 /** A request this person raised. */
 function OutgoingCard({ request, busy, onCancel, onEdit }) {
   const outcome = preferenceOutcome(request);
+  const taskDeleted = Boolean(request.task?.deleted_at);
   return (
     <div className="premium-card space-y-2">
       <div className="mobile-list-row flex items-start justify-between gap-3">
@@ -388,7 +391,8 @@ function OutgoingCard({ request, busy, onCancel, onEdit }) {
         </p>
       )}
 
-      {request.status === 'Accepted' && request.assignee && (
+      {request.status === 'Accepted' && taskDeleted && <p className="text-xs text-neutral-500">Task deleted</p>}
+      {request.status === 'Accepted' && !taskDeleted && request.assignee && (
         <p className="text-xs text-neutral-600 dark:text-neutral-300 flex items-center gap-1.5 flex-wrap">
           <ArrowRight size={11} className="text-brand-ink shrink-0" />
           <span className="font-semibold">{request.assignee.full_name}</span> is on it
