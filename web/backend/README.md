@@ -182,6 +182,19 @@ schedule, then assign it to selected employees within their permission scope.
   routine. Editing can take effect today or later, including a one-time routine due today.
   Upcoming routines are updated in place; established schedules retain an earlier version for
   history. The active management list shows only the latest version of each assignment.
+- Admins open **Manage routines** by default. **Edit routine** remains available on the latest
+  authorized assignment, including ended or retired routines under **Archived**. Saving an ended
+  routine resumes it from the selected date. In Employee view, **Switch to admin view** restores
+  the management controls. Super Admin has global routine access; Entity Admin keeps its granted
+  organizational scope. Older, replaced schedules remain historical records.
+- To undo retirement, choose **Manage routines → Schedule status: Retired → Restore routine**.
+  The Retired filter includes routines retired today and only their latest version. Choose a
+  **Restore from** date and optional end date, then confirm **Restore routine**. It returns to
+  Active and upcoming with the same employee, active jobs and recurrence. Earlier completions
+  remain recorded, and the retirement gap is not counted as missed work. Deleted jobs remain
+  separately recoverable in the editor. Interval schedules suggest the next original due date;
+  selecting another restore date restarts their interval. Restoration uses the existing routine
+  edit RPC and requires the same management permission.
 - Existing job IDs accompany edits so today's completed jobs keep their original completion
   record, actor and time. Adding or reordering jobs is allowed today. Removing or changing a job
   already completed today requires a future effective date. Moving an upcoming replacement

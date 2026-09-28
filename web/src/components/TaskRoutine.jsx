@@ -10,11 +10,13 @@ import { useIstToday } from '../lib/useIstToday';
 import { humanDbError } from '../lib/dbErrors';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
+import { setChosenRole } from '../lib/viewRole';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { SkeletonRows } from './ui/Skeleton';
 import ConfirmDialog from './ui/ConfirmDialog';
 import RoutineForm from './RoutineForm';
+import RestoreRoutineDialog from './RestoreRoutineDialog';
 import RoutineStatistics from './RoutineStatistics';
 import RoutineOrgFilters from './RoutineOrgFilters';
 import { useSectionCounts } from '../data/sectionCounts';
@@ -27,21 +29,25 @@ const scopeOf = (employee) => ({ employeeId: employee?.id, entityId: employee?.e
   zoneId: employee?.zone_id, branchId: employee?.branch_id, deptId: employee?.department_id });
 const lastScheduledDay = (routine) => [routine.end_date, routine.retired_on,
   routine.frequency === 'once' ? routine.start_date : null].filter(Boolean).sort()[0] ?? null;
-const editableRoutine = (routine, today) => routine?.can_manage === true && !routine.replaced_by && !routine.retired_on
-  && (!lastScheduledDay(routine) || lastScheduledDay(routine) >= today);
+// The API can resume an ended assignment. Its schedule dates must not hide the editor;
+// only a superseded historical version or a missing management grant makes it read-only.
+const editableRoutine = (routine) => routine?.can_manage === true && !routine.replaced_by;
+const resumesRoutine = (routine, today) => Boolean(routine.retired_on || (lastScheduledDay(routine) && lastScheduledDay(routine) < today));
 const routineDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '') && Number.isFinite(Date.parse(`${value}T12:00:00Z`))
   && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value ? value : null;
 
 export default function TaskRoutine({ employees = [], employeesLoading = false, employeesError, onRetryEmployees }) {
   const today = useIstToday();
-  const { employee } = useAuth();
+  const { employee, assignments, isSuperAdmin: accountSuperAdmin } = useAuth();
   const { canAny, can, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  const adminAccount = accountSuperAdmin || (assignments ?? []).some((assignment) => assignment.role === 'entity_admin');
   const seesTeam = !viewingAsEmployee && canBeyondSelf('task.read');
-  const canDefine = canAny('task.create');
+  const canDefine = !viewingAsEmployee && canAny('task.create');
   const [params, setParams] = useSearchParams();
   const requestedView = params.get('routineView');
-  const defaultView = employee?.id ? 'mine' : seesTeam ? 'team' : 'manage';
-  const view = requestedView === 'team' && seesTeam ? 'team' : requestedView === 'manage' && canDefine ? 'manage' : defaultView;
+  const defaultView = adminAccount && canDefine ? 'manage' : employee?.id ? 'mine' : seesTeam ? 'team' : 'manage';
+  const view = requestedView === 'mine' && employee?.id ? 'mine'
+    : requestedView === 'team' && seesTeam ? 'team' : requestedView === 'manage' && canDefine ? 'manage' : defaultView;
   const chooseView = (next) => setParams((previous) => { const copy = new URLSearchParams(previous); copy.set('routineView', next); return copy; }, { replace: true });
   const day = routineDate(params.get('routineDate')) ?? today;
   const setDay = (next) => setParams((previous) => { const copy = new URLSearchParams(previous);
@@ -57,6 +63,7 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
         : range.from < addDays(range.to, -365) ? 'Choose a period of up to 366 days.' : '';
   const [editing, setEditing] = useState(null);
   const [retiring, setRetiring] = useState(null);
+  const [restoring, setRestoring] = useState(null);
   const [message, setMessage] = useState('');
   const [manageSearch, setManageSearch] = useState('');
   const [manageFrequency, setManageFrequency] = useState('');
@@ -71,12 +78,15 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
     includeRetired: manageStatus !== 'active' });
   const create = useCreateRoutineSet();
   const replace = useReplaceRoutineSet();
+  const restore = useReplaceRoutineSet();
   const setTick = useSetRoutineTick();
   const retire = useRetireRoutineSet();
+  const routineBusy = create.isPending || replace.isPending || restore.isPending || retire.isPending;
   const eligibleEmployees = employees.filter((person) => person.status === 'Active'
     && (!viewingAsEmployee || person.id === employee?.id) && can('task.create', scopeOf(person)));
   const visibleSets = (sets.data ?? []).filter((routine) => (seesTeam || routine.employee_id === employee?.id)
     && (manageStatus !== 'active' || !routine.replaced_by)
+    && (manageStatus !== 'retired' || (routine.retired_on && !routine.replaced_by))
     && (!manageFrequency || routine.frequency === manageFrequency)
     && (!manageOrg.designationId || routine.employee?.designation_id === manageOrg.designationId)
     && (!manageOrg.departmentId || routine.employee?.department_id === manageOrg.departmentId)
@@ -92,8 +102,22 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
     setMessage(editing?.id ? `Routine saved. Changes begin ${payload.schedule.start_date === today ? 'today' : `on ${payload.schedule.start_date}`}; earlier completion history is preserved.` : `Routine assigned to ${payload.employeeIds.length} employee${payload.employeeIds.length === 1 ? '' : 's'}.`);
     setEditing(null);
   };
-  const beginEdit = (routine = {}) => { create.reset(); replace.reset(); setMessage(''); setEditing(routine); };
-  const editableSets = viewingAsEmployee ? [] : (sets.data ?? []).filter((routine) => editableRoutine(routine, today));
+  const beginEdit = (routine = {}) => {
+    if (routineBusy) return;
+    setRestoring(null);
+    create.reset(); replace.reset(); setMessage('');
+    setEditing({ ...routine, resume: routine.id ? resumesRoutine(routine, today) : false });
+  };
+  const beginRestore = (routine) => {
+    if (routineBusy || viewingAsEmployee || !editableRoutine(routine) || !routine.retired_on) return;
+    setEditing(null); restore.reset(); setMessage(''); setRestoring(routine);
+  };
+  const restoreRoutine = async (payload) => {
+    await restore.mutateAsync(payload);
+    setRestoring(null); setManageStatus('active');
+    setMessage(`Routine restored. It resumes ${payload.schedule.start_date === today ? 'today' : `on ${payload.schedule.start_date}`}; earlier completion history is preserved.`);
+  };
+  const editableSets = viewingAsEmployee ? [] : (sets.data ?? []).filter(editableRoutine);
   const editDayRoutine = (routineId, addJob = false) => {
     const routine = editableSets.find((item) => item.id === routineId);
     if (routine) beginEdit({ ...routine, addJob });
@@ -101,7 +125,7 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-neutral-900 dark:text-white">Routines</h2>
       <p className="mt-1 text-sm text-neutral-500">Scheduled jobs, grouped into routines. Completion stays with each due date.</p></div>
-      {canDefine && !editing && <button type="button" className={btnClass('primary')} onClick={() => beginEdit()}><Plus size={16} />Create routine</button>}
+      {canDefine && !editing && !restoring && <button type="button" className={btnClass('primary')} disabled={routineBusy} onClick={() => beginEdit()}><Plus size={16} />Create routine</button>}
     </div>
     <nav className="flex flex-wrap gap-2" aria-label="Routine views">
       {employee?.id && <button type="button" className={btnClass(view === 'mine' ? 'primary' : 'ghost')} aria-pressed={view === 'mine'}
@@ -109,11 +133,17 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
       {seesTeam && <button type="button" className={btnClass(view === 'team' ? 'primary' : 'ghost')} aria-pressed={view === 'team'} onClick={() => chooseView('team')}>Team overview</button>}
       {canDefine && <button type="button" className={btnClass(view === 'manage' ? 'primary' : 'ghost')} aria-pressed={view === 'manage'} onClick={() => chooseView('manage')}>Manage routines</button>}
     </nav>
+    {viewingAsEmployee && adminAccount && <div className="premium-card flex flex-wrap items-center justify-between gap-3 text-sm">
+      <p>You are in Employee view. Switch to your admin view to edit and manage routines.</p>
+      <button type="button" className={btnClass('ghost')} onClick={() => { setChosenRole(null); chooseView('manage'); }}>Switch to admin view</button>
+    </div>}
     {message && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-300">{message}</p>}
     {setTick.error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{humanDbError(setTick.error)}</p>}
     {editing && canDefine && <RoutineForm key={`${editing.id ?? 'new'}:${Boolean(editing.addJob)}`} initial={editing.id ? editing : undefined} employees={eligibleEmployees} today={today}
       employeesLoading={employeesLoading} employeesError={employeesError} onRetryEmployees={onRetryEmployees}
       onSave={save} onClose={() => setEditing(null)} busy={create.isPending || replace.isPending} error={humanDbError(create.error || replace.error)} />}
+    {restoring && canDefine && <RestoreRoutineDialog key={restoring.id} routine={restoring} today={today}
+      busy={restore.isPending} error={restore.error} onRestore={restoreRoutine} onClose={() => setRestoring(null)} />}
     {view === 'team' && seesTeam && <nav className="flex flex-wrap gap-2" aria-label="Team routine view">
       <button type="button" className={btnClass(teamSection === 'statistics' ? 'primary' : 'ghost')} aria-pressed={teamSection === 'statistics'} onClick={() => setTeamSection('statistics')}>Statistics</button>
       <button type="button" className={btnClass(teamSection === 'daily' ? 'primary' : 'ghost')} aria-pressed={teamSection === 'daily'} onClick={() => setTeamSection('daily')}>Daily checklists</button>
@@ -133,11 +163,11 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
     </>}
     {view === 'manage' && canDefine && <section className="premium-card space-y-4" aria-label="Manage routine assignments">
       <h3 className="text-base font-bold">Assigned routines</h3>
-      <p className="text-sm text-neutral-500">Add jobs or edit dates within an assigned routine. The active list shows its latest schedule; earlier versions remain in All schedules.</p>
+      <p className="text-sm text-neutral-500">Add jobs or edit dates within an assigned routine. Choose Retired to restore a routine, or Archived to edit an ended schedule. Earlier versions remain in All schedules.</p>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="space-y-1 text-sm"><span>Search assigned routines</span><input type="search" className={INPUT} value={manageSearch} onChange={(event) => setManageSearch(event.target.value)} placeholder="Routine, employee or designation" /></label>
         <label className="space-y-1 text-sm"><span>Frequency</span><select className={INPUT} value={manageFrequency} onChange={(event) => setManageFrequency(event.target.value)}><option value="">All frequencies</option>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-        <label className="space-y-1 text-sm"><span>Schedule status</span><select className={INPUT} value={manageStatus} onChange={(event) => setManageStatus(event.target.value)}><option value="active">Active and upcoming</option><option value="all">All schedules</option><option value="archived">Archived</option></select></label>
+        <label className="space-y-1 text-sm"><span>Schedule status</span><select className={INPUT} value={manageStatus} onChange={(event) => setManageStatus(event.target.value)}><option value="active">Active and upcoming</option><option value="retired">Retired</option><option value="all">All schedules</option><option value="archived">Archived</option></select></label>
         <RoutineOrgFilters employees={(sets.data ?? []).map((routine) => routine.employee)} value={manageOrg} onChange={setManageOrg} />
       </div>
       {sets.isLoading ? <SkeletonRows rows={4} avatar={false} label="Loading assigned routines" />
@@ -146,18 +176,20 @@ export default function TaskRoutine({ employees = [], employeesLoading = false, 
             : <div className="divide-y divide-neutral-200 dark:divide-neutral-800">{managePager.slice.map((routine) => <article key={routine.id} className="flex flex-wrap items-start justify-between gap-3 py-4">
               <div className="min-w-0 flex-1"><h4 className="break-words text-sm font-bold">{routine.title}</h4><p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">{routine.employee?.full_name ?? 'Employee'} · {routine.employee?.employee_code}</p>
                 <p className="mt-1 text-xs text-neutral-500">{routineScheduleLabel(routine)} · {routine.jobs?.filter((job) => job.is_active !== false).length ?? 0} jobs</p>
-                {routine.jobs?.some((job) => job.is_active === false && job.deleted_at) && <p className="mt-1 text-xs text-neutral-500">{routine.jobs.filter((job) => job.is_active === false && job.deleted_at).length} deleted jobs.{editableRoutine(routine, today) ? ' Edit routine to restore them.' : ''}</p>}
+                {routine.jobs?.some((job) => job.is_active === false && job.deleted_at) && <p className="mt-1 text-xs text-neutral-500">{routine.jobs.filter((job) => job.is_active === false && job.deleted_at).length} deleted jobs.{editableRoutine(routine) ? ' Edit routine to restore them.' : ''}</p>}
                 {routine.jobs?.some((job) => job.is_active === false && !job.deleted_at) && <p className="mt-1 text-xs text-neutral-500">Retired jobs remain in completion history.</p>}
                 <p className="mt-1 text-xs text-neutral-500">{routine.start_date}{lastScheduledDay(routine) ? ` to ${lastScheduledDay(routine)}` : ' onwards'}{lastScheduledDay(routine) === today ? ' · Ends today' : ''}</p>
+                {routine.retired_on && !routine.replaced_by && <p className="mt-1 text-xs font-semibold text-neutral-500">Retired</p>}
                 {routine.detail && <p className="mt-2 break-words text-sm text-neutral-500">{routine.detail}</p>}</div>
-              {editableRoutine(routine, today) && !viewingAsEmployee && <div className="flex flex-wrap gap-2">
-                <button type="button" className={btnClass('ghost')} disabled={(routine.jobs?.filter((job) => job.is_active !== false).length ?? 0) >= 100} onClick={() => beginEdit({ ...routine, addJob: true })}><Plus size={15} />Add jobs</button>
-                <button type="button" className={btnClass('ghost')} onClick={() => beginEdit(routine)}><PenLine size={15} />Edit routine</button>
-                <button type="button" className={btnClass('ghost')} onClick={() => { retire.reset(); setRetiring(routine); }}><Archive size={15} />Retire routine</button>
+              {editableRoutine(routine) && !viewingAsEmployee && <div className="flex flex-wrap gap-2">
+                {routine.retired_on && <button type="button" className={btnClass('primary')} disabled={routineBusy} onClick={() => beginRestore(routine)}><Undo2 size={15} />Restore routine</button>}
+                <button type="button" className={btnClass('ghost')} disabled={routineBusy || (routine.jobs?.filter((job) => job.is_active !== false).length ?? 0) >= 100} onClick={() => beginEdit({ ...routine, addJob: true })}><Plus size={15} />Add jobs</button>
+                <button type="button" className={btnClass('ghost')} disabled={routineBusy} onClick={() => beginEdit(routine)}><PenLine size={15} />Edit routine</button>
+                {!resumesRoutine(routine, today) && <button type="button" className={btnClass('ghost')} disabled={routineBusy} onClick={() => { retire.reset(); setRetiring(routine); }}><Archive size={15} />Retire routine</button>}
+                {resumesRoutine(routine, today) && routine.jobs?.some((job) => job.is_active === false && job.deleted_at)
+                  && <button type="button" className={btnClass('ghost')} disabled={routineBusy} onClick={() => beginEdit(routine)}><Undo2 size={15} />Restore deleted jobs</button>}
               </div>}
-              {!editableRoutine(routine, today) && routine.can_manage === true && !routine.replaced_by && !viewingAsEmployee
-                && routine.jobs?.some((job) => job.is_active === false && job.deleted_at) && <button type="button" className={btnClass('ghost')}
-                  onClick={() => beginEdit({ ...routine, resume: true })}><Undo2 size={15} />Restore deleted jobs</button>}
+              {routine.replaced_by && <p className="text-xs text-neutral-500">Earlier schedule. Open the latest version to edit this routine.</p>}
             </article>)}</div>}
       <div className="paged-collection"><Pagination {...managePager} noun="routine assignments" sizes={[25, 50, 100]} /></div>
     </section>}

@@ -62,6 +62,7 @@ try {
     '\\set routine_seed off',
     `\\i ${quote(routineTests)}`,
     `\\i ${quote(join(backend, 'tests', 'routine_task_trash.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'admin_routine_permissions.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'task_trash.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'section_counts.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'request_integrity.sql'))}`,

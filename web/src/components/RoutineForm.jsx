@@ -63,7 +63,7 @@ export default function RoutineForm({ initial, employees = [], employeesLoading 
   const valid = title.trim() && jobs.length > 0 && jobs.length <= 100 && jobs.every((job) => job.title.trim())
     && employeeIds.length > 0 && employeeIds.length <= 1000 && validEmployees && validSchedule;
   return <FormSection title={editing ? 'Edit routine' : 'Create routine'}
-    subtitle={resuming ? 'Restore deleted jobs and choose a start date. Saving resumes this routine from that date; earlier completion history is preserved.'
+    subtitle={resuming ? 'Edit the jobs and choose a start date. Saving resumes this routine from that date; earlier completion history is preserved.'
       : editing ? 'Add jobs or change the schedule in this routine. Changes can begin today; earlier completion history is preserved.' : 'Create one routine with as many jobs as needed, then choose its schedule and employees.'}
     icon={CheckSquare} onClose={busy ? undefined : onClose} busy={busy} error={error} disabled={!valid}
     submitLabel={editing ? 'Save routine' : `Assign routine${employeeIds.length ? ` to ${employeeIds.length} employee${employeeIds.length === 1 ? '' : 's'}` : ''}`}

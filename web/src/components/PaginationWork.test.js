@@ -18,7 +18,7 @@ before(async () => {
 });
 after(async () => { await server?.close(); });
 
-function render(Component, seeds = [], props = {}) {
+function render(Component, seeds = [], props = {}, route = '/') {
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false, retry: false, staleTime: Infinity } } });
   seeds.forEach(([key, data]) => client.setQueryData(key, data));
   const auth = { user: { id: 'user-1' }, employee: { id: 'employee-1', full_name: 'Employee One' },
@@ -26,7 +26,7 @@ function render(Component, seeds = [], props = {}) {
   try {
     return renderToStaticMarkup(React.createElement(QueryClientProvider, { client },
       React.createElement(AuthContext.Provider, { value: auth },
-        React.createElement(MemoryRouter, null, React.createElement(Component, props)))));
+        React.createElement(MemoryRouter, { initialEntries: [route] }, React.createElement(Component, props)))));
   } finally { client.clear(); }
 }
 
@@ -56,7 +56,7 @@ test('named routine pages jobs without changing full-routine progress or includi
     routine_id: `routine-${employeeId}`, routine_name: `Opening ${employeeId}`, frequency: 'daily', done: i < 15, can_tick: true,
     employee: { full_name: employeeId, employee_code: employeeId },
   })));
-  const html = render(TaskRoutine, [[['routine-day', istToday(), 'employee-1'], items]]);
+  const html = render(TaskRoutine, [[['routine-day', istToday(), 'employee-1'], items]], {}, '/tasks/routine?routineView=mine');
   assert.equal((html.match(/aria-label="Untick Duty/g) ?? []).length, 10);
   assert.match(html, /15\/35/);
   assert.match(html, /of 35 jobs/);
