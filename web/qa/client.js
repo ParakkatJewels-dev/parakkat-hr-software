@@ -259,7 +259,7 @@ export const supabase = {
       const query = new Query(trash.rows);
       return trash.one ? query.single() : query;
     }
-    const routine = routineRpc(name, args, { role: qaRole, employee: fixture.employees[0], allows: fixtureAllows,
+    const routine = routineRpc(name, args, { role: qaRole, userId: user.id, employee: fixture.employees[0], allows: fixtureAllows,
       event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
     if (routine) {
       if (routine.error) return Promise.resolve({ data: null, error: routine.error });

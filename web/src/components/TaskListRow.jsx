@@ -107,7 +107,7 @@ export default function TaskListRow({ task, actions, children }) {
               {(task.assignee?.branch?.code || task.assignee?.department?.name) && <small>{[task.assignee?.branch?.code, task.assignee?.department?.name].filter(Boolean).join(' · ')}</small>}
             </div>
             <div className="work-detail-actions">
-              {actions.canEdit?.(task) && <button type="button" className="work-button" onClick={() => actions.edit(task)}><PenLine size={13} />Edit task</button>}
+              {actions.canEdit?.(task) && <button type="button" className="work-button" onClick={(event) => actions.edit(task, event.currentTarget)}><PenLine size={13} />Edit task</button>}
               {actions.canManage?.(task) && <button type="button" className="work-button work-delete" onClick={() => actions.remove(task)}><Trash2 size={13} />Delete</button>}
             </div>
           </div>

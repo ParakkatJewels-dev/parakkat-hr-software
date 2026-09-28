@@ -50,7 +50,7 @@ try {
       ...(file.startsWith('0149_') ? ['\\set task_authors_seed on', `\\i ${quote(join(backend, 'tests', 'task_comment_authors.sql'))}`] : []),
       `\\i ${quote(join(migrations, file))}`,
       // This migration promises safe reruns; enforce that before running API assertions.
-      ...(/^(0129|0133|0134|0137|0138|0139|0140|0141|0142|0143|0144|0145|0146|0147|0148|0149|0151|0152|0154|0155|0156)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0129|0133|0134|0137|0138|0139|0140|0141|0142|0143|0144|0145|0146|0147|0148|0149|0151|0152|0154|0155|0156|0157)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     '\\set message_requests_seed off',
     '\\set task_authors_seed off',
@@ -62,6 +62,7 @@ try {
     '\\set routine_seed off',
     `\\i ${quote(routineTests)}`,
     `\\i ${quote(join(backend, 'tests', 'routine_task_trash.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'routine_audit_notes.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'admin_routine_permissions.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'task_trash.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'section_counts.sql'))}`,
@@ -76,6 +77,7 @@ try {
   console.log(messageOutput.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
   console.log(run(process.execPath, [join(__dirname, 'testMessageNotificationConcurrency.js'), directory]).trim());
   console.log(run(process.execPath, [join(__dirname, 'testRoutineEditConcurrency.js'), directory]).trim());
+  console.log(run(process.execPath, [join(__dirname, 'testRoutineNoteConcurrency.js'), directory]).trim());
   console.log(run(process.execPath, [join(__dirname, 'testTaskTrashConcurrency.js'), directory]).trim());
   require('./testAdminPassword')({ run, connection, directory });
   require('./testDeveloperApi')({ run, connection, directory });

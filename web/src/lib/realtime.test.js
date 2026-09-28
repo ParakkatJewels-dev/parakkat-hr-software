@@ -269,6 +269,23 @@ test('heads see employee completion and reopening update through the routine sta
   assert.equal(employeeRoutineStatus(observer.getCurrentResult().data)[0].status, 'In progress');
 });
 
+test('new employee notes refresh occurrence and audit views without changing completion counts', async (t) => {
+  const live = useLiveHarness(t);
+  let notes = [];
+  for (const suffix of [['occurrence', 'routine-1', '2026-09-28'], ['audit', '2026-09-01', '2026-09-28', 'all']]) {
+    const observer = new QueryObserver(live.client, { queryKey: ['routine-notes', ...suffix], staleTime: Infinity, queryFn: async () => notes });
+    t.after(observer.subscribe(() => {}));
+  }
+  await settle();
+  live.status('SUBSCRIBED'); live.invalidations.length = 0;
+  notes = [{ id: 'note-1', body: 'Waiting for stock', completed_jobs: 1, total_jobs: 3 }];
+  live.handlers.get('routine_notes')({ eventType: 'INSERT', new: notes[0] });
+  t.mock.timers.tick(1000); await settle();
+  assert.deepEqual(live.client.getQueryData(['routine-notes', 'occurrence', 'routine-1', '2026-09-28']), notes);
+  assert.deepEqual(live.client.getQueryData(['routine-notes', 'audit', '2026-09-01', '2026-09-28', 'all']), notes);
+  assert.deepEqual(live.invalidations.map(entry => entry.queryKey), [['routine-notes']]);
+});
+
 test('hidden realtime changes mark mounted and cached screens stale without fetching until visible', async (t) => {
   const live = useLiveHarness(t);
   let reads = 0;

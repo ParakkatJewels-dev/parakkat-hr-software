@@ -29,13 +29,14 @@ const prefersReducedMotion = () => {
  * @param open       whether the panel is showing
  * @param options.focus  select the first field too (default true)
  * @param options.block  scroll alignment; 'nearest' avoids yanking a panel that is already visible
+ * @param options.containerSelector  optional closest scrolling container for focused app screens
  * @param options.key    what makes this a DIFFERENT open. A panel that stays mounted while its
  *                       subject changes — the comment composer moving from one reply target to
  *                       the next — never goes closed, so without this the second Reply did
  *                       nothing at all: the chip changed and the caret stayed where it was.
  * @returns a ref to put on the panel's outermost element
  */
-export function useRevealOnOpen(open, { focus = true, block = 'nearest', key = null } = {}) {
+export function useRevealOnOpen(open, { focus = true, block = 'nearest', key = null, containerSelector = null } = {}) {
   const ref = useRef(null);
   // Only act on the transition into open — a re-render while open must not steal focus back from
   // whatever the user has since clicked into. `key` marks a genuinely new open on a panel that
@@ -58,7 +59,15 @@ export function useRevealOnOpen(open, { focus = true, block = 'nearest', key = n
     // rAF so the panel has been laid out and has its real height before we scroll to it.
     const raf = requestAnimationFrame(() => {
       try {
-        node.scrollIntoView({ behavior: reduced ? 'auto' : 'smooth', block });
+        const container = containerSelector && node.closest(containerSelector);
+        const behavior = reduced ? 'auto' : 'smooth';
+        if (container) {
+          // App shells have fixed chrome and overflow-hidden ancestors. Scrolling
+          // every ancestor can move that chrome over the editor's title.
+          const margin = parseFloat(window.getComputedStyle(node).scrollMarginTop) || 0;
+          container.scrollTo({ top: container.scrollTop + node.getBoundingClientRect().top
+            - container.getBoundingClientRect().top - container.clientTop - margin, behavior });
+        } else node.scrollIntoView({ behavior, block });
       } catch {
         node.scrollIntoView?.();
       }
@@ -79,8 +88,11 @@ export function useRevealOnOpen(open, { focus = true, block = 'nearest', key = n
     return () => {
       cancelAnimationFrame(raf);
       if (timer) clearTimeout(timer);
+      // StrictMode replays setup after cleanup. A cancelled reveal must be allowed
+      // to run again, otherwise the newly opened form can stay below the viewport.
+      if (shownFor.current === token) shownFor.current = null;
     };
-  }, [open, focus, block, key]);
+  }, [open, focus, block, key, containerSelector]);
 
   return ref;
 }

@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const stubs = {
-  '@tanstack/react-query': 'export const useQuery = x => x; export const useMutation = x => x; export const useQueryClient = () => ({ invalidateQueries: ({queryKey}) => { globalThis.routineInvalidations.push(queryKey); } });',
+  '@tanstack/react-query': 'export const useQuery = x => x; export const useMutation = x => x; export const useQueryClient = () => ({ cancelQueries: async () => {}, invalidateQueries: ({queryKey}) => { globalThis.routineInvalidations.push(queryKey); } });',
   supabaseClient: 'export const supabase = { rpc: (...args) => globalThis.routineDb.rpc(...args), from: () => { throw new Error("Direct writes forbidden"); } };',
   AuthContext: 'export const useAuth = () => ({ employee: { id: "current-employee" } });',
 };
@@ -81,4 +81,44 @@ test('routine permission and date refusals remain visible to the user', async ()
   const error = { code: '42501', message: 'You cannot complete jobs for this employee.' };
   globalThis.routineDb = { rpc: async () => ({ error }) };
   await assert.rejects(hooks.useSetRoutineTick().mutationFn({ itemId: 'job', done: true }), result => result === error);
+});
+
+test('routine note history and audit reads page every record with bounded date and owner filters', async () => {
+  const rows = Array.from({ length: 21 }, (_, id) => ({ id: `note-${id}`, body: 'Explanation' }));
+  for (const [query, name, args] of [
+    [hooks.useRoutineNotes('routine-1', '2026-09-28'), 'list_routine_notes', { _routine_id: 'routine-1', _on_date: '2026-09-28' }],
+    [hooks.useRoutineNoteAudit('2026-09-01', '2026-09-28', { employeeId: 'self' }), 'list_routine_note_audit',
+      { _from: '2026-09-01', _to: '2026-09-28', _employee_id: 'self' }],
+  ]) {
+    const calls = mockPages(rows, 3);
+    assert.deepEqual(await query.queryFn(), rows);
+    assert.deepEqual(calls[0].args, args);
+    assert.ok(calls.every(call => call.name === name && call.order.at(-1) === 'id'));
+  }
+  mockPages(rows, 3, 5);
+  await assert.rejects(hooks.useRoutineNotes('routine-1', '2026-09-28').queryFn(), /access changed/);
+  assert.equal(hooks.useRoutineNotes(null, '2026-09-28').enabled, false);
+  assert.equal(hooks.useRoutineNoteAudit('', '2026-09-28').enabled, false);
+});
+
+test('adding a note sends only text, date, routine and retry ID; completion and author are server-owned', async () => {
+  const calls = [];
+  globalThis.routineDb = { rpc: async (name, args) => { calls.push({ name, args }); return { data: 'saved-note' }; } };
+  globalThis.routineInvalidations = [];
+  const add = hooks.useAddRoutineNote();
+  assert.equal(await add.mutationFn({ routineId: 'routine-1', onDate: '2026-09-28', body: ' Waiting for delivery ', clientId: 'retry-id',
+    employeeId: 'other', author_user: 'forged', completed_jobs: 99, created_at: '2000-01-01' }), 'saved-note');
+  assert.deepEqual(calls, [{ name: 'add_routine_note', args: { _routine_id: 'routine-1', _on_date: '2026-09-28', _body: 'Waiting for delivery', _client_id: 'retry-id' } }]);
+  await add.onSuccess();
+  assert.deepEqual(globalThis.routineInvalidations, [['routine-notes']], 'notes do not mark any job complete');
+});
+
+test('routine notes expose migration, permission and ambiguous-save failures without inventing a saved record', async () => {
+  globalThis.routineDb = { rpc: async () => ({ error: { code: 'PGRST202' } }) };
+  await assert.rejects(hooks.useAddRoutineNote().mutationFn({ body: 'Note' }), /routine notes database update/);
+  const refused = { code: '42501', message: 'Only your own routine' };
+  globalThis.routineDb.rpc = async () => ({ error: refused });
+  await assert.rejects(hooks.useAddRoutineNote().mutationFn({ body: 'Note' }), error => error === refused);
+  globalThis.routineDb.rpc = async () => ({ data: null });
+  await assert.rejects(hooks.useAddRoutineNote().mutationFn({ body: 'Note' }), /could not be saved/);
 });

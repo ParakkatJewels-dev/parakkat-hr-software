@@ -1,8 +1,8 @@
-import React, { useState, useMemo, useEffect, useDeferredValue } from 'react';
+import React, { useState, useMemo, useEffect, useDeferredValue, useRef, useId } from 'react';
 import {
   ListChecks, Plus, X, AlertTriangle, Flag,
   CalendarClock, User, Search, PenLine, ShieldAlert, HandHelping,
-  CheckSquare, Square, ArrowDownWideNarrow, Trash2,
+  CheckSquare, Square, ArrowDownWideNarrow, ArrowLeft, Trash2,
 } from 'lucide-react';
 import {
   useTasks, useCreateTask, useUpdateTask, useDeleteTask, useAddAssignee, useRemoveAssignee,
@@ -47,7 +47,7 @@ import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCo
 import { NavigationCountBadge } from './ui/CountBadge';
 
 const INPUT =
-  'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
+  'w-full min-h-11 text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
 
 /**
  * What to call an assignee whose employees row this viewer cannot read.
@@ -131,6 +131,13 @@ export default function TaskManagement() {
   // board rather than a second way of drawing the same rows. '' is Everyone.
   const [personId, setPersonId] = useState('');
   const [composer, setComposer] = useState(null); // { defaultAssignee } | { task } | null
+  const [composerSaving, setComposerSaving] = useState(false);
+  const composerTrigger = useRef(null);
+  const composerScroll = useRef(null);
+  const newTaskButton = useRef(null);
+  const browseHeading = useRef(null);
+  const composerSubmitting = useRef(false);
+  const composerWasOpen = useRef(false);
   const [toDelete, setToDelete] = useState(null); // the task awaiting confirmation
   const [query, setQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('recommended');
@@ -154,6 +161,40 @@ export default function TaskManagement() {
     : canViewTeamTasks ? 'board'
     : 'todo';
   const isBoard = effectiveView === 'board';
+  const composerOpen = isBoard && Boolean(composer);
+  const openComposer = (next, trigger = document.activeElement) => {
+    composerTrigger.current = trigger;
+    const container = composerTrigger.current?.closest('main');
+    composerScroll.current = container ? { container, top: container.scrollTop } : null;
+    create.reset(); edit.reset(); editRequested.reset();
+    setComposer(next);
+  };
+  const closeComposer = () => {
+    if (composerSubmitting.current || create.isPending || edit.isPending || editRequested.isPending) return;
+    create.reset(); edit.reset(); editRequested.reset();
+    setComposer(null);
+  };
+  useEffect(() => {
+    const returning = composerWasOpen.current && !composerOpen;
+    composerWasOpen.current = composerOpen;
+    if (!returning) return;
+    const frame = requestAnimationFrame(() => {
+      const trigger = composerTrigger.current;
+      const available = (node) => node?.isConnected && node !== document.body && !node.disabled && !node.closest('[hidden]');
+      // Saving a title, due date or assignee can remove its row from the current filter.
+      // Return to a stable board control when that original Edit button no longer exists.
+      const target = available(trigger) ? trigger
+        : available(newTaskButton.current) ? newTaskButton.current : browseHeading.current;
+      target?.focus({ preventScroll: true });
+      const position = composerScroll.current;
+      if (position?.container.isConnected) {
+        position.container.scrollTo({ top: target === trigger ? position.top : 0, behavior: 'auto' });
+      } else target?.scrollIntoView({ block: 'nearest' });
+      composerTrigger.current = null;
+      composerScroll.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [composerOpen]);
 
   // Only what is waiting on YOU. A request you raised is waiting on somebody else, and badging it
   // would read as work you owe. See pendingCount.
@@ -330,7 +371,7 @@ export default function TaskManagement() {
     // A task was write-once: a typo in the title, a date that moved, or the wrong person could only
     // be fixed by deleting it and filing it again — losing its sub-tasks and its history with it.
     // `task.manage` has advertised "Reassign / delete" since 0017 with no way to reassign.
-    edit: (task) => { edit.reset(); setComposer({ task }); },
+    edit: (task, trigger) => openComposer({ task }, trigger),
     // Deletion removes work from everyone's board; it can be restored from Deleted tasks.
     remove: (task) => { del.reset(); setToDelete(task); },
     // Functions of the row, not booleans: tasks_update, _delete and _insert each check the whole
@@ -343,14 +384,70 @@ export default function TaskManagement() {
 
   return (
     <div className="task-management-page work-page">
+      {composerOpen && (
+        <section className="work-editor" aria-label={composer.task ? 'Edit task workspace' : 'New task workspace'}>
+          <button type="button" className="work-button work-editor-back" onClick={closeComposer}
+            disabled={composerSaving || create.isPending || edit.isPending || editRequested.isPending}>
+            <ArrowLeft size={18} aria-hidden="true" /> Back to tasks
+          </button>
+          <TaskComposer
+          // Remounts the panel whenever it is pointed at a different task — see composerKey().
+          key={composerKey(composer)}
+          employees={employees}
+          canAssignTo={composer.task ? canReassignTo : canAssignTo}
+          currentEmployeeId={employee?.id}
+          task={composer.task ?? null}
+          // Reassigning is a manage action, not an update one: tasks_update lets an assignee move
+          // their own task's status, and they must not be able to hand it to somebody else.
+          canReassign={composer.task ? (rowCan.manage(composer.task) && !isRequestedByMe(composer.task)) : true}
+          defaultAssignee={composer.defaultAssignee}
+          busy={composerSaving || (composer.task ? (edit.isPending || editRequested.isPending) : create.isPending)}
+          createdTaskId={!composer.task ? create.error?.createdTaskId : null}
+          error={humanDbError(
+            composer.task ? (isRequestedByMe(composer.task) ? editRequested.error : edit.error) : create.error,
+            'tasks'
+          )}
+          onClose={closeComposer}
+          onSubmit={async (payload) => {
+            if (composerSubmitting.current) return;
+            composerSubmitting.current = true;
+            setComposerSaving(true);
+            try {
+              if (composer.task && isRequestedByMe(composer.task)) {
+                // A task another department is doing for me: change what it is, never who holds it.
+                await editRequested.mutateAsync({
+                  taskId: composer.task.id,
+                  title: payload.title,
+                  description: payload.description,
+                  priority: payload.priority,
+                  dueDate: payload.due_date,
+                  clearDue: !payload.due_date,
+                });
+              } else if (composer.task) {
+                const { assigneeIds: wanted = [], ...fields } = payload;
+                await edit.mutateAsync({ id: composer.task.id, ...fields });
+                await syncAssignees(composer.task, wanted);
+              } else {
+                const created = await create.mutateAsync(payload);
+                setOpenDetail(created.id);
+              }
+              setComposer(null);
+            } catch { /* shown in the panel */ }
+            finally { composerSubmitting.current = false; setComposerSaving(false); }
+          }}
+          />
+        </section>
+      )}
+
+      <div className="work-browse" hidden={composerOpen}>
       <header className="work-page-header">
         <div>
           <div className="work-eyebrow">Workspace / Tasks</div>
-          <h1>{canViewTeamTasks ? 'Tasks' : 'My tasks'}</h1>
+          <h1 ref={browseHeading} tabIndex={-1}>{canViewTeamTasks ? 'Tasks' : 'My tasks'}</h1>
           <p>Everything to do. One place to move it forward.</p>
         </div>
         {canCreate && isBoard && (
-          <button type="button" onClick={() => setComposer({ defaultAssignee: employee?.id })} className="work-button work-button-primary"><Plus size={16} /> New task</button>
+          <button ref={newTaskButton} type="button" onClick={(event) => openComposer({ defaultAssignee: employee?.id }, event.currentTarget)} className="work-button work-button-primary"><Plus size={16} /> New task</button>
         )}
       </header>
       <nav className="work-view-tabs" aria-label="Task views">
@@ -415,56 +512,6 @@ export default function TaskManagement() {
           <AlertTriangle size={14} className="mt-0.5 shrink-0" />
           <span>{humanDbError(update.error || del.error, 'tasks')}</span>
         </div>
-      )}
-
-      {/* The form sits ABOVE the list it adds to.
-          It used to render after it, which reads fine on a screen with six rows and badly on
-          one with two hundred: you press New Task at the top and the panel opens somewhere
-          below the fold. FormSection scrolls itself into view, which hid the problem without
-          fixing it — you still lose your place in the list you were reading. */}
-      {isBoard && composer && (
-        <TaskComposer
-          // Remounts the panel whenever it is pointed at a different task — see composerKey().
-          key={composerKey(composer)}
-          employees={employees}
-          canAssignTo={composer.task ? canReassignTo : canAssignTo}
-          currentEmployeeId={employee?.id}
-          task={composer.task ?? null}
-          // Reassigning is a manage action, not an update one: tasks_update lets an assignee move
-          // their own task's status, and they must not be able to hand it to somebody else.
-          canReassign={composer.task ? (rowCan.manage(composer.task) && !isRequestedByMe(composer.task)) : true}
-          defaultAssignee={composer.defaultAssignee}
-          busy={composer.task ? (edit.isPending || editRequested.isPending) : create.isPending}
-          createdTaskId={!composer.task ? create.error?.createdTaskId : null}
-          error={humanDbError(
-            composer.task ? (isRequestedByMe(composer.task) ? editRequested.error : edit.error) : create.error,
-            'tasks'
-          )}
-          onClose={() => { create.reset(); edit.reset(); editRequested.reset(); setComposer(null); }}
-          onSubmit={async (payload) => {
-            try {
-              if (composer.task && isRequestedByMe(composer.task)) {
-                // A task another department is doing for me: change what it is, never who holds it.
-                await editRequested.mutateAsync({
-                  taskId: composer.task.id,
-                  title: payload.title,
-                  description: payload.description,
-                  priority: payload.priority,
-                  dueDate: payload.due_date,
-                  clearDue: !payload.due_date,
-                });
-              } else if (composer.task) {
-                const { assigneeIds: wanted = [], ...fields } = payload;
-                await edit.mutateAsync({ id: composer.task.id, ...fields });
-                await syncAssignees(composer.task, wanted);
-              } else {
-                const created = await create.mutateAsync(payload);
-                setOpenDetail(created.id);
-              }
-              setComposer(null);
-            } catch { /* shown in the panel */ }
-          }}
-        />
       )}
 
       {/* body */}
@@ -563,6 +610,7 @@ export default function TaskManagement() {
           <p>You can restore it from Deleted tasks. Its checklist, comments and attachments will be kept.</p>
         </ConfirmDialog>
       )}
+      </div>
     </div>
   );
 }
@@ -585,10 +633,11 @@ function StaleWarning({ error }) {
   );
 }
 
-function TaskComposer({
+export function TaskComposer({
   employees, canAssignTo, currentEmployeeId, task, canReassign = true,
   defaultAssignee, busy, error, onClose, onSubmit, createdTaskId,
 }) {
+  const id = useId();
   const editing = Boolean(task);
   const [title, setTitle] = useState(task?.title ?? '');
   const [description, setDescription] = useState(task?.description ?? '');
@@ -697,6 +746,7 @@ function TaskComposer({
 
   return (
     <FormSection
+      focusHeading
       title={editing ? 'Edit task' : 'New task'}
       subtitle={editing ? 'Change the details, the deadline or who is on it.' : 'Assign work to people in your scope.'}
       icon={editing ? PenLine : Plus}
@@ -707,21 +757,21 @@ function TaskComposer({
       disabled={!title.trim() || !assigneeId}
       error={error}
     >
-        <fieldset disabled={Boolean(createdTaskId)} className="min-w-0 space-y-3 border-0 p-0 m-0">
+        <fieldset disabled={Boolean(createdTaskId)} className="task-composer-fields min-w-0 space-y-3 border-0 p-0 m-0">
           <div className="space-y-1">
-            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Title</label>
-            <input autoFocus className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs to be done?" required />
+            <label htmlFor={`${id}-title`} className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Task title <span className="text-sm font-normal">(required)</span></label>
+            <input id={`${id}-title`} className={INPUT} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs to be done?" required />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Description (optional)</label>
-            <textarea rows={2} className={INPUT + ' resize-none'} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add detail or context…" />
+            <label htmlFor={`${id}-description`} className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Description (optional)</label>
+            <textarea id={`${id}-description`} rows={3} className={INPUT + ' resize-y'} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Add detail or context…" />
           </div>
 
           <div className="space-y-1">
-            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">
+            <div id={`${id}-assignees-label`} className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">
               Assign to
-            </label>
+            </div>
 
             {assigneeUnknown ? (
               <p className="rounded-xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 px-3 py-2 text-xs text-neutral-500 italic">
@@ -773,6 +823,7 @@ function TaskComposer({
                 )}
 
                 <input
+                  id={`${id}-assignees`}
                   className={INPUT}
                   value={q}
                   aria-label="Search task assignees"
@@ -793,7 +844,7 @@ function TaskComposer({
                   <div className="mt-1 max-h-40 overflow-y-auto border border-neutral-200 dark:border-neutral-850 rounded-xl divide-y divide-neutral-150 dark:divide-neutral-850/60">
                     {peoplePager.slice.map((e) => (
                       <button key={e.id} type="button" onClick={() => addPerson(e.id)}
-                        className="w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer">
+                        className="task-assignee-option w-full text-left px-3 py-2 text-xs hover:bg-neutral-100 dark:hover:bg-neutral-900 flex justify-between items-center cursor-pointer">
                         <span className="font-semibold text-neutral-800 dark:text-neutral-200">{e.full_name}</span>
                         <span className="font-mono text-2xs text-neutral-500">{e.employee_code}{e.branch?.code ? ` · ${e.branch.code}` : ''}</span>
                       </button>
@@ -818,12 +869,12 @@ function TaskComposer({
           {/* The steps. Between the people and the deadline, because "who does it" and "what is it
               made of" are the same thought and the dates are an afterthought to both. */}
           <div className="space-y-1">
-            <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">
+            <div id={`${id}-subtasks-label`} className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">
               Subtasks
               {steps.length > 0 && (
                 <span className="ml-1.5 font-mono text-2xs font-normal text-neutral-400">{steps.length}</span>
               )}
-            </label>
+            </div>
 
             {editing ? (
               // Editing an existing list stays on the task, where ticking happens. Two editors for
@@ -858,7 +909,9 @@ function TaskComposer({
                     so the mouse is never the only way in. */}
                 <div className="relative">
                   <input
-                    className={INPUT + ' pr-10'}
+                    id={`${id}-subtask`}
+                    aria-labelledby={`${id}-subtasks-label`}
+                    className={INPUT + ' pr-14'}
                     value={stepDraft}
                     onChange={(e) => setStepDraft(e.target.value)}
                     onKeyDown={(e) => {
@@ -896,14 +949,14 @@ function TaskComposer({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-base font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><Flag size={11} /> Priority</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value)} className={INPUT}>
+              <label htmlFor={`${id}-priority`} className="text-base font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><Flag size={14} aria-hidden="true" /> Priority</label>
+              <select id={`${id}-priority`} value={priority} onChange={(e) => setPriority(e.target.value)} className={INPUT}>
                 {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-base font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><CalendarClock size={11} /> Due date</label>
-              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={INPUT} />
+              <label htmlFor={`${id}-due`} className="text-base font-semibold text-neutral-600 dark:text-neutral-300 flex items-center gap-1"><CalendarClock size={14} aria-hidden="true" /> Due date (optional)</label>
+              <input id={`${id}-due`} type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={INPUT} />
             </div>
           </div>
 

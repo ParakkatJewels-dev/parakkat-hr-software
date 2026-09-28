@@ -62,9 +62,9 @@ export default function RoutineForm({ initial, employees = [], employeesLoading 
   const validEmployees = editing || (!employeesLoading && !employeesError && employeeIds.every(id => employees.some(person => person.id === id)));
   const valid = title.trim() && jobs.length > 0 && jobs.length <= 100 && jobs.every((job) => job.title.trim())
     && employeeIds.length > 0 && employeeIds.length <= 1000 && validEmployees && validSchedule;
-  return <FormSection title={editing ? 'Edit routine' : 'Create routine'}
+  return <FormSection focusHeading title={editing ? 'Edit routine' : 'Create routine'}
     subtitle={resuming ? 'Edit the jobs and choose a start date. Saving resumes this routine from that date; earlier completion history is preserved.'
-      : editing ? 'Add jobs or change the schedule in this routine. Changes can begin today; earlier completion history is preserved.' : 'Create one routine with as many jobs as needed, then choose its schedule and employees.'}
+      : editing ? 'Add jobs or change dates; earlier completion history is preserved.' : 'Create one routine with as many jobs as needed, then choose its schedule and employees.'}
     icon={CheckSquare} onClose={busy ? undefined : onClose} busy={busy} error={error} disabled={!valid}
     submitLabel={editing ? 'Save routine' : `Assign routine${employeeIds.length ? ` to ${employeeIds.length} employee${employeeIds.length === 1 ? '' : 's'}` : ''}`}
     onSubmit={async (event) => {
@@ -76,14 +76,17 @@ export default function RoutineForm({ initial, employees = [], employeesLoading 
       else payload.employeeIds = employeeIds;
       try { await onSave(payload); } catch { /* The mutation's error stays beside the form. */ }
     }}>
-    <fieldset className="space-y-5" disabled={busy}>
+    <fieldset className="routine-form-fields space-y-5" disabled={busy}>
+      <section className="routine-form-section space-y-3" aria-label="Routine details">
+      <h3 className="text-base font-bold">Routine details</h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-sm font-medium"><span>Routine name</span><input required maxLength={120} className={INPUT} value={title}
           onChange={(event) => setTitle(event.target.value)} placeholder="For example, opening checks" /></label>
         <label className="space-y-1 text-sm font-medium"><span>Routine description (optional)</span><input maxLength={4000} className={INPUT} value={detail}
           onChange={(event) => setDetail(event.target.value)} placeholder="What this routine is for" /></label>
       </div>
-      <section className="space-y-3" aria-label="Jobs in this routine">
+      </section>
+      <section className="routine-form-section space-y-3" aria-label="Jobs in this routine">
         <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold">Jobs in this routine</h3>
           <span className="text-xs text-neutral-500">{jobs.length} job{jobs.length === 1 ? '' : 's'}</span></div>
         <p className="text-xs text-neutral-500">Use Add job to extend this checklist. You do not need a separate routine for each job.</p>
@@ -113,7 +116,7 @@ export default function RoutineForm({ initial, employees = [], employeesLoading 
           {jobs.length >= 100 && <p className="text-xs text-neutral-500">A routine can contain up to 100 active jobs. Delete a job before restoring another.</p>}
         </section>}
       </section>
-      <section className="space-y-3" aria-label="Routine schedule">
+      <section className="routine-form-section space-y-3" aria-label="Routine schedule">
         <h3 className="text-sm font-bold">Schedule</h3>
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="space-y-1 text-sm"><span>Frequency</span><select className={INPUT} value={schedule.frequency} onChange={(event) => setSchedule({ ...schedule, frequency: event.target.value })}>
@@ -137,7 +140,7 @@ export default function RoutineForm({ initial, employees = [], employeesLoading 
       </section>
       {editing ? <div className="rounded-xl bg-neutral-50 dark:bg-neutral-950 p-3 text-sm"><p className="font-semibold">Assigned to {initial.employee?.full_name ?? 'this employee'}</p>
         <p className="mt-1 text-xs text-neutral-500">These changes apply to this employee’s routine. Other employees keep their existing routines.</p></div>
-        : <div className="space-y-3">
+        : <div className="routine-form-section space-y-3">
           <QueryError error={employeesError} title="Employees could not be loaded." onRetry={onRetryEmployees} />
           {employeesLoading ? <SkeletonRows rows={3} compact label="Loading employees for routine assignment" />
             : !employeesError && <>

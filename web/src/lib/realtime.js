@@ -11,7 +11,7 @@ import { mergeConversationReceipts } from './messageReceipts';
 
 const CHAT_TABLES = new Set(['messages', 'conversations', 'conversation_members']);
 const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']];
-const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['section-counts']];
+const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['routine-notes'], ['section-counts']];
 const TASK_KEYS = [['tasks'], ['deleted-tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],
   ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
@@ -37,6 +37,7 @@ const TABLE_KEYS = {
   routine_ticks: ROUTINE_KEYS,
   routine_items: ROUTINE_KEYS,
   routine_sets: ROUTINE_KEYS,
+  routine_notes: [['routine-notes']],
   leaves: [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['notification-ref-statuses']],
   leave_decisions: [['section-counts'], ['leaves'], ['notifications']],
   expenses: [['section-counts'], ['expenses'], ['expenses-period'], ['notification-ref-statuses']],

@@ -66,17 +66,24 @@ export default function FormSection({
   disabled = false,
   children,
   footer,
+  focusHeading = false,
 }) {
   // Bring the panel into view and put the caret in its first field. Several of these render after
   // the list they belong to, so editing row 3 of 264 in the Directory would otherwise open a form
   // below the pagination with no visible sign anything happened.
-  const ref = useRevealOnOpen(true);
+  const ref = useRevealOnOpen(true, { focus: !focusHeading, block: focusHeading ? 'start' : 'nearest', containerSelector: focusHeading ? 'main' : null });
+  const titleId = useId();
   const errorId = useId();
   const submittingRef = useRef(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const pending = busy || submitting;
   const shownError = submitError || error;
+
+  // Focused editing screens announce their purpose before the user enters a field.
+  useEffect(() => {
+    if (focusHeading) ref.current?.querySelector('[data-form-heading]')?.focus({ preventScroll: true });
+  }, [focusHeading, ref]);
 
   // The latest onClose, without making the effects below depend on its identity. Every caller
   // passes an inline arrow, so a new function arrives on every render.
@@ -101,6 +108,7 @@ export default function FormSection({
   // the first field. The hook selects inputs only, and waits for the scroll to settle first.
 
   const Tag = onSubmit ? 'form' : 'div';
+  const Heading = focusHeading ? 'h2' : 'h3';
   const close = () => { if (!pending && !submittingRef.current) onClose?.(); };
   const submit = async (event) => {
     event.preventDefault();
@@ -119,6 +127,7 @@ export default function FormSection({
       ref={ref}
       {...(onSubmit ? { onSubmit: submit } : {})}
       aria-busy={pending}
+      aria-labelledby={titleId}
       aria-describedby={shownError ? errorId : undefined}
       className="premium-card form-section space-y-4 animate-fade-in scroll-mt-4"
     >
@@ -126,7 +135,7 @@ export default function FormSection({
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon size={15} className="text-brand-ink shrink-0" />}
           <div className="min-w-0">
-            <h3 className="font-bold text-sm text-neutral-900 dark:text-white">{title}</h3>
+            <Heading id={titleId} data-form-heading tabIndex={focusHeading ? -1 : undefined} className="font-bold text-sm text-neutral-900 dark:text-white">{title}</Heading>
             {subtitle && <p className="form-section-subtitle text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">{subtitle}</p>}
           </div>
         </div>

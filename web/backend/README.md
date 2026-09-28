@@ -165,7 +165,7 @@ for Department Head, Employee and Entity Admin scenarios. These browser writes s
 ## Named routines and completion history
 
 Apply `0140_named_scheduled_routines.sql`, `0154_routine_edits.sql` and
-`0156_routine_job_trash.sql` before deploying the matching frontend. In
+`0156_routine_job_trash.sql` and `0157_routine_audit_notes.sql` before deploying the matching frontend. In
 **Tasks → Routine**, managers create a named routine containing multiple jobs with one shared
 schedule, then assign it to selected employees within their permission scope.
 
@@ -210,6 +210,20 @@ schedule, then assign it to selected employees within their permission scope.
   all routines due today. Heads and higher roles see only their permitted team, with unfinished
   employees first and a link to the full daily checklist. Existing realtime updates refresh the
   dashboard after ticks and reopened jobs. These status updates do not send notifications.
+- Employees use **Add note** under a routine's daily checklist to explain incomplete or partial
+  work. Notes apply to that routine and selected due date, including weekly/monthly routines;
+  they do not mark jobs complete. Employees may add notes for their own due dates today or in
+  the past. The actual saved time remains visible, so a later explanation does not look like an
+  earlier submission. Future dates, non-due dates and notes on behalf of another employee are
+  refused by the database.
+- Notes preserve the employee's name, routine title, server timestamp and completed/total count
+  at submission, plus an internal job snapshot. Saved notes cannot be edited or deleted through
+  the app; corrections are additional notes. Request IDs make uncertain network retries safe.
+  **Notes history** filters by routine date (up to 366 days) and searches employees, routines or
+  explanations. Employees see their own records; heads and admins see their permitted scope.
+  Notes remain available after routine edits, retirement or restoration, including schedule
+  changes that remove a date from the daily checklist. Realtime refreshes both note views without
+  changing completion counts or sending notifications.
 - Legacy routine history has no reliable activation/retirement dates. Expected and missed-job
   rates therefore start at rollout; earlier recorded completions remain visible as unscored
   history. Invalid legacy owner/future ticks are retained privately for audit.
@@ -218,7 +232,9 @@ From `web`, run `npm test --prefix backend` for isolated SQL upgrade, recurrence
 history checks. For browser checks, run `npm run qa:browser` and open
 `http://127.0.0.1:5174/?qa-role=dept_head&qa-routines#/tasks/routine` or
 `http://127.0.0.1:5174/?qa-role=employee&qa-routines#/dashboard`.
-The QA role picker supports manager/admin comparisons; fixture writes stay in memory.
+The QA role picker supports manager/admin comparisons; fixture writes stay in memory. The routine
+fixture also supports employee note creation and scoped **Notes history** review. SQL tests cover
+immutable evidence, retry idempotency, scope changes and concurrent note/tick writes.
 
 ## Task deletion and recovery
 

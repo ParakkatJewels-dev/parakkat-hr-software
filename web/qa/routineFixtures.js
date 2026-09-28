@@ -5,8 +5,11 @@ import { addDays } from '../src/lib/dateRange';
 
 export const routineFixtures = new URL(window.location.href).searchParams.has('qa-routines');
 const stamp = () => new Date().toISOString();
+const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '')
+  && Number.isFinite(Date.parse(`${value}T12:00:00Z`)) && new Date(`${value}T12:00:00Z`).toISOString().slice(0, 10) === value;
 const historyStart = addDays(today, -30);
 tables.routine_sets ??= [];
+tables.routine_notes ??= [];
 
 if (routineFixtures) {
   const ownCompany = fixture.employees[0].entity_id;
@@ -14,7 +17,7 @@ if (routineFixtures) {
   const designations = [{ id: 'qa-des-sales', title: 'Sales Associate' }, { id: 'qa-des-cashier', title: 'Cashier' }];
   for (const [index, person] of people.entries()) Object.assign(person, { designation_id: designations[index % 2].id, designation: designations[index % 2] });
   const make = (person, id, title, frequency, jobs, extra = {}) => {
-    const set = { id, batch_id: 'qa-routine-batch', employee_id: person.id, employee: person,
+    const set = { id, batch_id: `qa-routine-batch-${id}`, employee_id: person.id, employee: person,
       entity_id: person.entity_id, zone_id: person.zone_id, branch_id: person.branch_id, department_id: person.department_id,
       title, detail: 'Synthetic checklist for recurring routine verification.', frequency,
       start_date: addDays(today, -6), end_date: null, weekdays: [1, 2, 3, 4, 5], month_day: 31, interval_days: 3,
@@ -26,7 +29,7 @@ if (routineFixtures) {
   };
   tables.routine_items = []; tables.routine_ticks = [];
   people.forEach((person, index) => {
-    const set = make(person, `qa-set-${String(index).padStart(2, '0')}`, 'Daily opening checklist', 'daily', ['Check opening stock', 'Prepare the handover notes', 'Verify the safety checklist']);
+    const set = make(person, `qa-set-${String(index).padStart(2, '0')}`, 'Daily opening checklist', 'daily', ['Check opening stock', 'Prepare the handover notes', 'Verify the safety checklist'], { batch_id: 'qa-daily-opening-batch' });
     for (let day = -6; day <= 0; day++) for (let job = 0; job < (index % 3 === 0 ? 3 : 1); job++) {
       tables.routine_ticks.push({ id: `${set.id}-tick-${day}-${job}`, routine_item_id: `${set.id}-job-${job}`, employee_id: person.id, on_date: addDays(today, day), done_at: stamp() });
     }
@@ -37,11 +40,21 @@ if (routineFixtures) {
   make(people[0], 'qa-weekly-own', 'Weekly stock review', 'weekly', ['Count high-value stock', 'Submit the weekly stock report'], { weekdays: [weekday] });
   make(people[0], 'qa-monthly-own', 'Monthly reconciliation', 'monthly', ['Reconcile the stock ledger'], { month_day: Number(today.slice(8)) });
   make(people[0], 'qa-future-own', 'Quarterly review preparation', 'once', ['Prepare review documents'], { start_date: addDays(today, 5) });
+  // Keep the signed-in employee's notes empty so the real Add note flow can be exercised.
+  for (const index of [1, 8, 16]) {
+    const person = people[index];
+    const set = tables.routine_sets.find(row => row.employee_id === person.id && row.frequency === 'daily');
+    tables.routine_notes.push({ id: `qa-routine-note-${index}`, client_id: `qa-routine-note-client-${index}`,
+      routine_id: set.id, batch_id: set.batch_id, employee_id: person.id, on_date: today,
+      body: 'Opening stock is checked. The remaining checks are pending while we wait for the handover documents.',
+      created_at: stamp(), created_by: `qa-peer-user-${index}`, author_name: person.full_name,
+      completed_jobs: 1, total_jobs: 3, routine_name: set.title });
+  }
 } else if (mobileFixtures) {
   const employees = [...new Set(tables.routine_items.filter(row => row.is_active).map(row => row.employee_id))];
   employees.forEach(employeeId => {
     const employee = fixture.employees.find(person => person.id === employeeId);
-    tables.routine_sets.push({ id: `qa-daily-${employeeId}`, employee_id: employeeId, employee, title: 'Daily duties',
+    tables.routine_sets.push({ id: `qa-daily-${employeeId}`, batch_id: `qa-daily-batch-${employeeId}`, employee_id: employeeId, employee, title: 'Daily duties',
       frequency: 'daily', start_date: today, end_date: null, retired_on: null, history_start_date: today });
     tables.routine_items.filter(row => row.employee_id === employeeId && row.is_active).forEach(row => { row.routine_id = `qa-daily-${employeeId}`; });
   });
@@ -57,7 +70,7 @@ function due(set, day) {
   return true;
 }
 
-export function routineRpc(name, args, { employee, role, allows, event, canWrite }) {
+export function routineRpc(name, args, { employee, userId, role, allows, event, canWrite }) {
   const person = id => fixture.employees.find(row => row.id === id);
   const scope = set => ({ ...set, ...person(set.employee_id), employee_id: set.employee_id });
   const readable = () => tables.routine_sets.filter(set => allows('task.read', scope(set)));
@@ -70,6 +83,46 @@ export function routineRpc(name, args, { employee, role, allows, event, canWrite
     done: tables.routine_ticks.some(tick => tick.routine_item_id === job.id && tick.on_date === day),
     can_tick: day <= today && (role !== 'employee' || day === today) && allows('task.update', scope(set)),
   })));
+  if (name === 'list_routine_note_audit') {
+    if (!validDate(args._from) || !validDate(args._to) || args._from > args._to || new Date(`${args._to}T12:00:00Z`) - new Date(`${args._from}T12:00:00Z`) > 365 * 86400000) {
+      return { error: { message: 'Choose a date range of up to 366 days.' } };
+    }
+    return { rows: tables.routine_notes.filter(note => note.on_date >= args._from && note.on_date <= args._to
+      && (!args._employee_id || note.employee_id === args._employee_id)
+      && readable().some(set => set.batch_id === note.batch_id && set.employee_id === note.employee_id))
+      .map(note => ({ ...note, employee: person(note.employee_id) })) };
+  }
+  if (name === 'list_routine_notes' || name === 'add_routine_note') {
+    const requested = readable().find(set => set.id === args._routine_id);
+    const day = args._on_date;
+    if (!requested) return { error: { message: 'This routine is outside your access scope.' } };
+    if (!validDate(day)) {
+      return { error: { message: 'Choose a valid routine date.' } };
+    }
+    const sameRoutine = row => row.batch_id === requested.batch_id && row.employee_id === requested.employee_id;
+    if (name === 'list_routine_notes') return { rows: tables.routine_notes.filter(note => sameRoutine(note) && note.on_date === day) };
+    if (!(routineFixtures || mobileFixtures) || !canWrite) return { error: { message: 'QA mode: this write is intentionally blocked.' } };
+    if (requested.employee_id !== employee?.id || !userId || !allows('task.update', scope(requested))) {
+      return { error: { message: 'You can add notes only to your own routines.' } };
+    }
+    const body = typeof args._body === 'string' ? args._body.trim() : '';
+    if (!body || body.length > 4000 || !args._client_id) return { error: { message: 'Enter a note of up to 4,000 characters.' } };
+    const existing = tables.routine_notes.find(note => note.created_by === userId && note.client_id === args._client_id);
+    if (existing) {
+      if (!sameRoutine(existing) || existing.on_date !== day || existing.body !== body) return { error: { message: 'This note request has already been used with different content.' } };
+      return { one: true, rows: [existing.id] };
+    }
+    if (day > today || !due(requested, day)) return { error: { message: 'This routine is not due on that date. Reload the routine and try again.' } };
+    const activeJobs = jobs(requested.id);
+    if (!activeJobs.length) return { error: { message: 'This routine has no jobs due on that date.' } };
+    const note = { id: crypto.randomUUID(), client_id: args._client_id, routine_id: requested.id,
+      batch_id: requested.batch_id, employee_id: requested.employee_id, on_date: day, body,
+      created_at: stamp(), created_by: userId, author_name: employee.full_name, routine_name: requested.title,
+      completed_jobs: activeJobs.filter(job => tables.routine_ticks.some(tick => tick.routine_item_id === job.id && tick.on_date === day)).length,
+      total_jobs: activeJobs.length };
+    tables.routine_notes.push(note); event('routine_notes', 'INSERT', note);
+    return { one: true, rows: [note.id], mutated: true };
+  }
   if (name === 'list_routine_sets') return { rows: sets().filter(set => (!args._employee_id || set.employee_id === args._employee_id)
     && (args._include_retired || ((!set.retired_on || set.retired_on >= today) && (!set.end_date || set.end_date >= today)
       && (set.frequency !== 'once' || set.start_date >= today)))) };

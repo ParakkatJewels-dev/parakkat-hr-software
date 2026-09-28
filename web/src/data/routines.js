@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
 import { istToday } from '../lib/dates';
+import { isMissingSchema } from '../lib/pendingMigration';
 
 /** Every routine the caller can see — their own, or their team's. RLS decides which. */
 export function useRoutineItems({ enabled = true, employeeId } = {}) {
@@ -81,8 +82,59 @@ export function useRoutineStats(from, to, { enabled = true, employeeIds } = {}) 
 
 function useRoutineCaches() {
   const qc = useQueryClient();
-  return () => Promise.all(['routine-items', 'routine-ticks', 'routine-sets', 'routine-day', 'routine-stats', 'section-counts']
+  return () => Promise.all(['routine-items', 'routine-ticks', 'routine-sets', 'routine-day', 'routine-stats', 'routine-notes', 'section-counts']
     .map((key) => qc.invalidateQueries({ queryKey: [key] })));
+}
+
+function routineNoteError(error) {
+  return error?.code === 'PGRST202' || isMissingSchema(error)
+    ? new Error('Routine notes are not available yet. Ask your administrator to apply the routine notes database update.')
+    : error;
+}
+
+export function useRoutineNotes(routineId, onDate, { enabled = true } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(routineId && onDate),
+    queryKey: ['routine-notes', 'occurrence', routineId, onDate],
+    queryFn: async () => {
+      try {
+        return await fetchCollection(() => supabase.rpc('list_routine_notes', {
+          _routine_id: routineId, _on_date: onDate,
+        }).order('created_at', { ascending: false }).order('id'));
+      } catch (error) { throw routineNoteError(error); }
+    },
+  });
+}
+
+export function useRoutineNoteAudit(from, to, { enabled = true, employeeId } = {}) {
+  return useQuery({
+    enabled: enabled && Boolean(from && to),
+    queryKey: ['routine-notes', 'audit', from, to, employeeId ?? 'all'],
+    queryFn: async () => {
+      try {
+        return await fetchCollection(() => supabase.rpc('list_routine_note_audit', {
+          _from: from, _to: to, _employee_id: employeeId ?? null,
+        }).order('on_date', { ascending: false }).order('created_at', { ascending: false }).order('id'));
+      } catch (error) { throw routineNoteError(error); }
+    },
+  });
+}
+
+export function useAddRoutineNote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ routineId, onDate, body, clientId }) => {
+      const { data, error } = await supabase.rpc('add_routine_note', {
+        _routine_id: routineId, _on_date: onDate, _body: String(body ?? '').trim(), _client_id: clientId,
+      });
+      if (error) throw routineNoteError(error);
+      if (!data) throw new Error('The note could not be saved. Please try again.');
+      return data;
+    },
+    // Discard pre-save initial reads too, so an older snapshot cannot hide the saved note.
+    onSuccess: () => qc.cancelQueries({ queryKey: ['routine-notes'], fetchStatus: 'fetching' })
+      .then(() => qc.invalidateQueries({ queryKey: ['routine-notes'] }, { cancelRefetch: false })),
+  });
 }
 
 /** Record or reopen one due job. The RPC validates the date, owner, scope and actor atomically. */

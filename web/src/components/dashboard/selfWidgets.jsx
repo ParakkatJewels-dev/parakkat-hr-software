@@ -402,7 +402,7 @@ export function MyRoutineToday({ onNavigate }) {
 
   return (
     <Widget title="My routine today" className="home-work-widget home-routine" icon={ListChecks}
-      badge={loading ? null : `${progress.done}/${progress.total}`} action="Routine" onAction={() => onNavigate?.('tasks/routine')}>
+      badge={loading ? null : `${progress.done}/${progress.total}`} action="Routine" onAction={() => onNavigate?.('tasks/routine?routineView=mine')}>
       {error && <div role="alert" className="home-work-error">
         <p>{humanDbError(error, 'routine_ticks')}</p>
         {dayQuery.error && <button type="button" onClick={() => dayQuery.refetch()}>Try again</button>}
@@ -424,7 +424,8 @@ export function MyRoutineToday({ onNavigate }) {
             </button>
           ))}
         </div>
-        {progress.total - progress.done > 6 && <button type="button" className="home-work-more" onClick={() => onNavigate?.('tasks/routine')}>View all remaining duties <ArrowRight size={13} /></button>}
+        {progress.total - progress.done > 6 && <button type="button" className="home-work-more" onClick={() => onNavigate?.('tasks/routine?routineView=mine')}>View all remaining duties <ArrowRight size={13} /></button>}
+        {canTick && !dayQuery.error && <button type="button" className="home-work-more" onClick={() => onNavigate?.('tasks/routine?routineView=mine')}>Add a note about unfinished work <ArrowRight size={13} /></button>}
       </>}
     </Widget>
   );

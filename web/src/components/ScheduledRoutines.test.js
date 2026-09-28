@@ -184,6 +184,27 @@ test('routine read errors offer a retry and avoid declaring an empty schedule', 
   assert.doesNotMatch(html, /No routines are due/);
 });
 
+test('employees can explain their own past incomplete routine without gaining past completion edits', () => {
+  const date = addDays(today, -1);
+  const html = render(TaskRoutine, { route: `/tasks/routine?routineDate=${date}`,
+    auth: { permissions: ['task.read', 'task.update'].map(permission => ({ permission, scope_type: 'self' })) },
+    seeds: [[['routine-day', date, 'employee-1'], [job(0, { done: false, can_tick: false })]],
+      [['routine-notes', 'occurrence', 'routine-1', date], []]] });
+  assert.match(html, /Add note<\/button>/);
+  assert.match(html, /<button[^>]*disabled=""[^>]*aria-label="Tick Opening job 0"/);
+});
+
+test('heads can read an employee explanation without writing on their behalf', () => {
+  const note = { id: 'note-1', on_date: today, created_at: `${today}T10:00:00Z`, author_name: 'Person 2',
+    body: 'Waiting for replacement stock', completed_jobs: 1, total_jobs: 3 };
+  const html = render(TaskRoutine, { route: '/tasks/routine?routineView=team&routineSection=daily', auth: { isSuperAdmin: true },
+    seeds: [[['routine-day', today, 'all'], [job(0, { employee_id: 'employee-2', employee: person(2) })]],
+      [['routine-notes', 'occurrence', 'routine-1', today], [note]]] });
+  assert.match(html, /Waiting for replacement stock/);
+  assert.match(html, /1 of 3 jobs complete when noted/);
+  assert.doesNotMatch(html, /Add note<\/button>/);
+});
+
 test('only the authorized latest archived routine exposes deleted-job restoration', () => {
   const routine = { id: 'routine-1', title: 'Retired opening', employee_id: 'employee-1', employee: person(1), frequency: 'daily',
     start_date: addDays(today, -10), retired_on: today, can_manage: true,

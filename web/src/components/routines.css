@@ -1,0 +1,76 @@
+/* Routine browsing and editing are separate workspaces, including at phone widths. */
+.routine-workspace { min-width: 0; color: var(--work-text, var(--surface-text)); }
+.routine-workspace [hidden] { display: none !important; }
+.routine-workspace :is(button, summary) { min-height: 44px !important; height: auto; line-height: 1.4; }
+.routine-workspace button { padding-block: 9px; }
+.routine-workspace :is(button, input, select, textarea, summary):focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 3px; }
+.routine-workspace :is(input, select, textarea):not([type=checkbox]):not([type=radio]) { min-width: 0; max-width: 100%; min-height: 44px; }
+.routine-workspace :is(label, fieldset, section) { min-width: 0; }
+.routine-workspace :is(p, h3, h4) { overflow-wrap: anywhere; }
+.routine-workspace .text-xs { font-size: 13px; line-height: 1.55; }
+.routine-workspace .text-neutral-500 { color: var(--work-muted, var(--surface-text-soft)); }
+.routine-workspace .routine-view-tabs { gap: 6px; padding-bottom: 16px; border-bottom: 1px solid var(--work-line); }
+.routine-workspace .routine-view-tabs button { padding-inline: 14px; }
+.routine-workspace .routine-filter-panel { padding: 20px; }
+.routine-filter-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 16px; }
+.routine-extra-filters summary { width: fit-content; padding-block: 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.routine-extra-filters[open] .routine-filter-grid { margin-top: 8px; }
+.routine-assignment-list { display: grid; gap: 14px; }
+.routine-workspace .routine-assignment { padding: 0; overflow: visible; }
+.routine-assignment-body { padding: 20px; }
+.routine-assignment-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.routine-workspace .routine-assignment-heading h4 { font-size: 17px !important; line-height: 1.4; }
+.routine-state { flex-shrink: 0; max-width: 45%; padding: 4px 9px; border-radius: 6px; background: var(--accent-soft); color: var(--accent-ink); font-size: 12px; font-weight: 600; text-align: center; }
+.routine-state-muted { background: var(--work-soft); color: var(--work-muted); border: 1px solid var(--work-line); }
+.routine-assignee { margin-top: 7px; overflow-wrap: anywhere; }
+.routine-schedule-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; font-size: 14px; }
+.routine-schedule-summary span { padding: 4px 8px; border-radius: 5px; background: var(--work-soft); border: 1px solid var(--work-line); }
+.routine-assignment-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--work-line); }
+.routine-more-actions { margin-left: auto; font-size: 14px; }
+.routine-more-actions summary { cursor: pointer; padding: 11px 8px; color: var(--work-muted); }
+.routine-more-actions > div { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.routine-assignment > p { margin: 0 20px 16px; }
+.routine-editor { max-width: 1040px; margin-inline: auto; }
+.routine-editor-context { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
+.routine-editor-context p { flex: 1 1 230px; font-size: 14px; color: var(--work-muted); }
+.routine-workspace .routine-editor .form-section { overflow: visible !important; scroll-margin-top: 90px; padding: 24px; animation: none; }
+.routine-workspace .routine-editor .form-section-header { flex-wrap: nowrap !important; padding-bottom: 20px; border-bottom: 1px solid var(--work-line); }
+.routine-workspace .routine-editor .form-section-header :is(h2, h3) { font-size: 24px !important; line-height: 1.3; }
+.routine-workspace .routine-editor .form-section-header > div { align-items: flex-start; }
+.routine-workspace .routine-editor .form-section-header > div > svg { width: 22px; height: 22px; margin-top: 4px; }
+.routine-workspace .routine-editor .form-section-header button { width: 44px; min-width: 44px; }
+.routine-workspace .routine-editor .form-section-subtitle { display: block; overflow: visible; -webkit-line-clamp: unset; font-size: 14px; line-height: 1.6; margin-top: 8px; }
+.routine-workspace .routine-editor .text-xs { font-size: 14px; line-height: 1.6; }
+.routine-form-section + .routine-form-section { padding-top: 24px; border-top: 1px solid var(--work-line); }
+.routine-workspace .routine-form-section > h3,
+.routine-workspace .routine-form-section > div > h3 { font-size: 17px !important; }
+.routine-workspace .routine-form-fields ol button { min-width: 44px; }
+.routine-workspace .routine-editor .form-section > div:last-child { position: sticky; bottom: 12px; z-index: 2; padding: 16px; margin-inline: -8px; background: var(--work-bg, var(--surface-elevated)); border: 1px solid var(--work-line); border-radius: 10px; box-shadow: 0 4px 18px #0000000a; }
+.routine-workspace .routine-editor .form-section-actions { position: static; padding: 0; border: 0; box-shadow: none; backdrop-filter: none; background: transparent; }
+.routine-workspace .routine-editor :is(input, textarea, select) { scroll-margin-block: 120px; }
+.routine-workspace .routine-editor [role=alert] { scroll-margin-block: 120px; }
+@container task-workspace (max-width: 760px) {
+  .routine-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .routine-filter-grid > label:first-child { grid-column: 1 / -1; }
+  .routine-workspace .routine-editor .form-section { padding: 18px; }
+}
+@media (max-width: 640px) {
+  .routine-workspace .routine-page-heading > button { width: 100%; }
+  .routine-workspace .routine-view-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .routine-workspace .routine-view-tabs button { padding-inline: 8px; font-size: 14px; }
+  .routine-workspace .routine-filter-panel { padding: 14px; }
+  .routine-filter-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .routine-workspace .routine-assignment-body { padding: 16px; }
+  .routine-workspace .routine-assignment-actions { padding: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .routine-assignment-actions button { width: 100%; padding-inline: 6px; }
+  .routine-more-actions { margin-left: 0; grid-column: 1 / -1; }
+  .routine-more-actions > div { display: block; }
+  .routine-editor-context { gap: 8px; }
+  .routine-editor-context p { flex-basis: 100%; }
+  .routine-workspace .routine-editor .form-section { padding: 14px; scroll-margin-top: 135px; }
+  .routine-workspace .routine-editor .form-section-header :is(h2, h3) { font-size: 21px !important; }
+  .routine-workspace .routine-editor .form-section > div:last-child { bottom: 8px; padding: 10px; margin-inline: -5px; }
+  .routine-workspace .routine-editor .form-section-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); width: 100%; }
+  .routine-workspace :is(input, select, textarea):not([type=checkbox]):not([type=radio]) { font-size: 16px; }
+  .routine-workspace .routine-editor .form-section-actions button { white-space: normal; }
+}
