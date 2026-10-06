@@ -11,7 +11,7 @@ import { regularizationTimes } from '../lib/regularizationTimes.js';
 // The ancestry is selected because reg_update checks all five columns, so the Approve/Reject
 // buttons can be drawn per row instead of from one blanket canAny.
 const SELECT = `
-  id, work_date, check_in, check_out, reason, status, decision_note, decided_at, created_at,
+  id, work_date, check_in, check_out, reason, status, requested_by, decision_note, decided_at, created_at,
   entity_id, zone_id, branch_id, department_id, employee_id,
   employee:employees!attendance_regularizations_employee_id_fkey(
     id, full_name, employee_code, branch:branches(id, name)
@@ -78,6 +78,10 @@ export function useCreateRegularization() {
     onSuccess: () => Promise.all([
       qc.invalidateQueries({ queryKey: ['regularizations'] }),
       qc.invalidateQueries({ queryKey: ['section-counts'] }),
+      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] }),
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] }),
+      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] }),
+      qc.invalidateQueries({ queryKey: ['payroll-register'] }),
     ]),
   });
 }
@@ -105,6 +109,9 @@ export function useDecideRegularization() {
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] });
       // The recompute trigger has queued the date; attendance updates once the queue drains.
       qc.invalidateQueries({ queryKey: ['attendance'] });
+      for (const key of ['payroll-attendance-summary', 'payroll-runs', 'payroll-worksheet-run', 'payroll-register']) {
+        qc.invalidateQueries({ queryKey: [key] });
+      }
     },
   });
 }

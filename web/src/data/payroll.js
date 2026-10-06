@@ -95,6 +95,7 @@ export function useRunPayroll() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
       qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
       qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
       qc.invalidateQueries({ queryKey: ['payslip-lines'] });
@@ -116,6 +117,7 @@ export function usePublishPayroll() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
       qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
       qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
       qc.invalidateQueries({ queryKey: ['payroll-register'] });
@@ -133,6 +135,7 @@ export function useDeletePayrollRun() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
       qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
       qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
       qc.invalidateQueries({ queryKey: ['payslip-lines'] });
@@ -195,6 +198,7 @@ export function useSaveSalaryStructure() {
       qc.invalidateQueries({ queryKey: ['salary-structures'] });
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
       qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
       qc.invalidateQueries({ queryKey: ['payroll-register'] });
     },
   });
@@ -226,6 +230,7 @@ export function useSavePayComponent() {
       qc.invalidateQueries({ queryKey: ['pay-components'] });
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
       qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
       qc.invalidateQueries({ queryKey: ['payroll-register'] });
     },
   });
@@ -242,6 +247,7 @@ export function useDeletePayComponent() {
       qc.invalidateQueries({ queryKey: ['pay-components'] });
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
       qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
       qc.invalidateQueries({ queryKey: ['payroll-register'] });
     },
   });

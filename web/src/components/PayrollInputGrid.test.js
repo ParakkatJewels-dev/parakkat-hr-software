@@ -17,9 +17,12 @@ const stubs = {
   react: `export { default } from ${JSON.stringify(import.meta.resolve('react'))}; export const useState = value => globalThis.payrollGrid.state(value);
     export const useRef = value => globalThis.payrollGrid.state({current:value})[0];
     export const useMemo = compute => compute(); export const useEffect = () => {};`,
+  'react-router-dom': 'export const Link = "a";',
+  '../auth/usePermissions': 'export const usePermissions = () => ({can: () => globalThis.payrollGrid.canReadAttendance !== false});',
   'lucide-react': 'export const AlertTriangle="icon", Check="icon", Download="icon", FileSpreadsheet="icon", Loader2="icon", Search="icon", Upload="icon", Users="icon";',
   '@tanstack/react-query': 'export const useIsMutating = filters => { globalThis.payrollGrid.mutationFilters = filters; return globalThis.payrollGrid.activeMutations ?? 0; };',
   '../data/payrollWorksheet': `export const usePayrollMonthlyInputs = () => globalThis.payrollGrid.query;
+    export const usePayrollAttendanceSummary = (_entity, _period, options) => { globalThis.payrollGrid.attendanceOptions = options; return globalThis.payrollGrid.attendance; };
     export const useSavePayrollMonthlyInputs = () => globalThis.payrollGrid.mutation;`,
   '../lib/payrollWorksheet': `export * from ${JSON.stringify(new URL('../lib/payrollWorksheet.js', import.meta.url).href)};`,
   '../lib/usePayrollSessionState': 'export const usePayrollSessionState = (key, initial) => globalThis.payrollGrid.sessionState(key, initial);',
@@ -79,7 +82,12 @@ function mount({ count = 30, published = false, query: overrides = {}, sessionSt
       finally { this.isPending = false; }
     },
   };
-  const harness = { query, mutation, page: 1, paginationKey: null, downloads: [], readWorkbook: readPayrollInputWorkbook, sessionStore,
+  const attendance = { isSuccess: true, isLoading: false, isFetching: false, error: null, refetch: async () => {}, data: employees.map(person => ({ employee_id: person.id,
+    recorded_worked_hours: 208, recorded_ot_hours: 4.5, recorded_late_hours: 1.5, deductible_late_hours: .5,
+    effective_ot_hours: 4.5, effective_late_hours: .5, policy_deduct_late: true,
+    attendance_days: 31, expected_days: 31, missing_days: 0, unresolved_days: 0, invalid_days: 0, pending_recompute_days: 0,
+    last_punch_at: '2026-10-31T12:30:00Z', computed_at: '2026-10-31T12:32:00Z' })) };
+  const harness = { query, attendance, mutation, page: 1, paginationKey: null, downloads: [], readWorkbook: readPayrollInputWorkbook, sessionStore,
     props: { entityId: 'company', period: '2026-10', employees, published, disabled: false },
     state(initial) {
       const index = cursor++;
@@ -395,4 +403,110 @@ test('one Excel currency cell is normalized while ordinary note pastes keep nati
   assert.equal(grid.paste(1, '1,25'), true);
   assert.equal(grid.cell(1).props.value, '1250.5');
   assert.match(text(grid.render()), /Invalid number grouping/);
+});
+
+test('automatic punch hours refresh without creating a manual override or an unsaved draft', async () => {
+  const grid = mount({ count: 3 }); grid.click('Hours & deductions');
+  assert.equal(grid.cell(1, 'OT hours').props.value, '4.5');
+  assert.equal(grid.cell(1, 'OT hours').props.readOnly, true);
+  assert.equal(grid.cell(1, 'Late hours').props.value, '0.5');
+  grid.attendance.data[0] = { ...grid.attendance.data[0], recorded_ot_hours: 6, deductible_late_hours: 1 };
+  assert.equal(grid.cell(1, 'OT hours').props.value, '6');
+  assert.equal(grid.cell(1, 'Late hours').props.value, '1');
+  assert.equal(grid.button('Save changes').props.disabled, true);
+  grid.click('Earnings'); grid.edit(1, '250');
+  await grid.click('Save 1 changes');
+  assert.equal(grid.mutation.writes[0].rows[0].input.ot_hours, '');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').ot_hours, null);
+});
+
+test('HR can override automatic hours including zero, must provide a reason, and can restore automatic hours', async () => {
+  const grid = mount({ count: 3 }); grid.click('Hours & deductions');
+  grid.click('Person 01 · Override OT hours');
+  assert.equal(grid.cell(1, 'OT hours').props.readOnly, false);
+  assert.equal(grid.button('Save 1 changes').props.disabled, true);
+  grid.edit(1, '0', 'OT hours'); grid.edit(1, 'OT not approved for this month', 'Notes / deduction reason');
+  grid.attendance.data[0].recorded_ot_hours = 8;
+  assert.equal(grid.cell(1, 'OT hours').props.value, '0');
+  await grid.click('Save 1 changes');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').ot_hours, 0);
+  grid.click('Person 01 · Use automatic OT hours');
+  assert.equal(grid.cell(1, 'OT hours').props.value, '8');
+  assert.equal(grid.cell(1, 'OT hours').props.readOnly, true);
+  await grid.click('Save 1 changes');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').ot_hours, null);
+});
+
+test('bulk return to punch hours is reviewed and preserves saved numeric overrides until applied', async () => {
+  const grid = mount({ count: 3 });
+  grid.query.data[0] = { ...grid.query.data[0], ot_hours: 0, late_hours: 0, notes: 'Reviewed waiver' };
+  grid.click('Hours & deductions'); grid.select(1); grid.click('Use punch hours');
+  assert.match(text(grid.preview()), /Auto from attendance/);
+  assert.equal(grid.cell(1, 'OT hours').props.value, '0');
+  grid.click('Apply 1 rows to worksheet');
+  assert.equal(grid.cell(1, 'OT hours').props.value, '4.5');
+  assert.equal(grid.cell(1, 'Late hours').props.value, '0.5');
+  await grid.click('Save 1 changes');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').late_hours, null);
+});
+
+test('attendance refresh failures block writes, processing gaps are visible and disabled late deductions yield zero', () => {
+  const grid = mount({ count: 3 }); grid.click('Hours & deductions');
+  grid.attendance.data[0].policy_deduct_late = false;
+  assert.equal(grid.cell(1, 'Late hours').props.value, '0');
+  grid.attendance.data[0].pending_recompute_days = 2;
+  assert.match(text(grid.render()), /2 days awaiting attendance processing/);
+  grid.change('Filter input status', 'issues');
+  assert.ok(grid.cell(1, 'OT hours')); assert.equal(grid.cell(2, 'OT hours'), null);
+  grid.attendance.error = new Error('Attendance refresh unavailable');
+  assert.equal(grid.cell(1, 'OT hours').props.disabled, true);
+  assert.equal(grid.button('Person 01 · Override OT hours').props.disabled, true);
+  grid.cell(1, 'OT hours').props.onChange({ target: { value: '12' } });
+  assert.equal(grid.cell(1, 'OT hours').props.value, '4.5');
+  assert.match(text(grid.render()), /Attendance refresh unavailable/);
+});
+
+test('daily punch links retain employee and month and respect attendance access', () => {
+  const grid = mount({ count: 3 });
+  let links = findAll(grid.render(), node => node.type === 'a');
+  assert.equal(links[0].props.to, '/attendance/person?employee=employee-1&period=2026-10');
+  grid.canReadAttendance = false;
+  links = findAll(grid.render(), node => node.type === 'a');
+  assert.equal(links.length, 0);
+});
+
+test('saved hour issues require attention while employees outside the month show a neutral status', () => {
+  const grid = mount({ count: 3 }); grid.click('Hours & deductions');
+  grid.attendance.data[0].override_issue = 'OT override exceeds recorded overtime.';
+  grid.attendance.data[1].in_payroll_month = false;
+  assert.match(text(grid.render()), /OT override exceeds recorded overtime/);
+  assert.match(text(grid.render()), /Outside payroll month/);
+  assert.equal(grid.cell(2, 'OT hours').props.disabled, true);
+  assert.equal(grid.cell(2, 'OT hours').props.placeholder, 'Not applicable');
+  grid.change('Filter input status', 'issues');
+  assert.ok(grid.cell(1, 'OT hours')); assert.equal(grid.cell(2, 'OT hours'), null);
+});
+
+test('typing AUTO into a manual hour input returns it to attendance mode', () => {
+  const grid = mount({ count: 3 }); grid.click('Hours & deductions');
+  grid.click('Person 01 · Override OT hours'); grid.edit(1, 'AUTO', 'OT hours');
+  assert.equal(grid.cell(1, 'OT hours').props.readOnly, true);
+  assert.equal(grid.cell(1, 'OT hours').props.value, '4.5');
+  assert.equal(grid.button('Save changes').props.disabled, true);
+});
+
+test('published hours display the frozen payroll register and never use changing live attendance', () => {
+  const grid = mount({ count: 3, published: true });
+  grid.props.snapshots = [{ employee_id: 'employee-1', payroll_register: {
+    total_working_hours: 200, recorded_ot_hours: 3, recorded_late_hours: 1,
+    recorded_deductible_late_hours: 0.5, ot_hours: 3, late_hours: 0.5, policy: { deduct_late: true },
+  } }];
+  grid.click('Hours & deductions');
+  assert.equal(grid.attendanceOptions.enabled, false);
+  assert.equal(grid.cell(1, 'OT hours').props.value, '3');
+  grid.attendance.data[0].recorded_ot_hours = 50;
+  assert.equal(grid.cell(1, 'OT hours').props.value, '3');
+  assert.equal(grid.button('Person 01 · Override OT hours'), null);
+  assert.equal(grid.cell(1, 'OT hours').props.disabled, true);
+  assert.match(text(grid.render()), /Published snapshot/);
 });

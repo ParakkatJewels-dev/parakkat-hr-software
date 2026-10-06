@@ -44,8 +44,8 @@ export const MONTHLY_INPUT_FIELDS = [
   { key: 'travel_food', label: 'Travel allowance / food expense', group: 'Earnings' },
   { key: 'rent_commission', label: 'Rent / commission', group: 'Earnings' },
   { key: 'special_allowance', label: 'Special allowances', group: 'Earnings' },
-  { key: 'ot_hours', label: 'Approved OT hours', group: 'Hours' },
-  { key: 'late_hours', label: 'Approved late hours', group: 'Hours' },
+  { key: 'ot_hours', label: 'OT hours', group: 'Hours', nullable: true, auto: true },
+  { key: 'late_hours', label: 'Late hours', group: 'Hours', nullable: true, auto: true },
   { key: 'pf', label: 'PF', group: 'Deductions', nullable: true },
   { key: 'esi', label: 'ESI', group: 'Deductions', nullable: true },
   { key: 'advance_recovery', label: 'Salary advance refund', group: 'Deductions' },
@@ -81,8 +81,8 @@ export function normalizeMonthlyInput(draft) {
     });
   }
   input.notes = String(draft.notes ?? '').trim();
-  if ((input.other_deductions > 0 || input.late_hours > 0 || input.pf !== null || input.esi !== null) && !input.notes) {
-    throw new Error('Record a reason for late deductions, other deductions or PF / ESI overrides.');
+  if ((input.other_deductions > 0 || input.ot_hours !== null || input.late_hours !== null || input.pf !== null || input.esi !== null) && !input.notes) {
+    throw new Error('Record a reason for OT / late overrides, other deductions or PF / ESI overrides.');
   }
   return input;
 }

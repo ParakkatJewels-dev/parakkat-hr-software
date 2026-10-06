@@ -21,13 +21,14 @@ const stubs = {
     export const useRef = value => globalThis.pendingFormTest.useRef(value);
     export const useEffect = (fn, deps) => globalThis.pendingFormTest.useEffect(fn, deps);
     export const useMemo = fn => fn(); export const useCallback = fn => fn;`,
-  'react-router-dom': `export const useLocation = () => globalThis.pendingFormTest.location;
+  'react-router-dom': `export const Link = "test-link"; export const useLocation = () => globalThis.pendingFormTest.location;
     export const useSearchParams = () => [globalThis.pendingFormTest.params, globalThis.pendingFormTest.setParams];`,
   '../auth/AuthContext': 'export const useAuth = () => ({ employee: { id: "self" } });',
   '../auth/usePermissions': 'export const usePermissions = () => globalThis.pendingFormTest.permissions;',
   '../data/tickets': queryStubs(['useTickets']) + mutationStubs(['useAddTicket', 'useSetTicketStatus']),
   '../data/ticketCategories': queryStubs(['useTicketAccess', 'useTicketCategories']) + mutationStubs(['useSaveTicketCategory']),
   '../data/org': queryStubs(['useVisibleOrg']),
+  '../data/employees': queryStubs(['useEmployees']),
   '../data/leaves': queryStubs(['useLeaves']) + mutationStubs(['useApplyLeave']),
   '../data/leaveTypes': queryStubs(['useLeaveTypes', 'useLeaveBalances']),
   '../data/holidays': queryStubs(['useHolidays']),
@@ -117,6 +118,8 @@ function mount(Component, props = {}) {
     useTicketCategories: { data: [category], isLoading: false },
     useVisibleOrg: { data: { departments: [department], branches: [], entities: [] } },
     useLeaves: { data: [], isLoading: false }, useHolidays: { data: [] },
+    useEmployees: { data: [], isLoading: false, isSuccess: true },
+    useMonthlyAttendance: { data: [], isLoading: false, isFetching: false, isSuccess: true },
     useLeaveTypes: { data: [{ code: 'CL', name: 'Casual Leave', is_active: true }], isLoading: false, refetch() {} },
     useLeaveBalances: { data: [] },
   });

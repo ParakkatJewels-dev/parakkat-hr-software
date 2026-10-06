@@ -49,6 +49,13 @@ so figures never drift from the rules that produced them.
 
 Full setup, commands and troubleshooting: **[services/attendance/README.md](services/attendance/README.md)**.
 
+Payroll's **Monthly Worksheet → Hours & deductions** uses calculated attendance automatically
+for OT and eligible late hours. HR can enter a reasoned hour override or use **Review / correct
+punches** to request a daily time correction for independent approval. Existing numeric monthly
+inputs remain overrides until HR selects **Use punch hours**. Apply pending migrations through
+`0160` with `npm run migrate` before deploying the updated client. See the
+[payroll operating guide](web/backend/README.md#automatic-punch-hours-and-hr-corrections).
+
 ## Access model
 
 Every user gets a **role** (super_admin, entity_admin, hr_manager, zonal_manager, branch_manager, dept_head, employee) granted at a **scope** (global / entity / zone / branch / department / self). The same `hr_manager` role granted at different scopes gives you per-branch or per-department HR. The org hierarchy (Entity → Zone → Branch → Department → Designation) is admin-editable at runtime. RLS is the real gate; the client-side permission checks only shape the UI.

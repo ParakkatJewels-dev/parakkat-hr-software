@@ -32,6 +32,7 @@ function render({ role = 'admin', route = 'worksheet', runData = run, rows = [{ 
     [['org', 'all'], { entities: [company], zones: [], branches: [], departments: [], designations: [] }],
     [['employees'], [employee]], [['payroll-runs'], [runData]],
     [['payroll-monthly-inputs', entityId, period], []], [['payroll-policy', entityId], policyData], [['payroll-worksheet-run', entityId, period], runData],
+    [['payroll-attendance-summary', entityId, period], [{ employee_id: employee.id, recorded_worked_hours: 208, recorded_ot_hours: 4, recorded_late_hours: 1, deductible_late_hours: 0.5, policy_deduct_late: false, attendance_days: 30, expected_days: 30, missing_days: 0, unresolved_days: 0, invalid_days: 0, pending_recompute_days: 0 }]],
     [['payroll-register', run.id], rows],
   ];
   for (const [key, data] of seeds) client.setQueryData(key, data);

@@ -20,14 +20,18 @@ module.exports = function testPayrollIntegrity({ run, connection, directory }) {
       // Verify the historical contract before the stricter register workflow is installed.
       // Its sparse-attendance fixtures deliberately exercise the old calendar fallback.
       ...(file.startsWith('0158_') ? ['\\set payroll_seed off', `\\i ${quote(test)}`] : []),
+      ...(file.startsWith('0160_') ? [
+        `\\i ${quote(join(backend, 'tests', 'payroll_salary_register.sql'))}`,
+        `\\i ${quote(join(backend, 'tests', 'payroll_bulk_monthly_inputs.sql'))}`,
+      ] : []),
       `\\i ${quote(join(migrations, file))}`,
-      ...(/^(0143|0158|0159)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0143|0158|0159|0160)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
-    `\\i ${quote(join(backend, 'tests', 'payroll_salary_register.sql'))}`,
-    `\\i ${quote(join(backend, 'tests', 'payroll_bulk_monthly_inputs.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'payroll_attendance_hours.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-Xq', '-f', bootstrap]);
   console.log(output.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
   console.log(run(process.execPath, [join(__dirname, 'testPayrollConcurrency.js'), connection[1]]).trim());
+  console.log(run(process.execPath, [join(__dirname, 'testPayrollHoursConcurrency.js'), connection[1]]).trim());
 };

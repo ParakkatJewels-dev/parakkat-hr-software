@@ -157,11 +157,12 @@ The operating sequence is **Monthly Worksheet → Run Payroll → Review registe
    unresolved shifts and incomplete breaks. Join dates and cleared exit dates limit eligible days.
    Midmonth salary revisions are explicitly blocked pending a split-period calculation; do not
    change a real effective date to evade that check.
-3. Save approved monthly incentives, expenses, allowances, recoveries and hours. These earnings
+3. Save approved monthly incentives, expenses, allowances and recoveries. These earnings
    are **additional to** the regular salary structure; enter actual payable amounts for the month.
-   OT/late hours default to zero and require explicit entry. PF/ESI blank means configured employee
-   component deductions; zero explicitly overrides the employee deduction with zero. Overrides,
-   late deductions and other deductions require a reason. Concurrent saves reject a stale revision.
+   With migration `0160`, blank OT/late hours follow calculated attendance automatically. Explicit
+   numbers (including zero) are HR overrides and need a reason. PF/ESI blank means configured employee
+   component deductions; zero explicitly overrides the employee deduction with zero. Other deductions
+   also require a reason. Concurrent saves reject a stale revision.
 4. Run the draft and reconcile its 33-column register and payslip breakdown. Source changes mark
    affected drafts for recalculation. Failed calculation is atomic and preserves the previous draft.
    Excel export includes every accessible row in the run, independent of the displayed page or
@@ -187,7 +188,7 @@ salary even though the supplied sheet has only a Casual Leave column.
 Working-day mode requires a complete month calendar, including dates outside employment for
 joiners/leavers. Fixed mode is a loss-of-pay method, not paid days multiplied by the day rate.
 Day rate is monthly salary divided by the selected divisor; hour rate divides that by daily hours.
-OT is approved recorded OT hours × hour rate × multiplier. Late deduction uses approved lateness
+OT uses automatic recorded hours or HR-overridden hours × hour rate × multiplier. Late deduction uses lateness
 on fully paid duty days only, preventing the same time also being charged as half-day LOP.
 The database retains exact intermediate rates and rounds payable lines to paise. Gross is earned
 salary plus monthly additions and OT. Net is gross less employee deductions and late amount once;
@@ -233,6 +234,8 @@ and unambiguously. Duplicate employees or editable headers and invalid amounts b
 the import. Formulas in editable inputs or identifiers are rejected; formulas in recognized,
 ignored calculated columns are never evaluated. Blank import cells preserve existing values;
 explicit zero replaces an amount. Clear PF/ESI in the grid to restore configured components.
+For OT/late, templates write `AUTO` when hours follow attendance; importing or pasting `AUTO`
+restores automatic calculation. Blank import cells still preserve the existing selection.
 The preview can add an approval note to rows missing a required deduction / override reason.
 
 Preview and bulk fill only stage edits. **Save changes** submits all changed employees across
@@ -247,6 +250,33 @@ company and month changes, isolated by the authenticated access scope. They are 
 to browser storage and are lost on refresh/sign-out. Save or discard before calculating,
 exporting or publishing; retained unsaved changes disable calculation/publication in this
 session. Published months are read-only. Saving inputs marks existing draft runs stale.
+
+## Automatic punch hours and HR corrections
+
+Apply `0160_payroll_attendance_hours.sql` after `0159` before deploying this client. It makes
+OT/late inputs nullable, adds the scoped attendance-summary RPC and records changes to hour
+overrides in `payroll_hour_override_history`. Existing numeric inputs, including zero, remain
+explicit overrides. Select employees and use **Use punch hours** to review a return to automatic
+calculation; the migration never guesses whether a historical zero was intentional.
+
+The **Hours & deductions** view shows worked hours, recorded OT, deductible late hours and the
+last recorded punch. Automatic late deductions respect the saved company policy and include
+only fully paid duty days. **Edit** switches an hour field to an HR override; **Use auto** restores
+attendance calculation. Overrides cannot exceed the recorded eligible hours. New device punches
+and approved corrections refresh automatic values without overwriting manual overrides.
+
+**Review / correct punches** opens the employee's selected month. Authorized HR can select a day,
+enter corrected check-in/check-out times and a reason, and submit a regularization on behalf of
+the employee. A different authorized reviewer must approve it before the attendance engine uses
+the correction. Raw device evidence remains available. Missing punches, unresolved attendance
+and queued recalculations are shown for review; calculation/publication waits for the attendance
+engine to finish. Locked or published payroll dates reject correction changes.
+
+Automatic capture depends on the attendance service and BioTime connection being operational.
+The default device polling and queue schedules run every two minutes (typically two to four
+minutes from device sync to calculated attendance). **Refresh punch hours** rereads calculated
+attendance; it does not contact the device directly. Published registers retain their frozen
+hours and amounts even when later raw device evidence arrives.
 
 Isolated browser fixtures: run `npm --prefix web run qa:browser`, open
 `http://127.0.0.1:5174/?qaPayroll=1&qa-role=super_admin#/payroll/worksheet`, and select C1.

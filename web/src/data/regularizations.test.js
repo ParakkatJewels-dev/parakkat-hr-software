@@ -34,6 +34,7 @@ test('ATT-05: real mutation inserts explicit overnight and checkout-only correct
     assert.equal(payload.check_in, checkIn ? '2026-07-15T16:30:00.000Z' : null);
     assert.equal(payload.check_out, '2026-07-16T00:30:00.000Z');
     assert.equal(payload.status, 'Pending');
+    assert.equal(payload.employee_id, 'test-employee');
     assert.ok(!payload.check_in || payload.check_out > payload.check_in);
   }
   const previousWrites = writes.length;
@@ -41,5 +42,6 @@ test('ATT-05: real mutation inserts explicit overnight and checkout-only correct
     checkIn: '22:00', checkOut: '06:00', reason: 'Missing next-day choice' }), /next day/);
   assert.equal(writes.length, previousWrites);
   await mutation.onSuccess();
-  assert.deepEqual(invalidated, [{ queryKey: ['regularizations'] }, { queryKey: ['section-counts'] }]);
+  assert.deepEqual(invalidated, ['regularizations', 'section-counts', 'payroll-attendance-summary',
+    'payroll-runs', 'payroll-worksheet-run', 'payroll-register'].map(key => ({ queryKey: [key] })));
 });

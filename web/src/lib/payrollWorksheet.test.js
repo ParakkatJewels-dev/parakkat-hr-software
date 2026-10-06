@@ -54,35 +54,40 @@ test('missing legacy snapshots and malformed numeric values cannot become invent
   assert.throws(() => buildPayrollWorkbook(XLSX, [{ payroll_register: incomplete }]), /snapshots/);
 });
 
-test('blank statutory inputs keep configured components while explicit zero remains an override', () => {
+test('blank statutory and hour inputs use configured components and attendance while explicit zero remains an override', () => {
   const defaults = normalizeMonthlyInput(monthlyInputDraft());
   assert.equal(defaults.pf, null);
   assert.equal(defaults.esi, null);
-  assert.equal(defaults.ot_hours, 0);
-  assert.equal(defaults.late_hours, 0);
+  assert.equal(defaults.ot_hours, null);
+  assert.equal(defaults.late_hours, null);
+  assert.equal(monthlyInputDraft().ot_hours, '');
+  assert.equal(monthlyInputDraft().late_hours, '');
   const input = normalizeMonthlyInput({ ...monthlyInputDraft(), pf: '0', esi: '0.00', notes: 'Reviewed exemption for this month' });
   assert.equal(input.pf, 0);
   assert.equal(input.esi, 0);
   assert.equal(monthlyInputDraft({ pf: 0, esi: null }).pf, '0');
   assert.equal(monthlyInputDraft({ pf: 0, esi: null }).esi, '');
+  assert.equal(monthlyInputDraft({ ot_hours: 0, late_hours: 1.25 }).ot_hours, '0', 'legacy numeric hours are retained');
+  assert.equal(monthlyInputDraft({ ot_hours: 0, late_hours: 1.25 }).late_hours, '1.25');
 });
 
 test('hours require approval and monetary inputs reject invalid, negative or overprecise values', () => {
-  const input = normalizeMonthlyInput({ ...monthlyInputDraft(), incentive: '1200.50', ot_hours: '2.25' });
+  const input = normalizeMonthlyInput({ ...monthlyInputDraft(), incentive: '1200.50', ot_hours: '2.25', notes: 'Reviewed attendance override' });
   assert.equal(input.incentive, 1200.5);
   assert.equal(input.ot_hours, 2.25);
   for (const value of ['-1', 'NaN', 'Infinity', '1e3', '0x10', '12.345', '1,000', '10000000000']) {
     assert.throws(() => normalizeMonthlyInput({ ...monthlyInputDraft(), incentive: value }), /Incentive/);
   }
   assert.throws(() => normalizeMonthlyInput({ ...monthlyInputDraft(), ot_hours: '744.01' }), /744/);
-  assert.equal(normalizeMonthlyInput({ ...monthlyInputDraft(), ot_hours: null }).ot_hours, 0);
+  assert.equal(normalizeMonthlyInput({ ...monthlyInputDraft(), ot_hours: null }).ot_hours, null);
 });
 
-test('deduction and statutory overrides require a retained reason, including explicit PF zero', () => {
-  for (const patch of [{ other_deductions: '50' }, { late_hours: '0.25' }, { pf: '0' }, { esi: '50' }]) {
+test('hour, deduction and statutory overrides require a retained reason, including explicit zero', () => {
+  for (const patch of [{ other_deductions: '50' }, { ot_hours: '2.25' }, { ot_hours: '0' }, { late_hours: '0' }, { late_hours: '0.25' }, { pf: '0' }, { esi: '50' }]) {
     assert.throws(() => normalizeMonthlyInput({ ...monthlyInputDraft(), ...patch, notes: '  ' }), /reason/);
     assert.equal(normalizeMonthlyInput({ ...monthlyInputDraft(), ...patch, notes: '  Approved correction  ' }).notes, 'Approved correction');
   }
+  assert.doesNotThrow(() => normalizeMonthlyInput({ ot_hours: '', late_hours: null, pf: '', esi: null, notes: '' }));
 });
 
 test('policy validation supports each divisor but disallows zero hours and unsupported values', () => {

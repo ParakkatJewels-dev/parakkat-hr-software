@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { usePermissions } from '../auth/usePermissions';
 import { useIsMutating } from '@tanstack/react-query';
 import { AlertTriangle, Check, Download, FileSpreadsheet, Loader2, Search, Upload, Users } from 'lucide-react';
 import { usePayrollSessionState } from '../lib/usePayrollSessionState';
-import { usePayrollMonthlyInputs, useSavePayrollMonthlyInputs } from '../data/payrollWorksheet';
+import { usePayrollMonthlyInputs, usePayrollAttendanceSummary, useSavePayrollMonthlyInputs } from '../data/payrollWorksheet';
 import { MONTHLY_INPUT_FIELDS, monthlyInputDraft, normalizeMonthlyInput } from '../lib/payrollWorksheet';
 import { applyPayrollPaste, parsePayrollPaste, parsePayrollImportRows, readPayrollInputWorkbook, exportPayrollInputTemplate } from '../lib/payrollInputGrid';
 import Pagination, { usePagination } from './ui/Pagination';
@@ -15,7 +17,7 @@ const NOTES = { key: 'notes', label: 'Notes / deduction reason', group: 'Notes' 
 const ALL_FIELDS = [...MONTHLY_INPUT_FIELDS, NOTES];
 const GROUPS = ['Earnings', 'Hours & deductions', 'All inputs'];
 const message = error => error?.message || String(error);
-const needsNote = draft => !String(draft.notes ?? '').trim() && (Number(draft.late_hours) > 0 || Number(draft.other_deductions) > 0 || String(draft.pf ?? '').trim() !== '' || String(draft.esi ?? '').trim() !== '');
+const needsNote = draft => !String(draft.notes ?? '').trim() && (String(draft.ot_hours ?? '').trim() !== '' || String(draft.late_hours ?? '').trim() !== '' || Number(draft.other_deductions) > 0 || String(draft.pf ?? '').trim() !== '' || String(draft.esi ?? '').trim() !== '');
 const rowError = draft => { try { normalizeMonthlyInput(draft); return ''; } catch (error) { return message(error); } };
 const equal = (a, b) => {
   try { return JSON.stringify(normalizeMonthlyInput(a)) === JSON.stringify(normalizeMonthlyInput(b)); }
@@ -23,7 +25,19 @@ const equal = (a, b) => {
 };
 const fieldLabel = key => ALL_FIELDS.find(field => field.key === key)?.label ?? key;
 const branchLabel = person => person.branch?.name || person.branch?.code || 'Unassigned branch';
-const cellText = value => value === '' || value == null ? 'Default' : String(value);
+const isHour = key => key === 'ot_hours' || key === 'late_hours';
+const cellText = (value, key) => value === '' || value == null ? (isHour(key) ? 'Auto from attendance' : 'Default') : String(value);
+const hours = value => value == null || !Number.isFinite(Number(value)) ? '—' : Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+const punchStamp = value => value && Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat('en-IN', {
+  timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+}).format(new Date(value)) : '—';
+const autoHours = (row, key) => !row || row.in_payroll_month === false ? null : key === 'ot_hours' ? row.recorded_ot_hours
+  : row.policy_deduct_late ? row.deductible_late_hours : 0;
+const timeIssue = row => !row ? 'Attendance summary unavailable.' : row.in_payroll_month === false ? '' : row.employment_issue || row.override_issue ? row.employment_issue || row.override_issue
+  : Number(row.pending_recompute_days) > 0 ? `${row.pending_recompute_days} days awaiting attendance processing.`
+    : Number(row.unresolved_days) + Number(row.invalid_days) > 0 ? `${Number(row.unresolved_days || 0) + Number(row.invalid_days || 0)} attendance days need review.`
+      : Number(row.missing_days) > 0 ? `${row.missing_days} days have no calculated attendance.` : '';
+
 
 // Drafts and original revisions stay together. Background refreshes can update clean rows,
 // but cannot replace an operator's work or silently renew their optimistic-lock revision.
@@ -42,7 +56,9 @@ function stagePayrollDrafts(current, patches, records) {
 }
 
 export default function PayrollInputGrid({ entityId, period, employees, published, disabled, snapshots = EMPTY, onDirtyChange, onBusyChange }) {
+  const { can } = usePermissions();
   const query = usePayrollMonthlyInputs(entityId, period);
+  const attendance = usePayrollAttendanceSummary(entityId, period, { enabled: !published });
   const save = useSavePayrollMonthlyInputs();
   const activeSaves = useIsMutating({ mutationKey: ['save-payroll-monthly-inputs'], predicate: mutation =>
     mutation.state.variables?.entityId === entityId && mutation.state.variables?.period === period });
@@ -65,12 +81,23 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
   const writeInFlight = useRef(false);
   const records = useMemo(() => new Map((query.data ?? EMPTY).map(row => [row.employee_id, row])), [query.data]);
   const people = useMemo(() => new Map(employees.map(person => [person.id, person])), [employees]);
+  const attendanceMap = useMemo(() => new Map((attendance.data ?? EMPTY).map(row => [row.employee_id, row])), [attendance.data]);
   const snapshotMap = useMemo(() => new Map(snapshots.map(row => [row.employee_id, row.payroll_register])), [snapshots]);
+  const attendanceFor = id => {
+    if (!published) return attendanceMap.get(id);
+    const snapshot = snapshotMap.get(id);
+    return snapshot ? { recorded_worked_hours: snapshot.recorded_worked_hours ?? snapshot.total_working_hours,
+      recorded_ot_hours: snapshot.recorded_ot_hours, recorded_late_hours: snapshot.recorded_late_hours,
+      deductible_late_hours: snapshot.recorded_deductible_late_hours, policy_deduct_late: snapshot.policy?.deduct_late,
+      effective_ot_hours: snapshot.ot_hours, effective_late_hours: snapshot.late_hours } : null;
+  };
+  const attendanceBlocked = !published && (!attendance.isSuccess || attendance.isFetching || Boolean(attendance.error));
+  const attendanceIssues = published ? [] : employees.filter(person => timeIssue(attendanceMap.get(person.id)));
   const dirtyIds = Object.keys(drafts);
   const conflicts = dirtyIds.filter(id => !people.has(id) || drafts[id].expectedUpdatedAt !== (records.get(id)?.updated_at ?? null));
   const errors = Object.fromEntries(dirtyIds.map(id => [id, rowError(drafts[id].draft)]).filter(([, value]) => value));
   const errorCount = Object.keys(errors).length;
-  const blocked = published || disabled || !query.isSuccess || query.isFetching || Boolean(query.error) || saving || busyFile;
+  const blocked = published || disabled || attendanceBlocked || !query.isSuccess || query.isFetching || Boolean(query.error) || saving || busyFile;
   const columns = ALL_FIELDS.filter(field => field.key === 'notes' || group === 'All inputs'
     || (group === 'Earnings' ? field.group === 'Earnings' : field.group === 'Hours' || field.group === 'Deductions'));
   const branches = [...new Map(employees.map(person => [person.branch_id ?? '', branchLabel(person)])).entries()]
@@ -79,11 +106,11 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
     if (branch && (person.branch_id ?? '__none') !== branch) return false;
     if (search.trim() && !`${person.full_name} ${person.employee_code} ${branchLabel(person)}`.toLowerCase().includes(search.trim().toLowerCase())) return false;
     if (status === 'changed' && !drafts[person.id]) return false;
-    if (status === 'issues' && !errors[person.id] && !conflicts.includes(person.id)) return false;
+    if (status === 'issues' && !errors[person.id] && !conflicts.includes(person.id) && (published || !timeIssue(attendanceMap.get(person.id)))) return false;
     if (status === 'saved' && (!records.has(person.id) || drafts[person.id])) return false;
     if (status === 'empty' && (records.has(person.id) || drafts[person.id])) return false;
     return true;
-  }), [employees, branch, search, status, drafts, records, errors, conflicts]);
+  }), [employees, branch, search, status, drafts, records, errors, conflicts, published, attendanceMap]);
   const pager = usePagination(filtered, 25, null, `${search}|${branch}|${status}`);
   const selectedPeople = employees.filter(person => selected.has(person.id));
   const hiddenSelected = selectedPeople.filter(person => !filtered.some(row => row.id === person.id)).length;
@@ -128,6 +155,7 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
   };
   const preparePreview = (rows, title, warnings = [], fileErrors = []) => {
     const changes = rows.map(row => {
+      row = { ...row, patch: Object.fromEntries(Object.entries(row.patch).map(([key, value]) => [key, isHour(key) && String(value).trim().toUpperCase() === 'AUTO' ? '' : value])) };
       const before = currentDraft(row.employeeId);
       const after = { ...before, ...row.patch };
       return { ...row, employeeName: people.get(row.employeeId)?.full_name ?? row.employeeName,
@@ -181,9 +209,16 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
     <div className="payroll-input-stats" aria-label="Input summary">
       <span><Users size={14} /><b>{employees.length}</b> employees</span>
       <span><b>{dirtyIds.length}</b> changed</span>
-      <span className={errorCount || conflicts.length ? 'payroll-input-danger' : ''}><b>{new Set([...Object.keys(errors), ...conflicts]).size}</b> need attention</span>
+      <span className={errorCount || conflicts.length || attendanceIssues.length ? 'payroll-input-danger' : ''}><b>{new Set([...Object.keys(errors), ...conflicts, ...attendanceIssues.map(person => person.id)]).size}</b> need attention</span>
       <span className="payroll-input-month-status">{published ? 'Published · read-only' : 'Draft inputs'}</span>
     </div>
+    <div className="payroll-attendance-info"><div><strong>{published ? 'Hours from the published register' : 'Punch time flows into payroll automatically'}</strong>
+      <p>{published ? 'These hours are frozen with the published salary.' : 'Worked hours, OT and eligible late hours come from calculated attendance. HR can override payable hours with a reason, or review daily punches to request a time correction.'}</p></div>
+      {!published && <button type="button" className={btnClass('ghost', 'sm')} disabled={attendance.isFetching || saving} onClick={() => attendance.refetch()}>Refresh punch hours</button>}
+    </div>
+    {!published && attendance.isLoading && <p role="status" className="payroll-input-feedback"><Loader2 size={14} className="animate-spin" />Loading punch-derived hours…</p>}
+    {!published && attendance.error && <p role="alert" className="payroll-input-feedback payroll-input-danger">{message(attendance.error)}</p>}
+    {!published && attendance.isSuccess && attendanceIssues.length > 0 && <p className="payroll-input-callout">{attendanceIssues.length} employees need attendance or hour-override review. Check each row’s status before calculating payroll.</p>}
     {published && <p className="payroll-input-callout">This month is published. Its inputs are read-only.</p>}
     {(query.isLoading || busyFile) && <p role="status" className="payroll-input-feedback"><Loader2 size={14} className="animate-spin" />{busyFile ? 'Preparing spreadsheet…' : 'Loading employee inputs…'}</p>}
     {(query.error || error) && <p role="alert" className="payroll-input-feedback payroll-input-danger"><AlertTriangle size={14} />{error || message(query.error)}</p>}
@@ -206,7 +241,7 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
       {preview.errors.length > 0 && <div role="alert" className="payroll-input-danger"><p>Correct these file errors and import again:</p><ul>{preview.errors.map((item, index) => <li key={index}>Row {item.row}: {item.message}</li>)}</ul></div>}
       <div className="payroll-import-table"><table><caption className="sr-only">Import and bulk fill changes before applying</caption><thead><tr><th>Employee</th><th>Changes · before → after</th><th>Validation</th></tr></thead><tbody>
         {preview.rows.map(row => <tr key={row.employeeId}><th scope="row">{row.employeeName}<small>{people.get(row.employeeId)?.employee_code}</small></th>
-          <td>{row.changes.map(key => <div key={key}><b>{fieldLabel(key)}:</b> {cellText(row.before[key])} → <strong>{cellText(row.after[key])}</strong></div>)}</td>
+          <td>{row.changes.map(key => <div key={key}><b>{fieldLabel(key)}:</b> {cellText(row.before[key], key)} → <strong>{cellText(row.after[key], key)}</strong></div>)}</td>
           <td className={row.error ? 'payroll-input-danger' : 'payroll-input-success'}>{row.error || 'Ready'}</td></tr>)}
       </tbody></table></div>
       {!preview.rows.length && !preview.errors.length && <p>No changed values were found.</p>}
@@ -229,39 +264,54 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
       <span><b>{selectedPeople.length}</b> selected{hiddenSelected > 0 ? ` (${hiddenSelected} outside this filter)` : ''}</span>
       <button type="button" className={btnClass('subtle', 'sm')} disabled={!filtered.length || blocked} onClick={() => setSelected(new Set(filtered.map(person => person.id)))}>Select all {filtered.length} matching</button>
       {selectedPeople.length > 0 && <button type="button" className={btnClass('subtle', 'sm')} onClick={() => setSelected(new Set())}>Clear selection</button>}
+      {selectedPeople.length > 0 && <button type="button" className={btnClass('ghost', 'sm')} disabled={blocked || Boolean(preview)} onClick={() => preparePreview(selectedPeople.map(person => ({ employeeId: person.id, patch: { ot_hours: '', late_hours: '' } })), 'Use automatic punch hours')}>Use punch hours</button>}
       <div className="payroll-bulk-fields"><select aria-label="Bulk fill field" value={fillField} onChange={event => setFillField(event.target.value)} disabled={blocked || Boolean(preview)}>{ALL_FIELDS.map(field => <option value={field.key} key={field.key}>{field.label}</option>)}</select>
-        <input aria-label="Bulk fill value" value={fillValue} inputMode={fillField === 'notes' ? 'text' : 'decimal'} placeholder={fillField === 'notes' ? 'Enter a reason' : 'Value'} onChange={event => setFillValue(event.target.value)} disabled={blocked || Boolean(preview)} />
+        <input aria-label="Bulk fill value" value={fillValue} inputMode={fillField === 'notes' || isHour(fillField) ? 'text' : 'decimal'} placeholder={fillField === 'notes' ? 'Enter a reason' : isHour(fillField) ? 'Hours or AUTO' : 'Value'} onChange={event => setFillValue(event.target.value)} disabled={blocked || Boolean(preview)} />
         <button type="button" className={btnClass('ghost', 'sm')} disabled={blocked || Boolean(preview) || !selectedPeople.length} onClick={() => preparePreview(selectedPeople.map(person => ({ employeeId: person.id, patch: { [fillField]: fillValue } })), `Bulk fill · ${fieldLabel(fillField)}`)}>Review fill</button></div>
     </div>
-    <p className="payroll-input-tip">Amounts in ₹ · Tab moves across · Enter moves down · Paste into a cell in the current page. PF / ESI blank = configured component; 0 = override with zero. Notes are required for overrides, late hours and other deductions.</p>
+    <p className="payroll-input-tip">Amounts in ₹ · Tab moves across · Enter moves down · Paste into a cell in the current page. OT / late blank or AUTO = attendance. A number, including 0, overrides the automatic value and needs a reason. PF / ESI blank = configured component.</p>
     <div className="payroll-input-table-wrap" ref={tableRef} tabIndex={0} role="region" aria-label="Scrollable monthly input table">
       <table className="payroll-input-table"><caption className="sr-only">Employee monthly inputs for {period}</caption><thead><tr>
         <th className="payroll-input-select"><input type="checkbox" aria-label="Select current page" checked={pager.slice.length > 0 && pager.slice.every(person => selected.has(person.id))} disabled={blocked || !pager.slice.length} onChange={event => setSelected(current => {
           const next = new Set(current); pager.slice.forEach(person => event.target.checked ? next.add(person.id) : next.delete(person.id)); return next;
         })} /></th>
         <th className="payroll-input-employee">Employee / branch</th>
+        {group !== 'Earnings' && <><th scope="col">Worked hours<small>FROM PUNCHES</small></th><th scope="col">Recorded OT<small>FROM ATTENDANCE</small></th><th scope="col">Eligible late<small>FULLY PAID DUTY DAYS</small></th></>}
         {columns.map(field => <th scope="col" key={field.key} className={field.key === 'notes' ? 'payroll-input-notes' : ''}>{field.label}<small>{field.group === 'Hours' ? 'HOURS' : field.key === 'notes' ? 'REFERENCE / REASON' : 'INR'}</small></th>)}
         <th scope="col">Status</th>
       </tr></thead><tbody>{pager.slice.map((person, rowIndex) => {
         const draft = currentDraft(person.id), dirty = Boolean(drafts[person.id]), conflict = conflicts.includes(person.id), rowIssue = errors[person.id];
-        const snapshot = snapshotMap.get(person.id);
+        const time = attendanceFor(person.id);
+        const issue = published ? '' : timeIssue(time);
+        const canReview = can('attendance.read', { entityId: person.entity_id, zoneId: person.zone_id, branchId: person.branch_id, deptId: person.department_id, employeeId: person.id });
         return <tr key={person.id} className={dirty ? 'payroll-input-dirty' : ''}>
           <td className="payroll-input-select"><input type="checkbox" aria-label={`Select ${person.full_name}`} checked={selected.has(person.id)} disabled={blocked} onChange={() => toggle(person.id)} /></td>
           <th scope="row" className="payroll-input-employee"><strong>{person.full_name}</strong><small>{person.employee_code} · {branchLabel(person)}</small>
             {person.status !== 'Active' && <small>{person.status}</small>}
-            {group !== 'Earnings' && snapshot && <small>Last run: OT {snapshot.recorded_ot_hours ?? '—'}h · late {snapshot.recorded_late_hours ?? '—'}h</small>}
+            {time?.in_payroll_month === false && <small>Outside payroll month</small>}
+            {canReview && <Link className="payroll-punch-link" to={`/attendance/person?employee=${encodeURIComponent(person.id)}&period=${encodeURIComponent(period)}`}>Review / correct punches</Link>}
+            {group !== 'Earnings' && !published && <small>Last punch: {punchStamp(time?.last_punch_at)} IST</small>}
           </th>
-          {columns.map((field, columnIndex) => <td key={field.key} className={`${field.key === 'notes' ? 'payroll-input-notes' : ''} ${dirty && drafts[person.id].base[field.key] !== draft[field.key] ? 'payroll-input-cell-changed' : ''}`}>
+          {group !== 'Earnings' && <><td className="payroll-punch-metric"><strong>{hours(time?.recorded_worked_hours)}h</strong><small>{published ? 'Published snapshot' : `${time?.attendance_days ?? '—'} / ${time?.expected_days ?? '—'} days calculated`}</small></td>
+            <td className="payroll-punch-metric"><strong>{hours(time?.recorded_ot_hours)}h</strong><small>{published ? 'Published snapshot' : 'Calculated from punches'}</small></td>
+            <td className="payroll-punch-metric"><strong>{hours(time?.deductible_late_hours)}h</strong><small>All late: {hours(time?.recorded_late_hours)}h</small>{time?.policy_deduct_late === false && <small>Late deduction disabled</small>}</td></>}
+          {columns.map((field, columnIndex) => {
+            const automatic = isHour(field.key) && String(draft[field.key] ?? '').trim() === '';
+            const calculated = published ? time?.[field.key === 'ot_hours' ? 'effective_ot_hours' : 'effective_late_hours'] : autoHours(time, field.key);
+            return <td key={field.key} className={`${field.key === 'notes' ? 'payroll-input-notes' : ''} ${dirty && drafts[person.id].base[field.key] !== draft[field.key] ? 'payroll-input-cell-changed' : ''}`}>
             <input type="text" aria-label={`${person.full_name} · ${field.label}`} aria-invalid={Boolean(rowIssue) || undefined} aria-describedby={rowIssue || conflict ? `payroll-issue-${person.id}` : undefined}
-              data-row={rowIndex} data-column={columnIndex} inputMode={field.key === 'notes' ? 'text' : 'decimal'} value={draft[field.key]}
-              placeholder={field.nullable ? 'Default' : field.key === 'notes' ? 'Add a note…' : '0.00'} disabled={blocked || Boolean(preview)}
-              onChange={event => stage([{ employeeId: person.id, patch: { [field.key]: event.target.value } }])}
+              data-row={rowIndex} data-column={columnIndex} inputMode={field.key === 'notes' ? 'text' : 'decimal'} value={automatic ? (calculated == null ? '' : String(calculated)) : draft[field.key]} readOnly={automatic}
+              placeholder={automatic ? time?.in_payroll_month === false ? 'Not applicable' : 'Awaiting punches' : field.nullable ? 'Default' : field.key === 'notes' ? 'Add a note…' : '0.00'} disabled={blocked || Boolean(preview) || (isHour(field.key) && time?.in_payroll_month === false)}
+              onChange={event => stage([{ employeeId: person.id, patch: { [field.key]: isHour(field.key) && event.target.value.trim().toUpperCase() === 'AUTO' ? '' : event.target.value } }])}
               onFocus={event => { if (field.key !== 'notes') event.target.select(); }}
               onKeyDown={event => move(event, rowIndex, columnIndex)} onPaste={event => paste(event, rowIndex, columnIndex)} />
-            {conflict && <small className="payroll-input-latest">Saved: {cellText(monthlyInputDraft(records.get(person.id))[field.key])}</small>}
-          </td>)}
-          <td className="payroll-input-row-status"><span className={conflict || rowIssue ? 'payroll-input-danger' : dirty ? 'payroll-input-unsaved' : 'payroll-input-muted'}>{conflict ? 'Changed elsewhere' : rowIssue ? 'Needs attention' : dirty ? 'Unsaved' : records.has(person.id) ? 'Saved' : 'No inputs'}</span>
-            {(rowIssue || conflict) && <p id={`payroll-issue-${person.id}`}>{conflict ? 'Compare saved values, then reload this row.' : rowIssue}</p>}
+            {isHour(field.key) && <div className="payroll-hour-mode"><span>{automatic ? 'Auto · attendance' : 'HR override'}</span>
+              {!published && <button type="button" aria-label={`${person.full_name} · ${automatic ? 'Override' : 'Use automatic'} ${field.label}`} disabled={blocked || Boolean(preview) || (automatic && calculated == null)} onClick={() => stage([{ employeeId: person.id, patch: { [field.key]: automatic ? String(calculated) : '' } }])}>{automatic ? 'Edit' : 'Use auto'}</button>}
+            </div>}
+            {conflict && <small className="payroll-input-latest">Saved: {cellText(monthlyInputDraft(records.get(person.id))[field.key], field.key)}</small>}
+          </td>; })}
+          <td className="payroll-input-row-status"><span className={conflict || rowIssue || issue ? 'payroll-input-danger' : dirty ? 'payroll-input-unsaved' : 'payroll-input-muted'}>{conflict ? 'Changed elsewhere' : rowIssue || issue ? 'Needs attention' : dirty ? 'Unsaved' : records.has(person.id) ? 'Saved' : 'No inputs'}</span>
+            {(rowIssue || conflict || issue) && <p id={`payroll-issue-${person.id}`}>{conflict ? 'Compare saved values, then reload this row.' : rowIssue || issue}</p>}
             {dirty && <button type="button" disabled={saving || Boolean(preview)} onClick={() => setDiscard(person.id)}>{conflict ? 'Reload row' : 'Undo row'}</button>}
           </td>
         </tr>;

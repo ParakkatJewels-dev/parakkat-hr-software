@@ -11,13 +11,14 @@ import { mergeConversationReceipts } from './messageReceipts';
 
 const CHAT_TABLES = new Set(['messages', 'conversations', 'conversation_members']);
 const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']];
+const PAYROLL_ATTENDANCE_KEYS = [['payroll-attendance-summary'], ['payroll-runs'], ['payroll-worksheet-run']];
 const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['routine-notes'], ['section-counts']];
 const TASK_KEYS = [['tasks'], ['deleted-tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],
   ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
 // a staff transfer or a permission change can alter the queue without changing its request rows.
 const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['ticket-access'],
-  ['ticket-categories'], ['tickets'], ['notification-ref-statuses'], ...ROUTINE_KEYS, ...TASK_KEYS];
+  ['ticket-categories'], ['tickets'], ['notification-ref-statuses'], ...ROUTINE_KEYS, ...TASK_KEYS, ...PAYROLL_ATTENDANCE_KEYS];
 
 // public table → query-key prefixes to invalidate when it changes. A prefix invalidates every
 // query whose key starts with it (e.g. ['attendance'] covers ['attendance','day',date]).
@@ -38,32 +39,36 @@ const TABLE_KEYS = {
   routine_items: ROUTINE_KEYS,
   routine_sets: ROUTINE_KEYS,
   routine_notes: [['routine-notes']],
-  leaves: [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['notification-ref-statuses']],
-  leave_decisions: [['section-counts'], ['leaves'], ['notifications']],
+  leaves: [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['notification-ref-statuses'], ...PAYROLL_ATTENDANCE_KEYS],
+  leave_decisions: [['section-counts'], ['leaves'], ['notifications'], ...PAYROLL_ATTENDANCE_KEYS],
   expenses: [['section-counts'], ['expenses'], ['expenses-period'], ['notification-ref-statuses']],
-  attendance_regularizations: [['section-counts'], ['regularizations'], ['notification-ref-statuses']],
-  attendance: [['attendance']],
-  // Punches invalidate ONLY the punch drill-down. They used to also invalidate ['attendance'],
-  // which meant every punch re-pulled the (large) attendance queries on every connected admin's
-  // screen — during the morning rush that is a refetch per person walking in. Attendance is
-  // derived from punches by the engine, and the engine's own write emits an `attendance` event.
-  raw_punches: [['punches']],
+  attendance_regularizations: [['section-counts'], ['regularizations'], ['notification-ref-statuses'], ...PAYROLL_ATTENDANCE_KEYS],
+  attendance: [['attendance'], ...PAYROLL_ATTENDANCE_KEYS],
+  attendance_recompute_queue: PAYROLL_ATTENDANCE_KEYS,
+  // Punches refresh the small payroll summary so pending recomputation is visible. The large
+  // attendance collections still wait for the engine's derived attendance event.
+  raw_punches: [['punches'], ...PAYROLL_ATTENDANCE_KEYS],
   // Queued work for the sync service. Pushed rather than polled so a button press shows its
   // outcome the moment the service writes it back, instead of on the next 5-second tick.
-  service_commands: [['service-commands'], ['sync-runs'], ['sync-health']],
+  service_commands: [['service-commands'], ['sync-runs'], ['sync-health'], ...PAYROLL_ATTENDANCE_KEYS],
   tickets: [['section-counts'], ['tickets'], ['notification-ref-statuses']],
   ticket_categories: [['section-counts'], ['ticket-categories'], ['ticket-access'], ['tickets']],
   assets: [['assets']],
   asset_assignments: [['assets'], ['asset-history']],
   employees: [['employees'], ['employee'], ['messaging-people'], ...WORKFLOW_ACCESS_KEYS],
   documents: [['documents'], ['employee-avatars']],
-  exits: [['exits'], ['section-counts']],
+  exits: [['exits'], ['section-counts'], ...PAYROLL_ATTENDANCE_KEYS],
   onboarding: [['onboarding'], ['section-counts']],
   candidates: [['candidates'], ['section-counts']],
   jobs: [['jobs'], ['candidates'], ['section-counts']],
-  payroll_runs: [['payroll-runs'], ['payroll-worksheet-run'], ['payroll-register'], ['payslips'], ['payslip-lines'], ['section-counts']],
-  payroll_policies: [['payroll-policy'], ['payroll-runs'], ['payroll-worksheet-run']],
-  payroll_monthly_inputs: [['payroll-monthly-input'], ['payroll-monthly-inputs'], ['payroll-runs'], ['payroll-worksheet-run']],
+  payroll_runs: [['payroll-runs'], ['payroll-worksheet-run'], ['payroll-register'], ['payroll-attendance-summary'], ['payslips'], ['payslip-lines'], ['section-counts']],
+  payroll_policies: [['payroll-policy'], ...PAYROLL_ATTENDANCE_KEYS],
+  payroll_monthly_inputs: [['payroll-monthly-input'], ['payroll-monthly-inputs'], ...PAYROLL_ATTENDANCE_KEYS],
+  shifts: [['shifts'], ...PAYROLL_ATTENDANCE_KEYS],
+  employee_shift_assignments: [['shift-assignments'], ...PAYROLL_ATTENDANCE_KEYS],
+  holidays: [['holidays'], ...PAYROLL_ATTENDANCE_KEYS],
+  holiday_calendars: [['holiday-calendars'], ...PAYROLL_ATTENDANCE_KEYS],
+  leave_types: [['leave-types'], ...PAYROLL_ATTENDANCE_KEYS],
   salary_structures: [['salary-structures'], ['payroll-runs'], ['payroll-worksheet-run']],
   pay_components: [['pay-components'], ['payroll-runs'], ['payroll-worksheet-run']],
   biotime_employees: [['device-mappings'], ['mapping-counts'], ['section-counts']],

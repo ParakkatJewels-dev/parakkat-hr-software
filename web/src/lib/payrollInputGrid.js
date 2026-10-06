@@ -42,6 +42,9 @@ function inputText(key, value) {
   if (key === 'notes') return String(value ?? '');
   let text = String(value ?? '').trim();
   if (!text) return '';
+  // Ordinary blank imported cells preserve existing inputs. AUTO is an explicit instruction
+  // to remove an OT/late override, so it must survive parsing as an empty-string patch.
+  if ((key === 'ot_hours' || key === 'late_hours') && /^auto$/i.test(text)) return '';
   // Accept ordinary Indian/Western currency display formatting, without guessing locale
   // decimals, removing arbitrary punctuation, or evaluating Excel expressions.
   text = text.replace(/^(?:₹|INR\s*|Rs\.?\s*)\s*/i, '');
@@ -96,7 +99,7 @@ for (const field of MONTHLY_INPUT_FIELDS) alias(field.key, [field.label]);
 for (const field of PAYROLL_REGISTER_COLUMNS) {
   if (inputKeys.has(field.key)) alias(field.key, [field.label]);
 }
-alias('ot_hours', ['OT Hours', 'Overtime Hours', 'Approved Overtime Hours']);
+alias('ot_hours', ['OT Hours', 'Overtime Hours', 'Approved OT Hours', 'Approved Overtime Hours']);
 alias('late_hours', ['Late Hours', 'Approved Late Hours']);
 alias('tea_expense', ['Tea Expence', 'Tea Expenses']);
 alias('travel_food', ['Travel Allowance / Food Expence', 'Travel / Food', 'Travel Food']);
@@ -230,7 +233,7 @@ export function buildPayrollInputTemplateWorkbook(XLSX, employees, records = [],
       String(employee.branch?.name ?? employee.branch?.code ?? employee.branch_name ?? ''),
       ...MONTHLY_INPUT_FIELDS.map(field => {
         const value = inputText(field.key, draft[field.key]);
-        return value === '' ? '' : Number(value);
+        return value === '' ? (field.auto ? 'AUTO' : '') : Number(value);
       }), String(draft.notes ?? '')];
   });
   const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
@@ -238,7 +241,7 @@ export function buildPayrollInputTemplateWorkbook(XLSX, employees, records = [],
     for (let column = 0; column < headers.length; column += 1) {
       const cell = sheet[XLSX.utils.encode_cell({ r: row, c: column })];
       if (!cell) continue;
-      if (row === 0 || column < 4 || column === headers.length - 1 || cell.v === '') { cell.t = 's'; delete cell.f; }
+      if (row === 0 || column < 4 || column === headers.length - 1 || typeof cell.v === 'string') { cell.t = 's'; delete cell.f; }
       else cell.z = '#,##0.00';
     }
   }

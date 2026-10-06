@@ -20,7 +20,7 @@ registerHooks({
   },
 });
 
-const { usePayrollPolicy, usePayrollMonthlyInput, usePayrollMonthlyInputs, usePayrollWorksheetRun, usePayrollRegister,
+const { usePayrollPolicy, usePayrollMonthlyInput, usePayrollMonthlyInputs, usePayrollAttendanceSummary, usePayrollWorksheetRun, usePayrollRegister,
   useSavePayrollPolicy, useSavePayrollMonthlyInput, useSavePayrollMonthlyInputs } = await import('./payrollWorksheet.js');
 const { usePublishPayroll } = await import('./payroll.js');
 
@@ -96,7 +96,7 @@ test('input saves retain null versus zero semantics and refresh all affected cal
   assert.equal(calls[0].args._input.pf, 0);
   assert.equal(calls[0].args._input.esi, null);
   await mutation.onSuccess();
-  for (const key of ['payroll-monthly-input', 'payroll-monthly-inputs', 'payroll-worksheet-run', 'payroll-register', 'payroll-runs', 'payslips', 'payslip-lines']) assert.ok(invalidations.includes(key), key);
+  for (const key of ['payroll-monthly-input', 'payroll-monthly-inputs', 'payroll-attendance-summary', 'payroll-worksheet-run', 'payroll-register', 'payroll-runs', 'payslips', 'payslip-lines']) assert.ok(invalidations.includes(key), key);
   await assert.rejects(mutation.mutationFn({ employeeId: 'employee', period: '2026-10', input: { incentive: '-10' } }), /Incentive/);
   assert.equal(calls.length, 1);
 });
@@ -160,9 +160,11 @@ test('bulk save normalizes every row before one atomic RPC and preserves each re
     ['employee-1', 'old-revision', null], ['employee-2', null, 0],
   ]);
   assert.equal(calls[0].args._rows[0].input.incentive, 1250.5);
+  assert.equal(calls[0].args._rows[0].input.ot_hours, null);
+  assert.equal(calls[0].args._rows[0].input.late_hours, null);
   assert.equal(rows[0].input.incentive, '1250.50', 'normalizing must not mutate the editable grid draft');
   await mutation.onSuccess();
-  for (const key of ['payroll-monthly-inputs', 'payroll-monthly-input', 'payroll-register', 'payroll-runs', 'payslips']) {
+  for (const key of ['payroll-monthly-inputs', 'payroll-monthly-input', 'payroll-attendance-summary', 'payroll-register', 'payroll-runs', 'payslips']) {
     assert.ok(invalidations.some(queryKey => queryKey[0] === key), key);
   }
   for (const invalidRows of [[], [rows[0], rows[0]], [rows[0], { employeeId: 'employee-2', input: { incentive: '-1' } }],
@@ -183,7 +185,34 @@ test('bulk save failures refresh only the affected input revisions and company m
   await assert.rejects(mutation.mutationFn(variables), /Row 2/);
   await mutation.onError(new Error('Conflict'), variables);
   assert.deepEqual(invalidations, [
-    ['payroll-monthly-inputs', 'company', '2026-10'], ['payroll-worksheet-run', 'company', '2026-10'],
+    ['payroll-monthly-inputs', 'company', '2026-10'], ['payroll-worksheet-run', 'company', '2026-10'], ['payroll-attendance-summary', 'company', '2026-10'],
     ['payroll-monthly-input', 'employee-1', '2026-10'], ['payroll-monthly-input', 'employee-2', '2026-10'],
   ]);
+});
+
+test('attendance summary reads the whole JSON response with server-computed hours and sources intact', async () => {
+  const rows = Array.from({ length: 1005 }, (_, index) => ({ employee_id: `employee-${index}`, recorded_worked_hours: 178.25,
+    recorded_ot_hours: 3.5, recorded_late_hours: 1, deductible_late_hours: 0.75,
+    effective_ot_hours: index === 0 ? 0 : 3.5, effective_late_hours: 0,
+    ot_source: index === 0 ? 'override' : 'attendance', late_source: 'attendance', policy_deduct_late: false,
+    attendance_days: 30, expected_days: 31, unresolved_days: 1, pending_recompute_days: 0 }));
+  const calls = [];
+  globalThis.worksheetDb = { rpc: async (name, args) => { calls.push({ name, args }); return { data: rows, error: null }; } };
+  assert.deepEqual(await usePayrollAttendanceSummary('company', '2026-10').queryFn(), rows);
+  assert.deepEqual(calls, [{ name: 'get_payroll_attendance_summary', args: { _entity_id: 'company', _period: '2026-10' } }]);
+  assert.deepEqual(usePayrollAttendanceSummary('company', '2026-10').queryKey, ['payroll-attendance-summary', 'company', '2026-10']);
+  assert.equal(usePayrollAttendanceSummary('', '2026-10').enabled, false);
+  assert.equal(usePayrollAttendanceSummary('company', '').enabled, false);
+  assert.equal(usePayrollAttendanceSummary('company', '2026-10', { enabled: false }).enabled, false);
+});
+
+test('failed or malformed attendance summaries never become automatic zero-hour data', async () => {
+  globalThis.worksheetDb = { rpc: async () => ({ data: null, error: new Error('Attendance access denied') }) };
+  await assert.rejects(usePayrollAttendanceSummary('company', '2026-10').queryFn(), /access denied/);
+  for (const data of [null, undefined, {}, { rows: [] }]) {
+    globalThis.worksheetDb = { rpc: async () => ({ data, error: null }) };
+    await assert.rejects(usePayrollAttendanceSummary('company', '2026-10').queryFn(), /could not be loaded/);
+  }
+  globalThis.worksheetDb = { rpc: async () => ({ data: [], error: null }) };
+  assert.deepEqual(await usePayrollAttendanceSummary('company', '2026-10').queryFn(), []);
 });

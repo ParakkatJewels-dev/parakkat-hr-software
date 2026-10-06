@@ -104,7 +104,8 @@ async function queueCommand(kind, params = {}) {
   return data; // the command id
 }
 
-const REFRESH_AFTER_COMMAND = ['sync-runs', 'sync-state', 'sync-health', 'service-commands', 'attendance'];
+const REFRESH_AFTER_COMMAND = ['sync-runs', 'sync-state', 'sync-health', 'service-commands', 'attendance',
+  'payroll-attendance-summary', 'payroll-runs', 'payroll-worksheet-run', 'payroll-register'];
 
 export function useTriggerSync() {
   const qc = useQueryClient();

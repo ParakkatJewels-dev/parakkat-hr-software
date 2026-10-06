@@ -6,6 +6,7 @@
 // people raise a correction when the device missed something.
 import { Skeleton, SkeletonRows, SkeletonTable } from './ui/Skeleton';
 import React, { useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
   CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
@@ -21,6 +22,7 @@ import {
 } from '../data/regularizations';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
+import { useEmployees } from '../data/employees';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import PunchDetails from './ui/PunchDetails';
 import { firstRecordedPunch, latestRecordedPunch, punchDate } from '../lib/recordedPunches';
@@ -62,6 +64,7 @@ import { NavigationCountBadge } from './ui/CountBadge';
  */
 const TABS = [
   { id: 'today', label: 'Today', icon: Users, perm: 'attendance.read', scoped: true },
+  { id: 'person', label: 'By person', icon: CalendarDays, perm: 'attendance.read', scoped: true },
   { id: 'calendar', label: 'My monthly calendar', icon: CalendarDays, self: true },
   { id: 'overview', label: 'Overview', icon: TrendingUp, self: true },
   { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle, perm: 'attendance.manage' },
@@ -70,6 +73,40 @@ const TABS = [
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
+
+const employeeScope = person => ({ entityId: person?.entity_id, zoneId: person?.zone_id,
+  branchId: person?.branch_id, deptId: person?.department_id, employeeId: person?.id });
+const validMonth = value => /^\d{4}-(0[1-9]|1[0-2])$/.test(value ?? '');
+const validWorkDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '')
+  && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
+  && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+
+export function PersonAttendanceView() {
+  const { can } = usePermissions();
+  const [params, setParams] = useSearchParams();
+  const people = useEmployees();
+  const employees = (people.data ?? []).filter(person => can('attendance.read', employeeScope(person)));
+  const employeeId = params.get('employee') ?? '';
+  const period = validMonth(params.get('period')) ? params.get('period') : todayIso().slice(0, 7);
+  const person = employees.find(item => item.id === employeeId);
+  const change = (key, value) => setParams(current => { const next = new URLSearchParams(current); next.set(key, value); return next; }, { replace: true });
+  return <div className="space-y-4">
+    <section className="premium-card grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label className="text-xs text-neutral-600 dark:text-neutral-300">Employee
+        <select aria-label="Attendance employee" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={person?.id ?? ''} onChange={event => change('employee', event.target.value)} disabled={people.isLoading || Boolean(people.error)}>
+          <option value="">Choose an employee…</option>
+          {employees.map(item => <option key={item.id} value={item.id}>{item.full_name} · {item.employee_code}</option>)}
+        </select>
+      </label>
+      <label className="text-xs text-neutral-600 dark:text-neutral-300">Month
+        <input type="month" aria-label="Attendance month" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={period} max={todayIso().slice(0, 7)} onChange={event => { if (validMonth(event.target.value)) change('period', event.target.value); }} />
+      </label>
+      {people.error && <ErrorNote error={people.error} />}
+      {employeeId && !person && !people.isLoading && !people.error && <p role="alert" className="text-xs text-amber-700">This employee is not available in your attendance scope.</p>}
+    </section>
+    {person && !people.error && <EmployeeAttendanceDetail key={`${person.id}:${period}`} employee={person} period={period} embedded />}
+  </div>;
+}
 
 function StatusBadge({ status, isLop }) {
   return (
@@ -985,7 +1022,15 @@ export function ExceptionsView() {
 // ---------------------------------------------------------------------------
 
 export function RegularizationsView({ employee, canApprove }) {
-  const { can, viewingAsEmployee } = usePermissions();
+  const { can, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  const { user } = useAuth();
+  const [params] = useSearchParams();
+  const onBehalf = !viewingAsEmployee && canBeyondSelf('regularization.create');
+  const people = useEmployees({ enabled: onBehalf });
+  const eligible = (people.data ?? []).filter(person => can('regularization.create', employeeScope(person)));
+  const [selectedId, setSelectedId] = useState(() => onBehalf ? params.get('employee') ?? '' : employee?.id ?? '');
+  const target = onBehalf ? eligible.find(person => person.id === selectedId) : employee;
+  const canCreate = Boolean(target && can('regularization.create', employeeScope(target)));
   // A regularization notification links straight here — see the 0098 migration, which points the
   // trigger at `attendance/regularizations` instead of the screen's default tab.
   const { focusId, rowProps } = useFocusRow();
@@ -1007,6 +1052,7 @@ export function RegularizationsView({ employee, canApprove }) {
    */
   const canDecide = (r) =>
     r.employee_id !== employee?.id
+    && r.requested_by !== user?.id
     && can('regularization.approve', {
       entityId: r.entity_id,
       zoneId: r.zone_id,
@@ -1019,7 +1065,13 @@ export function RegularizationsView({ employee, canApprove }) {
   const submitting = useRef(false);
   const decide = useDecideRegularization();
 
-  const [form, setForm] = useState({ workDate: todayIso(), checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' });
+  const [form, setForm] = useState(() => ({ workDate: validWorkDate(params.get('date')) && params.get('date') <= todayIso() ? params.get('date') : todayIso(), checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' }));
+  const canReadDay = Boolean(target && can('attendance.read', employeeScope(target)) && validWorkDate(form.workDate));
+  const dayQuery = useMonthlyAttendance(canReadDay ? target.id : null, Number(form.workDate.slice(0, 4)), Number(form.workDate.slice(5, 7)));
+  const currentDay = dayQuery.data?.find(row => row.work_date === form.workDate);
+  const dayReadBlocked = canReadDay && (!dayQuery.isSuccess || dayQuery.isFetching || Boolean(dayQuery.error));
+  const locked = Boolean(currentDay?.is_locked);
+  const createBlocked = !canCreate || create.isPending || locked || dayReadBlocked || (onBehalf && Boolean(people.error));
   const [search, setSearch] = useState('');
   const [formError, setFormError] = useState('');
   const matching = useMemo(() => {
@@ -1034,7 +1086,7 @@ export function RegularizationsView({ employee, canApprove }) {
 
   const submit = async (e) => {
     e.preventDefault();
-    if (!employee?.id || create.isPending || submitting.current) return;
+    if (createBlocked || submitting.current) return;
     setFormError('');
     if (!form.checkIn && !form.checkOut) {
       setFormError('Enter a check-in or check-out time to request a correction.');
@@ -1044,6 +1096,7 @@ export function RegularizationsView({ employee, canApprove }) {
       setFormError('Enter a reason for this correction.');
       return;
     }
+    if (form.workDate > todayIso()) { setFormError('Choose today or an earlier work date.'); return; }
     try { regularizationTimes(form); }
     catch (error) {
       setFormError(error.message);
@@ -1051,8 +1104,8 @@ export function RegularizationsView({ employee, canApprove }) {
     }
     submitting.current = true;
     try {
-      await create.mutateAsync({ employeeId: employee.id, ...form, reason: form.reason.trim() });
-      setForm({ workDate: todayIso(), checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' });
+      await create.mutateAsync({ employeeId: target.id, ...form, reason: form.reason.trim() });
+      setForm(current => ({ ...current, checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' }));
     } catch { /* The mutation error is visible; keep entered values for a retry. */ }
     finally { submitting.current = false; }
   };
@@ -1066,47 +1119,63 @@ export function RegularizationsView({ employee, canApprove }) {
             Raise a correction
           </h3>
           <p className="text-xs text-neutral-500">
-            Request a correction for a missed punch. Once approved, your attendance for that date is updated.
+            {onBehalf ? 'File corrected times for an employee in your scope. Another reviewer must approve a request you file. Original device punches stay unchanged.' : 'Request a correction for a missed punch. Once approved, your attendance for that date is updated.'}
           </p>
+
+          {onBehalf && <label className="block text-2xs uppercase tracking-wider text-neutral-500">Employee
+            <select aria-label="Correction employee" value={target?.id ?? ''} disabled={people.isLoading || Boolean(people.error)} onChange={event => { setSelectedId(event.target.value); setForm(current => ({ ...current, checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' })); setFormError(''); create.reset(); }} className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-2 rounded-xl text-xs">
+              <option value="">Choose an employee…</option>
+              {eligible.map(person => <option key={person.id} value={person.id}>{person.full_name} · {person.employee_code}</option>)}
+            </select>
+          </label>}
+          {onBehalf && people.error && <ErrorNote error={people.error} />}
+          {onBehalf && selectedId && !target && !people.isLoading && !people.error && <p role="alert" className="text-xs text-amber-700">This employee is not available in your correction scope.</p>}
 
           <label className="block text-2xs uppercase tracking-wider text-neutral-500">
             Date
-            <input type="date" required max={todayIso()} value={form.workDate}
-              onChange={(e) => setForm({ ...form, workDate: e.target.value })}
+            <input type="date" aria-label="Correction date" required max={todayIso()} value={form.workDate}
+              onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, workDate: value })); }}
               className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
           </label>
+
+          {currentDay && <div className="text-xs text-neutral-500 space-y-1">
+            <p>Recorded punches: {fmtTime(firstRecordedPunch(currentDay))} – {fmtTime(latestRecordedPunch(currentDay))}</p>
+            <p>Current attendance: {fmtTime(currentDay.check_in)} – {fmtTime(currentDay.check_out)}{correctionDateLabel(currentDay.check_out, form.workDate)}</p>
+          </div>}
+          {locked && <p role="alert" className="text-xs text-amber-700">This day is locked by published payroll. Its punch times cannot be corrected here.</p>}
+          {dayQuery.error && <ErrorNote error={dayQuery.error} />}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <label className="block text-2xs uppercase tracking-wider text-neutral-500">
               Check in
-              <input type="time" value={form.checkIn}
-                onChange={(e) => setForm({ ...form, checkIn: e.target.value })}
+              <input type="time" aria-label="Corrected check-in" value={form.checkIn} disabled={locked || dayReadBlocked}
+                onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, checkIn: value })); }}
                 className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
             </label>
             <label className="block text-2xs uppercase tracking-wider text-neutral-500">
               Check out
-              <input type="time" value={form.checkOut}
-                onChange={(e) => setForm({ ...form, checkOut: e.target.value })}
+              <input type="time" aria-label="Corrected check-out" value={form.checkOut} disabled={locked || dayReadBlocked}
+                onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, checkOut: value })); }}
                 className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
             </label>
           </div>
 
           <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
-            <input type="checkbox" checked={form.checkOutNextDay} disabled={!form.checkOut}
-              onChange={(e) => setForm({ ...form, checkOutNextDay: e.target.checked })} />
+            <input type="checkbox" aria-label="Check-out is next day" checked={form.checkOutNextDay} disabled={!form.checkOut || locked || dayReadBlocked}
+              onChange={(e) => { const value = e.target.checked; setForm(current => ({ ...current, checkOutNextDay: value })); }} />
             Check-out is next day
           </label>
           <p className="text-2xs text-neutral-500">Times are in IST. Select next day for a shift ending after midnight, including a check-out-only correction.</p>
 
           <label className="block text-2xs uppercase tracking-wider text-neutral-500">
             Reason
-            <textarea required rows={2} value={form.reason}
-              onChange={(e) => setForm({ ...form, reason: e.target.value })}
+            <textarea aria-label="Correction reason" required rows={2} value={form.reason} disabled={locked || dayReadBlocked}
+              onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, reason: value })); }}
               placeholder="Face reader did not register on exit"
               className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
           </label>
 
-          <button type="submit" disabled={create.isPending || !employee?.id}
+          <button type="submit" disabled={createBlocked}
             className="w-full py-2 rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover text-xs font-bold disabled:opacity-50">
             {create.isPending ? 'Submitting…' : 'Submit for approval'}
           </button>
@@ -1115,8 +1184,9 @@ export function RegularizationsView({ employee, canApprove }) {
 
           {create.isError ? <ErrorNote error={create.error} /> : null}
           {formError ? <p role="alert" className="text-xs text-red-700 dark:text-red-300">{formError}</p> : null}
-          {create.isSuccess ? <p className="text-xs text-emerald-600 dark:text-emerald-400">Submitted.</p> : null}
-          {!employee?.id ? <p className="text-xs text-amber-600">Your login is not linked to an employee record.</p> : null}
+          {create.isSuccess ? <p className="text-xs text-emerald-600 dark:text-emerald-400">Submitted for approval. Attendance updates after another reviewer approves and the attendance engine processes this day.</p> : null}
+          {!onBehalf && !employee?.id ? <p className="text-xs text-amber-600">Your login is not linked to an employee record.</p> : null}
+          {target && onBehalf && canReadDay && canBeyondSelf('attendance.read') && <Link className="text-xs text-brand-ink underline" to={`/attendance/person?employee=${encodeURIComponent(target.id)}&period=${encodeURIComponent(form.workDate.slice(0, 7))}`}>Review this employee’s attendance</Link>}
         </form>
 
         <div className="premium-card paged-collection">
@@ -1204,7 +1274,7 @@ export function RegularizationsView({ employee, canApprove }) {
                             Reject
                           </button>
                         </td>
-                      ) : reviewing ? <td data-label="Decision" className="text-neutral-500">{r.employee_id === employee?.id ? 'Another reviewer must decide' : 'Outside your review scope'}</td> : null}
+                      ) : reviewing ? <td data-label="Decision" className="text-neutral-500">{r.employee_id === employee?.id || r.requested_by === user?.id ? 'Another reviewer must decide' : 'Outside your review scope'}</td> : null}
                     </tr>
                   ))}
                 </tbody>
@@ -1225,6 +1295,7 @@ export default function Attendance() {
   const { employee } = useAuth();
   const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
   const [workDate, setWorkDate] = useState(todayIso());
+  const [params] = useSearchParams();
   const selfAttendanceMode = viewingAsEmployee || !canBeyondSelf('attendance.read');
 
   // A `scoped` tab looks at other people, so it needs the permission held beyond your own record.
@@ -1296,6 +1367,7 @@ export default function Attendance() {
         <TodayView workDate={workDate} setWorkDate={setWorkDate} />
       ) : null}
       {tab === 'calendar' ? <CalendarView employeeId={employee?.id} employeeName={employee?.full_name} /> : null}
+      {tab === 'person' ? <PersonAttendanceView /> : null}
       {tab === 'overview' ? (
         employee?.id ? <EmployeeAttendanceDetail employee={employee} embedded /> : (
           <div role="status" className="premium-card text-sm text-neutral-500">
@@ -1304,7 +1376,7 @@ export default function Attendance() {
         )
       ) : null}
       {tab === 'exceptions' ? <ExceptionsView /> : null}
-      {tab === 'regularizations' ? <RegularizationsView employee={employee} canApprove={canApprove} /> : null}
+      {tab === 'regularizations' ? <RegularizationsView key={`${params.get('employee') ?? ''}:${params.get('date') ?? ''}`} employee={employee} canApprove={canApprove} /> : null}
     </div>
   );
 }

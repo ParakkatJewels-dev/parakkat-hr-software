@@ -40,6 +40,21 @@ export function usePayrollMonthlyInputs(entityId, period, { enabled = true } = {
   });
 }
 
+/** The database supplies attendance-derived hours and diagnostics without browser calculations. */
+export function usePayrollAttendanceSummary(entityId, period, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: ['payroll-attendance-summary', entityId, period],
+    enabled: enabled && Boolean(entityId && period),
+    queryFn: async () => {
+      // This RPC returns one JSON array, not a rowset subject to the API's collection cap.
+      const { data, error } = await supabase.rpc('get_payroll_attendance_summary', { _entity_id: entityId, _period: period });
+      if (error) throw error;
+      if (!Array.isArray(data)) throw new Error('The payroll attendance summary could not be loaded. Refresh and try again.');
+      return data;
+    },
+  });
+}
+
 export function usePayrollWorksheetRun(entityId, period, { enabled = true } = {}) {
   return useQuery({
     queryKey: ['payroll-worksheet-run', entityId, period],
@@ -66,7 +81,7 @@ export function usePayrollRegister(runId, { enabled = true } = {}) {
 function invalidateWorksheet(client) {
   return Promise.all([
     'payroll-policy', 'payroll-monthly-input', 'payroll-monthly-inputs', 'payroll-worksheet-run', 'payroll-register',
-    'payroll-runs', 'payslips', 'payslip-lines', 'section-counts',
+    'payroll-runs', 'payroll-attendance-summary', 'payslips', 'payslip-lines', 'section-counts',
   ].map(key => client.invalidateQueries({ queryKey: [key] })));
 }
 
@@ -81,7 +96,10 @@ export function useSavePayrollPolicy() {
       if (error) throw error;
       return data;
     },
-    onError: (_error, { entityId }) => client.invalidateQueries({ queryKey: ['payroll-policy', entityId] }),
+    onError: (_error, { entityId }) => Promise.all([
+      client.invalidateQueries({ queryKey: ['payroll-policy', entityId] }),
+      client.invalidateQueries({ queryKey: ['payroll-attendance-summary', entityId] }),
+    ]),
     onSuccess: () => invalidateWorksheet(client),
   });
 }
@@ -99,6 +117,7 @@ export function useSavePayrollMonthlyInput() {
     onError: (_error, { employeeId, period }) => Promise.all([
       client.invalidateQueries({ queryKey: ['payroll-monthly-input', employeeId, period] }),
       client.invalidateQueries({ queryKey: ['payroll-monthly-inputs'] }),
+      client.invalidateQueries({ queryKey: ['payroll-attendance-summary'] }),
     ]),
     onSuccess: () => invalidateWorksheet(client),
   });
@@ -129,6 +148,7 @@ export function useSavePayrollMonthlyInputs() {
     onError: (_error, { entityId, period, rows }) => Promise.all([
       client.invalidateQueries({ queryKey: ['payroll-monthly-inputs', entityId, period] }),
       client.invalidateQueries({ queryKey: ['payroll-worksheet-run', entityId, period] }),
+      client.invalidateQueries({ queryKey: ['payroll-attendance-summary', entityId, period] }),
       ...[...new Set((Array.isArray(rows) ? rows : []).map(row => row?.employeeId).filter(Boolean))].map(employeeId =>
         client.invalidateQueries({ queryKey: ['payroll-monthly-input', employeeId, period] })),
     ]),

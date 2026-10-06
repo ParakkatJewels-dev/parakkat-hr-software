@@ -82,7 +82,7 @@ test('a monthly payroll edit refreshes the mounted grid, individual form and sta
   t.mock.timers.tick(1000);
   await settle();
   assert.equal(observer.getCurrentResult().data[0].updated_at, 'after');
-  for (const key of ['payroll-monthly-inputs', 'payroll-monthly-input', 'payroll-runs', 'payroll-worksheet-run']) {
+  for (const key of ['payroll-monthly-inputs', 'payroll-monthly-input', 'payroll-attendance-summary', 'payroll-runs', 'payroll-worksheet-run']) {
     assert.equal(live.invalidations.filter(entry => entry.queryKey[0] === key).length, 1, key);
   }
 });
@@ -160,7 +160,34 @@ test('chat events refresh promptly and only the changed thread while bulk data s
   assert.deepEqual(live.invalidations.map(value => value.queryKey), [['messages', 'room-1'], ['conversations'], ['admin-conversations'], ['message-delivery']]);
   assert.ok(live.invalidations.every(value => value.refetchType === 'active'));
   t.mock.timers.tick(900);
-  assert.deepEqual(live.invalidations.at(-1).queryKey, ['attendance']);
+  for (const key of ['attendance', 'payroll-attendance-summary', 'payroll-runs', 'payroll-worksheet-run']) {
+    assert.equal(live.invalidations.filter(value => value.queryKey[0] === key).length, 1);
+  }
+});
+
+test('attendance, payroll policy and source changes refresh automatic payroll hours in a single batched read', async (t) => {
+  const live = useLiveHarness(t);
+  let data = [{ employee_id: 'employee', effective_ot_hours: 4, ot_source: 'attendance', pending_recompute_days: 0 }];
+  const observer = new QueryObserver(live.client, { queryKey: ['payroll-attendance-summary', 'company', '2026-10'],
+    staleTime: Infinity, queryFn: async () => data });
+  t.after(observer.subscribe(() => {}));
+  await settle(); live.status('SUBSCRIBED'); live.invalidations.length = 0;
+  data = [{ employee_id: 'employee', effective_ot_hours: 0, ot_source: 'override', pending_recompute_days: 1 }];
+  for (const table of ['attendance', 'attendance_recompute_queue', 'attendance_regularizations', 'raw_punches', 'service_commands',
+    'employees', 'leaves', 'leave_decisions', 'shifts', 'employee_shift_assignments', 'holidays', 'holiday_calendars', 'leave_types',
+    'payroll_policies', 'payroll_monthly_inputs', 'payroll_runs']) {
+    live.handlers.get(table)({ eventType: 'UPDATE', new: { id: 'changed' } });
+  }
+  assert.equal(live.invalidations.length, 0);
+  t.mock.timers.tick(1000); await settle();
+  assert.deepEqual(observer.getCurrentResult().data, data);
+  assert.equal(live.invalidations.filter(value => value.queryKey[0] === 'payroll-attendance-summary').length, 1);
+  live.invalidations.length = 0;
+  live.handlers.get('raw_punches')({ eventType: 'INSERT', new: { id: 'punch' } });
+  t.mock.timers.tick(1000);
+  assert.equal(live.invalidations.some(value => value.queryKey[0] === 'attendance'), false,
+    'raw punches must wait for derivation before refreshing large attendance collections');
+  assert.equal(live.invalidations.filter(value => value.queryKey[0] === 'payroll-attendance-summary').length, 1);
 });
 
 test('a disconnected socket refreshes visible chat within ten seconds and stops on reconnect or unmount', (t) => {

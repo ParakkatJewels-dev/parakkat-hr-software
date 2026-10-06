@@ -44,6 +44,18 @@ test('paste normalizes only valid currency formatting, preserving notes as liter
   assert.throws(() => paste('745', { columns: ['ot_hours'] }), /744/);
 });
 
+test('AUTO explicitly clears hour overrides in paste and import while blank import cells preserve them', () => {
+  assert.deepEqual(paste('AUTO\t0\nauto\t AUTO ', { columns: ['ot_hours', 'late_hours'] }), [
+    { employeeId: 'employee-1', patch: { ot_hours: '', late_hours: '0' } },
+    { employeeId: 'employee-2', patch: { ot_hours: '', late_hours: '' } },
+  ]);
+  const result = importRows([['Employee ID', 'Approved OT Hours', 'Late Hours'],
+    ['employee-1', 'AUTO', ''], ['employee-2', '', 0], ['employee-3', '', 'AUTO']]);
+  assert.deepEqual(result.errors, []);
+  assert.deepEqual(result.rows.map(row => row.patch), [{ ot_hours: '' }, { late_hours: '0' }, { late_hours: '' }]);
+  for (const key of ['pf', 'esi', 'incentive']) assert.throws(() => paste('AUTO', { columns: [key] }), /nonnegative/);
+});
+
 test('paste is bounded and returns no partial mutation on invalid cells or targets', () => {
   const original = structuredClone(employees);
   assert.throws(() => paste('1\n2', { startRow: 2 }), /exceeds/);
@@ -136,7 +148,7 @@ test('import does not interpret formulas, malformed numbers or blank imports as 
   assert.match(importRows([['Employee ID', 'Incentive'], ['employee-1', 10, 20]]).errors[0].message, /beyond/);
 });
 
-test('input template round-trips identifiers, nullable PF/ESI, numbers and formula-like text', async () => {
+test('input template round-trips identifiers, automatic hours, nullable PF/ESI, numbers and formula-like text', async () => {
   const named = { ...employees[0], full_name: '=HYPERLINK("literal")', employee_code: '001', branch: { name: '@Main' } };
   const records = new Map([[named.id, { incentive: '1250.25', pf: '', esi: '0', notes: '+Literal approval' }]]);
   const workbook = buildPayrollInputTemplateWorkbook(XLSX, [named], records, '2026-10');
@@ -148,11 +160,30 @@ test('input template round-trips identifiers, nullable PF/ESI, numbers and formu
   const rows = await readPayrollInputWorkbook(workbookFile(workbook));
   assert.equal(rows[0].length, 4 + MONTHLY_INPUT_FIELDS.length + 1);
   assert.equal(rows[1][4 + MONTHLY_INPUT_FIELDS.findIndex(field => field.key === 'pf')], '');
+  for (const key of ['ot_hours', 'late_hours']) {
+    const column = 4 + MONTHLY_INPUT_FIELDS.findIndex(field => field.key === key);
+    assert.equal(rows[1][column], 'AUTO');
+    assert.equal(sheet[XLSX.utils.encode_cell({ r: 1, c: column })].t, 's');
+  }
   const result = parsePayrollImportRows(rows, [named]);
   assert.deepEqual(result.errors, []);
   assert.equal(result.rows[0].patch.pf, undefined);
   assert.equal(result.rows[0].patch.esi, '0');
   assert.equal(result.rows[0].patch.notes, '+Literal approval');
+  assert.equal(result.rows[0].patch.ot_hours, '');
+  assert.equal(result.rows[0].patch.late_hours, '');
+});
+
+test('template export retains a numeric zero hour override instead of turning it into AUTO', async () => {
+  const workbook = buildPayrollInputTemplateWorkbook(XLSX, [employees[0]], [{ employee_id: 'employee-1',
+    ot_hours: 0, late_hours: null, notes: 'Reviewed no-overtime override' }], '2026-10');
+  const rows = await readPayrollInputWorkbook(workbookFile(workbook));
+  assert.equal(rows[1][4 + MONTHLY_INPUT_FIELDS.findIndex(field => field.key === 'ot_hours')], 0);
+  assert.equal(rows[1][4 + MONTHLY_INPUT_FIELDS.findIndex(field => field.key === 'late_hours')], 'AUTO');
+  const result = importRows(rows);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows[0].patch.ot_hours, '0');
+  assert.equal(result.rows[0].patch.late_hours, '');
 });
 
 test('workbook reader ignores additional sheets and rejects formulas in editable first-sheet inputs', async () => {

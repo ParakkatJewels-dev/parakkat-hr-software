@@ -7,11 +7,13 @@
 // Everything is filterable by date range and by what happened, because the useful queries are
 // specific — "show me only the late days in June" — not "show me everything".
 import React, { useState, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search,
 } from 'lucide-react';
 import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
-import { fmtMinutes, fmtTime } from '../data/attendance';
+import { fmtMinutes, fmtTime, monthRange, todayIso } from '../data/attendance';
+import { usePermissions } from '../auth/usePermissions';
 import { formatMinutesOfDay } from '../lib/clock';
 import { useClockFormat } from '../lib/timeFormat';
 import { explainDay, asHoursMinutes, onSiteMinutes, insideMinutes } from '../lib/attendanceSummary';
@@ -47,7 +49,8 @@ const statusTone = (r) =>
 const fmtDate = (d) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
-export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee: fixedEmployee, onBack, embedded = false }) {
+export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee: fixedEmployee, onBack, embedded = false, period }) {
+  const { can } = usePermissions();
   // Self-service supplies the signed-in employee. It needs neither a directory query
   // nor a person picker, even when the account also holds a management role.
   const { data: employees = [] } = useEmployees({ enabled: !fixedEmployee });
@@ -59,7 +62,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   // Subscribed so switching the clock format repaints these times at once.
   const { hour12 } = useClockFormat();
   const range = useDateRange('month');
-  const { from, to } = range;
+  const fixedPeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(period ?? '');
+  const { from, to } = fixedPeriod ? monthRange(Number(period.slice(0, 4)), Number(period.slice(5, 7))) : range;
   const [show, setShow] = useState('all');
   const [q, setQ] = useState('');
   // Which day's punch timeline is open. One at a time — the table stays scannable.
@@ -69,6 +73,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   const [status, setStatus] = useState('All statuses');
 
   const person = fixedEmployee ?? employees.find((e) => e.id === employeeId) ?? null;
+  const canCorrect = Boolean(person && can('regularization.create', { entityId: person.entity_id,
+    zoneId: person.zone_id, branchId: person.branch_id, deptId: person.department_id, employeeId: person.id }));
   const { data: rows = [], isLoading, error, refetch, isFetching, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
 
   // Only the statuses this person actually has in the range, so the list never offers a dead end.
@@ -215,7 +221,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
           {/* ---- when and what ---------------------------------------------------------- */}
           <div className="premium-card space-y-2.5">
             <div className="mobile-toolbar flex flex-wrap items-center gap-1.5">
-              <DateRangeFilter {...range} />
+              {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
+              {canCorrect && <Link className="text-xs text-brand-ink underline" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(from > todayIso() ? todayIso() : from)}`}>Request a punch correction</Link>}
               <span className="sm:ml-auto">
                 <FilterSelect label="Show" value={show} options={SHOW.map((s) => s.key)} allValue="all"
                   onChange={setShow} />
@@ -360,6 +367,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                         </th>
                         <th className="hidden md:table-cell">Late</th>
                         <th className="hidden md:table-cell">OT</th>
+                        {canCorrect && <th>Correction</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -423,10 +431,13 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                             <td data-label="OT" className="hidden md:table-cell tabular-nums text-brand-ink dark:text-brand-ink">
                               {r.ot_minutes ? `${r.ot_minutes}m` : '—'}
                             </td>
+                            {canCorrect && <td data-label="Correction">{r.is_locked
+                              ? <span className="text-xs text-neutral-500">Published · locked</span>
+                              : r.work_date <= todayIso() && <Link onClick={event => event.stopPropagation()} className="text-xs text-brand-ink underline whitespace-nowrap" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>Correct times</Link>}</td>}
                           </tr>
                           {open && (
                             <tr>
-                              <td colSpan={12} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
+                              <td colSpan={canCorrect ? 13 : 12} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
                                 <PunchTimeline
                                   punches={punches}
                                   breakMinutes={r.break_minutes}
@@ -478,7 +489,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                       })}
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={12} className="py-8 text-center text-sm text-neutral-500">
+                          <td colSpan={canCorrect ? 13 : 12} className="py-8 text-center text-sm text-neutral-500">
                             {rows.length === 0
                               ? 'No attendance recorded in this range.'
                               : `No ${SHOW.find((s) => s.key === show)?.label.toLowerCase()} in this range.`}

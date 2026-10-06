@@ -3,7 +3,7 @@ import { allScreenIds } from './navMap.js';
 // These are route shapes, not permission grants. Each screen still checks which of its tabs the
 // current user may open; for example a self reader keeps Payroll's existing payslip fallback.
 export const APP_TAB_PATHS = {
-  attendance: ['today', 'calendar', 'overview', 'exceptions', 'regularizations'],
+  attendance: ['today', 'person', 'calendar', 'overview', 'exceptions', 'regularizations'],
   'attendance-admin': ['mapping', 'shifts', 'holidays', 'leaveTypes', 'sync'],
   payroll: ['payslips', 'run', 'worksheet', 'salary', 'components'],
   documents: ['employee', 'company'],

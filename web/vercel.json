@@ -112,6 +112,7 @@
     { "source": "/login", "destination": "/index.html" },
     { "source": "/forgot-password", "destination": "/index.html" },
     { "source": "/attendance/today", "destination": "/index.html" },
+    { "source": "/attendance/person", "destination": "/index.html" },
     { "source": "/attendance/calendar", "destination": "/index.html" },
     { "source": "/attendance/overview", "destination": "/index.html" },
     { "source": "/attendance/exceptions", "destination": "/index.html" },

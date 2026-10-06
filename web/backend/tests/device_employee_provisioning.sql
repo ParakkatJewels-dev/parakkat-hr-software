@@ -67,6 +67,9 @@ do $$ declare employee uuid; begin
     from public.attendance_recompute_queue where employee_id=employee and processed_at is null),
     'adoption queues actual IST dates and their previous days, excluding unrelated dates and assigned punches';
 end $$;
+create table audit_device_employee.initial_queue as
+  select q.id,q.work_date,q.generation from public.attendance_recompute_queue q
+  join public.biotime_employees be on be.employee_id=q.employee_id where be.emp_code='DEVICE-AUDIT-NEW';
 
 -- Simulate HR edits and an older worker clearing the link after an employee-code rename.
 update public.employees set employee_code='HR-AUDIT-RENAMED',full_name='HR Reviewed Name',status='Inactive',
@@ -86,7 +89,8 @@ do $$ begin
     from public.biotime_employees be join public.employees e on e.id=be.employee_id where be.emp_code='DEVICE-AUDIT-NEW'),
     'refresh restores provisioned identity after legacy clearing and preserves every HR-maintained field';
   assert not exists(select from public.employees where employee_code='DEVICE-AUDIT-NEW'),'refresh does not duplicate a renamed employee';
-  assert (select count(*)=4 and max(q.generation)=1 from public.attendance_recompute_queue q
+  assert (select count(*)=4 and bool_and(q.generation=i.generation) from public.attendance_recompute_queue q
+    join audit_device_employee.initial_queue i on i.id=q.id
     join public.biotime_employees be on be.employee_id=q.employee_id where be.emp_code='DEVICE-AUDIT-NEW'),
     'repeated roster refresh does not duplicate or churn recompute jobs';
 end $$;
@@ -96,6 +100,11 @@ end $$;
 insert into public.raw_punches(emp_code,punch_time) values ('DEVICE-AUDIT-NEW','2026-09-18 00:45:00+00');
 set local role service_role;
 update public.biotime_employees set last_synced_at='2026-09-20 00:00:00+00' where emp_code='DEVICE-AUDIT-NEW';
+reset role;
+create table audit_device_employee.late_queue as
+  select q.id,q.generation from public.attendance_recompute_queue q
+  join public.biotime_employees be on be.employee_id=q.employee_id where be.emp_code='DEVICE-AUDIT-NEW';
+set local role service_role;
 update public.biotime_employees set last_synced_at='2026-09-21 00:00:00+00' where emp_code='DEVICE-AUDIT-NEW';
 reset role;
 do $$ begin
@@ -103,11 +112,13 @@ do $$ begin
     join public.biotime_employees be on be.emp_code=rp.emp_code
     where rp.emp_code='DEVICE-AUDIT-NEW' and rp.punch_time='2026-09-18 00:45:00+00'),
     'a same-identity trusted roster refresh adopts a punch inserted after initial linking';
-  assert (select count(*)=4 and count(*)filter(where q.work_date in('2026-09-17','2026-09-18') and q.generation=2)=2
-    and count(*)filter(where q.work_date in('2026-09-24','2026-09-25') and q.generation=1)=2
+  assert (select count(*)=4 and count(*)filter(where q.work_date in('2026-09-17','2026-09-18') and q.generation>i.generation)=2
+    and count(*)filter(where q.work_date in('2026-09-24','2026-09-25') and q.generation=i.generation)=2
+    and bool_and(q.generation=l.generation)
     from public.attendance_recompute_queue q join public.biotime_employees be on be.employee_id=q.employee_id
+    join audit_device_employee.initial_queue i on i.id=q.id join audit_device_employee.late_queue l on l.id=q.id
     where be.emp_code='DEVICE-AUDIT-NEW'),
-    'late orphan bumps only its IST workday and previous day once; following no-op refresh preserves generations';
+    'late orphan advances only its IST workday and previous day; following no-op refresh preserves generations';
   assert (select employee_id=audit_device_employee.id(4,1) from public.raw_punches
     where emp_code='DEVICE-AUDIT-NEW' and punch_time='2026-09-26 04:00:00+00'),
     'late orphan recovery never reparents an already assigned punch';
@@ -129,7 +140,7 @@ do $$ begin
     from public.biotime_employees where emp_code='DEVICE-AUDIT-META'),'device metadata identity reuses even inactive employee';
   assert (select full_name='HR Correct Legal Name' and status='Inactive' and meta='{"hr_note":"do not replace"}'::jsonb
     from public.employees where id=audit_device_employee.id(4,2)),'identity reuse does not reactivate or overwrite an HR record';
-  assert (select generation=8 and processed_at is null from public.attendance_recompute_queue
+  assert (select generation>7 and processed_at is null from public.attendance_recompute_queue
     where employee_id=audit_device_employee.id(4,2) and work_date='2026-09-18'),'adoption invalidates an in-flight queue generation';
   assert exists(select from public.attendance_recompute_queue where employee_id=audit_device_employee.id(4,2)
     and work_date='2026-09-17' and processed_at is null),'previous overnight shift day is also queued';

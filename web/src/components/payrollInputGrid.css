@@ -97,3 +97,15 @@
 .payroll-import-reason span, .payroll-import-reason small { display: block; margin-bottom: 5px; }
 .payroll-import-reason small { color: var(--pi-muted); margin-top: 5px; font-size: 10px; }
 .payroll-import-reason input { width: 100%; padding: 8px 10px; border: 1px solid var(--pi-line); border-radius: 6px; background: var(--pi-bg); }
+
+.payroll-attendance-info { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin: 12px 20px; padding: 12px 14px; background: var(--pi-soft); border: 1px solid var(--pi-line); border-radius: 8px; font-size: 12px; }
+.payroll-attendance-info p { margin-top: 4px; color: var(--pi-muted); font-size: 11px; line-height: 1.6; }
+.payroll-punch-link { display: inline-block; margin-top: 6px; color: #087449; font-size: 10px; text-decoration: underline; font-weight: 500; }
+.dark .payroll-punch-link { color: #6ee7b7; }
+.payroll-input-table .payroll-punch-metric { padding: 10px 12px; background: var(--pi-soft); min-width: 140px; }
+.payroll-punch-metric strong { font-variant-numeric: tabular-nums; font-weight: 600; }
+.payroll-hour-mode { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 0 10px 8px; font-size: 9px; white-space: nowrap; color: var(--pi-muted); }
+.payroll-hour-mode button { cursor: pointer; text-decoration: underline; color: #087449; font-weight: 700; padding: 3px; }
+.dark .payroll-hour-mode button { color: #6ee7b7; }
+.payroll-input-table input[readonly] { color: var(--pi-muted); background: var(--pi-soft); }
+@media(max-width: 640px) { .payroll-attendance-info { flex-wrap: wrap; margin-inline: 14px; } }
