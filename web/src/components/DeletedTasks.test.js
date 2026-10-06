@@ -58,13 +58,15 @@ test('deleted tasks retain useful recovery context and page a large collection',
   assert.match(html, /Due 2026-09-20/);
   assert.match(html, /21 Sept 2026/);
   assert.doesNotMatch(html, />Deleted task 23</);
+  assert.match(html, /title="Restore task" aria-label="Restore Deleted task 0"/);
+  assert.doesNotMatch(html, />Restore task</, 'recovery uses a named icon rather than a text action');
 });
 
 test('restore controls require explicit server permission as well as the selected view permission', () => {
   for (const changes of [{ can_restore: false }, { can_restore: undefined }]) {
-    assert.doesNotMatch(markup(DeletedTaskRow, { task: task(1, changes), canRestore: true, onRestore() {} }), /Restore task/);
+    assert.doesNotMatch(markup(DeletedTaskRow, { task: task(1, changes), canRestore: true, onRestore() {} }), /aria-label="Restore /);
   }
-  assert.doesNotMatch(markup(DeletedTaskRow, { task: task(1), onRestore() {} }), /Restore task/);
+  assert.doesNotMatch(markup(DeletedTaskRow, { task: task(1), onRestore() {} }), /aria-label="Restore /);
   const rows = [task(1), task(2, { can_restore: false }), task(3)];
   const html = render(DeletedTasks, { rows, props: { canRestore: (row) => row.id !== 'task-3' } });
   assert.match(html, />Deleted task 1</);
@@ -105,6 +107,7 @@ test('restore writes the chosen task only and blocks duplicate actions while pen
   assert.deepEqual(restored, [row.id]);
   const html = markup(DeletedTaskRow, { task: row, canRestore: true, busy: true, restoring: true });
   assert.match(html, /Restoring…/);
+  assert.match(html, /aria-label="Restoring Deleted task 1"/);
   assert.match(html, /Restores 3 tasks together/);
 });
 

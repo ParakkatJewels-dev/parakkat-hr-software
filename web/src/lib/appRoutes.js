@@ -5,7 +5,7 @@ import { allScreenIds } from './navMap.js';
 export const APP_TAB_PATHS = {
   attendance: ['today', 'calendar', 'overview', 'exceptions', 'regularizations'],
   'attendance-admin': ['mapping', 'shifts', 'holidays', 'leaveTypes', 'sync'],
-  payroll: ['payslips', 'run', 'salary', 'components'],
+  payroll: ['payslips', 'run', 'worksheet', 'salary', 'components'],
   documents: ['employee', 'company'],
   performance: ['mine', 'team'],
   tasks: ['board', 'todo', 'requests', 'routine', 'deleted'],

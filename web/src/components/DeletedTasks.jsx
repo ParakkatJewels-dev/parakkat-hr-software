@@ -96,12 +96,11 @@ export function DeletedTaskRow({ task, canRestore = false, busy = false, restori
           {task.deleted_task_count > 1 && <span>Restores {task.deleted_task_count} tasks together</span>}
         </div>
       </div>
-      {canRestore && task.can_restore === true && <button type="button" className="work-button" disabled={busy}
-        aria-label={`Restore ${task.title}`} onClick={() => {
+      {canRestore && task.can_restore === true && <button type="button" className="work-button work-icon-button" disabled={busy}
+        title={restoring ? 'Restoring…' : 'Restore task'} aria-label={restoring ? `Restoring ${task.title}` : `Restore ${task.title}`} onClick={() => {
           if (!busy) onRestore?.(task);
         }}>
-        {restoring ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />}
-        {restoring ? 'Restoring…' : 'Restore task'}
+        {restoring ? <Loader2 size={18} className="animate-spin" aria-hidden="true" /> : <RotateCcw size={18} aria-hidden="true" />}
       </button>}
     </div>
   </article>;

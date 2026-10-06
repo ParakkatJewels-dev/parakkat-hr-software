@@ -53,7 +53,8 @@ insert into public.tasks(id,employee_id,title,assigned_by)
 insert into public.goals(id,employee_id,title,weight,progress)
   select id,id,'Role audit',100,0 from public.employees where employee_code like 'TARGET-%' or employee_code like 'ACTOR-%';
 insert into public.payslips(id,employee_id,period,gross,deductions,net,status)
-  select id,id,'2026-09',1000,100,900,'Published' from public.employees where employee_code like 'TARGET-%' or employee_code like 'ACTOR-%';
+  -- Published history is separate from September's still-editable attendance fixtures.
+  select id,id,'2026-08',1000,100,900,'Published' from public.employees where employee_code like 'TARGET-%' or employee_code like 'ACTOR-%';
 insert into public.payslips(employee_id,period,gross,deductions,net,status)
   select id,'2026-10',1000,100,900,'Draft' from public.employees where employee_code like 'TARGET-%' or employee_code like 'ACTOR-%';
 grant usage on schema audit_test to authenticated, anon;

@@ -16,13 +16,13 @@ const stubs = {
   'react-router-dom': `export const useSearchParams = () => [globalThis.routineWorkspace.params, update => {
     globalThis.routineWorkspace.params = update(globalThis.routineWorkspace.params);
   }];`,
-  'lucide-react': 'export const AlertTriangle="icon", ArrowLeft="icon", CheckSquare="icon", Plus="icon", Square="icon", PenLine="icon", Archive="icon", Undo2="icon";',
+  'lucide-react': 'export const AlertTriangle="icon", ArrowLeft="icon", CheckSquare="icon", Plus="icon", Square="icon", PenLine="icon", Trash2="icon", Undo2="icon";',
   '../data/routines': `const h = () => globalThis.routineWorkspace;
-    export const useRoutineSets = ({includeRetired}) => ({data:h().routines.filter(row => includeRetired || !row.retired_on)});
+    export const useRoutineSets = ({includeRetired}) => ({data:h().routines.filter(row => includeRetired || !row.retired_on || row.retired_on >= '2026-09-28')});
     export const useRoutineDay = () => ({data:[]}); export const useRoutineStats = () => ({data:[]});
     export const useCreateRoutineSet = () => h().mutations.create;
     export const useReplaceRoutineSet = () => h().mutations[h().replaceCursor++ ? 'restore' : 'edit'];
-    export const useSetRoutineTick = () => ({}); export const useRetireRoutineSet = () => ({});`,
+    export const useSetRoutineTick = () => ({}); export const useRetireRoutineSet = () => h().mutations.delete;`,
   '../lib/routines': `export { filterRoutineGroups, groupRoutineDay, routineScheduleLabel } from ${JSON.stringify(new URL('../lib/routines.js', import.meta.url).href)};`,
   '../lib/dateRange': `export { addDays, startOfMonth } from ${JSON.stringify(new URL('../lib/dateRange.js', import.meta.url).href)};`,
   '../lib/useIstToday': 'export const useIstToday = () => "2026-09-28";',
@@ -81,20 +81,22 @@ function mount() {
     async mutateAsync(payload) {
       if (this.failure) { this.error = this.failure; throw this.failure; }
       this.error = null; this.writes.push(payload);
+      this.onSuccess?.(payload);
     },
   });
   const harness = { params: new URLSearchParams(), replaceCursor: 0,
     routines: [routine, { ...routine, id: 'retired', title: 'Retired opening', frequency: 'weekly', weekdays: [1], retired_on: '2026-09-20' }],
-    mutations: { create: mutation(), edit: mutation(), restore: mutation() },
+    mutations: { create: mutation(), edit: mutation(), restore: mutation(), delete: mutation() },
     state(initial) {
       const index = cursor++;
       if (!(index in slots)) slots[index] = typeof initial === 'function' ? initial() : initial;
       return [slots[index], next => { slots[index] = typeof next === 'function' ? next(slots[index]) : next; }];
     },
   };
+  harness.mutations.delete.onSuccess = id => { harness.routines.find(row => row.id === id).retired_on = '2026-09-28'; };
   globalThis.document = { activeElement: { isConnected: true } };
   const render = () => { cursor = 0; harness.replaceCursor = 0; globalThis.routineWorkspace = harness; return TaskRoutine({}); };
-  const button = label => find(render(), node => node.type === 'button' && text(node) === label, true);
+  const button = label => find(render(), node => node.type === 'button' && (node.props['aria-label'] || text(node)) === label, true);
   const field = label => find(find(render(), node => node.type === 'label' && text(node).startsWith(label)), node => node.type === 'input' || node.type === 'select');
   return { ...harness, render, field,
     click(label) { const node = button(label); assert.ok(node, `Visible ${label} button`); assert.ok(!node.props.disabled); node.props.onClick(); },
@@ -162,4 +164,49 @@ test('failed create, edit and restore remain in the editor and successful retrie
     assert.ok(find(workspace.render(), node => node.props.role === 'status' && /Routine (assigned|saved|restored)/.test(text(node)), true));
     if (mode === 'restore') assert.equal(workspace.field('Schedule status').props.value, 'active');
   }
+});
+
+test('visible icon actions delete recoverably only after confirmation and retain a failed delete for retry', async () => {
+  const workspace = mount();
+  for (const label of ['Edit routine', 'Add jobs', 'Delete routine']) {
+    const button = find(workspace.render(), node => node.type === 'button' && node.props['aria-label'] === label, true);
+    assert.ok(button, label);
+    assert.equal(button.props.title, label);
+    assert.equal(text(button), '');
+  }
+  assert.equal(find(workspace.render(), node => node.type === 'summary' && text(node) === 'More actions'), null);
+  workspace.click('Delete routine');
+  const confirm = () => find(workspace.render(), node => node.type === 'routine-confirm');
+  assert.equal(confirm().props.title, 'Delete this routine?');
+  assert.match(text(confirm()), /stop after today/);
+  assert.match(text(confirm()), /restore it from Deleted routines/);
+  assert.equal(workspace.mutations.delete.writes.length, 0);
+  workspace.mutations.delete.failure = new Error('Deletion refused');
+  await confirm().props.onConfirm();
+  assert.match(confirm().props.error, /Deletion refused/);
+  workspace.mutations.delete.failure = null;
+  await confirm().props.onConfirm();
+  assert.equal(confirm(), null);
+  assert.deepEqual(workspace.mutations.delete.writes, ['active']);
+  assert.equal(find(workspace.render(), node => node.type === 'h4' && text(node) === 'Opening checks', true), null);
+  workspace.change('Schedule status', 'retired');
+  assert.ok(find(workspace.render(), node => node.type === 'h4' && text(node) === 'Opening checks', true));
+  assert.ok(find(workspace.render(), node => node.type === 'button' && node.props['aria-label'] === 'Restore routine', true));
+});
+
+test('deleted routine and job restore icons respect server management rights and latest-version history', () => {
+  const workspace = mount();
+  const deleted = workspace.routines[1];
+  deleted.jobs.push({ id: 'deleted-job', title: 'Removed check', is_active: false, deleted_at: '2026-09-20' });
+  workspace.routines.push({ ...deleted, id: 'denied', title: 'Denied routine', can_manage: false },
+    { ...deleted, id: 'superseded', title: 'Earlier version', replaced_by: deleted.id });
+  workspace.change('Schedule status', 'retired');
+  const row = title => find(workspace.render(), node => node.type === 'article'
+    && find(node, child => child.type === 'h4' && text(child) === title), true);
+  for (const label of ['Restore routine', 'Restore deleted jobs', 'Edit routine']) {
+    assert.ok(find(row(deleted.title), node => node.type === 'button' && node.props['aria-label'] === label));
+    assert.equal(find(row('Denied routine'), node => node.type === 'button' && node.props['aria-label'] === label), null);
+  }
+  assert.equal(find(row(deleted.title), node => node.type === 'button' && node.props['aria-label'] === 'Delete routine'), null);
+  assert.equal(row('Earlier version'), null);
 });

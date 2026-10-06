@@ -9,6 +9,7 @@
 //   Salary      payroll.manage — effective-dated basic/gross per employee
 //   Deductions  payroll.manage — the configurable, scoped component catalogue
 import React, { useMemo, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   DollarSign, FileText, Loader2, AlertTriangle, Play, Check, Plus, Trash2, X,
   Settings2, Users, Calculator,
@@ -33,6 +34,7 @@ import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
 import ConfirmDialog from './ui/ConfirmDialog';
 import IconInput from './ui/IconInput';
+import PayrollWorksheet from './PayrollWorksheet';
 import {
   blankGrossComponent,
   grossComponentsFromNotes,
@@ -85,6 +87,7 @@ const Err = ({ e }) =>
 const TAB_DEFS = [
   { id: 'payslips', label: 'Payslips', icon: FileText, managerOnly: false },
   { id: 'run', label: 'Run Payroll', icon: Play, managerOnly: true },
+  { id: 'worksheet', label: 'Monthly Worksheet', icon: Calculator, managerOnly: true },
   { id: 'salary', label: 'Salary Structures', icon: Users, managerOnly: true },
   { id: 'components', label: 'Deductions & Allowances', icon: Settings2, managerOnly: true },
 ];
@@ -107,7 +110,7 @@ export default function Payroll() {
         </h1>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           {canManage
-            ? 'Salary is calculated from attendance — loss-of-pay days reduce it automatically.'
+            ? 'Prepare monthly inputs, calculate salary from attendance, review the register, then publish.'
             : 'Your payslips.'}
         </p>
       </div>
@@ -135,6 +138,7 @@ export default function Payroll() {
 
       {tab === 'payslips' && <PayslipsTab />}
       {tab === 'run' && <RunTab />}
+      {tab === 'worksheet' && <PayrollWorksheet />}
       {tab === 'salary' && <SalaryTab />}
       {tab === 'components' && <ComponentsTab />}
     </div>
@@ -202,12 +206,13 @@ function PayslipsTab() {
 }
 
 function PayslipDetail({ payslip }) {
-  const { data: lines = [], isLoading } = usePayslipLines(payslip.id);
+  const { data: lines = [], isLoading, error } = usePayslipLines(payslip.id);
   const earnings = lines.filter((l) => l.kind === 'earning');
   const deductions = lines.filter((l) => l.kind === 'deduction');
   const employer = lines.filter((l) => l.kind === 'employer');
 
   if (isLoading) return <SkeletonRows rows={3} compact avatar={false} label="Loading breakdown" className="pt-3" />;
+  if (error) return <Err e={error} />;
 
   const Col = ({ title, rows, total, tone }) => (
     <div>
@@ -231,6 +236,22 @@ function PayslipDetail({ payslip }) {
 
   return (
     <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-850 space-y-4">
+      {payslip.payroll_register && (
+        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          {[
+            ['Monthly salary', money(payslip.payroll_register.salary)],
+            ['Earned salary', money(payslip.payroll_register.earned_salary)],
+            ['Day rate', money(payslip.payroll_register.per_day_wages)],
+            ['Hour rate', money(payslip.payroll_register.per_hour_wages)],
+            ['Actual working days', payslip.payroll_register.actual_working_days],
+            ['Public holidays', payslip.payroll_register.public_holiday],
+            ['Off days', payslip.payroll_register.off_days],
+            ['Casual leave', payslip.payroll_register.casual_leave],
+            ['Approved OT hours', payslip.payroll_register.ot_hours],
+            ['Approved late hours', payslip.payroll_register.late_hours],
+          ].map(([label, value]) => <div key={label}><dt className="text-neutral-500">{label}</dt><dd className="mt-1 font-semibold text-neutral-800 dark:text-neutral-100">{value ?? '—'}</dd></div>)}
+        </dl>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <Col title="Earnings" rows={earnings} total={payslip.gross} tone="text-emerald-600 dark:text-emerald-400" />
         <Col title="Deductions" rows={deductions} total={payslip.deductions} tone="text-rose-500" />
@@ -264,11 +285,13 @@ function RunTab() {
   const publish = usePublishPayroll();
   const deleteRun = useDeletePayrollRun();
   const entities = org?.entities ?? [];
+  const [params] = useSearchParams();
 
-  const [entityId, setEntityId] = useState('');
-  const [period, setPeriod] = useState(todayIso().slice(0, 7));
+  const [entityId, setEntityId] = useState(params.get('entity') || '');
+  const [period, setPeriod] = useState(/^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('period') || '') ? params.get('period') : todayIso().slice(0, 7));
   const [result, setResult] = useState(null);
   const [draftToDelete, setDraftToDelete] = useState(null);
+  const [draftToPublish, setDraftToPublish] = useState(null);
   const [historySearch, setHistorySearch] = useState('');
   const matchingRuns = runs.filter((r) => `${r.period} ${r.entity?.code ?? ''} ${r.entity?.name ?? ''} ${r.status}`.toLowerCase().includes(historySearch.trim().toLowerCase()));
   const runPager = usePagination(matchingRuns, 10, null, historySearch);
@@ -293,7 +316,7 @@ function RunTab() {
             <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1">Company</label>
             <select value={entityId} onChange={(e) => setEntityId(e.target.value)} className={INPUT + ' cursor-pointer'}>
               <option value="">Choose…</option>
-              {entities.map((e) => (
+              {entities.filter((e) => can('payroll.manage', { entityId: e.id })).map((e) => (
                 <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
               ))}
             </select>
@@ -309,14 +332,14 @@ function RunTab() {
             />
           </div>
           <div className="flex items-end">
-            <button onClick={go} disabled={!entityId || runPayroll.isPending} className={BTN + ' w-full justify-center'}>
+            <button onClick={go} disabled={!entityId || !can('payroll.manage', { entityId }) || runPayroll.isPending} className={BTN + ' w-full justify-center'}>
               {runPayroll.isPending ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} Run payroll
             </button>
           </div>
         </div>
         <p className="text-2xs text-neutral-400">
-          Re-running a draft month recalculates it from scratch. Unpaid days come from attendance, so
-          finish attendance corrections first.
+          Save the company policy and approved monthly inputs in Monthly Worksheet first. Complete
+          attendance and salary records before running. Re-running replaces a draft; published months stay locked.
         </p>
         <Err e={runPayroll.error} />
         {result && (
@@ -324,7 +347,8 @@ function RunTab() {
             <Check size={14} className="text-emerald-500 shrink-0 mt-0.5" />
             <p className="text-xs text-emerald-700 dark:text-emerald-300">
               {result.period}: {result.employees} employees · gross {money(result.total_gross)} · net{' '}
-              {money(result.total_net)}. Review the payslips, then publish to make them visible to staff.
+              {money(result.total_net)}. Review the register, then publish to make payslips visible to staff.
+              {result.policy_configured === false && ' Save a reviewed company policy and run again before publication.'}
             </p>
           </div>
         )}
@@ -352,14 +376,17 @@ function RunTab() {
                   <span className="block text-2xs text-neutral-500 mt-0.5">
                     {r.employees} employees · net {money(r.total_net)}
                   </span>
+                  {r.needs_recalculation && r.status === 'Draft' && <span className="block text-2xs text-amber-600 mt-1">Inputs changed — run payroll again before publishing.</span>}
+                  {!r.source_fingerprint && r.status === 'Draft' && <span className="block text-2xs text-amber-600 mt-1">Recalculate this draft to prepare its reviewable register.</span>}
                 </div>
                 <div className="mobile-list-actions flex items-center gap-2">
                   <span className={`text-2xs font-bold uppercase px-2 py-1 rounded ${statusClass(r.status)}`}>
                     {r.status}
                   </span>
+                  <Link to={`/payroll/worksheet?entity=${encodeURIComponent(r.entity_id)}&period=${encodeURIComponent(r.period)}`} className={BTN_GHOST}>Review register</Link>
                   {r.status === 'Draft' && canManageRun(r) && (
                     <>
-                      <button onClick={() => publish.mutate(r.id)} disabled={publish.isPending} className={BTN}>
+                      <button onClick={() => { publish.reset(); setDraftToPublish(r); }} disabled={publish.isPending || r.needs_recalculation || r.employees === 0 || !r.source_fingerprint} className={BTN}>
                         {publish.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Publish
                       </button>
                       <button
@@ -382,8 +409,29 @@ function RunTab() {
           </div>
         )}
         <Pagination {...runPager} noun="payroll runs" sizes={[10, 25, 50]} disabled={publish.isPending || deleteRun.isPending} />
-        <Err e={publish.error} />
       </section>
+
+      {draftToPublish && (
+        <ConfirmDialog
+          title="Publish reviewed payroll?"
+          tone="primary"
+          confirmLabel="Publish payroll"
+          busy={publish.isPending}
+          error={publish.error?.message}
+          onCancel={() => { publish.reset(); setDraftToPublish(null); }}
+          onConfirm={async () => {
+            try {
+              await publish.mutateAsync({ runId: draftToPublish.id, expectedFingerprint: draftToPublish.source_fingerprint });
+              setDraftToPublish(null);
+            } catch { /* shown in the dialog */ }
+          }}
+        >
+          <p>{draftToPublish.period} · {draftToPublish.entity?.name || draftToPublish.entity?.code} · {draftToPublish.employees} employees</p>
+          <p>Gross <b>{money(draftToPublish.total_gross)}</b> · Net pay <b>{money(draftToPublish.total_net)}</b></p>
+          <p>Confirm that you have reconciled the register, approved adjustments, and statutory deductions. Publication releases payslips to employees and locks this payroll and its attendance.</p>
+          <p className="text-neutral-500 dark:text-neutral-400">Bank payment and statutory remittances are completed separately.</p>
+        </ConfirmDialog>
+      )}
 
       {draftToDelete && (
         <ConfirmDialog
@@ -813,7 +861,7 @@ function ComponentsTab() {
           </select>
           <select value={form.calc_type} onChange={(e) => setForm({ ...form, calc_type: e.target.value })} className={INPUT + ' cursor-pointer'}>
             <option value="percent_of_basic">% of basic</option>
-            <option value="percent_of_gross">% of gross</option>
+            <option value="percent_of_gross">% of regular monthly salary</option>
             <option value="fixed">Fixed amount</option>
           </select>
         </div>
@@ -824,9 +872,9 @@ function ComponentsTab() {
           ) : (
             <input type="number" step="0.0001" placeholder="Rate %" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} className={INPUT} />
           )}
-          <input type="number" step="0.01" placeholder="Cap base at ₹ (PF: 15000)" value={form.cap_base} onChange={(e) => setForm({ ...form, cap_base: e.target.value })} className={INPUT} />
+          <input type="number" step="0.01" placeholder="Cap base at ₹" value={form.cap_base} onChange={(e) => setForm({ ...form, cap_base: e.target.value })} className={INPUT} />
           <input type="number" step="0.01" placeholder="Only if gross ≥ ₹" value={form.min_gross} onChange={(e) => setForm({ ...form, min_gross: e.target.value })} className={INPUT} />
-          <input type="number" step="0.01" placeholder="Only if gross ≤ ₹ (ESI: 21000)" value={form.max_gross} onChange={(e) => setForm({ ...form, max_gross: e.target.value })} className={INPUT} />
+          <input type="number" step="0.01" placeholder="Only if gross ≤ ₹" value={form.max_gross} onChange={(e) => setForm({ ...form, max_gross: e.target.value })} className={INPUT} />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -861,7 +909,7 @@ function ComponentsTab() {
             {editingId ? 'Save changes' : 'Add component'}
           </button>
           <span className="text-2xs text-neutral-400">
-            PF and ESI are normally calculated on earned wages — keep "reduce with unpaid days" ticked.
+            Percentage components use regular salary before monthly additions and OT. Review statutory wage bases and coverage for the month; enter approved PF/ESI overrides in the worksheet when needed.
           </span>
         </div>
         <Err e={save.error} />
@@ -890,7 +938,8 @@ function ComponentsTab() {
                     {c.kind === 'earning' ? 'Allowance' : c.employer_share ? "Employer's share" : 'Deduction'} ·{' '}
                     {c.calc_type === 'fixed'
                       ? money(c.amount)
-                      : `${c.rate}% of ${c.calc_type === 'percent_of_basic' ? 'basic' : 'gross'}`}
+                      : `${c.rate}% of ${c.calc_type === 'percent_of_basic' ? 'basic' : 'regular salary'}`}
+                    {c.prorate_on_lop ? ' · reduced with unpaid days' : ''}
                     {c.cap_base ? ` · base capped at ${money(c.cap_base)}` : ''}
                     {c.max_gross ? ` · only if gross ≤ ${money(c.max_gross)}` : ''}
                     {c.entity_id || c.branch_id ? ' · scoped' : ''}

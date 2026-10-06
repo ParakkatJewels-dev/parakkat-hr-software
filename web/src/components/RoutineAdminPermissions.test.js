@@ -39,16 +39,16 @@ test('super admins reach routine management by default with or without an employ
   for (const linkedEmployee of [null, employee]) {
     const html = render({ auth: { isSuperAdmin: true, employee: linkedEmployee }, routines: [routine('current')] });
     assert.match(html, /aria-label="Manage routine assignments"/);
-    assert.match(html, /Edit routine<\/button>/);
-    assert.match(html, /Add jobs<\/button>/);
-    assert.match(html, /Retire routine<\/button>/);
+    assert.match(html, /aria-label="Edit routine"/);
+    assert.match(html, /aria-label="Add jobs"/);
+    assert.match(html, /aria-label="Delete routine"/);
   }
 });
 
 test('entity admins reach management using their granted scope without a super-admin override', () => {
   const html = render({ auth: { employee, assignments: [{ role: 'entity_admin', scope_type: 'entity', scope_id: 'entity-1' }], permissions: entityPermissions }, routines: [routine('current')] });
   assert.match(html, /aria-label="Manage routine assignments"/);
-  assert.match(html, /Edit routine<\/button>/);
+  assert.match(html, /aria-label="Edit routine"/);
 });
 
 test('an explicit team status link stays on statistics for an administrator', () => {
@@ -64,22 +64,23 @@ test('a linked administrator can still explicitly open their own routines', () =
   assert.doesNotMatch(html, /aria-label="Manage routine assignments"/);
 });
 
-test('latest retired or expired routines can be edited without needing a deleted job', () => {
+test('latest expired routines can be edited and deleted while deleted routines leave the active list', () => {
   const routines = [
     routine('retired', { retired_on: addDays(today, -1) }),
     routine('expired', { end_date: addDays(today, -1) }),
     routine('once', { frequency: 'once', start_date: addDays(today, -1), end_date: addDays(today, -1) }),
   ];
   const html = render({ auth: { isSuperAdmin: true }, route: '/tasks/routine?routineView=manage', routines });
-  assert.equal((html.match(/Edit routine<\/button>/g) ?? []).length, 3);
-  assert.doesNotMatch(html, /Retire routine<\/button>/);
+  assert.equal((html.match(/aria-label="Edit routine"/g) ?? []).length, 2);
+  assert.equal((html.match(/aria-label="Delete routine"/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /Routine retired<\/h4>|aria-label="Restore routine"/);
 });
 
 test('admin screens still respect server refusals and keep replaced schedule history read-only', () => {
   const routines = [routine('denied', { can_manage: false }), routine('missing-grant', { can_manage: undefined }),
     routine('historical', { replaced_by: 'latest' })];
   const html = render({ auth: { isSuperAdmin: true }, route: '/tasks/routine?routineView=manage', routines });
-  assert.doesNotMatch(html, /Edit routine<\/button>|Add jobs<\/button>|Retire routine<\/button>/);
+  assert.doesNotMatch(html, /aria-label="(?:Edit routine|Add jobs|Delete routine)"/);
 });
 
 test('department heads keep their personal default and readers gain no management controls', () => {
@@ -89,7 +90,7 @@ test('department heads keep their personal default and readers gain no managemen
   const reader = render({ auth: { employee, permissions: [{ permission: 'task.read', scope_type: 'self' }] },
     route: '/tasks/routine?routineView=manage', routines: [routine('current')] });
   assert.match(reader, /My routines for/);
-  assert.doesNotMatch(reader, /Manage routines<\/button>|Edit routine<\/button>|Create routine<\/button>/);
+  assert.doesNotMatch(reader, /Manage routines<\/button>|aria-label="Edit routine"|Create routine<\/button>/);
 });
 
 test('an admin role label does not bypass missing scoped task permissions', () => {
@@ -97,5 +98,5 @@ test('an admin role label does not bypass missing scoped task permissions', () =
     permissions: [{ permission: 'task.read', scope_type: 'self' }] },
   route: '/tasks/routine?routineView=manage', routines: [routine('current')] });
   assert.match(html, /My routines for/);
-  assert.doesNotMatch(html, /Manage routines<\/button>|Edit routine<\/button>|Create routine<\/button>/);
+  assert.doesNotMatch(html, /Manage routines<\/button>|aria-label="Edit routine"|Create routine<\/button>/);
 });

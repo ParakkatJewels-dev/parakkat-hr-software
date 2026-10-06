@@ -21,7 +21,7 @@ export default function RestoreRoutineDialog({ routine, today, busy = false, err
     && (once || !endDate || (validDate(endDate) && endDate >= startDate));
 
   return <FormSection focusHeading title="Restore routine" icon={Undo2}
-    subtitle="Choose when this retired routine resumes. Earlier completion history is preserved."
+    subtitle="Choose when this deleted routine resumes. Earlier completion history is preserved."
     submitLabel="Restore routine" busyLabel="Restoring…" busy={busy} error={error} disabled={!valid}
     onClose={busy ? undefined : onClose}
     onSubmit={async (event) => {

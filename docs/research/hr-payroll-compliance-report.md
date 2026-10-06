@@ -1,3 +1,5 @@
+> Payroll implementation update, 6 October 2026: consult [the newer SOP research](payroll-sop-2026-10.md) for current primary-source findings, including EPFO changes and Labour Code transition guidance. This July report is historical; its rates and applicability conclusions must not be used as current payroll configuration.
+
 ⚠️ *Disclaimer: This report is prepared for informational purposes only and does not constitute legal, financial, or professional advice. Statutory rates, thresholds, and legal-status claims below should be independently confirmed with a Kerala-licensed labour law consultant / chartered accountant before being encoded as fixed values in software, and before any compliance decision is made.*
 
 # What Parakkat Jewels' HR/Payroll Software Legally Must Have, and What It Should Have

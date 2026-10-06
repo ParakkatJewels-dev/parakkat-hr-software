@@ -17,13 +17,16 @@ module.exports = function testPayrollIntegrity({ run, connection, directory }) {
         "insert into public.shifts(code,name,start_time,end_time) values ('GN','Synthetic configured baseline','09:00','17:30');",
       ] : []),
       ...(file.startsWith('0143_') ? ['\\set payroll_seed on', `\\i ${quote(test)}`] : []),
+      // Verify the historical contract before the stricter register workflow is installed.
+      // Its sparse-attendance fixtures deliberately exercise the old calendar fallback.
+      ...(file.startsWith('0158_') ? ['\\set payroll_seed off', `\\i ${quote(test)}`] : []),
       `\\i ${quote(join(migrations, file))}`,
-      ...(file.startsWith('0143_') ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0143|0158)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
-    '\\set payroll_seed off',
-    `\\i ${quote(test)}`,
+    `\\i ${quote(join(backend, 'tests', 'payroll_salary_register.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-Xq', '-f', bootstrap]);
   console.log(output.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
+  console.log(run(process.execPath, [join(__dirname, 'testPayrollConcurrency.js'), connection[1]]).trim());
 };

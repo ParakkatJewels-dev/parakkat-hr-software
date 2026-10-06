@@ -172,7 +172,9 @@ update public.goals set status='Completed',progress=100 where id=audit_navigatio
 update public.notifications set read_at=now()where user_id=auth.uid();
 select audit_navigation.expect('{"task_routine":1,"performance_mine":0,"notifications":0}');
 set request.jwt.claim.sub='d5100004-0000-0000-0000-000000000001';
-select public.publish_payroll(audit_navigation.id(7,1));
+-- This fixture is an empty draft, so retire it through the draft lifecycle. Publication now
+-- requires a reviewed policy, complete attendance and generated salary register evidence.
+select public.delete_draft_payroll(audit_navigation.id(7,1));
 select public.complete_exit(audit_navigation.id(11,2));
 update public.onboarding set progress=100 where id=audit_navigation.id(8,1);
 update public.candidates set stage='Hired'where id=audit_navigation.id(10,1);

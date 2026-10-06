@@ -121,7 +121,8 @@ begin
           when 'expenses' then a.ordinal<=5 and not own
           when 'tasks' then true
           when 'goals' then true
-          when 'payslips' then a.ordinal<=3 end;
+          -- Payroll amounts are written only by scoped lifecycle RPCs, never direct API writes.
+          when 'payslips' then false end;
         field := case module when 'employees' then 'phone' when 'attendance' then 'hours'
           when 'goals' then 'progress' when 'payslips' then 'net' else 'status' end;
         value := case module when 'employees' then quote_literal('5550100') when 'attendance' then '7'

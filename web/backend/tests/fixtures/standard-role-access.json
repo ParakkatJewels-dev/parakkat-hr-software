@@ -159,7 +159,8 @@
     "0154_routine_edits.sql",
     "0155_recoverable_tasks.sql",
     "0156_routine_job_trash.sql",
-    "0157_routine_audit_notes.sql"
+    "0157_routine_audit_notes.sql",
+    "0158_payroll_salary_register.sql"
   ],
   "roles": [
     {

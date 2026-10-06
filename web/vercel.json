@@ -123,6 +123,7 @@
     { "source": "/attendance-admin/sync", "destination": "/index.html" },
     { "source": "/payroll/payslips", "destination": "/index.html" },
     { "source": "/payroll/run", "destination": "/index.html" },
+    { "source": "/payroll/worksheet", "destination": "/index.html" },
     { "source": "/payroll/salary", "destination": "/index.html" },
     { "source": "/payroll/components", "destination": "/index.html" },
     { "source": "/documents/employee", "destination": "/index.html" },

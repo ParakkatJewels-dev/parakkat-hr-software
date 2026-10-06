@@ -103,7 +103,7 @@ export default function RoutineForm({ initial, employees = [], employeesLoading 
           </div>
         </li>)}</ol>
         <button type="button" className={btnClass('ghost')} disabled={jobs.length >= 100} onClick={() => setJobs((previous) => [...previous, { key: `job-${nextJob.current++}`, title: '', detail: '' }])}><Plus size={16} />Add job</button>
-        {editing && <p className="text-xs text-neutral-500">Delete a job to remove it from this checklist from the selected date. You can restore deleted jobs here. Save routine to apply your changes. Keep at least one job, or retire the routine to stop all jobs.</p>}
+        {editing && <p className="text-xs text-neutral-500">Delete a job to remove it from this checklist from the selected date. You can restore deleted jobs here. Save routine to apply your changes. Keep at least one job, or delete the routine to stop all jobs after today.</p>}
         {deletedJobs.length > 0 && <section className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 p-3" aria-label="Deleted jobs">
           <h4 className="text-sm font-semibold">Deleted jobs ({deletedJobs.length})</h4>
           <p className="text-xs text-neutral-500">Restore a job to add it back from the selected date. Earlier completion history stays unchanged.</p>

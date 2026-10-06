@@ -21,7 +21,7 @@ export function usePayslips(employeeId, { period = '', enabled = true } = {}) {
       // the API imposes a response cap. Dashboard/self-history callers retain their window.
       if (period) return fetchCollection(() => {
         let query = supabase.from('payslips').select(`id, period, gross, deductions, net, status,
-          paid_days, lop_days, employer_cost, run_id, employee_id,
+          paid_days, lop_days, employer_cost, run_id, employee_id, payroll_register,
           employee:employees(id, full_name, employee_code, branch:branches(code))`)
           .eq('period', period).order('id');
         if (employeeId) query = query.eq('employee_id', employeeId);
@@ -31,7 +31,7 @@ export function usePayslips(employeeId, { period = '', enabled = true } = {}) {
         .from('payslips')
         .select(
           `id, period, gross, deductions, net, status, paid_days, lop_days, employer_cost, run_id,
-           employee_id,
+           employee_id, payroll_register,
            employee:employees(id, full_name, employee_code, branch:branches(code))`
         )
         .order('period', { ascending: false })
@@ -74,7 +74,7 @@ export function usePayrollRuns() {
         .select(
           // entity_id as well as the embed: payroll_runs_write checks the id, and the embed comes
           // back null when RLS hides the entity row — which would silently disable Publish.
-          'id, period, status, employees, total_gross, total_net, published_at, created_at, '
+          'id, period, status, employees, total_gross, total_net, published_at, created_at, needs_recalculation, source_fingerprint, '
           + 'entity_id, entity:entities(code, name)'
         )
         .order('period', { ascending: false }).order('id')),
@@ -94,8 +94,11 @@ export function useRunPayroll() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
       qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
+      qc.invalidateQueries({ queryKey: ['payslip-lines'] });
+      qc.invalidateQueries({ queryKey: ['payroll-register'] });
     },
   });
 }
@@ -103,14 +106,19 @@ export function useRunPayroll() {
 export function usePublishPayroll() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (runId) => {
-      const { error } = await supabase.rpc('publish_payroll', { _run_id: runId });
+    mutationFn: async ({ runId, expectedFingerprint }) => {
+      const { error } = await supabase.rpc('publish_payroll', {
+        _run_id: runId,
+        _expected_fingerprint: expectedFingerprint,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
       qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
+      qc.invalidateQueries({ queryKey: ['payroll-register'] });
     },
   });
 }
@@ -124,9 +132,11 @@ export function useDeletePayrollRun() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
       qc.invalidateQueries({ queryKey: ['section-counts'] });
       qc.invalidateQueries({ queryKey: ['payslips'] });
       qc.invalidateQueries({ queryKey: ['payslip-lines'] });
+      qc.invalidateQueries({ queryKey: ['payroll-register'] });
     },
   });
 }
@@ -181,7 +191,12 @@ export function useSaveSalaryStructure() {
       if (error) throw describeSalaryError(error);
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['salary-structures'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['salary-structures'] });
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-register'] });
+    },
   });
 }
 
@@ -207,7 +222,12 @@ export function useSavePayComponent() {
       const { error } = await q;
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['pay-components'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pay-components'] });
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-register'] });
+    },
   });
 }
 
@@ -218,6 +238,11 @@ export function useDeletePayComponent() {
       const { error } = await supabase.from('pay_components').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['pay-components'] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pay-components'] });
+      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
+      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
+      qc.invalidateQueries({ queryKey: ['payroll-register'] });
+    },
   });
 }

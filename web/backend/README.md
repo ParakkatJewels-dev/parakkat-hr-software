@@ -139,6 +139,78 @@ the existing device-manager permission once per query and indexing history in it
 revocation. The standard-role suite loads 20,000 synthetic runs and checks actual query plans for
 bounded ordered reads and a single permission evaluation, plus account-revocation and scope tests.
 
+## Payroll worksheet and monthly close
+
+Apply `0158_payroll_salary_register.sql` **before deploying the updated payroll client**. It adds
+reviewed company policies, approved employee/month inputs, source-change detection and immutable
+register snapshots. Apply it with the existing migration runner in the normal release process;
+local database tests do not apply anything to the hosted database. Existing published amounts
+remain unchanged. Legacy published payslips remain available but cannot acquire a new register
+without recalculation, so their worksheet export is unavailable.
+
+The operating sequence is **Monthly Worksheet → Run Payroll → Review register → Publish**:
+
+1. Select the company and month. Review and save the salary divisor, daily hours, OT multiplier
+   and whether approved late time is deductible. Calendar days, 8 hours and 2× OT shown before
+   saving are suggestions, not a recovered company policy or automatic statutory configuration.
+2. Complete the salary structure and attendance for every employment date. Fix missing punches,
+   unresolved shifts and incomplete breaks. Join dates and cleared exit dates limit eligible days.
+   Midmonth salary revisions are explicitly blocked pending a split-period calculation; do not
+   change a real effective date to evade that check.
+3. Save approved monthly incentives, expenses, allowances, recoveries and hours. These earnings
+   are **additional to** the regular salary structure; enter actual payable amounts for the month.
+   OT/late hours default to zero and require explicit entry. PF/ESI blank means configured employee
+   component deductions; zero explicitly overrides the employee deduction with zero. Overrides,
+   late deductions and other deductions require a reason. Concurrent saves reject a stale revision.
+4. Run the draft and reconcile its 33-column register and payslip breakdown. Source changes mark
+   affected drafts for recalculation. Failed calculation is atomic and preserves the previous draft.
+   Excel export includes every accessible row in the run, independent of the displayed page or
+   search, and refuses stale, incomplete or failed reads. Both original `Salary` headers are retained.
+5. Publish the reviewed run. The database checks that the reviewed generation is still current,
+   rechecks its sources and totals, releases payslips,
+   and locks payroll inputs, payslips and attendance. Bank payments and statutory remittances
+   remain separate processes; `Published` does not mean `Paid`.
+
+The first `Salary` is contractual monthly gross; the second is earned regular salary.
+`Net Working Days` counts scheduled duty days within employment. `Actual Working Days` excludes
+paid-leave equivalents, rest days and holidays. `Total Working Days` means payable day equivalents,
+including paid rest, holidays and paid leave. `Total Working Hours` is recorded worked time; paid
+hours are retained separately in snapshot metadata. Other paid leave remains included in earned
+salary even though the supplied sheet has only a Casual Leave column.
+
+| Saved divisor | Earned regular salary calculation |
+| --- | --- |
+| Calendar | Monthly salary × payable employment days ÷ calendar days |
+| Fixed | Monthly salary × max(0, 1 − (unpaid days + calendar days outside employment) ÷ fixed divisor) |
+| Working | Monthly salary × payable duty-day equivalents ÷ scheduled duty days in the full month |
+
+Working-day mode requires a complete month calendar, including dates outside employment for
+joiners/leavers. Fixed mode is a loss-of-pay method, not paid days multiplied by the day rate.
+Day rate is monthly salary divided by the selected divisor; hour rate divides that by daily hours.
+OT is approved recorded OT hours × hour rate × multiplier. Late deduction uses approved lateness
+on fully paid duty days only, preventing the same time also being charged as half-day LOP.
+The database retains exact intermediate rates and rounds payable lines to paise. Gross is earned
+salary plus monthly additions and OT. Net is gross less employee deductions and late amount once;
+employer contributions never reduce net. Negative net is rejected.
+
+Recurring earning components still describe the regular salary breakdown. Recurring percentage
+deductions use basic/regular salary before monthly additions and OT, with their configured caps,
+eligibility and proration flags. They are not a complete statutory wage-definition engine. Confirm
+employee coverage and approved PF/ESI amounts for the wage period; use monthly overrides where
+the statutory basis or transition calculation differs. Employer contributions remain separately
+configured and are not changed by an employee PF/ESI override.
+
+The supplied headings do not establish the employer's formulas or statutory applicability.
+[The dated SOP research](../../docs/research/payroll-sop-2026-10.md) records official sources and
+open policy decisions. Finance must still verify statutory deduction limits, outstanding advance
+balances and lawful loss/damage recovery; the worksheet does not implement those ledgers or legal
+approval processes. It does not generate EPFO/ESIC filings, PT/TDS calculations or bank transfers.
+
+`tests/payroll_salary_register.sql` exercises the new contract after the historical payroll suite.
+The runner replays the migration twice in a disposable cluster. Frontend tests cover scoped views,
+saved-policy and input handling, stale/error export guards, pagination, duplicate Excel headers and
+numeric/text cell preservation.
+
 ## Leave review and department ticket routing
 
 Apply `0138_leave_approval_workflow.sql` and `0139_ticket_category_routing.sql` before deploying

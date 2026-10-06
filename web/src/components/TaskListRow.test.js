@@ -44,6 +44,28 @@ test('detail content mounts only when the row is open', () => {
   assert.match(open, /Edit task/);
 });
 
+test('collapsed task rows expose named edit and delete icons without opening details', () => {
+  const html = render();
+  const collapsedDetails = html.indexOf('id="task-detail-task-1"');
+  for (const action of ['Edit', 'Delete']) {
+    const label = `aria-label="${action} task: ${task.title}"`;
+    assert.ok(html.indexOf(label) > 0 && html.indexOf(label) < collapsedDetails,
+      `${action} stays outside the hidden task details`);
+    assert.match(html, new RegExp(`title="${action} task"`));
+    assert.doesNotMatch(html, new RegExp(`>${action} task<`));
+  }
+  assert.doesNotMatch(html, /Task conversation content/);
+});
+
+test('row action permissions stay independent in collapsed rows', () => {
+  const editOnly = render({}, { canManage: () => false });
+  assert.match(editOnly, /aria-label="Edit task:/);
+  assert.doesNotMatch(editOnly, /aria-label="Delete task:/);
+  const deleteOnly = render({}, { canEdit: () => false });
+  assert.match(deleteOnly, /aria-label="Delete task:/);
+  assert.doesNotMatch(deleteOnly, /aria-label="Edit task:/);
+});
+
 test('incomplete subtasks explain completion and do not offer Done', () => {
   const html = render({ checklist: [{ id: 'step-1', completed_at: null, completed_by: null }] });
   assert.match(html, /Open subtasks to complete/);
@@ -59,7 +81,7 @@ test('completed subtasks count correctly and allow task completion', () => {
 
 test('read-only rows do not offer edits, deletion or a status select', () => {
   const html = render({}, { openDetail: task.id, canUpdate: () => false, canEdit: () => false, canManage: () => false });
-  assert.doesNotMatch(html, /<select|Edit task|>Delete</);
+  assert.doesNotMatch(html, /<select|aria-label="(?:Edit|Delete) task:/);
   assert.match(html, /disabled="" aria-label="In Progress\. Mark/);
 });
 
@@ -98,6 +120,22 @@ function findElement(element, predicate) {
   }
   return null;
 }
+
+test('collapsed actions target the selected task, preserve the edit return target and block busy clicks', () => {
+  const edited = [], deleted = [], trigger = { id: 'edit-trigger' };
+  for (const busy of [false, true]) {
+    const tree = TaskListRow({ task, actions: { ...actions, busy,
+      edit: (...args) => edited.push(args), remove: (row) => deleted.push(row),
+    } });
+    for (const action of ['Edit', 'Delete']) {
+      const button = findElement(tree, element => element.props['aria-label'] === `${action} task: ${task.title}`);
+      assert.equal(button.props.disabled, busy);
+      button.props.onClick({ currentTarget: trigger });
+    }
+  }
+  assert.deepEqual(edited, [[task, trigger]]);
+  assert.deepEqual(deleted, [task]);
+});
 
 test('the status box cycles in order while unfinished subtasks still guard Done', () => {
   const changes = [], opened = [];

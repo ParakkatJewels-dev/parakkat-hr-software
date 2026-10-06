@@ -10,7 +10,7 @@ const DATE = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', 
 const tone = (value) => (value || '').toLowerCase().replaceAll(' ', '-');
 
 export function TaskListColumns() {
-  return <div className="work-list-columns" aria-hidden="true"><span>Task</span><span>Assignee</span><span>Due date</span><span>Status</span><span /></div>;
+  return <div className="work-list-columns" aria-hidden="true"><span>Task</span><span>Assignee</span><span>Due date</span><span>Status</span><span>Actions</span></div>;
 }
 
 export function TaskStatusGuide() {
@@ -95,7 +95,18 @@ export default function TaskListRow({ task, actions, children }) {
             {TASK_STATUSES.filter((s) => s === task.status || s !== 'Done' || !blockedBySteps).map((s) => <option key={s}>{s}</option>)}
           </select> : <span>{task.status}</span>}
         </label>
-        <button type="button" className="work-expand" onClick={toggle} aria-expanded={open} aria-controls={detailId} aria-label={`${open ? 'Close' : 'Open'} ${task.title}`}><ChevronDown size={16} /></button>
+        <div className="work-row-actions" role="group" aria-label={`Actions for ${task.title}`}>
+          {actions.canEdit?.(task) && <button type="button" className="work-button work-icon-button" disabled={actions.busy}
+            title="Edit task" aria-label={`Edit task: ${task.title}`} onClick={(event) => {
+              if (!actions.busy) actions.edit(task, event.currentTarget);
+            }}><PenLine size={18} aria-hidden="true" /></button>}
+          {actions.canManage?.(task) && <button type="button" className="work-button work-icon-button work-delete" disabled={actions.busy}
+            title="Delete task" aria-label={`Delete task: ${task.title}`} onClick={() => {
+              if (!actions.busy) actions.remove(task);
+            }}><Trash2 size={18} aria-hidden="true" /></button>}
+          <button type="button" className="work-expand" onClick={toggle} aria-expanded={open} aria-controls={detailId}
+            title={open ? 'Close task details' : 'Open task details'} aria-label={`${open ? 'Close' : 'Open'} ${task.title}`}><ChevronDown size={18} aria-hidden="true" /></button>
+        </div>
       </div>
       <div id={detailId} className="work-row-details" hidden={!open}>
         {open && <>
@@ -105,10 +116,6 @@ export default function TaskListRow({ task, actions, children }) {
               <span>{names.join(', ') || primary}</span>
               {task.assigner?.full_name && <small>Assigned by {task.assigner.full_name}</small>}
               {(task.assignee?.branch?.code || task.assignee?.department?.name) && <small>{[task.assignee?.branch?.code, task.assignee?.department?.name].filter(Boolean).join(' · ')}</small>}
-            </div>
-            <div className="work-detail-actions">
-              {actions.canEdit?.(task) && <button type="button" className="work-button" onClick={(event) => actions.edit(task, event.currentTarget)}><PenLine size={13} />Edit task</button>}
-              {actions.canManage?.(task) && <button type="button" className="work-button work-delete" onClick={() => actions.remove(task)}><Trash2 size={13} />Delete</button>}
             </div>
           </div>
           {children}

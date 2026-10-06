@@ -26,9 +26,8 @@
 .routine-schedule-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; font-size: 14px; }
 .routine-schedule-summary span { padding: 4px 8px; border-radius: 5px; background: var(--work-soft); border: 1px solid var(--work-line); }
 .routine-assignment-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--work-line); }
-.routine-more-actions { margin-left: auto; font-size: 14px; }
-.routine-more-actions summary { cursor: pointer; padding: 11px 8px; color: var(--work-muted); }
-.routine-more-actions > div { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+.routine-workspace .routine-icon-action { width: 44px; min-width: 44px; height: 44px; padding: 0; flex: 0 0 44px; }
+.routine-workspace .routine-delete-action { color: var(--work-danger, #b91c1c); }
 .routine-assignment > p { margin: 0 20px 16px; }
 .routine-editor { max-width: 1040px; margin-inline: auto; }
 .routine-editor-context { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px; }
@@ -61,10 +60,7 @@
   .routine-workspace .routine-filter-panel { padding: 14px; }
   .routine-filter-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .routine-workspace .routine-assignment-body { padding: 16px; }
-  .routine-workspace .routine-assignment-actions { padding: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .routine-assignment-actions button { width: 100%; padding-inline: 6px; }
-  .routine-more-actions { margin-left: 0; grid-column: 1 / -1; }
-  .routine-more-actions > div { display: block; }
+  .routine-workspace .routine-assignment-actions { padding: 12px; }
   .routine-editor-context { gap: 8px; }
   .routine-editor-context p { flex-basis: 100%; }
   .routine-workspace .routine-editor .form-section { padding: 14px; scroll-margin-top: 135px; }

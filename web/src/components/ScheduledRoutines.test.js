@@ -152,16 +152,17 @@ test('the Home team link opens statistics first and self-only readers cannot act
   assert.doesNotMatch(own, /Team overview/);
 });
 
-test('management allows editing routines due today, hides replaced copies, and respects server authority', () => {
+test('management allows editing routines due today, hides deleted and replaced copies, and respects server authority', () => {
   const routine = { id: 'routine-1', title: 'Current opening', employee_id: 'employee-1', employee: person(1), frequency: 'daily', start_date: today, jobs: [job(0)], can_manage: true };
   const rows = [routine, { ...routine, id: 'closing', title: 'Ending routine', retired_on: today },
     { ...routine, id: 'replaced', title: 'Earlier version', replaced_by: 'routine-1' }, { ...routine, id: 'denied', can_manage: undefined },
     { ...routine, id: 'once', title: 'One-time check', frequency: 'once', end_date: today }];
   const html = render(TaskRoutine, { route: '/tasks/routine?routineView=manage', auth: { isSuperAdmin: true }, seeds: [[['routine-sets', 'all', false], rows]] });
-  assert.equal((html.match(/Edit routine<\/button>/g) ?? []).length, 3);
-  assert.equal((html.match(/Add jobs<\/button>/g) ?? []).length, 3);
-  assert.equal((html.match(/Retire routine<\/button>/g) ?? []).length, 2);
+  assert.equal((html.match(/aria-label="Edit routine"/g) ?? []).length, 2);
+  assert.equal((html.match(/aria-label="Add jobs"/g) ?? []).length, 2);
+  assert.equal((html.match(/aria-label="Delete routine"/g) ?? []).length, 2);
   assert.doesNotMatch(html, />Earlier version<\/h4>/);
+  assert.doesNotMatch(html, />Ending routine<\/h4>/);
   for (const label of ['Ends today', 'All designations', 'All departments', 'All branches']) assert.ok(html.includes(label), label);
 });
 
@@ -205,29 +206,30 @@ test('heads can read an employee explanation without writing on their behalf', (
   assert.doesNotMatch(html, /Add note<\/button>/);
 });
 
-test('only the authorized latest archived routine exposes deleted-job restoration', () => {
+test('deleted routines stay out of the active list while legacy job history remains clear', () => {
   const routine = { id: 'routine-1', title: 'Retired opening', employee_id: 'employee-1', employee: person(1), frequency: 'daily',
     start_date: addDays(today, -10), retired_on: today, can_manage: true,
     jobs: [job(0), { id: 'deleted', title: 'Deleted check', is_active: false, deleted_at: `${today}T00:00:00Z` }] };
   const rows = [routine, { ...routine, id: 'old', replaced_by: routine.id }, { ...routine, id: 'denied', can_manage: false },
-    { ...routine, id: 'legacy', jobs: [{ id: 'legacy-job', is_active: false, title: 'Legacy retired job' }] }];
+    { ...routine, id: 'legacy', title: 'Active legacy checklist', retired_on: null,
+      jobs: [job(0), { id: 'legacy-job', is_active: false, title: 'Legacy retired job' }] }];
   const html = render(TaskRoutine, { route: '/tasks/routine?routineView=manage', auth: { isSuperAdmin: true }, seeds: [[['routine-sets', 'all', false], rows]] });
-  assert.equal((html.match(/Restore deleted jobs<\/button>/g) ?? []).length, 1);
-  assert.match(html, /Retired jobs remain in completion history/);
-  assert.equal((html.match(/Edit routine<\/button>/g) ?? []).length, 2);
-  assert.equal((html.match(/Restore routine<\/button>/g) ?? []).length, 2);
+  assert.doesNotMatch(html, /aria-label="Restore deleted jobs"|aria-label="Restore routine"|>Retired opening<\/h4>/);
+  assert.match(html, /Removed jobs remain in completion history/);
+  assert.equal((html.match(/aria-label="Edit routine"/g) ?? []).length, 1);
 });
 
-test('retired routine recovery is separate from deleted jobs and respects server management permission', () => {
+test('deleted routines have a clear filter and do not appear among active assignments', () => {
   const routine = { id: 'retired', title: 'Retired opening', employee_id: 'employee-1', employee: person(1),
     frequency: 'daily', start_date: addDays(today, -10), retired_on: today, can_manage: true, jobs: [job(0)] };
-  const rows = [routine, { ...routine, id: 'active', retired_on: null },
+  const rows = [routine, { ...routine, id: 'active', title: 'Active opening', retired_on: null },
     { ...routine, id: 'denied', can_manage: false }, { ...routine, id: 'older', replaced_by: routine.id }];
   const html = render(TaskRoutine, { route: '/tasks/routine?routineView=manage', auth: { isSuperAdmin: true },
     seeds: [[['routine-sets', 'all', false], rows]] });
-  assert.match(html, /<option value="retired">Retired<\/option>/);
-  assert.equal((html.match(/Restore routine<\/button>/g) ?? []).length, 1);
-  assert.doesNotMatch(html, /Restore deleted jobs<\/button>/);
+  assert.match(html, /<option value="retired">Deleted routines<\/option>/);
+  assert.match(html, />Active opening<\/h4>/);
+  assert.equal((html.match(/aria-label="Delete routine"/g) ?? []).length, 1);
+  assert.doesNotMatch(html, />Retired opening<\/h4>|aria-label="Restore routine"|aria-label="Restore deleted jobs"/);
 });
 
 test('restoring from an archived routine explains that saving resumes its schedule', () => {
