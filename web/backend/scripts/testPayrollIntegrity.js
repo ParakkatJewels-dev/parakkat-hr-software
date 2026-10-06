@@ -21,9 +21,10 @@ module.exports = function testPayrollIntegrity({ run, connection, directory }) {
       // Its sparse-attendance fixtures deliberately exercise the old calendar fallback.
       ...(file.startsWith('0158_') ? ['\\set payroll_seed off', `\\i ${quote(test)}`] : []),
       `\\i ${quote(join(migrations, file))}`,
-      ...(/^(0143|0158)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0143|0158|0159)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     `\\i ${quote(join(backend, 'tests', 'payroll_salary_register.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'payroll_bulk_monthly_inputs.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-Xq', '-f', bootstrap]);

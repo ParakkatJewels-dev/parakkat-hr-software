@@ -87,6 +87,24 @@ async function main() {
     await assert.rejects(staleInput, { code: '40001' });
     assert.equal(Number((await observer.query("select incentive from public.payroll_monthly_inputs where employee_id=$1 and period='2026-10'", [employee])).rows[0].incentive), 100);
 
+    // Two grid sessions submitting the same revisions serialize as one batch each. The loser
+    // cannot overwrite either the existing row or the newly created employee row.
+    const { rows: [{ revision: inputRevision, colleague }] } = await observer.query(
+      "select updated_at::text revision,register_test.id(4,3) colleague from public.payroll_monthly_inputs where employee_id=$1 and period='2026-10'", [employee]);
+    const batch = [
+      { employee_id: employee, input: { incentive: 200 }, expected_updated_at: inputRevision },
+      { employee_id: colleague, input: { incentive: 300 }, expected_updated_at: null },
+    ];
+    await payroll.query('begin');
+    const savedBatch = await payroll.query("select public.save_payroll_monthly_inputs($1,'2026-10',$2::jsonb) saved", [entity, JSON.stringify(batch)]);
+    assert.equal(savedBatch.rows[0].saved.length, 2);
+    const staleBatch = writer.query("select public.save_payroll_monthly_inputs($1,'2026-10',$2::jsonb)", [entity, JSON.stringify(batch)]);
+    staleBatch.catch(() => {});
+    await waitForLock(writerPid);
+    await payroll.query('commit');
+    await assert.rejects(staleBatch, { code: '40001' });
+    assert.deepEqual((await observer.query("select incentive from public.payroll_monthly_inputs where employee_id=any($1::uuid[]) and period='2026-10' order by employee_id", [[employee, colleague]])).rows.map(row => Number(row.incentive)), [200, 300]);
+
     // Publication wins. A writer already waiting on its rows must recheck published evidence.
     await generate();
     await writer.query("reset role; set request.jwt.claim.sub=''");
@@ -115,7 +133,7 @@ async function main() {
     await assert.rejects(payroll.query("select public.save_payroll_monthly_input($1,'2026-11',$2,null)", [employee, { incentive: 50 }]), { code: '42501' });
     assert.equal(Number((await observer.query("select count(*) n from public.payroll_monthly_inputs where employee_id=$1 and period='2026-11'", [employee])).rows[0].n), 0);
     assert.equal(Number((await observer.query('select gross from public.salary_structures where employee_id=$1', [employee])).rows[0].gross), 30000);
-    console.log('PASS: payroll generation/source edits serialize in both orders; unrelated months stay fresh; stale policy/input/review revisions rejected; published attendance immutable; concurrent transfers cannot bypass input scope');
+    console.log('PASS: payroll generation/source edits serialize in both orders; unrelated months stay fresh; stale policy/input/batch/review revisions rejected; published attendance immutable; concurrent transfers cannot bypass input scope');
   } finally {
     await Promise.all(clients.map(async client => {
       try { await client.query('rollback'); } catch { /* connection can have failed */ }

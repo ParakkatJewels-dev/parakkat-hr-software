@@ -2,6 +2,7 @@ import { qaState, simulateChatActivity, simulateActionActivity } from './client.
 import { actionsFixtures, chatFixtures, goalsFixtures } from './fixtures.js';
 import { workflowFixtures } from './workflowFixtures.js';
 import { routineFixtures } from './routineFixtures.js';
+import { payrollFixtures } from './payrollFixtures.js';
 import { ROLE_NAMES, qaRole, roleMode, expectsDeniedScreen, qaExpectedCounts, qaExpectedDashboard } from './roles.js';
 import { setChosenRole } from '../src/lib/viewRole.js';
 import '../src/main.jsx';
@@ -29,6 +30,10 @@ if (routineFixtures) {
 }
 if (goalsFixtures) {
   panel.querySelector('p').textContent = 'Isolated goal fixtures. New goals save in memory only. External connections and other writes are blocked.';
+  Object.assign(panel.style, { top: '4px', left: '4px', right: 'auto', bottom: 'auto' });
+}
+if (payrollFixtures) {
+  panel.querySelector('p').textContent = 'Isolated payroll fixtures. Monthly inputs and policy changes save atomically in memory only. Recalculation, publication and all external writes remain blocked.';
   Object.assign(panel.style, { top: '4px', left: '4px', right: 'auto', bottom: 'auto' });
 }
 if (new URL(window.location.href).searchParams.has('qa-mobile')) {

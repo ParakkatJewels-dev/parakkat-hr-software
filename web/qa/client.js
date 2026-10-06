@@ -6,10 +6,11 @@ import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib
 import { workflowFixtures, workflowLeaveRows, workflowRpc } from './workflowFixtures';
 import { routineFixtures, routineRpc } from './routineFixtures';
 import { taskTrashFixtures, taskTrashRpc } from './taskTrashFixtures';
+import { payrollFixtures, payrollRpc } from './payrollFixtures';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
 const slowRequests = new URL(window.location.href).searchParams.has('qa-slow');
-const user = { id: `qa-user-v3-${qaRole}${workflowFixtures ? '-workflow' : ''}${routineFixtures ? '-routines' : ''}${taskTrashFixtures ? '-task-trash' : ''}${goalsFixtures ? '-goals' : ''}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v3-${qaRole}${workflowFixtures ? '-workflow' : ''}${routineFixtures ? '-routines' : ''}${taskTrashFixtures ? '-task-trash' : ''}${goalsFixtures ? '-goals' : ''}${payrollFixtures ? '-payroll' : ''}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
@@ -239,6 +240,7 @@ class Query {
 }
 const tablePermissions = { employees: 'employee.read', attendance: 'attendance.read', leaves: 'leave.read',
   attendance_regularizations: 'attendance.read', payslips: 'payslip.read', salary_structures: 'payroll.manage',
+  payroll_monthly_inputs: 'payroll.manage', payroll_policies: 'payroll.manage', payroll_runs: 'payroll.manage',
   goals: 'goal.read', tasks: 'task.read', leave_balances: 'leave.read' };
 export const supabase = {
   from(name) {
@@ -251,6 +253,14 @@ export const supabase = {
   },
   rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    const payroll = payrollRpc(name, args, { allows: fixtureAllows,
+      event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
+    if (payroll) {
+      if (payroll.error) return Promise.resolve({ data: null, error: payroll.error });
+      if (payroll.mutated) qaState.mutations += 1;
+      const query = new Query(payroll.rows);
+      return payroll.one ? query.single() : query;
+    }
     const trash = taskTrashRpc(name, args, { employee: fixture.employees[0], userId: user.id, allows: fixtureAllows,
       event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
     if (trash) {

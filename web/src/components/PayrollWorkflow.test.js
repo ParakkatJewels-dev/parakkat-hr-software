@@ -16,25 +16,27 @@ const run = { id: 'run', entity_id: entityId, period, status: 'Draft', employees
 const register = { ...Object.fromEntries(PAYROLL_REGISTER_COLUMNS.map(({ key, type }) => [key, type === 'text' ? 'Test' : 0])),
   employee_name: employee.full_name, salary: 30000, earned_salary: 28000, gross_salary: 30000, net_pay_salary: 29000,
   policy, days_per_month: 30, per_day_working_hour: 8, schema_version: 1 };
-let server, Payroll, AuthContext;
+let server, Payroll, AuthContext, getSessionEntry;
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
   ({ default: Payroll } = await server.ssrLoadModule('/src/components/Payroll.jsx'));
+  ({ getPayrollSessionStateEntry: getSessionEntry } = await server.ssrLoadModule('/src/lib/usePayrollSessionState.js'));
 });
 after(async () => { await server?.close(); });
 
-function render({ role = 'admin', route = 'worksheet', runData = run, rows = [{ id: 'slip', employee_id: employee.id, payroll_register: register }], policyData = policy, error } = {}) {
+function render({ role = 'admin', route = 'worksheet', runData = run, rows = [{ id: 'slip', employee_id: employee.id, payroll_register: register }], policyData = policy, error, unsaved } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { enabled: false, retry: false, retryOnMount: false, staleTime: Infinity, gcTime: 0 } } });
   const seeds = [
     [['org', 'all'], { entities: [company], zones: [], branches: [], departments: [], designations: [] }],
     [['employees'], [employee]], [['payroll-runs'], [runData]],
-    [['payroll-policy', entityId], policyData], [['payroll-worksheet-run', entityId, period], runData],
+    [['payroll-monthly-inputs', entityId, period], []], [['payroll-policy', entityId], policyData], [['payroll-worksheet-run', entityId, period], runData],
     [['payroll-register', run.id], rows],
   ];
   for (const [key, data] of seeds) client.setQueryData(key, data);
   if (error) client.getQueryCache().find({ queryKey: ['payroll-register', run.id], exact: true }).setState({ status: 'error', fetchStatus: 'idle', error });
+  if (unsaved) getSessionEntry(client, unsaved.key, unsaved.value);
   const auth = { user: { id: 'user' }, employee, isSuperAdmin: role === 'admin', assignments: [],
     permissions: role === 'admin' ? [] : [{ permission: 'payslip.read', scope_type: 'self', scope_id: null }] };
   try {
@@ -55,7 +57,8 @@ test('worksheet shows the full register and preserves distinct monthly and earne
   assert.match(html, /Monthly payroll worksheet/);
   assert.match(html, /Salary \(monthly\)/);
   assert.match(html, /Salary \(earned\)/);
-  assert.equal((html.match(/<th\b/g) ?? []).length, 33);
+  const registerHtml = html.slice(html.indexOf('Payroll register ·'));
+  assert.equal((registerHtml.match(/<th\b/g) ?? []).length, 33);
   assert.match(html, /Payroll worker/);
   assert.equal(buttonDisabled(html, 'Export Excel'), false);
 });
@@ -90,4 +93,20 @@ test('run screen links to the selected register and blocks stale or empty public
   assert.equal(buttonDisabled(render({ route: 'run', runData: { ...run, employees: 0 } }), 'Publish'), true);
   assert.equal(buttonDisabled(render({ route: 'run', runData: { ...run, source_fingerprint: null } }), 'Publish'), true);
   assert.equal(buttonDisabled(render({ route: 'run' }), 'Publish'), false);
+});
+
+test('retained worksheet inputs, import reviews and policy drafts block calculation and publication', () => {
+  for (const unsaved of [
+    { key: ['inputs', entityId, period], value: { worker: { draft: { incentive: '100' } } } },
+    { key: ['preview', entityId, period], value: { rows: [] } },
+    { key: ['policy', entityId], value: { dirty: true } },
+  ]) {
+    const html = render({ route: 'run', unsaved });
+    assert.equal(buttonDisabled(html, 'Run payroll'), true);
+    assert.equal(buttonDisabled(html, 'Publish'), true);
+    assert.match(html, /Save or discard them in Monthly Worksheet/);
+  }
+  const unrelated = render({ route: 'run', unsaved: { key: ['inputs', 'another-company', period], value: { worker: {} } } });
+  assert.equal(buttonDisabled(unrelated, 'Run payroll'), false);
+  assert.equal(buttonDisabled(unrelated, 'Publish'), false);
 });

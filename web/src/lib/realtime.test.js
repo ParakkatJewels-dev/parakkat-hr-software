@@ -66,6 +66,27 @@ test('section counts refresh once for a burst of queue, assignment and access ch
   assert.equal(live.accessRefreshes, 1);
 });
 
+test('a monthly payroll edit refreshes the mounted grid, individual form and stale run status once per batch', async (t) => {
+  const live = useLiveHarness(t);
+  let revision = 'before';
+  const observer = new QueryObserver(live.client, { queryKey: ['payroll-monthly-inputs', 'company', '2026-10'],
+    staleTime: Infinity, queryFn: async () => [{ employee_id: 'employee', updated_at: revision }] });
+  t.after(observer.subscribe(() => {}));
+  await settle();
+  live.status('SUBSCRIBED');
+  live.invalidations.length = 0;
+  revision = 'after';
+  for (let index = 0; index < 3; index++) live.handlers.get('payroll_monthly_inputs')({
+    eventType: 'UPDATE', new: { employee_id: 'employee', period: '2026-10', updated_at: revision },
+  });
+  t.mock.timers.tick(1000);
+  await settle();
+  assert.equal(observer.getCurrentResult().data[0].updated_at, 'after');
+  for (const key of ['payroll-monthly-inputs', 'payroll-monthly-input', 'payroll-runs', 'payroll-worksheet-run']) {
+    assert.equal(live.invalidations.filter(entry => entry.queryKey[0] === key).length, 1, key);
+  }
+});
+
 test('a resolved ticket reduces the active navigation summary without loading its collection', async (t) => {
   const live = useLiveHarness(t);
   let unresolved = 2, reads = 0;

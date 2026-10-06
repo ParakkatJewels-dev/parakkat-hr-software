@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useIsMutating } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Check, Download, Loader2 } from 'lucide-react';
 import { usePermissions } from '../auth/usePermissions';
@@ -6,16 +7,18 @@ import { useEmployees } from '../data/employees';
 import { useVisibleOrg } from '../data/org';
 import { todayIso } from '../data/attendance';
 import {
-  usePayrollPolicy, usePayrollMonthlyInput, usePayrollWorksheetRun, usePayrollRegister,
-  useSavePayrollPolicy, useSavePayrollMonthlyInput,
+  usePayrollPolicy, usePayrollWorksheetRun, usePayrollRegister,
+  useSavePayrollPolicy,
 } from '../data/payrollWorksheet';
 import {
-  MONTHLY_INPUT_FIELDS, PAYROLL_REGISTER_COLUMNS, monthlyInputDraft, payrollPolicyDraft,
+  PAYROLL_REGISTER_COLUMNS, payrollPolicyDraft,
   isCompletePayrollRegister, exportPayrollRegister,
 } from '../lib/payrollWorksheet';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
+import { usePayrollSessionState } from '../lib/usePayrollSessionState';
+import PayrollInputGrid from './PayrollInputGrid';
 
 const INPUT = 'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60 disabled:opacity-60';
 const LABEL = 'block text-xs font-medium text-neutral-600 dark:text-neutral-300 space-y-1';
@@ -37,33 +40,59 @@ function Loading({ children }) {
 
 // Keep a typed draft when a background read fails or refreshes. An incoming change cannot
 // silently overwrite it, and a stale draft cannot silently overwrite another operator's save.
-function useWorksheetDraft(record, toDraft) {
-  const [baseline, setBaseline] = useState(() => JSON.stringify(record ?? null));
-  const [draft, setDraft] = useState(() => toDraft(record));
-  const [dirty, setDirty] = useState(false);
+function useWorksheetDraft(record, toDraft, entityId) {
+  const [state, setState] = usePayrollSessionState(['policy', entityId], () => ({
+    baseline: JSON.stringify(record ?? null), draft: toDraft(record), dirty: false,
+  }));
+  const { baseline, draft, dirty } = state;
   const incoming = JSON.stringify(record ?? null);
   useEffect(() => {
-    if (!dirty && incoming !== baseline) {
-      setDraft(toDraft(record));
-      setBaseline(incoming);
-    }
-  }, [record, toDraft, dirty, incoming, baseline]);
-  const reset = () => {
-    setDraft(toDraft(record));
-    setBaseline(incoming);
-    setDirty(false);
-  };
+    if (!dirty && incoming !== baseline) setState({ baseline: incoming, draft: toDraft(record), dirty: false });
+  }, [record, toDraft, dirty, incoming, baseline, setState]);
+  const reset = () => setState({ baseline: incoming, draft: toDraft(record), dirty: false });
   return { draft, dirty, changed: dirty && incoming !== baseline, reset,
-    patch: (key, value) => { setDraft(current => ({ ...current, [key]: value })); setDirty(true); },
-    saved: () => setDirty(false) };
+    patch: (key, value) => setState(current => ({ ...current, draft: { ...current.draft, [key]: value }, dirty: true })),
+    saved: () => setState(current => ({ ...current, dirty: false })) };
 }
 
-export default function PayrollWorksheet() {
+export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
   const { can, canAny } = usePermissions();
   const allowed = canAny('payroll.manage');
   const [params] = useSearchParams();
-  const [entityId, setEntityId] = useState(() => uuidPattern.test(params.get('entity') ?? '') ? params.get('entity') : '');
-  const [period, setPeriod] = useState(() => monthPattern.test(params.get('period') ?? '') ? params.get('period') : todayIso().slice(0, 7));
+  const [context, setContext] = usePayrollSessionState(['context'], () => ({
+    entityId: uuidPattern.test(params.get('entity') ?? '') ? params.get('entity') : '',
+    period: monthPattern.test(params.get('period') ?? '') ? params.get('period') : todayIso().slice(0, 7),
+  }));
+  const routeEntity = params.get('entity');
+  const routePeriod = params.get('period');
+  useEffect(() => {
+    if (uuidPattern.test(routeEntity ?? '')) setContext(current => ({ ...current, entityId: routeEntity,
+      ...(monthPattern.test(routePeriod ?? '') ? { period: routePeriod } : {}) }));
+  }, [routeEntity, routePeriod, setContext]);
+  const { entityId, period } = context;
+  const setEntityId = value => setContext(current => ({ ...current, entityId: value }));
+  const setPeriod = value => setContext(current => ({ ...current, period: value }));
+  const [inputBusy, setInputBusy] = useState(false);
+  const [policyBusy, setPolicyBusy] = useState(false);
+  const busy = inputBusy || policyBusy;
+  useEffect(() => { onBusyChange?.(busy); }, [busy, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+  const [inputDirty, setInputDirty] = useState(false);
+  const [policyDirty, setPolicyDirty] = useState(false);
+  const dirty = inputDirty || policyDirty;
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
+  useEffect(() => {
+    if (!dirty && !busy) return;
+    const warn = event => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [dirty, busy]);
+  const changeContext = change => {
+    if (busy) return;
+    if ('entityId' in change) setEntityId(change.entityId);
+    if ('period' in change) setPeriod(change.period);
+  };
   const org = useVisibleOrg();
   const employees = useEmployees({ enabled: allowed });
   const managedEmployees = useMemo(() => (employees.data ?? []).filter(employee => can('payroll.manage', {
@@ -79,18 +108,18 @@ export default function PayrollWorksheet() {
     <section className="premium-card space-y-3">
       <div>
         <h3 className={TITLE}>Monthly payroll worksheet</h3>
-        <p className={`${HELP} mt-1`}>Review the company policy, complete attendance and salary structures, enter monthly additions and deductions, then calculate and review the register before publishing.</p>
+        <p className={`${HELP} mt-1`}>Prepare additions, approved hours and deductions here. Regular salary comes from Salary Structures. Edits are kept when you switch views; save before refreshing or signing out.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className={LABEL}><span>Company</span>
-          <select className={INPUT} value={entityId} onChange={event => setEntityId(event.target.value)} disabled={org.isLoading || employees.isLoading}>
+          <select className={INPUT} value={entityId} onChange={event => changeContext({ entityId: event.target.value })} disabled={busy || org.isLoading || employees.isLoading}>
             <option value="">Choose a company…</option>
             {entities.map(item => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}
           </select>
         </label>
         <label className={LABEL}><span>Month</span>
-          <input type="month" className={INPUT} value={period} max={todayIso().slice(0, 7)} onChange={event => {
-            if (monthPattern.test(event.target.value)) setPeriod(event.target.value);
+          <input type="month" disabled={busy} className={INPUT} value={period} max={todayIso().slice(0, 7)} onChange={event => {
+            if (monthPattern.test(event.target.value)) changeContext({ period: event.target.value });
           }} />
         </label>
       </div>
@@ -99,56 +128,36 @@ export default function PayrollWorksheet() {
       {entityId && !entity && !org.isLoading && !employees.isLoading && !org.error && !employees.error
         && <p className={HELP}>This company is not available in your payroll scope. Choose a company from the list.</p>}
     </section>
-    {entity && !org.error && !employees.error && <CompanyWorksheet key={`${entity.id}:${period}`} entity={entity} period={period}
+    {entity && <CompanyWorksheet key={`${entity.id}:${period}`} entity={entity} period={period}
       employees={managedEmployees.filter(employee => employee.entity_id === entity.id)}
-      canManageCompany={can('payroll.manage', { entityId: entity.id })} />}
+      canManageCompany={can('payroll.manage', { entityId: entity.id })} onInputDirtyChange={setInputDirty} onPolicyDirtyChange={setPolicyDirty} onInputBusyChange={setInputBusy} onPolicyBusyChange={setPolicyBusy} scopeReadBlocked={Boolean(org.error || employees.error)} inputsDirty={inputDirty || policyDirty} />}
+
   </div>;
 }
 
-function CompanyWorksheet({ entity, period, employees, canManageCompany }) {
+function CompanyWorksheet({ entity, period, employees, canManageCompany, onInputDirtyChange, onPolicyDirtyChange, onInputBusyChange, onPolicyBusyChange, scopeReadBlocked, inputsDirty }) {
   const policy = usePayrollPolicy(entity.id);
   const run = usePayrollWorksheetRun(entity.id, period);
   const register = usePayrollRegister(run.data?.id, { enabled: run.isSuccess });
-  const [employeeId, setEmployeeId] = useState('');
-  const employee = employees.find(person => person.id === employeeId);
-  const employeeSnapshot = register.data?.find(row => row.employee_id === employeeId)?.payroll_register;
-  const monthly = usePayrollMonthlyInput(employee?.id, period);
   const published = run.data?.status === 'Published' || run.data?.status === 'Paid';
   const runReadBlocked = !run.isSuccess || run.isFetching || Boolean(run.error);
 
   return <>
-    <section className="premium-card space-y-3">
-      <h3 className={TITLE}>Current company calculation policy</h3>
+    <details className="premium-card space-y-3" open={!policy.data || undefined}>
+      <summary className={`${TITLE} cursor-pointer`}>Current company calculation policy
+        <span className="font-normal text-xs text-neutral-500 ml-2">{policy.data ? `${policy.data.divisor_mode} days · ${policy.data.hours_per_day} hours / day · ${policy.data.ot_multiplier}× OT · View or edit` : 'Review required before calculation'}</span>
+      </summary>
       {published && <p className={HELP}>This month is published. Its inputs and register are read-only. Select an unpublished month to review policy changes for future calculations.</p>}
-      <ErrorMessage error={run.error} />
-      {run.isLoading && <Loading>Checking whether this month can be edited…</Loading>}
       <ErrorMessage error={policy.error} />
       {policy.isLoading ? <Loading>Loading saved policy…</Loading> : policy.isSuccess || policy.data !== undefined ?
-        <PolicyEditor entityId={entity.id} record={policy.data} disabled={published || runReadBlocked || policy.isFetching || Boolean(policy.error) || !canManageCompany} /> : null}
+        <PolicyEditor entityId={entity.id} record={policy.data} onDirtyChange={onPolicyDirtyChange} onBusyChange={onPolicyBusyChange} disabled={scopeReadBlocked || published || runReadBlocked || policy.isFetching || Boolean(policy.error) || !canManageCompany} /> : null}
       {!canManageCompany && <p className={HELP}>Company-wide payroll permission is required to save calculation policy. You can maintain inputs for employees within your scope.</p>}
-    </section>
-
-    <section className="premium-card space-y-3">
-      <div>
-        <h3 className={TITLE}>Employee monthly inputs</h3>
-        <p className={`${HELP} mt-1`}>These amounts apply only to {period}. Regular monthly salary comes from Salary Structures.</p>
-      </div>
-      <label className={LABEL}><span>Employee</span>
-        <select value={employeeId} className={INPUT} onChange={event => setEmployeeId(event.target.value)}>
-          <option value="">Choose an employee…</option>
-          {employees.map(person => <option key={person.id} value={person.id}>{person.full_name} · {person.employee_code}{person.branch?.code ? ` · ${person.branch.code}` : ''}</option>)}
-        </select>
-      </label>
-      {employees.length === 0 && <p className={HELP}>No employees are available in your payroll scope for this company.</p>}
-      {employee && <>
-        {employeeSnapshot && <p className={HELP}>At the last calculation: {employeeSnapshot.recorded_ot_hours ?? '—'} recorded OT hours and {employeeSnapshot.recorded_late_hours ?? '—'} eligible recorded late hours. Review current attendance before approving changes.</p>}
-        <ErrorMessage error={monthly.error} />
-        {monthly.isLoading ? <Loading>Loading this employee’s saved inputs…</Loading> : monthly.isSuccess || monthly.data !== undefined ?
-          <MonthlyInputEditor key={employeeId} employeeId={employeeId} period={period} record={monthly.data}
-            disabled={published || runReadBlocked || monthly.isFetching || Boolean(monthly.error)} /> : null}
-      </>}
-    </section>
-    <Register entity={entity} period={period} runQuery={run} registerQuery={register} canManageCompany={canManageCompany} />
+    </details>
+    <ErrorMessage error={run.error} />
+    {run.isLoading && <Loading>Checking whether this month can be edited…</Loading>}
+    <PayrollInputGrid entityId={entity.id} period={period} employees={employees} published={published}
+      disabled={runReadBlocked || scopeReadBlocked} snapshots={register.data ?? EMPTY_ROWS} onDirtyChange={onInputDirtyChange} onBusyChange={onInputBusyChange} />
+    <Register entity={entity} period={period} runQuery={run} registerQuery={register} canManageCompany={canManageCompany} inputsDirty={inputsDirty} />
   </>;
 }
 
@@ -159,11 +168,17 @@ function DraftConflict({ changed, reset }) {
   </div> : null;
 }
 
-function PolicyEditor({ entityId, record, disabled }) {
-  const editor = useWorksheetDraft(record, payrollPolicyDraft);
+function PolicyEditor({ entityId, record, disabled, onDirtyChange, onBusyChange }) {
+  const editor = useWorksheetDraft(record, payrollPolicyDraft, entityId);
   const save = useSavePayrollPolicy();
+  const activeSaves = useIsMutating({ mutationKey: ['save-payroll-policy'], predicate: mutation => mutation.state.variables?.entityId === entityId });
+  const saving = save.isPending || activeSaves > 0;
+  useEffect(() => { onBusyChange?.(saving); }, [saving, onBusyChange]);
+  useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
+  useEffect(() => { onDirtyChange?.(editor.dirty || saving); }, [editor.dirty, saving, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const [success, setSuccess] = useState(false);
-  const blocked = disabled || save.isPending || editor.changed;
+  const blocked = disabled || saving || editor.changed;
   const patch = (key, value) => { editor.patch(key, value); save.reset(); setSuccess(false); };
   return <form className="space-y-3" onSubmit={async event => {
     event.preventDefault();
@@ -195,53 +210,14 @@ function PolicyEditor({ entityId, record, disabled }) {
     <DraftConflict changed={editor.changed} reset={editor.reset} />
     <ErrorMessage error={save.error} />
     <div className="flex flex-wrap items-center gap-3">
-      <button className={btnClass('primary')} type="submit" disabled={blocked}>{save.isPending && <Loader2 size={13} className="animate-spin" />}Save reviewed policy</button>
+      <button className={btnClass('primary')} type="submit" disabled={blocked}>{saving && <Loader2 size={13} className="animate-spin" />}Save reviewed policy</button>
+      {editor.dirty && <button type="button" className={btnClass('ghost')} disabled={saving} onClick={editor.reset}>Discard policy changes</button>}
       {success && <p role="status" className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300"><Check size={13} />Policy saved. Recalculate affected drafts.</p>}
     </div>
   </form>;
 }
 
-function MonthlyInputEditor({ employeeId, period, record, disabled }) {
-  const editor = useWorksheetDraft(record, monthlyInputDraft);
-  const save = useSavePayrollMonthlyInput();
-  const [success, setSuccess] = useState(false);
-  const blocked = disabled || save.isPending || editor.changed;
-  const notesRequired = Number(editor.draft.other_deductions) > 0 || Number(editor.draft.late_hours) > 0 || editor.draft.pf.trim() !== '' || editor.draft.esi.trim() !== '';
-  const patch = (key, value) => { editor.patch(key, value); save.reset(); setSuccess(false); };
-  return <form className="space-y-4" onSubmit={async event => {
-    event.preventDefault();
-    if (blocked) return;
-    setSuccess(false);
-    try { await save.mutateAsync({ employeeId, period, input: editor.draft, expectedUpdatedAt: record?.updated_at ?? null }); editor.saved(); setSuccess(true); }
-    catch { /* shown below without clearing typed values */ }
-  }}>
-    <fieldset disabled={blocked} className="space-y-4">
-      {['Earnings', 'Hours', 'Deductions'].map(group => <div key={group} className="space-y-2">
-        <h4 className="text-xs font-bold uppercase tracking-wide text-neutral-500">{group}{group !== 'Hours' ? ' (₹)' : ''}</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          {MONTHLY_INPUT_FIELDS.filter(field => field.group === group).map(field => <label key={field.key} className={LABEL}>
-            <span>{field.label}</span><input className={INPUT} type="number" min="0" step="0.01" max={group === 'Hours' ? 744 : 9999999999.99}
-              value={editor.draft[field.key]} onChange={event => patch(field.key, event.target.value)}
-              placeholder={field.nullable ? 'Use configured component' : '0.00'} />
-          </label>)}
-        </div>
-        {group === 'Hours' && <p className={HELP}>Enter approved hours after reviewing attendance. Blank means zero. Approved hours cannot exceed recorded hours; late deductions apply only to fully paid working days and require a reason.</p>}
-        {group === 'Deductions' && <p className={HELP}>Leave PF and ESI blank to use configured components. Enter 0 to override with zero. Record a reason for any override or loss / damage / other deduction.</p>}
-      </div>)}
-      <label className={LABEL}><span>Input notes / deduction reason{notesRequired ? ' (required)' : ''}</span>
-        <textarea required={notesRequired} className={INPUT} rows={2} value={editor.draft.notes} onChange={event => patch('notes', event.target.value)} placeholder="Approval reference, adjustment reason or monthly payroll notes." />
-      </label>
-    </fieldset>
-    <DraftConflict changed={editor.changed} reset={editor.reset} />
-    <ErrorMessage error={save.error} />
-    <div className="flex flex-wrap items-center gap-3">
-      <button type="submit" disabled={blocked} className={btnClass('primary')}>{save.isPending && <Loader2 size={13} className="animate-spin" />}Save monthly inputs</button>
-      {success && <p role="status" className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300"><Check size={13} />Inputs saved. Recalculate the draft to update salary.</p>}
-    </div>
-  </form>;
-}
-
-function Register({ entity, period, runQuery, registerQuery: register, canManageCompany }) {
+function Register({ entity, period, runQuery, registerQuery: register, canManageCompany, inputsDirty }) {
   const run = runQuery.data;
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -255,10 +231,11 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
   const countMismatch = canManageCompany && run && register.isSuccess && Number(run.employees) !== rows.length;
   const stale = Boolean(run?.needs_recalculation);
   const calculationPolicy = rows.find(row => row.payroll_register?.policy)?.payroll_register.policy;
-  const blocked = loading || Boolean(readError) || !run || !rows.length || incomplete || countMismatch || stale;
+  const blocked = inputsDirty || loading || Boolean(readError) || !run || !rows.length || incomplete || countMismatch || stale;
   const format = (value, type) => value == null ? '—' : type === 'text' ? String(value)
     : Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-IN', { minimumFractionDigits: type === 'money' ? 2 : 0, maximumFractionDigits: 2 }) : '—';
   return <section className="premium-card space-y-3 min-w-0">
+    {inputsDirty && <p className="text-xs text-amber-700 dark:text-amber-300">This register shows the last saved calculation. Save or discard worksheet changes, then recalculate before exporting.</p>}
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h3 className={TITLE}>Payroll register{run ? ` · ${run.status}` : ''}</h3>
         <p className={`${HELP} mt-1`}>{period} · {entity.code} · {rows.length} visible employees. Amounts are in rupees.</p></div>

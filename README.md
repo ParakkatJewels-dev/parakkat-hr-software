@@ -58,7 +58,7 @@ Every user gets a **role** (super_admin, entity_admin, hr_manager, zonal_manager
 ### 1. Backend (Supabase)
 1. Create a project at [supabase.com](https://supabase.com). From **Project Settings → API** note the Project URL, anon key, and service_role secret.
 2. `cp web/backend/.env.local.example web/backend/.env.local` and fill in `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `SUPABASE_DB_URL` (Dashboard → Connect → *Session pooler*, port 5432).
-3. Apply the migrations **in order**: `cd web/backend && npm install && npm run migrate`.
+3. Install backend dependencies with `npm --prefix web/backend install`, then apply pending migrations **in order** with `npm run migrate` from the repository root. The runner reads `web/backend/.env.local`.
    (Or paste `supabase/migrations/0001` … `0014` into the dashboard SQL Editor by hand.)
 4. Create the admin login (**Authentication → Users → Add user**: `prteam@parakkatjewels.com`), then in the SQL Editor:
    `select public.bootstrap_super_admin('prteam@parakkatjewels.com');`

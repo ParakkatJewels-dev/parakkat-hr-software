@@ -211,6 +211,48 @@ The runner replays the migration twice in a disposable cluster. Frontend tests c
 saved-policy and input handling, stale/error export guards, pagination, duplicate Excel headers and
 numeric/text cell preservation.
 
+## Monthly input grid and Excel import
+
+Apply `0159_payroll_bulk_monthly_inputs.sql` after `0158` before deploying the grid client.
+From the repository root, `npm run migrate` forwards to the backend migration runner using
+`web/backend/.env.local`; it applies all pending migrations. The runner has no dry-run option.
+
+Monthly Worksheet now loads every scoped employee for the selected company and month. Staff
+can search by name/code, filter by branch or input status, switch between earnings and hours /
+deductions, edit cells, and navigate with Tab or Enter. Employee identity stays fixed when
+scrolling horizontally. Paste a rectangular Excel range into the matching starting cell;
+it must fit within the visible page and column group. Selection is independent of filtering:
+the bulk-fill review reports selected employees outside the current filter.
+
+Use **Excel template** to download all accessible employees and their current worksheet values,
+or **Import Excel** to preview a completed `.xlsx`, `.xls` or `.csv`. Only the first worksheet
+is read. The original 33-column salary register is accepted: both Salary columns and other
+calculated columns are ignored with warnings. Only the editable additions, approved hours,
+deductions and notes are imported. Employee IDs/codes are preferred; names must match exactly
+and unambiguously. Duplicate employees or editable headers and invalid amounts block applying
+the import. Formulas in editable inputs or identifiers are rejected; formulas in recognized,
+ignored calculated columns are never evaluated. Blank import cells preserve existing values;
+explicit zero replaces an amount. Clear PF/ESI in the grid to restore configured components.
+The preview can add an approval note to rows missing a required deduction / override reason.
+
+Preview and bulk fill only stage edits. **Save changes** submits all changed employees across
+pages and filters in one atomic `save_payroll_monthly_inputs` RPC (maximum 1,000 employees).
+A rejected row rolls back the batch. Saved revisions are checked both after a preview and on
+save. Conflicting drafts retain the typed values and show the latest saved values for review;
+reload the affected row before retrying. A lost network response can be uncertain even if the
+server committed, so reconcile refreshed values before retrying.
+
+Unsaved input drafts, import reviews and policy edits stay in memory across app navigation,
+company and month changes, isolated by the authenticated access scope. They are not written
+to browser storage and are lost on refresh/sign-out. Save or discard before calculating,
+exporting or publishing; retained unsaved changes disable calculation/publication in this
+session. Published months are read-only. Saving inputs marks existing draft runs stale.
+
+Isolated browser fixtures: run `npm --prefix web run qa:browser`, open
+`http://127.0.0.1:5174/?qaPayroll=1&qa-role=super_admin#/payroll/worksheet`, and select C1.
+All edits affect synthetic in-memory data only. Reload resets the fixtures. Recalculation and
+publication are intentionally unavailable in this preview.
+
 ## Leave review and department ticket routing
 
 Apply `0138_leave_approval_workflow.sql` and `0139_ticket_category_routing.sql` before deploying

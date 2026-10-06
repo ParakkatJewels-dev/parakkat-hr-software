@@ -63,7 +63,7 @@ const TABLE_KEYS = {
   jobs: [['jobs'], ['candidates'], ['section-counts']],
   payroll_runs: [['payroll-runs'], ['payroll-worksheet-run'], ['payroll-register'], ['payslips'], ['payslip-lines'], ['section-counts']],
   payroll_policies: [['payroll-policy'], ['payroll-runs'], ['payroll-worksheet-run']],
-  payroll_monthly_inputs: [['payroll-monthly-input'], ['payroll-runs'], ['payroll-worksheet-run']],
+  payroll_monthly_inputs: [['payroll-monthly-input'], ['payroll-monthly-inputs'], ['payroll-runs'], ['payroll-worksheet-run']],
   salary_structures: [['salary-structures'], ['payroll-runs'], ['payroll-worksheet-run']],
   pay_components: [['pay-components'], ['payroll-runs'], ['payroll-worksheet-run']],
   biotime_employees: [['device-mappings'], ['mapping-counts'], ['section-counts']],

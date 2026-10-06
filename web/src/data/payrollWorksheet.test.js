@@ -20,8 +20,8 @@ registerHooks({
   },
 });
 
-const { usePayrollPolicy, usePayrollMonthlyInput, usePayrollWorksheetRun, usePayrollRegister,
-  useSavePayrollPolicy, useSavePayrollMonthlyInput } = await import('./payrollWorksheet.js');
+const { usePayrollPolicy, usePayrollMonthlyInput, usePayrollMonthlyInputs, usePayrollWorksheetRun, usePayrollRegister,
+  useSavePayrollPolicy, useSavePayrollMonthlyInput, useSavePayrollMonthlyInputs } = await import('./payrollWorksheet.js');
 const { usePublishPayroll } = await import('./payroll.js');
 
 function readDb(rows, { error = null, failPage = false } = {}) {
@@ -38,7 +38,12 @@ function readDb(rows, { error = null, failPage = false } = {}) {
       then(resolve, reject) {
         calls.push({ table, filters, orders, start });
         const selected = rows.filter(row => filters.every(([key, value]) => row[key] === value))
-          .sort((a, b) => a.id?.localeCompare(b.id ?? '') ?? 0).slice(start, Math.min(end + 1, start + 11));
+          .sort((a, b) => {
+            for (const key of orders) {
+              if (a[key] !== b[key]) return a[key] < b[key] ? -1 : 1;
+            }
+            return 0;
+          }).slice(start, Math.min(end + 1, start + 11));
         return Promise.resolve(error || (failPage && start > 0)
           ? { data: null, error: error || new Error('Page read failed') }
           : { data: single ? selected[0] ?? null : selected, error: null }).then(resolve, reject);
@@ -91,7 +96,7 @@ test('input saves retain null versus zero semantics and refresh all affected cal
   assert.equal(calls[0].args._input.pf, 0);
   assert.equal(calls[0].args._input.esi, null);
   await mutation.onSuccess();
-  for (const key of ['payroll-monthly-input', 'payroll-worksheet-run', 'payroll-register', 'payroll-runs', 'payslips', 'payslip-lines']) assert.ok(invalidations.includes(key), key);
+  for (const key of ['payroll-monthly-input', 'payroll-monthly-inputs', 'payroll-worksheet-run', 'payroll-register', 'payroll-runs', 'payslips', 'payslip-lines']) assert.ok(invalidations.includes(key), key);
   await assert.rejects(mutation.mutationFn({ employeeId: 'employee', period: '2026-10', input: { incentive: '-10' } }), /Incentive/);
   assert.equal(calls.length, 1);
 });
@@ -118,4 +123,67 @@ test('publication submits the reviewed generation and preserves a changed-draft 
   } };
   await assert.rejects(usePublishPayroll().mutationFn({ runId: 'reviewed-run', expectedFingerprint: 'reviewed-generation' }), /after your review/);
   assert.deepEqual(captured, { name: 'publish_payroll', args: { _run_id: 'reviewed-run', _expected_fingerprint: 'reviewed-generation' } });
+});
+
+test('monthly input grid loads the complete company/month using the actual composite primary key', async () => {
+  const records = Array.from({ length: 124 }, (_, index) => ({ employee_id: `employee-${String(index).padStart(4, '0')}`,
+    entity_id: 'company', period: '2026-10', incentive: index }));
+  const calls = readDb([...records.toReversed(),
+    { employee_id: 'other-company', entity_id: 'elsewhere', period: '2026-10' },
+    { employee_id: 'earlier', entity_id: 'company', period: '2026-09' }]);
+  assert.deepEqual(await usePayrollMonthlyInputs('company', '2026-10').queryFn(), records);
+  assert.ok(calls.length > 10);
+  assert.ok(calls.every(call => call.table === 'payroll_monthly_inputs' && call.orders.at(-1) === 'employee_id'));
+  assert.equal(usePayrollMonthlyInputs('', '2026-10').enabled, false);
+  assert.equal(usePayrollMonthlyInputs('company', '').enabled, false);
+  assert.equal(usePayrollMonthlyInputs('company', '2026-10', { enabled: false }).enabled, false);
+  readDb(records, { failPage: true });
+  await assert.rejects(usePayrollMonthlyInputs('company', '2026-10').queryFn(), /Page read failed/);
+});
+
+test('bulk save normalizes every row before one atomic RPC and preserves each revision', async () => {
+  const calls = [], invalidations = [];
+  const saved = [{ employee_id: 'employee-1', updated_at: 'new-revision' }, { employee_id: 'employee-2', updated_at: 'new-revision' }];
+  globalThis.worksheetClient = { invalidateQueries: async ({ queryKey }) => { invalidations.push(queryKey); } };
+  globalThis.worksheetDb = { rpc: async (name, args) => { calls.push({ name, args }); return { data: saved, error: null }; } };
+  const mutation = useSavePayrollMonthlyInputs();
+  const rows = [
+    { employeeId: 'employee-1', input: { incentive: '1250.50', pf: '', esi: '' }, expectedUpdatedAt: 'old-revision' },
+    { employeeId: 'employee-2', input: { pf: '0', notes: 'Reviewed exemption' } },
+  ];
+  assert.deepEqual(await mutation.mutationFn({ entityId: 'company', period: '2026-10', rows }), saved);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].name, 'save_payroll_monthly_inputs');
+  assert.equal(calls[0].args._entity_id, 'company');
+  assert.equal(calls[0].args._period, '2026-10');
+  assert.deepEqual(calls[0].args._rows.map(row => [row.employee_id, row.expected_updated_at, row.input.pf]), [
+    ['employee-1', 'old-revision', null], ['employee-2', null, 0],
+  ]);
+  assert.equal(calls[0].args._rows[0].input.incentive, 1250.5);
+  assert.equal(rows[0].input.incentive, '1250.50', 'normalizing must not mutate the editable grid draft');
+  await mutation.onSuccess();
+  for (const key of ['payroll-monthly-inputs', 'payroll-monthly-input', 'payroll-register', 'payroll-runs', 'payslips']) {
+    assert.ok(invalidations.some(queryKey => queryKey[0] === key), key);
+  }
+  for (const invalidRows of [[], [rows[0], rows[0]], [rows[0], { employeeId: 'employee-2', input: { incentive: '-1' } }],
+    [{ input: {} }], Array.from({ length: 1001 }, () => rows[0])]) {
+    await assert.rejects(mutation.mutationFn({ entityId: 'company', period: '2026-10', rows: invalidRows }));
+  }
+  assert.equal(calls.length, 1, 'an invalid later row cannot allow an earlier row to reach the RPC');
+});
+
+test('bulk save failures refresh only the affected input revisions and company month', async () => {
+  const invalidations = [];
+  globalThis.worksheetClient = { invalidateQueries: async ({ queryKey }) => { invalidations.push(queryKey); } };
+  globalThis.worksheetDb = { rpc: async () => ({ data: null, error: new Error('Row 2 was changed by another operator') }) };
+  const mutation = useSavePayrollMonthlyInputs();
+  const variables = { entityId: 'company', period: '2026-10', rows: [
+    { employeeId: 'employee-1', input: {} }, { employeeId: 'employee-2', input: {} },
+  ] };
+  await assert.rejects(mutation.mutationFn(variables), /Row 2/);
+  await mutation.onError(new Error('Conflict'), variables);
+  assert.deepEqual(invalidations, [
+    ['payroll-monthly-inputs', 'company', '2026-10'], ['payroll-worksheet-run', 'company', '2026-10'],
+    ['payroll-monthly-input', 'employee-1', '2026-10'], ['payroll-monthly-input', 'employee-2', '2026-10'],
+  ]);
 });

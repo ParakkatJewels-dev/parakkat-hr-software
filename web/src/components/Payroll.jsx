@@ -9,6 +9,8 @@
 //   Salary      payroll.manage — effective-dated basic/gross per employee
 //   Deductions  payroll.manage — the configurable, scoped component catalogue
 import React, { useMemo, useState } from 'react';
+import { useIsMutating, useQueryClient } from '@tanstack/react-query';
+import { hasPayrollSessionChanges } from '../lib/usePayrollSessionState';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   DollarSign, FileText, Loader2, AlertTriangle, Play, Check, Plus, Trash2, X,
@@ -101,6 +103,7 @@ export default function Payroll() {
   const TABS = TAB_DEFS.filter((t) => !t.managerOnly || canManage);
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
   const [tab, setTab] = useUrlTab('payslips', TABS.map((t) => t.id));
+  const [worksheetBusy, setWorksheetBusy] = useState(false);
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
@@ -121,6 +124,7 @@ export default function Payroll() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
+              disabled={worksheetBusy && t.id !== tab}
               aria-current={tab === t.id ? 'page' : undefined}
               aria-label={navigationCountLabel(t.label, t.id === 'run' ? runBadge : null)}
               className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
@@ -138,9 +142,10 @@ export default function Payroll() {
 
       {tab === 'payslips' && <PayslipsTab />}
       {tab === 'run' && <RunTab />}
-      {tab === 'worksheet' && <PayrollWorksheet />}
+      {tab === 'worksheet' && <PayrollWorksheet onBusyChange={setWorksheetBusy} />}
       {tab === 'salary' && <SalaryTab />}
       {tab === 'components' && <ComponentsTab />}
+
     </div>
   );
 }
@@ -274,6 +279,9 @@ function PayslipDetail({ payslip }) {
 
 // ---------------------------------------------------------------- run payroll
 function RunTab() {
+  const client = useQueryClient();
+  const activeInputSaves = useIsMutating({ predicate: mutation => ['save-payroll-monthly-inputs', 'save-payroll-policy'].includes(mutation.options.mutationKey?.[0]) });
+  const worksheetPending = (company, month) => Boolean(activeInputSaves) || hasPayrollSessionChanges(client, company, month);
   // payroll_runs_write checks ONLY the entity — has_perm('payroll.manage', entity_id, null, null,
   // null, null) — so that is exactly what this asks. Publish and Delete were drawn on every draft
   // regardless of which company it belonged to.
@@ -297,6 +305,7 @@ function RunTab() {
   const runPager = usePagination(matchingRuns, 10, null, historySearch);
 
   const go = async () => {
+    if (worksheetPending(entityId, period)) return;
     setResult(null);
     try {
       setResult(await runPayroll.mutateAsync({ entity_id: entityId, period }));
@@ -332,7 +341,7 @@ function RunTab() {
             />
           </div>
           <div className="flex items-end">
-            <button onClick={go} disabled={!entityId || !can('payroll.manage', { entityId }) || runPayroll.isPending} className={BTN + ' w-full justify-center'}>
+            <button onClick={go} disabled={!entityId || !can('payroll.manage', { entityId }) || runPayroll.isPending || worksheetPending(entityId, period)} className={BTN + ' w-full justify-center'}>
               {runPayroll.isPending ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} Run payroll
             </button>
           </div>
@@ -341,6 +350,7 @@ function RunTab() {
           Save the company policy and approved monthly inputs in Monthly Worksheet first. Complete
           attendance and salary records before running. Re-running replaces a draft; published months stay locked.
         </p>
+        {worksheetPending(entityId, period) && <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">There are unsaved worksheet changes or an input save in progress. Save or discard them in Monthly Worksheet before calculating or publishing.</p>}
         <Err e={runPayroll.error} />
         {result && (
           <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
@@ -377,6 +387,7 @@ function RunTab() {
                     {r.employees} employees · net {money(r.total_net)}
                   </span>
                   {r.needs_recalculation && r.status === 'Draft' && <span className="block text-2xs text-amber-600 mt-1">Inputs changed — run payroll again before publishing.</span>}
+                  {r.status === 'Draft' && worksheetPending(r.entity_id, r.period) && <span className="block text-2xs text-amber-600 mt-1">Finish unsaved worksheet changes before publishing.</span>}
                   {!r.source_fingerprint && r.status === 'Draft' && <span className="block text-2xs text-amber-600 mt-1">Recalculate this draft to prepare its reviewable register.</span>}
                 </div>
                 <div className="mobile-list-actions flex items-center gap-2">
@@ -386,7 +397,7 @@ function RunTab() {
                   <Link to={`/payroll/worksheet?entity=${encodeURIComponent(r.entity_id)}&period=${encodeURIComponent(r.period)}`} className={BTN_GHOST}>Review register</Link>
                   {r.status === 'Draft' && canManageRun(r) && (
                     <>
-                      <button onClick={() => { publish.reset(); setDraftToPublish(r); }} disabled={publish.isPending || r.needs_recalculation || r.employees === 0 || !r.source_fingerprint} className={BTN}>
+                      <button onClick={() => { publish.reset(); setDraftToPublish(r); }} disabled={publish.isPending || worksheetPending(r.entity_id, r.period) || r.needs_recalculation || r.employees === 0 || !r.source_fingerprint} className={BTN}>
                         {publish.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Publish
                       </button>
                       <button
@@ -420,6 +431,7 @@ function RunTab() {
           error={publish.error?.message}
           onCancel={() => { publish.reset(); setDraftToPublish(null); }}
           onConfirm={async () => {
+            if (worksheetPending(draftToPublish.entity_id, draftToPublish.period)) return;
             try {
               await publish.mutateAsync({ runId: draftToPublish.id, expectedFingerprint: draftToPublish.source_fingerprint });
               setDraftToPublish(null);
