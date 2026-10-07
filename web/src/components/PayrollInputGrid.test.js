@@ -518,6 +518,80 @@ test('daily punch links retain employee and month and respect attendance access'
   assert.equal(links.length, 0);
 });
 
+test('the attendance Status warning opens the affected employee and month directly', () => {
+  const grid = mount({ count: 3 });
+  grid.attendance.data[0].unresolved_days = 1;
+  grid.attendance.data[1].invalid_days = 2;
+  grid.attendance.data[2].missing_days = 1;
+  const statusLinks = findAll(grid.render(), node => node.type === 'a'
+    && node.props.className === 'payroll-input-issue-link');
+  assert.equal(statusLinks.length, 3);
+  const link = statusLinks[0];
+  assert.equal(link.props['aria-label'], 'Review attendance issues for Person 01');
+  assert.equal(link.props['data-payroll-employee'], 'employee-1');
+  assert.equal(link.props.to, '/attendance/person?employee=employee-1&period=2026-10&show=issues&from=payroll&entity=company&payrollPeriod=2026-10');
+  assert.match(text(link), /Needs attention/);
+  assert.match(text(link), /1 attendance day needs review\./);
+  assert.match(text(statusLinks[1]), /2 attendance days need review\./);
+  const origin = { employee: 'employee-1', column: 'Status' };
+  link.props.onClick({ currentTarget: origin });
+  assert.equal(grid.positionTarget, origin);
+  assert.equal(grid.mutation.calls.length, 0, 'reviewing does not change payroll or attendance');
+});
+
+test('Status links respect attendance access and do not navigate during a save or Excel import', async () => {
+  const grid = mount({ count: 2 });
+  grid.attendance.data[0].unresolved_days = 1;
+  const issueLink = () => find(grid.render(), node => node.type === 'a'
+    && node.props['aria-label'] === 'Review attendance issues for Person 01');
+  assert.ok(issueLink());
+  grid.canReadAttendance = false;
+  assert.equal(issueLink(), null);
+  assert.match(text(grid.render()), /1 attendance day needs review\./, 'the problem remains visible without edit access');
+  grid.canReadAttendance = true;
+  grid.mutation.isPending = true;
+  assert.equal(issueLink(), null);
+  grid.mutation.isPending = false;
+  grid.activeMutations = 1;
+  assert.equal(issueLink(), null, 'a save running in another mounted instance also blocks navigation');
+  grid.activeMutations = 0;
+  let finishRead;
+  grid.readWorkbook = () => new Promise(resolve => { finishRead = resolve; });
+  const importing = grid.import({ name: 'inputs.xlsx', size: 100 });
+  assert.equal(issueLink(), null);
+  finishRead([['Employee code', 'Incentive'], ['EMP0001', '250']]);
+  await importing;
+  assert.ok(issueLink());
+});
+
+test('monthly input problems and reviewed totals do not send the Status warning to daily attendance', () => {
+  const grid = mount({ count: 2 });
+  const attendance = grid.attendance.data[0];
+  attendance.unresolved_days = 1;
+  const issueLink = () => find(grid.render(), node => node.type === 'a'
+    && node.props['aria-label'] === 'Review attendance issues for Person 01');
+  for (const key of ['employment_issue', 'override_issue', 'attendance_review_issue']) {
+    attendance[key] = 'Resolve this monthly input first.';
+    assert.equal(issueLink(), null, key);
+    assert.match(text(grid.render()), /Resolve this monthly input first\./);
+    delete attendance[key];
+  }
+  attendance.reviewed_source_ready = true;
+  assert.equal(issueLink(), null, 'accepted reviewed totals have no raw attendance blocker');
+  delete attendance.reviewed_source_ready;
+  attendance.in_payroll_month = false;
+  assert.equal(issueLink(), null);
+  delete attendance.in_payroll_month;
+  grid.edit(1, '-1');
+  assert.equal(issueLink(), null, 'invalid draft input takes precedence over attendance');
+  grid.edit(1, '250');
+  assert.ok(issueLink(), 'valid unsaved input can be retained while reviewing attendance');
+  grid.query.data[0].updated_at = 'changed-elsewhere';
+  assert.equal(issueLink(), null, 'a stale input revision needs comparison in the worksheet');
+  grid.props.published = true;
+  assert.equal(issueLink(), null, 'published payroll does not use current attendance blockers');
+});
+
 test('returning from punch review restores filters, columns, page size, selection and unchanged draft revisions', () => {
   const grid = mount({ count: 240 });
   grid.attendance.data.forEach(row => { row.unresolved_days = 1; });
@@ -530,7 +604,8 @@ test('returning from punch review restores filters, columns, page size, selectio
   grid.click('Hours & deductions');
   grid.change('Bulk fill field', 'notes'); grid.change('Bulk fill value', 'Keep this draft');
   const original = grid.sessionStore.get(JSON.stringify(['inputs', 'company', '2026-10']))['employee-104'];
-  const link = find(grid.render(), node => node.props['data-payroll-employee'] === 'employee-104');
+  const link = find(grid.render(), node => node.type === 'a'
+    && node.props['aria-label'] === 'Review attendance issues for Person 104');
   assert.ok(link); link.props.onClick({ currentTarget: {} });
 
   const returned = mount({ count: 240, sessionStore: grid.sessionStore });

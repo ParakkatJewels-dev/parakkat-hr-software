@@ -36,10 +36,11 @@ const punchStamp = value => value && Number.isFinite(Date.parse(value)) ? new In
 }).format(new Date(value)) : '—';
 const autoHours = (row, key) => !row || row.in_payroll_month === false ? null : key === 'ot_hours' ? row.recorded_ot_hours
   : row.policy_deduct_late ? row.deductible_late_hours : 0;
+const attendanceReviewCount = row => Number(row?.unresolved_days || 0) + Number(row?.invalid_days || 0);
 const timeIssue = row => !row ? 'Attendance summary unavailable.' : row.in_payroll_month === false ? '' : row.employment_issue || row.override_issue || row.attendance_review_issue ? row.employment_issue || row.override_issue || row.attendance_review_issue
   : row.reviewed_source_ready ? ''
   : Number(row.pending_recompute_days) > 0 ? `${row.pending_recompute_days} days awaiting attendance processing.`
-    : Number(row.unresolved_days) + Number(row.invalid_days) > 0 ? `${Number(row.unresolved_days || 0) + Number(row.invalid_days || 0)} attendance days need review.`
+    : attendanceReviewCount(row) > 0 ? `${attendanceReviewCount(row)} attendance ${attendanceReviewCount(row) === 1 ? 'day needs' : 'days need'} review.`
       : Number(row.missing_days) > 0 ? `${row.missing_days} days have no calculated attendance.` : '';
 
 
@@ -330,6 +331,21 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
             : !hasSalary ? (payslip ? 'Salary unavailable' : published ? 'No published payslip' : 'Not in this run')
               : published ? 'Published net pay' : salaryOutdated ? 'Last calculation · recalculate' : 'Calculated net pay';
         const canReview = can('attendance.read', { entityId: person.entity_id, zoneId: person.zone_id, branchId: person.branch_id, deptId: person.department_id, employeeId: person.id });
+        const reviewDestination = `/attendance/person?${new URLSearchParams({ employee: person.id, period, show: 'issues', from: 'payroll', entity: entityId, payrollPeriod: period })}`;
+        const rememberReview = event => {
+          if (saving || busyFile || writeInFlight.current) { event.preventDefault(); return; }
+          setView(current => ({ ...current, page: pager.page }));
+          rememberPosition?.(event.currentTarget);
+        };
+        // Input validation and monthly overrides are fixed in this sheet. Only daily attendance
+        // blockers link to the employee's issue dates; the destination resolves their exact dates.
+        const canOpenIssue = canReview && !saving && !busyFile && !conflict && !rowIssue && Boolean(issue)
+          && !time?.employment_issue && !time?.override_issue && !time?.attendance_review_issue
+          && !time?.reviewed_source_ready && (attendanceReviewCount(time) > 0 || Number(time?.missing_days) > 0);
+        const rowStatus = <>
+          <span className={conflict || rowIssue || issue ? 'payroll-input-danger' : dirty ? 'payroll-input-unsaved' : 'payroll-input-muted'}>{conflict ? 'Changed elsewhere' : rowIssue || issue ? 'Needs attention' : dirty ? 'Unsaved' : records.has(person.id) ? 'Saved' : 'No inputs'}</span>
+          {(rowIssue || conflict || issue) && <p id={`payroll-issue-${person.id}`}>{conflict ? 'Compare saved values, then reload this row.' : rowIssue || issue}</p>}
+        </>;
         return <tr key={person.id} className={dirty ? 'payroll-input-dirty' : ''}>
           <td className="payroll-input-select"><input type="checkbox" aria-label={`Select ${person.full_name}`} checked={selected.has(person.id)} disabled={blocked} onChange={() => toggle(person.id)} /></td>
           <th scope="row" className="payroll-input-employee"><strong>{person.full_name}</strong><small>{person.employee_code} · {branchLabel(person)}</small>
@@ -338,8 +354,7 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
             {canReview && (saving || busyFile
               ? <span className="payroll-punch-link opacity-50" aria-disabled="true">Review / correct punches</span>
               : <Link className="payroll-punch-link" data-payroll-employee={person.id}
-                to={`/attendance/person?${new URLSearchParams({ employee: person.id, period, show: 'issues', from: 'payroll', entity: entityId, payrollPeriod: period })}`}
-                onClick={event => { setView(current => ({ ...current, page: pager.page })); rememberPosition?.(event.currentTarget); }}>Review / correct punches</Link>)}
+                to={reviewDestination} onClick={rememberReview}>Review / correct punches</Link>)}
             {!published && <small className="payroll-input-last-punch">Last punch: {punchStamp(time?.last_punch_at)} IST</small>}
           </th>
           <td className="payroll-punch-metric"><strong>{hourly ? duration(time?.effective_worked_hours ?? time?.recorded_worked_hours) : `${hours(time?.recorded_worked_hours)}h`}</strong>{time?.reviewed_source_ready && <small>HR-reviewed total</small>}<small>{published ? 'Published snapshot' : time?.reviewed_source_ready ? 'Reviewed for this month' : `${time?.attendance_days ?? '—'} / ${time?.expected_days ?? '—'} days calculated`}</small></td>
@@ -366,8 +381,10 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
             </div>}
             {conflict && <small className="payroll-input-latest">Saved: {cellText(monthlyInputDraft(records.get(person.id))[field.key], field.key)}</small>}
           </td>; })}
-          <td className="payroll-input-row-status"><span className={conflict || rowIssue || issue ? 'payroll-input-danger' : dirty ? 'payroll-input-unsaved' : 'payroll-input-muted'}>{conflict ? 'Changed elsewhere' : rowIssue || issue ? 'Needs attention' : dirty ? 'Unsaved' : records.has(person.id) ? 'Saved' : 'No inputs'}</span>
-            {(rowIssue || conflict || issue) && <p id={`payroll-issue-${person.id}`}>{conflict ? 'Compare saved values, then reload this row.' : rowIssue || issue}</p>}
+          <td className="payroll-input-row-status">
+            {canOpenIssue ? <Link className="payroll-input-issue-link" aria-label={`Review attendance issues for ${person.full_name}`}
+              aria-describedby={`payroll-issue-${person.id}`} data-payroll-employee={person.id} to={reviewDestination}
+              onClick={rememberReview}>{rowStatus}<span className="payroll-input-issue-arrow" aria-hidden="true"> →</span></Link> : rowStatus}
             {hourly && !published && (Number(draft.ot_hours) > 0 || Number(draft.late_hours) > 0) && <button type="button" disabled={blocked || Boolean(preview)} onClick={() => stage([{ employeeId: person.id, patch: { ot_hours: '', late_hours: '' } }])}>Clear separate OT / late overrides</button>}
             {dirty && <button type="button" disabled={saving || Boolean(preview)} onClick={() => setDiscard(person.id)}>{conflict ? 'Reload row' : 'Undo row'}</button>}
           </td>
