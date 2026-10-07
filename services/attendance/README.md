@@ -217,6 +217,22 @@ Edge cases handled explicitly:
 - **No shift assigned** → `No Shift`, surfaced as an exception. Marking someone absent because
   nobody assigned them a shift would be an HR data problem masquerading as an attendance fact.
 
+Adjacent effective-dated assignments share a single punch boundary. The usual cutover remains
+six hours before the next shift starts; when a night-to-day rotation puts that time inside the
+previous duty, the boundary moves to the midpoint of the gap between duties. Overlapping or
+touching duties fail recomputation before attendance or leave changes are written. Single-day
+and month-end recomputes load the neighbouring assignments too, so they produce the same result.
+
+The `scheduled` break policy supports up to 16 paid or unpaid clock windows inside a shift,
+including overnight breaks. Unpaid windows reduce only the overlapping attended time. Measured
+time away outside all configured break windows is also deducted; paid break time is retained,
+and unpaid time is never deducted twice. Missing break punches still raise an exception. The
+existing fixed, actual, minimum-deduction and paid-allowance policies keep their prior behavior.
+
+Apply `0164_shift_maintenance_safety.sql` before deploying this worker version: the loader reads
+the new `shifts.break_windows` column. Restart the separate attendance worker after deployment;
+deploying the web app alone does not update its calculations.
+
 **Idempotent by contract.** Recomputing a range overwrites those rows cleanly, so rules can change
 and history can be re-derived. Rows flagged `is_locked` (finalised payroll) are skipped unless
 `--include-locked` is passed.
@@ -367,3 +383,7 @@ Restoring from a dump is rarely the right first move.
 | Times out by 5½ hours | `BIOTIME_TIMEZONE` does not match the BioTime server's clock |
 | Attendance looks stale | Check `attendance_recompute_queue` for a backlog, or run `npm run recompute -- --queue` |
 | Worker restarting repeatedly | `pm2 logs parakkat-attendance`. Crash loops are usually bad credentials or an unreachable database |
+
+Before applying migrations `0164`–`0165`, pause/stop the running attendance worker. Apply the migrations, deploy the updated worker, and only then restart it. This ensures the upgrade recomputation queue is consumed with the new punch-ownership rules. Wait for the queue to drain before regenerating payroll.
+
+Migration `0165` requires an initial dated shift for every newly created employee, including trusted imports and automatic device provisioning. Trusted creation uses an active configured company/shared default when no shift is supplied; a missing default leaves device enrolments for HR review. The worker and SQL ownership resolver both exclude dates before a known joining date, so a new employee's initial early shift cannot overlap a hypothetical previous default night shift.

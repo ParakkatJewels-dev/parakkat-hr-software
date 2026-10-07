@@ -73,11 +73,11 @@ beforeEach(() => {
 });
 
 for (const kind of ['transactions', 'catchup', 'backfill'] as const) {
-  test(`${kind} queues a late night-shift exit for its starting day and calendar day`, async () => {
+  test(`${kind} queues the full possible work-date range for adjacent shift ownership`, async () => {
     const result = await runTransactionSync({ kind });
     assert.deepEqual(result, { inserted: 1, fetched: 1, skipped: 0, unmatched: 0 });
     assert.equal(saved.length, 1);
-    assert.deepEqual(queued.map((args) => args.slice(0, 3)), [['employee-1', '2026-08-31', '2026-09-01']]);
+    assert.deepEqual(queued.map((args) => args.slice(0, 3)), [['employee-1', '2026-08-30', '2026-09-02']]);
     assert.deepEqual(finished, ['success']);
     assert.equal(advanced, kind === 'transactions' ? 1 : 0);
   });
@@ -128,5 +128,11 @@ test('a transaction scan uses a fixed upper bound across all pages', async () =>
 test('dates are grouped per employee to bound the number of queue calls', async () => {
   batches = [{ punches: [punch('2026-09-01T00:30:00Z'), punch('2026-09-03T00:30:00Z')], received: 2, malformed: 0 }];
   await runTransactionSync({ kind: 'backfill' });
-  assert.deepEqual(queued.map((args) => args.slice(0, 3)), [['employee-1', '2026-08-31', '2026-09-03']]);
+  assert.deepEqual(queued.map((args) => args.slice(0, 3)), [['employee-1', '2026-08-30', '2026-09-04']]);
+});
+
+test('a previous-evening arrival queues its next-day midnight duty across a year boundary', async () => {
+  batches = [{ punches: [punch('2026-12-31T15:00:00Z')], received: 1, malformed: 0 }];
+  await runTransactionSync();
+  assert.deepEqual(queued.map((args) => args.slice(0, 3)), [['employee-1', '2026-12-29', '2027-01-01']]);
 });

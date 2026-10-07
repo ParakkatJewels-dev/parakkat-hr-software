@@ -12,8 +12,14 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
   const departments = (org?.departments ?? []).filter(
     (d) => d.entity_id === value.entity_id && active(d) && (!value.branch_id || !d.branch_id || d.branch_id === value.branch_id)
   );
+  const selectedDepartment = departments.find((d) => d.id === value.department_id);
+  // A department-scoped creator can see their department without having a branch-wide grant.
+  // Keep its inherited branch visible without offering any additional branch choices.
+  const inheritedBranch = value.branch_id && selectedDepartment?.branch_id === value.branch_id
+    && !branches.some((b) => b.id === value.branch_id);
   const designations = (org?.designations ?? []).filter(
-    (g) => active(g) && (value.department_id ? g.department_id === value.department_id : g.entity_id === value.entity_id)
+    (g) => active(g) && (!g.entity_id || g.entity_id === value.entity_id)
+      && (!g.department_id || g.department_id === value.department_id)
   );
 
   const L = labelClass ?? 'block text-base font-semibold text-neutral-600 dark:text-neutral-300 mb-1';
@@ -42,6 +48,7 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
         >
           <option value="">—</option>
           {branches.map((b) => <option key={b.id} value={b.id}>{b.code}{b.name ? ` · ${b.name}` : ''}</option>)}
+          {inheritedBranch && <option value={value.branch_id}>Branch from {selectedDepartment.name}</option>}
         </select>
       </div>
       <div>
@@ -50,7 +57,12 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
           className={inputClass}
           value={value.department_id ?? ''}
           disabled={!value.entity_id}
-          onChange={(e) => onChange({ department_id: e.target.value, designation_id: '' })}
+          onChange={(e) => {
+            const department = departments.find((d) => d.id === e.target.value);
+            onChange({ department_id: e.target.value, designation_id: '',
+              ...(department?.branch_id ? { branch_id: department.branch_id } : {}),
+            });
+          }}
         >
           <option value="">—</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}

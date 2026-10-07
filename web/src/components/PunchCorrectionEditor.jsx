@@ -4,7 +4,8 @@ import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { todayIso, fmtTime } from '../data/attendance';
 import { usePunchCorrectionContext, useSavePunchCorrection } from '../data/punchCorrections';
-import { regularizationTimes, correctionDateLabel } from '../lib/regularizationTimes';
+import { correctionDateLabel } from '../lib/regularizationTimes';
+import { punchCorrectionEndpointEvidence, punchCorrectionTimes } from '../lib/punchCorrectionTimes.js';
 import { punchDate } from '../lib/recordedPunches';
 import FormSection, { FIELD } from './ui/FormSection';
 import ConfirmDialog from './ui/ConfirmDialog';
@@ -54,7 +55,8 @@ export default function PunchCorrectionEditor({ employee, workDate: startingDate
     || typeof data?.source_revision !== 'string' || !data?.source_revision;
   const baseBlocked = !allowed || !dateValid || !context.isSuccess || context.isFetching || Boolean(context.error)
     || malformed || data?.can_correct !== true || data?.is_locked || pending;
-  const payload = draft ? { employeeId: employee.id, workDate, ...form, reason: form.reason.trim(), sourceRevision: draft.sourceRevision } : null;
+  const payload = draft ? { employeeId: employee.id, workDate, ...form, reason: form.reason.trim(),
+    sourceRevision: draft.sourceRevision, endpointEvidence: draft.endpointEvidence } : null;
   // A connection can fail after the server committed. An unchanged request ID and original
   // source revision let the receipt confirm that save, even if the refreshed source is newer.
   const retryAvailable = Boolean(save.error && !save.error.code && retry.current
@@ -82,13 +84,14 @@ export default function PunchCorrectionEditor({ employee, workDate: startingDate
     if (baseBlocked || reloadRequired) return;
     setSaved(false); setFormError(''); save.reset();
     setDraft(current => ({ sourceRevision: current?.sourceRevision ?? data.source_revision,
+      endpointEvidence: current?.endpointEvidence ?? punchCorrectionEndpointEvidence(data),
       form: { ...(current?.form ?? initialForm(data, workDate)), [field]: value } }));
   };
   const submit = async () => {
     if (blocked || !dirty || submitting.current) return;
     setFormError('');
     if (form.reason.trim().length < 3 || form.reason.trim().length > 1000) { setFormError('Enter a reason between 3 and 1,000 characters.'); return; }
-    try { regularizationTimes({ workDate, ...form }); }
+    try { punchCorrectionTimes({ workDate, ...form, endpointEvidence: draft.endpointEvidence }); }
     catch (error) { setFormError(error.message); return; }
     const fingerprint = JSON.stringify(payload);
     if (retry.current?.fingerprint !== fingerprint) retry.current = { fingerprint, requestId: crypto.randomUUID() };

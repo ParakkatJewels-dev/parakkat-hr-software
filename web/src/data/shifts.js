@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
 import { fetchCollection } from '../lib/fetchCollection';
+import { normalizeShiftForm } from '../lib/shiftForm.js';
 
 export function useShifts() {
   return useQuery({
@@ -12,7 +13,8 @@ export function useShifts() {
           `id, entity_id, code, name, start_time, end_time, crosses_midnight,
            grace_in_minutes, grace_out_minutes, break_minutes, weekly_offs,
            full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes,
-           is_default, is_active, entity:entities(id, code, name)`
+           break_policy, break_windows, is_flexible, ot_basis, missed_punch_policy, late_absent_minutes,
+           early_absent_minutes, short_day_tolerance_minutes, is_default, is_active, entity:entities(id, code, name)`
         )
         .order('code').order('id')),
   });
@@ -22,23 +24,7 @@ export function useSaveShift() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (shift) => {
-      const payload = {
-        entity_id: shift.entity_id || null,
-        code: shift.code,
-        name: shift.name,
-        start_time: shift.start_time,
-        end_time: shift.end_time,
-        grace_in_minutes: Number(shift.grace_in_minutes) || 0,
-        grace_out_minutes: Number(shift.grace_out_minutes) || 0,
-        break_minutes: Number(shift.break_minutes) || 0,
-        weekly_offs: shift.weekly_offs ?? [0],
-        full_day_minutes: Number(shift.full_day_minutes) || 480,
-        half_day_minutes: Number(shift.half_day_minutes) || 240,
-        ot_after_minutes: Number(shift.ot_after_minutes) || 0,
-        min_ot_minutes: Number(shift.min_ot_minutes) || 0,
-        is_default: Boolean(shift.is_default),
-        is_active: shift.is_active !== false,
-      };
+      const payload = normalizeShiftForm(shift);
 
       const query = shift.id
         ? supabase.from('shifts').update(payload).eq('id', shift.id)
@@ -47,7 +33,7 @@ export function useSaveShift() {
       const { error } = await query;
       if (error) throw error;
     },
-    onSuccess: () => Promise.all(['shifts', 'leaves-period-days']
+    onSuccess: () => Promise.all(['shifts', 'leaves-period-days', 'attendance', 'payroll-attendance-summary', 'payroll-worksheet-run', 'payroll-register']
       .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
@@ -59,7 +45,7 @@ export function useDeleteShift() {
       const { error } = await supabase.from('shifts').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => Promise.all(['shifts', 'leaves-period-days']
+    onSuccess: () => Promise.all(['shifts', 'leaves-period-days', 'attendance', 'payroll-attendance-summary', 'payroll-worksheet-run', 'payroll-register']
       .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
@@ -111,6 +97,35 @@ export function useAssignShift() {
     },
     // Leave allocations read effective assignments directly; attendance follows the queued recompute.
     onSuccess: () => Promise.all(['shift-assignments', 'attendance', 'leaves-period-days']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
+  });
+}
+
+/** Save a reviewed selection in one database transaction; no employee is changed on failure. */
+export function useAssignEmployeeShifts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationKey: ['assign-employee-shifts'],
+    mutationFn: async ({ employeeIds, shiftId, effectiveFrom, effectiveTo = null, note = null }) => {
+      if (!Array.isArray(employeeIds) || !employeeIds.length || employeeIds.length > 1000
+        || employeeIds.some(id => typeof id !== 'string' || !id.trim())) throw new Error('Choose between 1 and 1,000 employees.');
+      if (new Set(employeeIds).size !== employeeIds.length) throw new Error('Each employee can appear only once in a shift assignment.');
+      if (!shiftId) throw new Error('Choose a shift.');
+      const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '')
+        && Number.isFinite(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
+      if (!validDate(effectiveFrom) || (effectiveTo && (!validDate(effectiveTo) || effectiveTo < effectiveFrom))) throw new Error('Choose a valid start date and an end date on or after it.');
+      const { data, error } = await supabase.rpc('assign_employee_shifts', {
+        _employee_ids: employeeIds, _shift_id: shiftId, _effective_from: effectiveFrom,
+        _effective_to: effectiveTo || null, _note: String(note ?? '').trim() || null,
+      });
+      if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883') throw new Error('Bulk shift assignment needs a database update before it can be used.');
+        throw error;
+      }
+      return data;
+    },
+    onSuccess: () => Promise.all(['shift-assignments', 'attendance', 'leaves-period-days', 'payroll-attendance-summary',
+      'payroll-worksheet-run', 'payroll-register', 'payroll-runs', 'payslips']
       .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }

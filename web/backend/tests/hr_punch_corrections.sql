@@ -48,6 +48,11 @@ insert into public.role_assignments(user_id,role_id,scope_type,scope_id) values
 insert into public.roles(id,key,name) values(punch_test.id(7,1),'punch_reader','Punch read-only test');
 insert into public.role_permissions(role_id,permission_id) select punch_test.id(7,1),id from public.permissions where key='attendance.read';
 insert into public.role_assignments(user_id,role_id,scope_type,scope_id) values(punch_test.id(3,5),punch_test.id(7,1),'branch',punch_test.id(2,1));
+-- Overnight correction validity uses the employee's dated night assignment.
+insert into public.shifts(id,entity_id,code,name,start_time,end_time,full_day_minutes,half_day_minutes,break_minutes,break_policy)
+  values(punch_test.id(8,1),punch_test.id(1,1),'PUNCH-NIGHT','Correction night fixture','22:00','06:00',480,240,0,'actual');
+insert into public.employee_shift_assignments(employee_id,shift_id,effective_from,effective_to)
+  values(punch_test.id(4,1),punch_test.id(8,1),'2020-09-02','2020-09-02');
 insert into public.raw_punches(emp_code,employee_id,punch_time,punch_state,raw)
   values('PUNCH-1',punch_test.id(4,1),'2020-09-01 09:00+05:30','0','{"device_evidence":"unchanged"}');
 insert into public.attendance(employee_id,work_date,status,check_in,worked_minutes,is_missing_punch,computed_at)

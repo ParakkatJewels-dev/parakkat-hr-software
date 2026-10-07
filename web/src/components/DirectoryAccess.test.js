@@ -22,6 +22,7 @@ const stubs = {
   '../data/employees': `export const useEmployees = () => ({data:[]}), useEmployee = () => ({});
     export const useCreateEmployee = () => globalThis.directoryAccessTest.create;
     export const useUpdateEmployee = () => globalThis.directoryAccessTest.other;`,
+  '../data/shifts': 'export const useShifts = () => globalThis.directoryAccessTest.shifts;',
   '../data/payroll': 'export const useSalaryStructures = () => ({data:[]}), useSaveSalaryStructure = () => globalThis.directoryAccessTest.other;',
   '../data/documents': `export const useAddDocument = () => globalThis.directoryAccessTest.other;
     export const useEmployeeDocuments = () => ({data:[]}), useDocumentLink = () => ({}), useEmployeeAvatars = () => ({data:{}});
@@ -66,13 +67,22 @@ function find(element, predicate) {
 }
 const placement = { entity_id: 'company', branch_id: 'branch', department_id: 'department' };
 const grant = (permission, scope_type = 'entity', scope_id = 'company') => ({ permission, scope_type, scope_id });
-function mount(role, rank, grants, isSuperAdmin = false, { loginResult, grantResult } = {}) {
+const shiftRows = [
+  { id: 'day', entity_id: 'company', name: 'Day shift', start_time: '09:00:00', end_time: '17:30:00', full_day_minutes: 510, is_active: true, is_default: true },
+  { id: 'night', entity_id: null, name: 'Night shift', start_time: '22:00:00', end_time: '06:30:00', full_day_minutes: 480, crosses_midnight: true, is_active: true },
+  { id: 'other', entity_id: 'other-company', name: 'Other company shift', start_time: '09:30:00', end_time: '18:00:00', full_day_minutes: 510, is_active: true, is_default: true },
+  { id: 'old', entity_id: 'company', name: 'Inactive shift', is_active: false },
+];
+const text = node => typeof node === 'string' || typeof node === 'number' ? String(node)
+  : React.isValidElement(node) ? React.Children.toArray(node.props.children).map(text).join('') : '';
+function mount(role, rank, grants, isSuperAdmin = false, { loginResult, grantResult, shiftQuery, joinDate = '2026-10-01', editEmployee } = {}) {
   const slots = { directory: [], form: [] };
   let component = 'directory', cursor = 0;
   const writes = [], accessWrites = [];
   const harness = {
     auth: { rank, assignments: [{ role, scope_type: 'entity', scope_id: 'company' }], permissions: grants },
     org: { entities: [{ id: 'company', name: 'Company' }], branches: [{ id: 'branch', entity_id: 'company', zone_id: 'zone' }], departments: [], designations: [] },
+    shifts: { data: shiftRows, isPending: false, isLoading: false, error: null, refetch() {}, ...shiftQuery },
     state(initial) {
       const index = cursor++;
       const state = slots[component];
@@ -95,11 +105,14 @@ function mount(role, rank, grants, isSuperAdmin = false, { loginResult, grantRes
   assert.ok(add, 'Employee create remains available');
   add.props.onClick();
   const formElement = () => find(renderDirectory(), node => node.type?.name === 'EmployeeFormModal');
-  const render = () => { const form = formElement(); component = 'form'; cursor = 0; return form.type(form.props); };
+  const render = () => { const form = formElement(); component = 'form'; cursor = 0;
+    return form.type({ ...form.props, ...(editEmployee ? { employee: editEmployee, onSubmit: payload => writes.push(payload) } : {}) }); };
   const input = id => find(render(), node => node.props.id === id);
   input('emp-full-name').props.onChange({ target: { value: 'New Staff Member' } });
   find(render(), node => node.type === 'employee-org-fields').props.onChange(placement);
-  return { writes, accessWrites, render, input, formElement,
+  if (joinDate !== null) input('emp-join-date').props.onChange({ target: { value: joinDate } });
+  return { writes, accessWrites, render, input, formElement, harness,
+    changePlacement(value) { find(render(), node => node.type === 'employee-org-fields').props.onChange(value); },
     handover: () => find(renderDirectory(), node => node.type === 'login-handover')?.props.login,
     async submit() {
       find(render(), node => node.type === 'form').props.onSubmit({ preventDefault() {} });
@@ -143,6 +156,68 @@ test('an administrator can create staff outside their separate login-management 
   assert.equal(form.writes.length, 1);
   assert.equal(form.writes[0].provisionLogin, false);
   assert.deepEqual(form.accessWrites, []);
+});
+
+test('creation visibly selects the company default and saves its initial shift from the required join date', async () => {
+  const form = mount('branch_manager', 40, [grant('employee.create', 'branch', 'branch')]);
+  assert.equal(form.input('emp-join-date').props.required, true);
+  assert.equal(form.input('emp-shift').props.value, 'day');
+  assert.match(text(form.input('emp-shift')), /Day shift · 09:00–17:30 · 8h 30m paid · default/);
+  assert.doesNotMatch(text(form.input('emp-shift')), /Inactive shift|Other company shift/);
+  assert.match(text(form.render()), /Daily salary basis: 8h 30m. Assigned from 2026-10-01/);
+  await form.submit();
+  assert.equal(form.writes.length, 1);
+  assert.equal(form.writes[0].shift_id, 'day');
+  assert.equal(form.writes[0].join_date, '2026-10-01');
+  assert.equal(form.writes[0].provisionLogin, false, 'employee.create does not require shift.manage or login rights');
+});
+
+test('a shared night shift can replace the visible default and company changes clear incompatible choices', async () => {
+  const form = mount('super_admin', 1000, [], true);
+  form.input('emp-email').props.onChange({ target: { value: 'night@example.test' } });
+  form.input('emp-shift').props.onChange({ target: { value: 'night' } });
+  assert.match(text(form.render()), /22:00–06:30 · ends next day IST · Daily salary basis: 8h 0m/);
+  form.input('emp-shift').props.onChange({ target: { value: 'day' } });
+  form.changePlacement({ entity_id: 'other-company', branch_id: '', department_id: '' });
+  assert.equal(form.input('emp-shift').props.value, 'other');
+  assert.doesNotMatch(text(form.input('emp-shift')), /Day shift/);
+  form.input('emp-shift').props.onChange({ target: { value: 'night' } });
+  await form.submit();
+  assert.equal(form.writes[0].shift_id, 'night');
+  assert.equal(form.writes[0].entity_id, 'other-company');
+});
+
+test('blank, missing and impossible create dates or unselected shifts cannot start employee creation', async () => {
+  const form = mount('branch_manager', 40, [grant('employee.create', 'branch', 'branch')], false, { joinDate: null });
+  await form.submit(); assert.equal(form.writes.length, 0);
+  form.input('emp-join-date').props.onChange({ target: { value: '2026-02-30' } });
+  await form.submit(); assert.equal(form.writes.length, 0);
+  form.input('emp-join-date').props.onChange({ target: { value: '2026-09-01' } });
+  form.input('emp-shift').props.onChange({ target: { value: '' } });
+  assert.equal(form.input('emp-shift').props.value, '', 'explicitly clearing the picker must not silently restore the default');
+  await form.submit(); assert.equal(form.writes.length, 0);
+  form.input('emp-shift').props.onChange({ target: { value: 'other' } });
+  await form.submit(); assert.equal(form.writes.length, 0);
+});
+
+test('loading, failed and empty shift lists block create; refetch failure cannot reuse a stale default', async () => {
+  for (const shiftQuery of [{ data: undefined, isPending: true }, { error: new Error('Shift connection unavailable') }, { data: [] }]) {
+    const form = mount('branch_manager', 40, [grant('employee.create', 'branch', 'branch')], false, { shiftQuery });
+    await form.submit(); assert.equal(form.writes.length, 0);
+    assert.match(text(form.render()), /Loading available shifts|Could not load shifts|No active shift/);
+  }
+});
+
+test('employee edits preserve dated assignments and save without shift data or a new join date', async () => {
+  const form = mount('branch_manager', 40, [grant('employee.create', 'branch', 'branch'), grant('employee.update', 'branch', 'branch')], false,
+    { editEmployee: { id: 'existing', full_name: 'Existing person', ...placement }, joinDate: null, shiftQuery: { error: new Error('Shifts unavailable') } });
+  assert.equal(form.input('emp-shift'), null);
+  assert.equal(form.input('emp-join-date').props.required, false);
+  assert.match(text(form.render()), /Existing shift assignments stay unchanged/);
+  await form.submit();
+  assert.equal(form.writes.length, 1);
+  assert.equal(Object.hasOwn(form.writes[0], 'shift_id'), false);
+  assert.equal(form.writes[0].join_date, null);
 });
 
 test('automatic provisioning checks the selected branch ancestry for a zone-scoped administrator', async () => {

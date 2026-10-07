@@ -196,6 +196,34 @@ fixtureTest('explicit empty employee scope performs no attendance writes', async
   assert.deepEqual(await client.$queryRaw`select * from attendance`, []);
 });
 
+fixtureTest('a first-day early assignment ignores the fictitious pre-join overnight default', async () => {
+  await client.$executeRaw`update shifts set entity_id = ${id(2000)}::uuid,
+    start_time = '22:00', end_time = '06:00', crosses_midnight = true`;
+  await client.$executeRaw`update employees set join_date = '2026-07-14' where id = ${id(1)}::uuid`;
+  await client.$executeRaw`insert into shifts(id, entity_id, code, name, start_time, end_time, crosses_midnight)
+    values (${id(1001)}::uuid, ${id(2000)}::uuid, 'EARLY', 'First-day early shift', '05:00', '13:00', false)`;
+  await client.$executeRaw`insert into employee_shift_assignments
+    values (${id(1)}::uuid, ${id(1001)}::uuid, '2026-07-14', null)`;
+  await client.$executeRaw`insert into employees(id, entity_id) values (${id(2)}::uuid, ${id(2000)}::uuid)`;
+  await client.$executeRaw`insert into attendance(employee_id, work_date, status, worked_minutes, is_locked)
+    values (${id(2)}::uuid, '2026-07-14', 'Present', 123, true)`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-07-14 05:00+05:30'), (${id(1)}::uuid, '2026-07-14 13:00+05:30')`;
+  const rawEvidence = await client.$queryRaw`select * from raw_punches order by id`;
+  const protectedRows = await client.$queryRaw`select * from attendance where employee_id = ${id(2)}::uuid`;
+
+  const result = await engine.recompute({ from: '2026-07-13', to: '2026-07-14', employeeIds: [id(1)] });
+  assert.equal(result.employees, 1);
+  assert.equal(result.rowsWritten, 1);
+  assert.deepEqual(await client.$queryRaw`select work_date::text as date, shift_id, check_in, check_out,
+    worked_minutes, punch_count, is_missing_punch from attendance where employee_id = ${id(1)}::uuid`, [{
+    date: '2026-07-14', shift_id: id(1001), check_in: new Date('2026-07-13T23:30:00Z'),
+    check_out: new Date('2026-07-14T07:30:00Z'), worked_minutes: 480, punch_count: 2, is_missing_punch: false,
+  }]);
+  assert.deepEqual(await client.$queryRaw`select * from attendance where employee_id = ${id(2)}::uuid`, protectedRows);
+  assert.deepEqual(await client.$queryRaw`select * from raw_punches order by id`, rawEvidence);
+});
+
 fixtureTest('deactivating a shift does not erase attendance for its historical assignment', async () => {
   await client.$executeRaw`insert into shifts(id, code, name, start_time, end_time, crosses_midnight, is_active)
     values (${id(1001)}::uuid, 'OLD_NIGHT', 'Historical night', '22:00', '06:00', true, false)`;
@@ -205,6 +233,117 @@ fixtureTest('deactivating a shift does not erase attendance for its historical a
   await engine.recompute({ from: '2026-07-13', to: '2026-07-13' });
   assert.deepEqual(await client.$queryRaw`select status, worked_minutes, shift_id from attendance`,
     [{ status: 'Present', worked_minutes: 480, shift_id: id(1001) }]);
+});
+
+fixtureTest('month-boundary night rotation preserves break punches and gives identical results in separate day runs', async () => {
+  await client.$executeRaw`update shifts set start_time = '09:30', end_time = '18:00', full_day_minutes = 510`;
+  await client.$executeRaw`insert into shifts(id, code, name, start_time, end_time, crosses_midnight, is_active, full_day_minutes)
+    values (${id(1001)}::uuid, 'OLD_NIGHT', 'Historical fixture night', '22:00', '06:00', true, false, 450)`;
+  await client.$executeRaw`insert into employee_shift_assignments values (${id(1)}::uuid, ${id(1001)}::uuid, '2026-06-01', '2026-06-30')`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-06-30 22:00+05:30'), (${id(1)}::uuid, '2026-07-01 00:30+05:30'),
+    (${id(1)}::uuid, '2026-07-01 01:00+05:30'), (${id(1)}::uuid, '2026-07-01 06:00+05:30'),
+    (${id(1)}::uuid, '2026-07-01 09:30+05:30'), (${id(1)}::uuid, '2026-07-01 18:00+05:30')`;
+  await engine.recompute({ from: '2026-06-30', to: '2026-06-30' });
+  await engine.recompute({ from: '2026-07-01', to: '2026-07-01' });
+  const separate = await client.$queryRaw`select work_date::text, shift_id, status, worked_minutes, punch_count,
+    break_minutes, is_missing_punch, punches from attendance order by work_date`;
+  assert.deepEqual((separate as Array<Record<string, unknown>>).map(row => [row.work_date, row.shift_id,
+    row.status, row.worked_minutes, row.punch_count, row.break_minutes, row.is_missing_punch]), [
+    ['2026-06-30', id(1001), 'Present', 450, 4, 30, false],
+    ['2026-07-01', id(1000), 'Present', 510, 2, 0, false],
+  ]);
+  await engine.recompute({ from: '2026-06-30', to: '2026-07-01' });
+  assert.deepEqual(await client.$queryRaw`select work_date::text, shift_id, status, worked_minutes, punch_count,
+    break_minutes, is_missing_punch, punches from attendance order by work_date`, separate);
+});
+
+fixtureTest('the following assignment outside a one-day recompute prevents the next arrival joining the night', async () => {
+  await client.$executeRaw`update shifts set start_time = '22:00', end_time = '06:00', crosses_midnight = true`;
+  await client.$executeRaw`insert into shifts(id, code, name, start_time, end_time, crosses_midnight)
+    values (${id(1001)}::uuid, 'NEXT_DAY', 'Next fixture day', '09:00', '17:00', false)`;
+  await client.$executeRaw`insert into employee_shift_assignments values (${id(1)}::uuid, ${id(1001)}::uuid, '2026-07-15', null)`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-07-14 22:00+05:30'), (${id(1)}::uuid, '2026-07-15 06:00+05:30'),
+    (${id(1)}::uuid, '2026-07-15 09:00+05:30'), (${id(1)}::uuid, '2026-07-15 17:00+05:30')`;
+  await engine.recompute({ from: '2026-07-14', to: '2026-07-14' });
+  assert.deepEqual(await client.$queryRaw`select worked_minutes, punch_count, is_missing_punch from attendance`,
+    [{ worked_minutes: 480, punch_count: 2, is_missing_punch: false }]);
+});
+
+fixtureTest('a 09:00 to 09:30 change keeps an early-morning punch once at the shared cutover', async () => {
+  await client.$executeRaw`insert into shifts(id, code, name, start_time, end_time, crosses_midnight)
+    values (${id(1001)}::uuid, 'LATER', 'Later fixture day', '09:30', '18:00', false)`;
+  await client.$executeRaw`insert into employee_shift_assignments values (${id(1)}::uuid, ${id(1001)}::uuid, '2026-07-14', null)`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-07-13 17:00+05:30'), (${id(1)}::uuid, '2026-07-14 03:15+05:30'),
+    (${id(1)}::uuid, '2026-07-14 09:30+05:30'), (${id(1)}::uuid, '2026-07-14 18:00+05:30')`;
+  await engine.recompute({ from: '2026-07-13', to: '2026-07-14' });
+  assert.deepEqual(await client.$queryRaw`select work_date::text, worked_minutes, punch_count from attendance order by work_date`, [
+    { work_date: '2026-07-13', worked_minutes: 615, punch_count: 2 },
+    { work_date: '2026-07-14', worked_minutes: 510, punch_count: 2 },
+  ]);
+});
+
+fixtureTest('long night shifts widen the raw punch load beyond the standard query margin', async () => {
+  await client.$executeRaw`update shifts set start_time = '23:00', end_time = '22:00', crosses_midnight = true`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-07-13 23:00+05:30'), (${id(1)}::uuid, '2026-07-14 22:00+05:30')`;
+  await engine.recompute({ from: '2026-07-13', to: '2026-07-13' });
+  assert.deepEqual(await client.$queryRaw`select worked_minutes, punch_count, is_missing_punch from attendance`,
+    [{ worked_minutes: 1380, punch_count: 2, is_missing_punch: false }]);
+});
+
+fixtureTest('assigned day and night scheduled breaks load and persist distinct paid/unpaid calculations', async () => {
+  await client.$executeRaw`update shifts set end_time = '17:30', break_policy = 'scheduled', break_windows =
+    '[{"label":"Tea","start_time":"11:00","end_time":"11:15","is_paid":true},
+      {"label":"Lunch","start_time":"13:00","end_time":"13:30","is_paid":false}]'::jsonb`;
+  await client.$executeRaw`insert into employees(id, entity_id) values (${id(2)}::uuid, ${id(2000)}::uuid)`;
+  await client.$executeRaw`insert into shifts(id, code, name, start_time, end_time, crosses_midnight,
+    break_policy, break_windows, full_day_minutes) values
+    (${id(1001)}::uuid, 'NIGHT_BREAKS', 'Fixture night with breaks', '22:00', '06:00', true,
+    'scheduled', '[{"label":"Paid tea","start_time":"23:45","end_time":"00:15","is_paid":true},
+      {"label":"Meal","start_time":"02:00","end_time":"02:30","is_paid":false}]'::jsonb, 450)`;
+  await client.$executeRaw`insert into employee_shift_assignments values (${id(2)}::uuid, ${id(1001)}::uuid, '2026-07-01', null)`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-07-14 09:00+05:30'), (${id(1)}::uuid, '2026-07-14 17:30+05:30'),
+    (${id(2)}::uuid, '2026-07-14 22:00+05:30'), (${id(2)}::uuid, '2026-07-14 23:40+05:30'),
+    (${id(2)}::uuid, '2026-07-15 00:20+05:30'), (${id(2)}::uuid, '2026-07-15 06:00+05:30')`;
+  await engine.recompute({ from: '2026-07-14', to: '2026-07-14' });
+  assert.deepEqual(await client.$queryRaw`select employee_id, worked_minutes, break_minutes, is_long_break,
+    is_missing_punch from attendance order by employee_id`, [
+    { employee_id: id(1), worked_minutes: 480, break_minutes: 0, is_long_break: false, is_missing_punch: false },
+    { employee_id: id(2), worked_minutes: 440, break_minutes: 40, is_long_break: true, is_missing_punch: false },
+  ]);
+});
+
+fixtureTest('an overlapping rotation fails before attendance or leave writes and leaves recompute queued', async () => {
+  await client.$executeRaw`insert into employees(id, entity_id) values (${id(2)}::uuid, ${id(2000)}::uuid)`;
+  await client.$executeRaw`insert into shifts(id, code, name, start_time, end_time, crosses_midnight)
+    values (${id(1001)}::uuid, 'OVERLAP', 'Conflicting fixture night', '22:00', '10:00', true)`;
+  await client.$executeRaw`insert into employee_shift_assignments values (${id(2)}::uuid, ${id(1001)}::uuid, '2026-07-01', '2026-07-14')`;
+  await client.$executeRaw`insert into attendance(employee_id, work_date, status, worked_minutes)
+    values (${id(1)}::uuid, '2026-07-14', 'Present', 120)`;
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time)
+    values (${id(1)}::uuid, '2026-07-14 09:00+05:30')`;
+  await client.$executeRaw`insert into leaves(id, employee_id, start_date, end_date, type, status, day_fraction)
+    values (${id(4001)}::uuid, ${id(1)}::uuid, '2026-07-14', '2026-07-14', 'CL', 'Approved', 1)`;
+  await engine.enqueueRecompute(null, '2026-07-14', '2026-07-14', 'Changed shifts');
+  const service = (require('../lib/db') as typeof import('../lib/db')).prisma;
+  const query = service.$queryRaw.bind(service);
+  let leaveCancellations = 0;
+  service.$queryRaw = (async (...args: Parameters<typeof query>) => {
+    if (String(args[0]).includes('cancel_leave_day_for_punch')) leaveCancellations++;
+    return query(...args);
+  }) as typeof service.$queryRaw;
+  try {
+    await assert.rejects(() => engine.drainRecomputeQueue(), /Overlapping shift schedules between 2026-07-14 and 2026-07-15/);
+    assert.deepEqual(await client.$queryRaw`select employee_id, worked_minutes from attendance`, [{ employee_id: id(1), worked_minutes: 120 }]);
+    assert.equal(leaveCancellations, 0);
+    assert.deepEqual(await client.$queryRaw`select count(*)::int as count from attendance_recompute_queue where processed_at is null`, [{ count: 1 }]);
+  } finally {
+    service.$queryRaw = query;
+  }
 });
 
 fixtureTest('cancelling after the first write chunk prevents later writes and acknowledgment, and retry completes', async () => {

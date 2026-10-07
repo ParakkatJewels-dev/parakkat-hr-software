@@ -10,8 +10,8 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/db';
 import { logger } from '../lib/logger';
 import { eachWorkDate, punchWindowBounds, resolveRecomputeRange } from './windows';
-import { todayWorkDate } from '../lib/time';
-import { fullDayLeaveConflictsWithPunch, processDay } from './processDay';
+import { todayWorkDate, toWorkDate, workDateAtTime } from '../lib/time';
+import { fullDayLeaveConflictsWithPunch, processDay, scheduledBreakWindows } from './processDay';
 import { punchWindow } from './processDay';
 import type { DayInput, DayResult, LeaveOverlay, PunchRecord, ShiftDefinition } from './types';
 import { SyncRun } from '../sync/runLog';
@@ -73,6 +73,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       grace_out_minutes: number;
       break_minutes: number;
       break_policy: string;
+      break_windows: Array<{ label: string; start_time: string; end_time: string; is_paid: boolean }>;
       weekly_offs: number[];
       full_day_minutes: number;
       half_day_minutes: number;
@@ -89,7 +90,7 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
     select id, code, name,
            start_time::text  as start_time,
            end_time::text    as end_time,
-           crosses_midnight, grace_in_minutes, grace_out_minutes, break_minutes, break_policy,
+           crosses_midnight, grace_in_minutes, grace_out_minutes, break_minutes, break_policy, break_windows,
            weekly_offs, full_day_minutes, half_day_minutes, ot_after_minutes, min_ot_minutes, ot_basis,
            missed_punch_policy, late_absent_minutes, early_absent_minutes, is_flexible,
            short_day_tolerance_minutes
@@ -109,9 +110,12 @@ async function loadShifts(): Promise<Map<string, ShiftDefinition>> {
       graceOutMinutes: r.grace_out_minutes,
       breakMinutes: r.break_minutes,
       breakPolicy:
-        r.break_policy === 'actual' || r.break_policy === 'actual_over_allowance' || r.break_policy === 'excess'
+        r.break_policy === 'actual' || r.break_policy === 'actual_over_allowance' || r.break_policy === 'excess' || r.break_policy === 'scheduled'
           ? r.break_policy
           : 'fixed',
+      breakWindows: (r.break_windows ?? []).map((window) => ({
+        label: window.label, startTime: window.start_time, endTime: window.end_time, isPaid: window.is_paid,
+      })),
       weeklyOffs: Array.isArray(r.weekly_offs) ? r.weekly_offs : [],
       fullDayMinutes: r.full_day_minutes,
       halfDayMinutes: r.half_day_minutes,
@@ -506,6 +510,9 @@ async function runRecompute(scope: RecomputeScope, options: RecomputeOptions): P
   if (dates.length === 0) {
     throw new Error(`invalid date range: ${scope.from} .. ${scope.to}`);
   }
+  const contextFrom = toWorkDate(workDateAtTime(from, '00:00:00', -1));
+  const contextTo = toWorkDate(workDateAtTime(to, '00:00:00', 1));
+  const contextDates = eachWorkDate(contextFrom, contextTo);
 
   const run = await SyncRun.start('engine', { from, to });
 
@@ -529,7 +536,7 @@ async function runRecompute(scope: RecomputeScope, options: RecomputeOptions): P
     const [shifts, assignments, defaultShifts, calendars, holidays, loadedLeaves, regularizations] =
       await Promise.all([
         loadShifts(),
-        loadAssignments(from, to),
+        loadAssignments(contextFrom, contextTo),
         loadDefaultShifts(),
         loadCalendarByEmployee(employeeIds),
         loadHolidays(from, to),
@@ -540,8 +547,52 @@ async function runRecompute(scope: RecomputeScope, options: RecomputeOptions): P
     const cancellableLeaves = loadedLeaves.cancellable;
     signal?.throwIfAborted();
 
-    // Widen the punch query to cover night shifts spilling past either end of the range.
-    const { from: punchFrom, to: punchTo } = punchWindowBounds(from, to);
+    // Resolve every boundary before any attendance write or automatic leave cancellation. A
+    // conflicting rotation must fail the whole snapshot instead of partially updating employees.
+    // Neighbouring assignments are loaded outside the requested range, so month-end and one-day
+    // recomputes make exactly the same ownership decision as a larger recompute.
+    const resolvedDays = new Map<string, Map<string, {
+      shift: ShiftDefinition | null;
+      window: { from: Date; to: Date };
+    }>>();
+    let { from: punchFrom, to: punchTo } = punchWindowBounds(from, to);
+    for (const employee of employees) {
+      signal?.throwIfAborted();
+      const empAssignments = assignments.get(employee.id) ?? [];
+      const employeeShifts = contextDates.map((workDate) => {
+        // A default before employment is not a real neighbouring duty. In particular, its
+        // overnight checkout must not reject an early shift on this employee's first day.
+        if (employee.join_date && workDate < employee.join_date) return null;
+        const assignment = empAssignments.find((a) =>
+          a.effective_from.toISOString().slice(0, 10) <= workDate &&
+          (a.effective_to === null || a.effective_to.toISOString().slice(0, 10) >= workDate));
+        const shiftId = assignment?.shift_id ?? defaultShifts.get(employee.entity_id) ?? defaultShifts.get('') ?? null;
+        return shiftId ? shifts.get(shiftId) ?? null : null;
+      });
+      const employeeDays = new Map<string, {
+        shift: ShiftDefinition | null;
+        window: { from: Date; to: Date };
+      }>();
+      for (let i = 0; i < dates.length; i++) {
+        const workDate = dates[i]!;
+        if (employee.join_date && workDate < employee.join_date) continue;
+        const shift = employeeShifts[i + 1]!;
+        let window: { from: Date; to: Date };
+        try {
+          window = punchWindow(workDate, shift, {
+            previous: employeeShifts[i]!, next: employeeShifts[i + 2]!,
+          });
+          if (shift) scheduledBreakWindows(workDate, shift);
+        } catch (error) {
+          throw new Error(`Cannot recompute attendance for employee ${employee.id}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+        employeeDays.set(workDate, { shift, window });
+        // Long overnight schedules can extend past the usual eighteen-hour query margin.
+        if (window.from < punchFrom) punchFrom = window.from;
+        if (window.to > punchTo) punchTo = window.to;
+      }
+      resolvedDays.set(employee.id, employeeDays);
+    }
     const punchesByEmployee = await loadPunches(punchFrom, punchTo, employeeIds);
     signal?.throwIfAborted();
 
@@ -579,7 +630,6 @@ async function runRecompute(scope: RecomputeScope, options: RecomputeOptions): P
 
     for (const employee of employees) {
       signal?.throwIfAborted();
-      const empAssignments = assignments.get(employee.id) ?? [];
       const allPunches = punchesByEmployee.get(employee.id) ?? [];
       const calendarId = calendars.get(employee.id);
 
@@ -594,20 +644,9 @@ async function runRecompute(scope: RecomputeScope, options: RecomputeOptions): P
         // know, and guessing a start date would be worse than computing the day.
         if (employee.join_date && workDate < employee.join_date) continue;
 
-        // shift in force: assignment, else entity default, else global default
-        const assignment = empAssignments.find(
-          (a) =>
-            a.effective_from.toISOString().slice(0, 10) <= workDate &&
-            (a.effective_to === null || a.effective_to.toISOString().slice(0, 10) >= workDate)
-        );
-
-        const shiftId =
-          assignment?.shift_id ?? defaultShifts.get(employee.entity_id) ?? defaultShifts.get('') ?? null;
-        const shift = shiftId ? shifts.get(shiftId) ?? null : null;
-
+        const { shift, window } = resolvedDays.get(employee.id)!.get(workDate)!;
         const holidayName = calendarId ? holidays.get(`${calendarId}|${workDate}`) ?? null : null;
-
-        const { from: winFrom, to: winTo } = punchWindow(workDate, shift);
+        const { from: winFrom, to: winTo } = window;
         const dayPunches: PunchRecord[] = [];
         for (let i = lowerBound(allPunches, winFrom); i < allPunches.length; i++) {
           const p = allPunches[i]!;

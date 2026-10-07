@@ -25,7 +25,7 @@ test('leaving full screen stays remembered after a route remount, including an e
   const client = new QueryClient(), key = ['input-frame', 'company-a', '2026-10'];
   try {
     const initial = render(client, key);
-    assert.equal(initial.expanded, true); assert.match(initial.html, /Exit full screen/);
+    assert.equal(initial.expanded, true); assert.match(initial.html, /Back to payroll/);
     initial.control.props.onClick();
     assert.equal(getEntry(client, key, {}).getSnapshot().expanded, false);
     const returned = render(client, key);

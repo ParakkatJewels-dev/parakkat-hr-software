@@ -144,7 +144,7 @@ select public.run_payroll(register_test.id(1,61),'2028-01');
 select transaction_test.expect('engine/itemized amounts reconcile without double count',
  (select jsonb_build_array(gross,deductions,net,payroll_register->'bonus',payroll_register->'incentive',payroll_register->'other_deductions',payroll_register->'advance_recovery',
    payroll_register->'adjustment_incentive',payroll_register->'adjustment_deductions',payroll_register->'ledger_advance_recovery',payroll_register->'schema_version')
- from public.payslips where employee_id=register_test.id(4,61) and period='2028-01'),'[31250,2100,29150,1000,250,600,1500,250,600,1500,3]');
+ from public.payslips where employee_id=register_test.id(4,61) and period='2028-01'),'[31250,2100,29150,1000,250,600,1500,250,600,1500,4]');
 select transaction_test.expect('engine/individual deduction reasons preserved on payslip',
  (select to_jsonb(count(*)) from public.payslip_lines l join public.payslips p on p.id=l.payslip_id where p.run_id=transaction_test.run_id()
  and l.name in ('Deduction: Agreed recovery corrected','Deduction: Uniform recovery','Advance recovery: Salary advance')),'3');

@@ -41,7 +41,7 @@ try {
   writeFileSync(messageBootstrap, [
     '\\set ON_ERROR_STOP on',
     `\\i ${quote(join(backend, 'tests', 'supabase_fixture.sql'))}`,
-    ...readdirSync(migrations).filter(file => file.endsWith('.sql')).sort().flatMap(file => [
+    ...readdirSync(migrations).filter(file => file.endsWith('.sql') && !file.startsWith('0165_')).sort().flatMap(file => [
       ...(file.startsWith('0062_') ? [
         "insert into public.shifts(code,name,start_time,end_time) values ('GN','Synthetic configured baseline','09:00','17:30');",
       ] : []),
@@ -50,7 +50,7 @@ try {
       ...(file.startsWith('0149_') ? ['\\set task_authors_seed on', `\\i ${quote(join(backend, 'tests', 'task_comment_authors.sql'))}`] : []),
       `\\i ${quote(join(migrations, file))}`,
       // This migration promises safe reruns; enforce that before running API assertions.
-      ...(/^(0129|0133|0134|0137|0138|0139|0140|0141|0142|0143|0144|0145|0146|0147|0148|0149|0151|0152|0154|0155|0156|0157|0158|0159|0160|0161|0162)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0129|0133|0134|0137|0138|0139|0140|0141|0142|0143|0144|0145|0146|0147|0148|0149|0151|0152|0154|0155|0156|0157|0158|0159|0160|0161|0162|0163|0164)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     '\\set message_requests_seed off',
     '\\set task_authors_seed off',
@@ -68,10 +68,16 @@ try {
     `\\i ${quote(join(backend, 'tests', 'section_counts.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'request_integrity.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'hr_punch_corrections.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'shift_maintenance_safety.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'immediate_account_revocation.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'report_input_integrity.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'device_employee_provisioning.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'navigation_counts.sql'))}`,
+    // Historical fixture contracts above predate mandatory creation assignments.
+    // Install the creation boundary before its dedicated current-behavior assertions.
+    `\\i ${quote(join(migrations, '0165_employee_initial_shift.sql'))}`,
+    `\\i ${quote(join(migrations, '0165_employee_initial_shift.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'employee_initial_shift.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, messageDatabase]);
   const messageOutput = run('psql', [...connection, '-d', messageDatabase, '-q', '-f', messageBootstrap]);

@@ -76,6 +76,8 @@ test('blank statutory and hour inputs use configured components and attendance w
   const defaults = normalizeMonthlyInput(monthlyInputDraft());
   assert.equal(defaults.pf, null);
   assert.equal(defaults.esi, null);
+  assert.equal(defaults.tds, null);
+  assert.equal(monthlyInputDraft().tds, '');
   assert.equal(defaults.ot_hours, null);
   assert.equal(defaults.late_hours, null);
   assert.equal(monthlyInputDraft().ot_hours, '');
@@ -110,7 +112,7 @@ test('hour, deduction and statutory overrides require a retained reason, includi
 
 test('policy validation supports each divisor but disallows zero hours and unsupported values', () => {
   for (const divisor_mode of ['calendar', 'fixed', 'working']) {
-    assert.equal(normalizePayrollPolicy({ ...payrollPolicyDraft(), divisor_mode }).divisor_mode, divisor_mode);
+    assert.equal(normalizePayrollPolicy({ ...payrollPolicyDraft({}), divisor_mode }).divisor_mode, divisor_mode);
   }
   assert.equal(normalizePayrollPolicy({ ...payrollPolicyDraft(), ot_multiplier: '0' }).ot_multiplier, 0);
   for (const patch of [{ divisor_mode: 'unknown' }, { hours_per_day: '0' }, { hours_per_day: '24.01' },
@@ -133,4 +135,102 @@ test('daily working time suggests 8h 30m while preserving the meaning of saved d
   for (const invalid of [null, undefined, '', ' ', false, {}, 'NaN', Infinity, -8.5, 0, 24.5]) {
     assert.equal(formatPayrollDayHours(invalid), '—');
   }
+});
+
+
+test('new policies suggest hourly workings while existing companies preserve their saved salary method', () => {
+  assert.equal(payrollPolicyDraft().calculation_mode, 'hourly_workings');
+  assert.equal(payrollPolicyDraft().credit_mode, 'earned');
+  assert.equal(payrollPolicyDraft({ hours_per_day: 8 }).calculation_mode, 'paid_days');
+  assert.equal(payrollPolicyDraft({ hours_per_day: 8 }).credit_mode, 'attendance');
+  assert.throws(() => normalizePayrollPolicy({ ...payrollPolicyDraft(), divisor_mode: 'working' }), /calendar or fixed/);
+});
+
+test('reviewed monthly attendance uses exact minutes, explicit zero days and an HR reason', () => {
+  const reviewed = { ...monthlyInputDraft(), attendance_source: 'reviewed', worked_minutes: '199:45',
+    actual_working_days: '23.5', public_holiday_days: '0', notes: 'HR approved monthly working sheet' };
+  const normalized = normalizeMonthlyInput(reviewed, { calculationMode: 'hourly_workings' });
+  assert.equal(normalized.worked_minutes, 11985);
+  assert.equal(normalized.actual_working_days, 23.5);
+  assert.equal(normalized.off_days, null);
+  assert.equal(monthlyInputDraft(normalized).worked_minutes, '199:45');
+  assert.deepEqual(normalizeMonthlyInput(normalized), normalized, 'API-normalized integer minutes are idempotent');
+  for (const worked_minutes of ['199.45', '199:60', '745:00', '-1:20', '11985']) {
+    assert.throws(() => normalizeMonthlyInput({ ...reviewed, worked_minutes }), /H:MM/);
+  }
+  for (const patch of [{ worked_minutes: '' }, { public_holiday_days: '' }, { actual_working_days: '31.01' }, { notes: '' }]) {
+    assert.throws(() => normalizeMonthlyInput({ ...reviewed, ...patch }));
+  }
+  assert.throws(() => normalizeMonthlyInput(reviewed, { calculationMode: 'paid_days' }), /hourly workings/);
+  assert.throws(() => normalizeMonthlyInput({ ...reviewed, ot_hours: '2' }, { calculationMode: 'hourly_workings' }), /Clear separate/);
+});
+
+test('recorded attendance accepts approved off / leave exceptions but cannot carry reviewed monthly totals', () => {
+  assert.throws(() => normalizeMonthlyInput({ ...monthlyInputDraft(), worked_minutes: '199:45' }), /Choose HR-reviewed/);
+  for (const patch of [{ off_days: '0' }, { casual_leave_days: '0' }, { tds: '50' }, { tds: '0' }]) {
+    assert.throws(() => normalizeMonthlyInput({ ...monthlyInputDraft(), ...patch }), /reason/);
+    assert.doesNotThrow(() => normalizeMonthlyInput({ ...monthlyInputDraft(), ...patch, notes: 'HR approved exception' }));
+  }
+});
+
+test('version four exports preserve source, credit hours, TDS and signed round-off without changing legacy exports', () => {
+  const row = { ...snapshot(), schema_version: 4, bonus: 0, adjustment_incentive: 0, adjustment_deductions: 0,
+    ledger_advance_recovery: 0, calculation_mode: 'hourly_workings', credit_mode: 'earned', attendance_source: 'reviewed',
+    attendance_reviewed: true, attendance_review_reason: 'Approved working sheet', worked_minutes: 11985,
+    worked_hours: 199.75, credited_hours: 51, payable_hours: 250.75, other_paid_leave_days: 0,
+    wages_roundoff: .55, net_roundoff: -.4, tds: 350 };
+  assert.equal(isCompletePayrollRegister(row), true);
+  const columns = payrollRegisterColumns([{ payroll_register: row }]);
+  const [values] = payrollRegisterRows([{ payroll_register: row }]);
+  assert.equal(values[columns.findIndex(column => column.key === 'net_roundoff')], -.4);
+  assert.equal(values[columns.findIndex(column => column.key === 'tds')], 350);
+  assert.equal(columns.find(column => column.key === 'net_working_days').label, 'Recorded calendar working days');
+  assert.equal(columns.find(column => column.key === 'total_working_hours').label, 'Worked hours (decimal)');
+  assert.equal(columns.find(column => column.key === 'credited_hours').label, 'Paid credit hours (decimal)');
+  assert.equal(columns.find(column => column.key === 'payable_hours').label, 'Payable hours (decimal)');
+  assert.equal(values[columns.findIndex(column => column.key === 'attendance_source')], 'reviewed');
+  for (const key of ['worked_minutes', 'payable_hours', 'tds', 'attendance_review_reason', 'attendance_reviewed']) {
+    assert.equal(isCompletePayrollRegister({ ...row, [key]: undefined }), false, key);
+  }
+});
+
+test('reviewed totals with attendance credits require explicit off and casual leave days', () => {
+  const draft = { ...monthlyInputDraft(), attendance_source: 'reviewed', worked_minutes: '199:45',
+    actual_working_days: '23.5', public_holiday_days: '0', notes: 'HR-approved monthly totals' };
+  const policy = { calculationMode: 'hourly_workings', creditMode: 'attendance' };
+  assert.throws(() => normalizeMonthlyInput(draft, policy), /explicit off days and casual leave days/);
+  assert.throws(() => normalizeMonthlyInput({ ...draft, off_days: '0' }, policy), /explicit off days and casual leave days/);
+  assert.equal(normalizeMonthlyInput({ ...draft, off_days: '0', casual_leave_days: '0' }, policy).off_days, 0);
+  assert.doesNotThrow(() => normalizeMonthlyInput(draft, { ...policy, creditMode: 'earned' }));
+  assert.doesNotThrow(() => normalizeMonthlyInput(monthlyInputDraft(), policy), 'recorded source still derives attendance credits');
+});
+
+
+test('TDS distinguishes configured tax from an explicitly reviewed zero override', () => {
+  assert.equal(normalizeMonthlyInput(monthlyInputDraft()).tds, null);
+  assert.throws(() => normalizeMonthlyInput({ ...monthlyInputDraft(), tds: '0' }), /reason/);
+  assert.equal(normalizeMonthlyInput({ ...monthlyInputDraft(), tds: '0', notes: 'Approved tax exemption' }).tds, 0);
+  assert.equal(monthlyInputDraft({ tds: null }).tds, '');
+  assert.equal(monthlyInputDraft({ tds: 0 }).tds, '0');
+});
+
+test('mixed shift exports retain variable rates and daily basis evidence without inventing a zero rate', () => {
+  const row = { ...snapshot(), shift_basis: 'assigned_shift', variable_shift_hours: true,
+    per_day_working_hour: null, per_hour_wages: null, employee_code: 'SHIFT-1',
+    undated_credit_days: 2, undated_credit_amount: 2000,
+    shift_days: [{ work_date: '2026-10-02', shift_name: '=Night shift', daily_hours: 8, hourly_rate: 125, worked_hours: 8 }],
+  };
+  assert.equal(isCompletePayrollRegister(row), true);
+  const workbook = buildPayrollWorkbook(XLSX, [{ payroll_register: row }]);
+  const roundTrip = XLSX.read(XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }), { type: 'buffer' });
+  const sheet = roundTrip.Sheets['Payroll register'];
+  assert.equal(sheet.L2.v, 'Varies by shift');
+  assert.equal(sheet.N2.v, 'Varies by shift');
+  assert.equal(sheet.N2.t, 's');
+  const trace = roundTrip.Sheets['Shift basis by date'];
+  assert.equal(trace.D2.v, '=Night shift');
+  assert.equal(trace.D2.f, undefined);
+  assert.equal(trace.E2.v, 8);
+  assert.equal(trace.F2.v, 125);
+  assert.equal(isCompletePayrollRegister({ ...row, variable_shift_hours: false }), false);
 });

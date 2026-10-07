@@ -113,7 +113,7 @@ function describeEmployeeError(error) {
 }
 
 /**
- * Save a new employee, and give them their login.
+ * Save a new employee with their initial shift in one transaction, then give them their login.
  *
  * The login follows from the record rather than being a second job somebody has to remember —
  * provision_employee_login (0112) derives both halves from the row that was just written, so the
@@ -127,13 +127,19 @@ function describeEmployeeError(error) {
 export function useCreateEmployee() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ provisionLogin = true, ...payload }) => {
-      const { data, error } = await supabase
-        .from('employees')
-        .insert(cleanEmployeePayload(payload))
-        .select('id, full_name, employee_code')
-        .single();
-      if (error) throw describeEmployeeError(error);
+    mutationFn: async ({ provisionLogin = true, shift_id: shiftId, ...payload }) => {
+      if (!shiftId) throw new Error('Choose the employee’s initial shift.');
+      if (!payload.join_date) throw new Error('Enter the joining date so the initial shift starts on the correct day.');
+      const { data, error } = await supabase.rpc('create_employee_with_shift', {
+        _employee: cleanEmployeePayload(payload),
+        _shift_id: shiftId,
+      });
+      if (error) {
+        if (error.code === 'PGRST202' || error.code === '42883') {
+          throw new Error('Employee creation with a shift needs a database update. Apply migration 0165 and try again.');
+        }
+        throw describeEmployeeError(error);
+      }
 
       // The operator can still enter an address and password by hand on the same form. Doing both
       // would leave the employee holding two logins — the derived one and the typed one — so the
@@ -152,11 +158,9 @@ export function useCreateEmployee() {
       }
       return { ...data, login, loginError };
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['employees'] });
-      qc.invalidateQueries({ queryKey: ['employee'] });
-      qc.invalidateQueries({ queryKey: ['managed-users'] });
-    },
+    onSuccess: () => Promise.all(['employees', 'employee', 'managed-users', 'shift-assignments',
+      'attendance', 'leaves-period-days', 'payroll-attendance-summary', 'payroll-worksheet-run', 'payroll-register', 'payroll-runs']
+      .map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 

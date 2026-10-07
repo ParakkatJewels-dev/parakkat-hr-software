@@ -1,4 +1,4 @@
-import { MONTHLY_INPUT_FIELDS, PAYROLL_REGISTER_COLUMNS, monthlyInputDraft, normalizeMonthlyInput } from './payrollWorksheet.js';
+import { MONTHLY_INPUT_FIELDS, PAYROLL_REGISTER_COLUMNS, monthlyInputDraft, normalizeMonthlyInput, parsePayrollWorkedTime, formatPayrollMinutes } from './payrollWorksheet.js';
 
 const inputKeys = new Set([...MONTHLY_INPUT_FIELDS.map(field => field.key), 'notes']);
 const blankDraft = monthlyInputDraft(null);
@@ -40,11 +40,20 @@ function inputText(key, value) {
     throw new Error(`Invalid value for ${key}. Paste values, not formulas or spreadsheet objects.`);
   }
   if (key === 'notes') return String(value ?? '');
+  if (key === 'attendance_source') {
+    const source = String(value ?? '').trim().toLowerCase();
+    if (!['recorded', 'reviewed'].includes(source)) throw new Error('Attendance source must be recorded or reviewed.');
+    return source;
+  }
+  if (key === 'worked_minutes') {
+    if (typeof value === 'number') throw new Error('Reviewed worked time must be text in H:MM format (for example, 199:45).');
+    return formatPayrollMinutes(parsePayrollWorkedTime(value));
+  }
   let text = String(value ?? '').trim();
   if (!text) return '';
   // Ordinary blank imported cells preserve existing inputs. AUTO is an explicit instruction
   // to remove an OT/late override, so it must survive parsing as an empty-string patch.
-  if ((key === 'ot_hours' || key === 'late_hours') && /^auto$/i.test(text)) return '';
+  if (MONTHLY_INPUT_FIELDS.find(field => field.key === key)?.auto && /^auto$/i.test(text)) return '';
   // Accept ordinary Indian/Western currency display formatting, without guessing locale
   // decimals, removing arbitrary punctuation, or evaluating Excel expressions.
   text = text.replace(/^(?:₹|INR\s*|Rs\.?\s*)\s*/i, '');
@@ -57,7 +66,7 @@ function inputText(key, value) {
   }
   // The merged draft is validated by the editor, including approval-note requirements.
   // This isolated check validates number precision/ranges without inventing a saved reason.
-  const normalized = normalizeMonthlyInput({ ...blankDraft, [key]: text, notes: 'Input number validation' });
+  const normalized = normalizeMonthlyInput({ ...blankDraft, [key]: text, notes: 'Input number validation' }, { validateAttendance: false });
   return normalized[key] == null ? '' : String(normalized[key]);
 }
 
@@ -97,7 +106,7 @@ alias('branch', ['Branch', 'Branch Name', 'Branch Code']);
 alias('notes', ['Notes', 'Input notes', 'Input notes / deduction reason', 'Deduction reason', 'Approval notes']);
 for (const field of MONTHLY_INPUT_FIELDS) alias(field.key, [field.label]);
 for (const field of PAYROLL_REGISTER_COLUMNS) {
-  if (inputKeys.has(field.key)) alias(field.key, [field.label]);
+  if (inputKeys.has(field.key) && !MONTHLY_INPUT_FIELDS.some(input => input.key === field.key && input.group === 'Attendance')) alias(field.key, [field.label]);
 }
 alias('ot_hours', ['OT Hours', 'Overtime Hours', 'Approved OT Hours', 'Approved Overtime Hours']);
 alias('late_hours', ['Late Hours', 'Approved Late Hours']);
@@ -106,7 +115,7 @@ alias('travel_food', ['Travel Allowance / Food Expence', 'Travel / Food', 'Trave
 alias('special_allowance', ['Special Allowances']);
 alias('advance_recovery', ['Salary Advance Refund', 'Advance Recovery']);
 alias('other_deductions', ['Deduction for loss and damages/ other deductions', 'Other Deductions']);
-const computedHeaders = new Set(PAYROLL_REGISTER_COLUMNS.filter(field => !inputKeys.has(field.key)
+const computedHeaders = new Set(PAYROLL_REGISTER_COLUMNS.filter(field => (!inputKeys.has(field.key) || MONTHLY_INPUT_FIELDS.some(input => input.key === field.key && input.group === 'Attendance'))
   && !['employee_name', 'branch'].includes(field.key)).flatMap(field => [headerKey(field.key), headerKey(field.label)]));
 for (const label of ['Salary monthly', 'Salary earned', 'Monthly salary', 'Earned salary', 'Gross pay', 'Net pay']) computedHeaders.add(headerKey(label));
 
@@ -143,7 +152,7 @@ export function parsePayrollImportRows(aoa, employees) {
   headers.forEach((value, column) => {
     const normalized = headerKey(value);
     if (!normalized) { mapped.push(null); return; }
-    const key = aliases.get(normalized);
+    const key = ['actual working days', 'off days'].includes(normalized) ? null : aliases.get(normalized);
     if (computedHeaders.has(normalized) && !key) {
       ignoredComputed.add(column); mapped.push(null);
       result.warnings.push({ row: headerIndex + 1, column: column + 1, message: `Ignored calculated column “${value}”; payroll recalculates this amount.` });
@@ -207,7 +216,7 @@ export async function readPayrollInputWorkbook(file) {
   const headerIndex = aoa.findIndex(row => row.some(value => !isBlank(value)));
   const ignoredColumns = new Set((aoa[headerIndex] ?? []).flatMap((value, column) => {
     const normalized = headerKey(value);
-    return computedHeaders.has(normalized) && !aliases.has(normalized) ? [column] : [];
+    return computedHeaders.has(normalized) && (!aliases.has(normalized) || ['actual working days', 'off days'].includes(normalized)) ? [column] : [];
   }));
   for (const [address, cell] of Object.entries(sheet)) {
     if (address.startsWith('!') || (cell.f == null && cell.F == null)) continue;
@@ -238,7 +247,7 @@ export function buildPayrollInputTemplateWorkbook(XLSX, employees, records = [],
       String(employee.branch?.name ?? employee.branch?.code ?? employee.branch_name ?? ''),
       ...MONTHLY_INPUT_FIELDS.map(field => {
         const value = inputText(field.key, draft[field.key]);
-        return value === '' ? (field.auto ? 'AUTO' : '') : Number(value);
+        return value === '' ? (field.auto ? 'AUTO' : '') : field.type === 'source' || field.type === 'duration' ? value : Number(value);
       }), String(draft.notes ?? '')];
   });
   const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);

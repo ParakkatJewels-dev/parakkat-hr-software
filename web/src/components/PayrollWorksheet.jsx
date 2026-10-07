@@ -204,8 +204,8 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
     || !inputs.isSuccess || inputs.isFetching || Boolean(inputs.error)
     || !attendance.isSuccess || attendance.isFetching || Boolean(attendance.error) || transactionsReadBlocked;
   const publishBlocked = !canManageCompany || published || busy || pending || scopeReadBlocked || runReadBlocked || transactionsReadBlocked || !registerReady;
-  const attendanceIssues = (attendance.data ?? []).filter(row => row.in_payroll_month !== false && (row.employment_issue || row.override_issue
-    || Number(row.missing_days) > 0 || Number(row.unresolved_days) > 0 || Number(row.invalid_days) > 0 || Number(row.pending_recompute_days) > 0)).length;
+  const attendanceIssues = (attendance.data ?? []).filter(row => row.in_payroll_month !== false && (row.employment_issue || row.override_issue || row.attendance_review_issue
+    || (!row.reviewed_source_ready && (Number(row.missing_days) > 0 || Number(row.unresolved_days) > 0 || Number(row.invalid_days) > 0 || Number(row.pending_recompute_days) > 0)))).length;
   const contextQuery = `entity=${encodeURIComponent(entity.id)}&period=${encodeURIComponent(period)}`;
   const continueBlocked = busy || pending || runReadBlocked || scopeReadBlocked;
   const continueReview = () => {
@@ -242,7 +242,7 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
       </div>
       <details className="premium-card space-y-3" open={!policy.data || undefined}>
         <summary className={`${TITLE} cursor-pointer`}>Company calculation policy
-          <span className="font-normal text-xs text-neutral-500 ml-2">{policy.data ? `Saved · ${policy.data.divisor_mode} days · ${formatPayrollDayHours(policy.data.hours_per_day)} / day · ${policy.data.ot_multiplier}× OT` : 'Set up once before calculating'}</span>
+          <span className="font-normal text-xs text-neutral-500 ml-2">{policy.data ? `Saved · ${policy.data.divisor_mode} days · ${policy.data.calculation_mode === 'hourly_workings' ? 'Assigned shift hours' : `${formatPayrollDayHours(policy.data.hours_per_day)} / day`} · ${policy.data.calculation_mode === 'hourly_workings' ? 'Hourly workings' : 'Paid days'}` : 'Set up once before calculating'}</span>
         </summary>
         <ErrorMessage error={policy.error} />
         {policy.isLoading ? <Loading>Loading saved policy…</Loading> : policy.isSuccess || policy.data !== undefined ?
@@ -254,7 +254,7 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
         <button type="button" disabled={busy} aria-pressed={prepareView === 'entries'} onClick={() => setPrepareView('entries')}>Adjustments & advances</button>
       </div>
       {prepareView === 'sheet' ? <PayrollInputGrid entityId={entity.id} companyName={entity.name} period={period} employees={employees} published={published}
-        disabled={runReadBlocked || scopeReadBlocked || busy} snapshots={rows} onDirtyChange={onInputDirtyChange} onBusyChange={onInputBusyChange}
+        calculationMode={policy.data?.calculation_mode ?? 'paid_days'} creditMode={policy.data?.credit_mode ?? 'attendance'} disabled={runReadBlocked || scopeReadBlocked || busy || !policy.isSuccess || policy.isFetching || Boolean(policy.error)} snapshots={rows} onDirtyChange={onInputDirtyChange} onBusyChange={onInputBusyChange}
         onContinue={continueReview} continueDisabled={continueBlocked} />
         : <PayrollTransactions entityId={entity.id} period={period} employees={employees} run={run} registerRows={rows} published={published}
           disabled={runReadBlocked || scopeReadBlocked || busy} onDirtyChange={onTransactionDirtyChange} onBusyChange={onInputBusyChange} />}
@@ -270,7 +270,7 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
         {!published && <div className="payroll-readiness">
           <div><span>Company policy</span><strong>{policy.data ? 'Saved' : 'Setup required'}</strong></div>
           <div><span>Monthly inputs</span><strong>{pending ? 'Unsaved changes' : !inputs.isSuccess || inputs.error ? 'Unavailable' : `${inputs.data?.length ?? 0} saved rows`}</strong></div>
-          <div><span>Attendance</span><strong>{!attendance.isSuccess || attendance.error ? 'Unavailable' : attendanceIssues ? `${attendanceIssues} need review` : 'Loaded from attendance'}</strong></div>
+          <div><span>Attendance</span><strong>{!attendance.isSuccess || attendance.error ? 'Unavailable' : attendanceIssues ? `${attendanceIssues} need review` : 'Sources ready'}</strong></div>
         </div>}
         {!published && !policy.data && <p className="payroll-flow-notice">Save the company calculation policy in Prepare data before calculating.</p>}
         {!published && attendanceIssues > 0 && <p className={HELP}>Review attendance issues in Prepare data. Calculation will report any records that must be corrected.</p>}
@@ -341,6 +341,7 @@ function PolicyEditor({ entityId, record, disabled, onDirtyChange, onBusyChange 
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   const [success, setSuccess] = useState(false);
   const blocked = disabled || saving || editor.changed;
+  const hourly = editor.draft.calculation_mode === 'hourly_workings';
   const patch = (key, value) => { editor.patch(key, value); save.reset(); setSuccess(false); };
   return <form className="space-y-3" onSubmit={async event => {
     event.preventDefault();
@@ -349,27 +350,39 @@ function PolicyEditor({ entityId, record, disabled, onDirtyChange, onBusyChange 
     try { await save.mutateAsync({ entityId, policy: editor.draft, expectedUpdatedAt: record?.updated_at ?? null }); editor.saved(); setSuccess(true); }
     catch { /* shown below without clearing typed values */ }
   }}>
-    {!record && <p className="text-xs text-amber-700 dark:text-amber-300">No reviewed policy has been saved. Daily working time starts at 8h 30m. Review the salary divisor and OT rules, then save your company’s policy before running payroll.</p>}
+    {!record && <p className="text-xs text-amber-700 dark:text-amber-300">No reviewed policy has been saved. Hourly workings starts with an 8h 30m day and earned off / casual-leave credits. Review the rules, then save your company’s policy before running payroll.</p>}
     <fieldset disabled={blocked} className="space-y-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className={LABEL}><span>Calculation method</span><select className={INPUT} value={editor.draft.calculation_mode} onChange={event => {
+          patch('calculation_mode', event.target.value);
+          if (event.target.value === 'hourly_workings' && editor.draft.divisor_mode === 'working') patch('divisor_mode', 'calendar');
+        }}><option value="paid_days">Paid days · existing method</option><option value="hourly_workings">Hourly workings · HR salary sheet</option></select></label>
+        {hourly && <label className={LABEL}><span>Off-day / casual-leave credits</span><select className={INPUT} value={editor.draft.credit_mode} onChange={event => patch('credit_mode', event.target.value)}>
+          <option value="earned">Earned from actual working days</option><option value="attendance">Recorded attendance and approved leave</option>
+        </select></label>}
+      </div>
+      {record && record.calculation_mode !== 'hourly_workings' && hourly && <p className={HELP}>This changes the saved salary method for future calculations. Review the policy, save it, then recalculate draft payroll. Published salaries keep their original method.</p>}
+      {hourly && editor.draft.credit_mode === 'attendance' && <p className={HELP}>Recorded sources use attendance and approved leave credits. For HR-reviewed monthly totals, enter approved off days and casual leave days explicitly, including zero.</p>}
+      {hourly && editor.draft.credit_mode === 'earned' && <p className={HELP}>Casual leave: 1 day at 20 actual working days. Off days: 1 / 2 / 3 / 4 days at 6 / 12 / 18 / 24 days of actual work plus casual leave. HR can enter approved credit exceptions with a reason.</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <label className={LABEL}><span>Salary divisor</span><select className={INPUT} value={editor.draft.divisor_mode} onChange={event => patch('divisor_mode', event.target.value)}>
-          <option value="calendar">Calendar days in the month</option><option value="fixed">Fixed days</option><option value="working">Scheduled working days</option>
+          <option value="calendar">Calendar days in the month</option><option value="fixed">Fixed days</option>{!hourly && <option value="working">Scheduled working days</option>}
         </select></label>
         <label className={LABEL}><span>Fixed days</span><input type="number" className={INPUT} min="1" max="31" step="0.01" disabled={editor.draft.divisor_mode !== 'fixed'} value={editor.draft.fixed_days} onChange={event => patch('fixed_days', event.target.value)} /></label>
-        <label className={LABEL}><span id="payroll-daily-hours-label">Daily working hours (decimal)</span><input required type="number" className={INPUT} min="0.01" max="24" step="0.01" aria-labelledby="payroll-daily-hours-label" aria-describedby="payroll-daily-hours-help" value={editor.draft.hours_per_day} onChange={event => patch('hours_per_day', event.target.value)} />
+        {!hourly && <label className={LABEL}><span id="payroll-daily-hours-label">Daily working hours (decimal)</span><input required type="number" className={INPUT} min="0.01" max="24" step="0.01" aria-labelledby="payroll-daily-hours-label" aria-describedby="payroll-daily-hours-help" value={editor.draft.hours_per_day} onChange={event => patch('hours_per_day', event.target.value)} />
           <span className="block font-normal text-neutral-500 dark:text-neutral-400" id="payroll-daily-hours-help"><strong className="font-medium">{formatPayrollDayHours(editor.draft.hours_per_day)} per day.</strong> Enter 8.5 for 8h 30m; 8.3 means 8h 18m.</span>
-        </label>
-        <label className={LABEL}><span>OT hourly multiplier</span><input required type="number" className={INPUT} min="0" max="10" step="0.01" value={editor.draft.ot_multiplier} onChange={event => patch('ot_multiplier', event.target.value)} /></label>
+        </label>}
+        {!hourly && <label className={LABEL}><span>OT hourly multiplier</span><input required type="number" className={INPUT} min="0" max="10" step="0.01" value={editor.draft.ot_multiplier} onChange={event => patch('ot_multiplier', event.target.value)} /></label>}
       </div>
-      <label className="flex items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300"><input type="checkbox" checked={editor.draft.deduct_late} onChange={event => patch('deduct_late', event.target.checked)} />Deduct late hours at the calculated hourly rate</label>
+      {!hourly && <label className="flex items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300"><input type="checkbox" checked={editor.draft.deduct_late} onChange={event => patch('deduct_late', event.target.checked)} />Deduct late hours at the calculated hourly rate</label>}
       <label className={LABEL}><span>Policy notes</span><textarea className={INPUT} rows={2} value={editor.draft.notes} onChange={event => patch('notes', event.target.value)} placeholder="Record your approved attendance, OT and deduction rules." /></label>
     </fieldset>
-    <p className={HELP}>Daily rate = monthly salary ÷ selected divisor. Hourly rate = daily rate ÷ working hours per day. OT amount = OT hours × hourly rate × multiplier. Late amount is deducted only when enabled.</p>
+    {hourly ? <p className={HELP}>Daily rate = monthly salary ÷ divisor, rounded up to a whole rupee. Each date uses its assigned shift’s daily paid hours to calculate the hourly rate, rounded to 1 decimal. Worked time and dated paid leave use that date’s rate. When daily hours vary, earned off/CL credits without dates receive one daily wage per day. Wages plus allowances / bonuses are rounded up to a whole rupee. Net = wages − deductions, rounded to a whole rupee. All worked hours are included once; separate OT and late amounts are not added.</p> : <><p className={HELP}>Daily rate = monthly salary ÷ selected divisor. Hourly rate = daily rate ÷ working hours per day. OT amount = OT hours × hourly rate × multiplier. Late amount is deducted only when enabled.</p>
     <p className={HELP}>{editor.draft.divisor_mode === 'fixed'
       ? 'For a fixed divisor, earned salary = monthly salary × max(0, 1 − (unpaid days + calendar days outside employment) ÷ fixed days). A fully paid month receives the full monthly salary.'
       : editor.draft.divisor_mode === 'working'
         ? 'For a working-day divisor, earned salary uses paid scheduled working days. Public holidays and weekly offs do not add another paid day to that divisor.'
-        : 'For a calendar divisor, earned salary = monthly salary × paid calendar days ÷ calendar days in the month. Paid leave, public holidays and weekly offs are included once.'}</p>
+        : 'For a calendar divisor, earned salary = monthly salary × paid calendar days ÷ calendar days in the month. Paid leave, public holidays and weekly offs are included once.'}</p></>}
     <p className={HELP}>Saving a policy marks existing draft runs for recalculation. Published registers keep their saved calculations. PF and ESI use configured pay components or an explicit monthly override.</p>
     <DraftConflict changed={editor.changed} reset={editor.reset} />
     <ErrorMessage error={save.error} />
@@ -388,7 +401,7 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
   const [exporting, setExporting] = useState(false);
   const [detailed, setDetailed] = useState(false);
   const columns = payrollRegisterColumns(register.data ?? EMPTY_ROWS);
-  const visibleColumns = detailed ? columns : columns.filter(({ key }) => ['employee_name', 'branch', 'salary', 'total_working_hours', 'earned_salary', 'ot_hours', 'late_hours', 'gross_salary', 'net_pay_salary'].includes(key));
+  const visibleColumns = detailed ? columns : columns.filter(({ key }) => ['employee_name', 'branch', 'salary', 'total_working_hours', 'earned_salary', 'calculation_mode', 'attendance_source', 'credited_hours', 'payable_hours', 'undated_credit_days', 'undated_credit_amount', 'gross_salary', 'net_pay_salary', ...((register.data ?? EMPTY_ROWS).some(row => row.payroll_register?.calculation_mode === 'hourly_workings') ? [] : ['ot_hours', 'late_hours'])].includes(key));
   const [exportError, setExportError] = useState(null);
   const rows = register.data ?? EMPTY_ROWS;
   const filtered = useMemo(() => rows.filter(row => `${row.payroll_register?.employee_name ?? ''} ${row.payroll_register?.branch ?? ''}`.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
@@ -400,14 +413,14 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
   const stale = Boolean(run?.needs_recalculation);
   const calculationPolicy = rows.find(row => row.payroll_register?.policy)?.payroll_register.policy;
   const blocked = processing || inputsDirty || loading || Boolean(readError) || !run || !rows.length || incomplete || countMismatch || stale;
-  const format = (value, type) => value == null ? '—' : type === 'text' ? String(value)
+  const format = (value, type, key) => value == null ? '—' : type === 'text' ? (['calculation_mode', 'attendance_source', 'credit_mode'].includes(key) ? { hourly_workings: 'Hourly workings', paid_days: 'Paid days', recorded: 'Recorded attendance', reviewed: 'HR-reviewed totals', earned: 'Earned credits', attendance: 'Attendance credits' }[value] ?? String(value) : String(value))
     : Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-IN', { minimumFractionDigits: type === 'money' ? 2 : 0, maximumFractionDigits: 2 }) : '—';
-  return <PayrollSheetFrame title={`${entity.name} · ${period} · Payroll register`}>{({ control }) => <section className="premium-card space-y-3 min-w-0 payroll-register-workspace">
+  return <PayrollSheetFrame title={`${entity.name} · ${period} · Payroll register`}>{({ control, fullscreenControl }) => <section className="premium-card space-y-3 min-w-0 payroll-register-workspace">
     {inputsDirty && <p className="text-xs text-amber-700 dark:text-amber-300">This register shows the last saved calculation. Save or discard worksheet changes, then recalculate before exporting.</p>}
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h3 className={TITLE}>Payroll register{run ? ` · ${run.status}` : ''}</h3>
         <p className={`${HELP} mt-1`}>{period} · {entity.code} · {rows.length} visible employees. Amounts are in rupees.</p></div>
-      <div className="payroll-input-actions">{control}<button type="button" className={btnClass('ghost')} disabled={blocked || exporting} onClick={async () => {
+      <div className="payroll-input-actions">{fullscreenControl}{control}<button type="button" className={btnClass('ghost')} disabled={blocked || exporting} onClick={async () => {
         if (blocked || client.isMutating({ predicate: payrollWrite })) return;
         setExportError(null); setExporting(true);
         try { await exportPayrollRegister(rows, entity.code, period); }
@@ -415,8 +428,8 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
         finally { setExporting(false); }
       }}>{exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}Export Excel</button></div>
     </div>
-    <p className={HELP}>Review worked hours, payroll OT and late hours alongside salary and take-home pay. Show all columns for the full breakdown. Excel export includes the full breakdown and every employee in your scope.</p>
-    {calculationPolicy && !readError && <p className={HELP}>Saved calculation basis: {calculationPolicy.divisor_mode === 'fixed' ? `${calculationPolicy.fixed_days} fixed days` : calculationPolicy.divisor_mode === 'working' ? 'scheduled working days' : 'calendar days'}, {formatPayrollDayHours(calculationPolicy.hours_per_day)} per day, {calculationPolicy.ot_multiplier}× OT. Late deduction {calculationPolicy.deduct_late ? 'enabled' : 'disabled'}. Total Working Hours shows recorded worked hours.</p>}
+    <p className={HELP}>Review worked hours, paid credits and take-home pay alongside the saved calculation method. Show all columns for the full breakdown. Excel export includes the full breakdown and every employee in your scope.</p>
+    {calculationPolicy && !readError && <p className={HELP}>Saved calculation basis: {calculationPolicy.divisor_mode === 'fixed' ? `${calculationPolicy.fixed_days} fixed days` : calculationPolicy.divisor_mode === 'working' ? 'scheduled working days' : 'calendar days'}, {calculationPolicy.calculation_mode === 'hourly_workings' ? 'daily hours from each assigned shift' : `${formatPayrollDayHours(calculationPolicy.hours_per_day)} per day`}, {calculationPolicy.calculation_mode === 'hourly_workings' ? 'hourly workings with all worked hours included once. Changes in shift hours are calculated date by date.' : `${calculationPolicy.ot_multiplier}× OT. Late deduction ${calculationPolicy.deduct_late ? 'enabled' : 'disabled'}.`} Worked hours show the selected attendance source. Register hours are decimal: 199.75 means 199h 45m.</p>}
     <ErrorMessage error={readError || exportError} />
     {loading && <Loading>Loading the saved payroll register…</Loading>}
     {stale && <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">Inputs changed after this draft was calculated. Re-run payroll before reviewing, exporting or publishing these amounts.</p>}
@@ -431,7 +444,7 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
         <table className="w-full text-xs text-neutral-700 dark:text-neutral-200">
           <caption className="sr-only">{entity.name} payroll register for {period}{stale ? ', pending recalculation' : ''}</caption>
           <thead className="bg-neutral-50 dark:bg-neutral-900"><tr>{visibleColumns.map(({ key, label, type }) => <th key={key} scope="col" className={`px-3 py-3 min-w-32 max-w-52 align-bottom ${type === 'text' ? 'text-left' : 'text-right'}`}>{key === 'salary' ? 'Salary (monthly)' : key === 'earned_salary' ? 'Salary (earned)' : label}</th>)}</tr></thead>
-          <tbody>{pager.slice.map(row => <tr key={row.id} className="border-t border-neutral-100 dark:border-neutral-850">{visibleColumns.map(({ key, type }) => <td key={key} className={`px-3 py-3 whitespace-nowrap ${type === 'text' ? 'text-left' : 'text-right tabular-nums'}`}>{format(row.payroll_register?.[key], type)}</td>)}</tr>)}</tbody>
+          <tbody>{pager.slice.map(row => <tr key={row.id} className="border-t border-neutral-100 dark:border-neutral-850">{visibleColumns.map(({ key, type }) => <td key={key} className={`px-3 py-3 whitespace-nowrap ${type === 'text' ? 'text-left' : 'text-right tabular-nums'}`}>{row.payroll_register?.variable_shift_hours && ['per_day_working_hour', 'per_hour_wages'].includes(key) ? 'Varies by shift' : format(row.payroll_register?.[key], type, key)}</td>)}</tr>)}</tbody>
         </table>
       </div>
       {filtered.length === 0 && <p className={HELP}>No employees match this search.</p>}

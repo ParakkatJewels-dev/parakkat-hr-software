@@ -562,3 +562,85 @@ test('published hours display the frozen payroll register and never use changing
   assert.equal(grid.cell(1, 'OT hours').props.disabled, true);
   assert.match(text(grid.render()), /Published snapshot/);
 });
+
+test('hourly attendance totals have their own view, require review and preserve exact minutes on save', async () => {
+  const grid = mount({ count: 3 }); grid.props.calculationMode = 'hourly_workings';
+  assert.equal(grid.cell(1, 'Reviewed worked time'), null, 'attendance entry does not crowd earnings');
+  assert.equal(grid.cell(1, 'OT hours'), null, 'hourly wages cannot also add OT');
+  grid.click('Attendance');
+  assert.equal(grid.cell(1, 'Reviewed worked time').props.disabled, true);
+  grid.edit(1, 'reviewed', 'Attendance source');
+  assert.equal(grid.button('Save 1 changes').props.disabled, true);
+  grid.edit(1, '199:45', 'Reviewed worked time');
+  grid.edit(1, '23.5', 'Reviewed actual working days');
+  grid.edit(1, '0', 'Reviewed public holiday days');
+  assert.equal(grid.button('Save 1 changes').props.disabled, true);
+  grid.edit(1, 'Approved monthly totals for non-device employee', 'Notes / deduction reason');
+  await grid.click('Save 1 changes');
+  const saved = grid.query.data.find(row => row.employee_id === 'employee-1');
+  assert.equal(saved.worked_minutes, 11985);
+  assert.equal(saved.off_days, null);
+  assert.equal(grid.cell(1, 'Reviewed worked time').props.value, '199:45');
+  grid.edit(1, 'recorded', 'Attendance source');
+  assert.equal(grid.cell(1, 'Reviewed worked time').props.value, '');
+  assert.equal(grid.cell(1, 'Reviewed worked time').props.disabled, true);
+  await grid.click('Save 1 changes');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').worked_minutes, null);
+});
+
+test('approved reviewed source removes raw attendance blockers while rejected reviews stay visible', () => {
+  const grid = mount({ count: 3 }); grid.props.calculationMode = 'hourly_workings';
+  grid.attendance.data[0] = { ...grid.attendance.data[0], missing_days: 31, unresolved_days: 5, pending_recompute_days: 1,
+    reviewed_source_ready: true, effective_worked_hours: 199.75 };
+  assert.match(text(grid.render()), /HR-reviewed total/);
+  assert.match(text(grid.render()), /199:45/);
+  grid.change('Filter input status', 'issues');
+  assert.equal(grid.cell(1), null);
+  grid.attendance.data[0].attendance_review_issue = 'Reviewed working days exceed employment period.';
+  assert.ok(grid.cell(1));
+  assert.match(text(grid.render()), /Reviewed working days exceed employment period/);
+});
+
+test('TDS and approved credit exceptions require reasons and retain the original optimistic revision', async () => {
+  const grid = mount({ count: 3 }); grid.props.calculationMode = 'hourly_workings';
+  grid.click('Deductions'); grid.edit(1, '750', 'TDS');
+  assert.equal(grid.button('Save 1 changes').props.disabled, true);
+  grid.click('Attendance'); grid.edit(1, '0', 'Approved casual leave days');
+  grid.edit(1, 'HR approved tax and leave exception', 'Notes / deduction reason');
+  await grid.click('Save 1 changes');
+  const sent = grid.mutation.writes[0].rows[0];
+  assert.equal(sent.input.tds, '750');
+  assert.equal(sent.input.casual_leave_days, '0');
+  assert.equal(sent.expectedUpdatedAt, 'revision-employee-1');
+});
+
+test('reviewed totals under attendance-credit policy require explicit zero or approved off and leave credits', async () => {
+  const grid = mount({ count: 3 }); grid.props.calculationMode = 'hourly_workings'; grid.props.creditMode = 'attendance';
+  grid.click('Attendance'); grid.edit(1, 'reviewed', 'Attendance source');
+  grid.edit(1, '199:45', 'Reviewed worked time'); grid.edit(1, '23.5', 'Reviewed actual working days');
+  grid.edit(1, '0', 'Reviewed public holiday days'); grid.edit(1, 'HR-approved monthly totals', 'Notes / deduction reason');
+  assert.equal(grid.cell(1, 'Approved off days').props['aria-required'], true);
+  assert.equal(grid.cell(1, 'Approved casual leave days').props.placeholder, 'Required');
+  assert.equal(grid.button('Save 1 changes').props.disabled, true);
+  assert.match(text(grid.render()), /explicit off days and casual leave days/);
+  grid.edit(1, '0', 'Approved off days');
+  assert.equal(grid.button('Save 1 changes').props.disabled, true);
+  grid.edit(1, '0', 'Approved casual leave days');
+  await grid.click('Save 1 changes');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').casual_leave_days, 0);
+});
+
+
+test('TDS blank uses configured tax while an explicit zero requires review and saves zero', async () => {
+  const grid = mount({ count: 3 }); grid.click('Hours & deductions');
+  assert.equal(grid.cell(1, 'TDS').props.value, '');
+  assert.equal(grid.cell(1, 'TDS').props.placeholder, 'Default');
+  grid.edit(1, '0', 'TDS');
+  assert.equal(grid.button('Save 1 changes').props.disabled, true);
+  grid.edit(1, 'HR-approved tax exemption', 'Notes / deduction reason');
+  await grid.click('Save 1 changes');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').tds, 0);
+  grid.edit(1, '', 'TDS');
+  await grid.click('Save 1 changes');
+  assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').tds, null);
+});

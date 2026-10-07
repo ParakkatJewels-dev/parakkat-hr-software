@@ -164,7 +164,10 @@
     "0159_payroll_bulk_monthly_inputs.sql",
     "0160_payroll_attendance_hours.sql",
     "0161_payroll_transactions.sql",
-    "0162_hr_punch_corrections.sql"
+    "0162_hr_punch_corrections.sql",
+    "0163_payroll_hourly_workings.sql",
+    "0164_shift_maintenance_safety.sql",
+    "0165_employee_initial_shift.sql"
   ],
   "roles": [
     {

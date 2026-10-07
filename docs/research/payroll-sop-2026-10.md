@@ -1,5 +1,10 @@
 # Payroll SOP and implementation decisions
 
+**Historical reference:** this research preceded receipt of the completed September workbook.
+For the implemented calculation and current workflow, use the
+[monthly payroll operating guide](../payroll-operating-guide.md). The formula-discovery requests
+below describe the earlier state and have been superseded by the workbook review.
+
 Research checked: **6 October 2026 (Asia/Kolkata)**. Scope: the salary-sheet columns supplied for Parakkat's payroll engine. Kerala retail is a working assumption from the existing project report, not a newly confirmed employer instruction. Establishment, employee and wage-period applicability must be recorded before activating statutory calculations.
 
 This is an implementation reference and proposed operating procedure. It does not certify payroll compliance or establish the employer's pay policy. The supplied column names contain no sample amounts or spreadsheet formulas, so their original calculation semantics remain unverified.

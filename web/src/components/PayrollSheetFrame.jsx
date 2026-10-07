@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Maximize2, Minimize2 } from 'lucide-react';
 import { btnClass } from './ui/Btn';
 import { usePayrollSessionState } from '../lib/usePayrollSessionState';
 import { capturePayrollSheetPosition, restorePayrollSheetPosition } from '../lib/payrollSheetPosition';
@@ -28,6 +28,10 @@ function SheetFrame({ title, children, defaultExpanded = false, retained, setRet
   const [host] = useState(() => typeof document === 'undefined' ? null : document.createElement('div'));
   const anchor = useRef(null);
   const button = useRef(null);
+  const fullscreenButton = useRef(null);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [fullscreenNotice, setFullscreenNotice] = useState('');
+  const supportsFullscreen = Boolean(host?.requestFullscreen && document.fullscreenEnabled);
   const wasExpanded = useRef(expanded);
   const returningPosition = useRef(retained?.position ?? null);
   const restored = useRef(false);
@@ -36,26 +40,63 @@ function SheetFrame({ title, children, defaultExpanded = false, retained, setRet
     const position = capturePayrollSheetPosition(host, document.getElementById('main-content'), target);
     setRetained(current => ({ ...current, expanded, position }));
   };
+  const enterFullscreen = () => {
+    if (!supportsFullscreen) return;
+    setFullscreenNotice('');
+    host.requestFullscreen({ navigationUI: 'hide' }).catch(() => {
+      setFullscreenNotice('Browser full screen is unavailable. The worksheet still fills this window.');
+    });
+  };
+  const returnToPayroll = () => {
+    if (host && document.fullscreenElement === host) {
+      document.exitFullscreen().then(() => setExpanded(false)).catch(() => {
+        setFullscreenNotice('Press Esc to leave browser full screen, then return to payroll.');
+      });
+    } else setExpanded(false);
+  };
+  const expandSheet = () => {
+    // Reparent before requesting fullscreen: moving its target later ends native fullscreen.
+    if (host) {
+      if (host.parentElement !== document.body) document.body.appendChild(host);
+      host.classList.add('payroll-sheet-expanded');
+    }
+    setExpanded(true);
+    enterFullscreen();
+  };
   useEffect(() => {
     if (!host) return;
-    (expanded ? document.body : anchor.current)?.appendChild(host);
+    const changed = () => {
+      setNativeFullscreen(document.fullscreenElement === host);
+      if (!document.fullscreenElement) fullscreenButton.current?.focus({ preventScroll: true });
+    };
+    document.addEventListener('fullscreenchange', changed);
+    return () => document.removeEventListener('fullscreenchange', changed);
+  }, [host]);
+  useEffect(() => {
+    if (!host) return;
+    const destination = expanded ? document.body : anchor.current;
+    if (destination && host.parentElement !== destination) destination.appendChild(host);
     host.className = `payroll-sheet-host payroll-workflow${expanded ? ' payroll-sheet-expanded' : ''}`;
     const returning = wasExpanded.current && !expanded;
     wasExpanded.current = expanded;
-    if (!expanded) { if (returning) button.current?.focus(); return; }
+    if (!expanded) { if (returning) button.current?.focus({ preventScroll: true }); return; }
     const previousOverflow = document.body.style.overflow;
     const siblings = [...document.body.children].filter(element => element !== host);
     const inertStates = siblings.map(element => [element, element.inert]);
     siblings.forEach(element => { element.inert = true; });
     document.body.style.overflow = 'hidden';
-    button.current?.focus();
+    button.current?.focus({ preventScroll: true });
     const keydown = event => {
       // A confirmation inside the worksheet owns Escape and its own focus trap.
       if (host.querySelector('[role="alertdialog"]')) return;
-      if (event.key === 'Escape') { event.preventDefault(); setExpanded(false); }
+      if (event.key === 'Escape') {
+        // Native Escape leaves the edge-to-edge worksheet and unsaved entries in place.
+        if (document.fullscreenElement === host) return;
+        event.preventDefault(); setExpanded(false);
+      }
       if (event.key !== 'Tab') return;
-      const items = [...host.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex="0"]')]
-        .filter(element => element.getClientRects().length);
+      const items = [...host.querySelectorAll('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]')]
+        .filter(element => element.tabIndex >= 0 && element.getClientRects().length && !element.closest('[inert]'));
       const first = items[0], last = items.at(-1);
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
@@ -73,14 +114,21 @@ function SheetFrame({ title, children, defaultExpanded = false, retained, setRet
       () => { restored.current = true; });
   }, [host, restoreReady, expanded]);
   useEffect(() => () => host?.remove(), [host]);
-  const control = <button ref={button} type="button" className={btnClass('ghost')} aria-pressed={expanded}
-    onClick={() => setExpanded(value => !value)}>
-    {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{expanded ? 'Exit full screen' : 'Full screen'}
+  const control = <button ref={button} type="button" className={btnClass('ghost')}
+    onClick={expanded ? returnToPayroll : expandSheet}>
+    {expanded ? <ArrowLeft size={14} /> : <Maximize2 size={14} />}{expanded ? 'Back to payroll' : 'Full screen'}
+  </button>;
+  const fullscreenControl = expanded && supportsFullscreen && <button ref={fullscreenButton} type="button"
+    className={btnClass('ghost')} aria-pressed={nativeFullscreen} onClick={() => {
+      if (document.fullscreenElement === host) document.exitFullscreen().catch(() => setFullscreenNotice('Press Esc to leave browser full screen.'));
+      else enterFullscreen();
+    }}>
+    {nativeFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{nativeFullscreen ? 'Exit full screen' : 'Full screen'}
   </button>;
   const content = <div className="payroll-sheet-content" role={expanded ? 'dialog' : undefined}
     aria-modal={expanded || undefined} aria-label={expanded ? title : undefined}>
-    {expanded && <div className="payroll-sheet-caption"><span>{title}</span><span>Esc to return to payroll</span></div>}
-    {children({ control, expanded, rememberPosition })}
+    {fullscreenNotice && <p className="payroll-fullscreen-notice" role="status">{fullscreenNotice}</p>}
+    {children({ control, fullscreenControl, expanded, title, rememberPosition })}
   </div>;
   return <div ref={anchor} className="payroll-sheet-anchor">{host ? createPortal(content, host) : content}</div>;
 }

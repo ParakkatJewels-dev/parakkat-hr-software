@@ -136,7 +136,7 @@ test('the original 33-column register imports only its 14 editable inputs and pe
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].employeeId, 'employee-3');
   assert.equal(Object.keys(result.rows[0].patch).length, 14);
-  for (const field of MONTHLY_INPUT_FIELDS) {
+  for (const field of MONTHLY_INPUT_FIELDS.filter(field => field.group !== 'Attendance' && field.key !== 'tds')) {
     assert.equal(result.rows[0].patch[field.key], String(PAYROLL_REGISTER_COLUMNS.findIndex(column => column.key === field.key) + 0.25));
   }
   assert.equal(result.rows[0].patch.salary, undefined);
@@ -229,4 +229,19 @@ test('workbook row errors keep Excel row numbers after leading blank rows', asyn
   XLSX.utils.book_append_sheet(workbook, sheet, 'Input');
   const result = importRows(await readPayrollInputWorkbook(workbookFile(workbook)));
   assert.equal(result.errors[0].row, 4);
+});
+
+test('reviewed attendance template round-trips H:MM text without interpreting it as decimal hours', () => {
+  const records = [{ employee_id: employees[0].id, attendance_source: 'reviewed', worked_minutes: 11985,
+    actual_working_days: 23.5, public_holiday_days: 0, off_days: 0, tds: 400, notes: 'Approved HR working sheet' }];
+  const workbook = buildPayrollInputTemplateWorkbook(XLSX, [employees[0]], records, '2026-09');
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets['Monthly inputs'], { header: 1 });
+  const result = parsePayrollImportRows(rows, employees);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows[0].patch.worked_minutes, '199:45');
+  assert.equal(result.rows[0].patch.attendance_source, 'reviewed');
+  assert.equal(result.rows[0].patch.tds, '400');
+  assert.equal(result.rows[0].patch.off_days, '0');
+  const invalid = parsePayrollImportRows([['Employee ID', 'Reviewed worked time'], [employees[0].id, 199.45]], employees);
+  assert.match(invalid.errors[0].message, /H:MM/);
 });

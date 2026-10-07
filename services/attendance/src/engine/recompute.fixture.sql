@@ -11,7 +11,7 @@ create table shifts (
  id uuid primary key, entity_id uuid, code text, name text,
  start_time time, end_time time, crosses_midnight boolean,
  grace_in_minutes int default 0, grace_out_minutes int default 0,
- break_minutes int default 0, break_policy text default 'actual', weekly_offs int[] default '{}',
+ break_minutes int default 0, break_policy text default 'actual', break_windows jsonb not null default '[]', weekly_offs int[] default '{}',
  full_day_minutes int default 480, half_day_minutes int default 240,
  ot_after_minutes int default 0, min_ot_minutes int default 1, ot_basis text default 'worked',
  missed_punch_policy text default 'exception', late_absent_minutes int default 1440,

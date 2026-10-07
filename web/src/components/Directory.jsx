@@ -9,6 +9,7 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useEmployees, useEmployee, useCreateEmployee, useUpdateEmployee } from '../data/employees';
+import { useShifts } from '../data/shifts';
 import { useSalaryStructures, useSaveSalaryStructure } from '../data/payroll';
 import {
   useAddDocument, useEmployeeDocuments, useDocumentLink, useEmployeeAvatars,
@@ -1032,6 +1033,7 @@ const SUBMIT_BTN = btnClass('primary');
 const CANCEL_BTN = btnClass('ghost');
 function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const isEdit = Boolean(employee);
+  const shiftsQuery = useShifts();
   const existingDocumentsQuery = useEmployeeDocuments(employee?.id);
   const documentLink = useDocumentLink();
   const [form, setForm] = useState(() => ({
@@ -1041,6 +1043,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     personal_email: employee?.personal_email ?? '',
     phone: employee?.phone ?? '',
     join_date: employee?.join_date ?? '',
+    shift_id: null,
     status: employee?.status ?? 'Active',
     entity_id: employee?.entity_id ?? '',
     branch_id: employee?.branch_id ?? '',
@@ -1074,7 +1077,22 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const [openingDocumentId, setOpeningDocumentId] = useState(null);
   // Format problems, keyed by field. Cleared and recomputed on every save attempt.
   const [formatErrors, setFormatErrors] = useState({});
-  const patch = (p) => setForm((f) => ({ ...f, ...p }));
+  const patch = (p) => setForm((f) => ({ ...f, ...p,
+    ...(!isEdit && 'entity_id' in p && p.entity_id !== f.entity_id ? { shift_id: null } : {}),
+  }));
+  const availableShifts = form.entity_id ? (shiftsQuery.data ?? []).filter(shift => shift.is_active
+    && (!shift.entity_id || shift.entity_id === form.entity_id)) : [];
+  const chosenShift = form.shift_id == null
+    ? availableShifts.find(shift => shift.is_default && shift.entity_id === form.entity_id)
+      || availableShifts.find(shift => shift.is_default && !shift.entity_id)
+    : availableShifts.find(shift => shift.id === form.shift_id);
+  const shiftsLoading = shiftsQuery.isPending || shiftsQuery.isLoading || !shiftsQuery.data && !shiftsQuery.error;
+  const shiftReady = Boolean(chosenShift && !shiftsLoading && !shiftsQuery.error);
+  const joinDateReady = /^\d{4}-\d{2}-\d{2}$/.test(form.join_date)
+    && Number.isFinite(Date.parse(`${form.join_date}T00:00:00Z`))
+    && new Date(`${form.join_date}T00:00:00Z`).toISOString().slice(0, 10) === form.join_date;
+  const shiftSchedule = shift => `${String(shift.start_time).slice(0, 5)}–${String(shift.end_time).slice(0, 5)}${shift.crosses_midnight ? ' · ends next day' : ''}`;
+  const shiftDailyBasis = shift => `${Math.floor(Number(shift.full_day_minutes) / 60)}h ${Number(shift.full_day_minutes) % 60}m`;
 
   // App access, folded into this form so adding a person is one job rather than two screens.
   const { rank: myRank, permissions, assignments } = useAuth();
@@ -1211,7 +1229,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const accessReady =
     !wantsAccess || (accessEmail && access.password.length >= 6 && !accessScope.missing);
 
-  const canSubmit = form.full_name.trim() && form.entity_id && accessReady && placementAllowed;
+  const canSubmit = form.full_name.trim() && form.entity_id && accessReady && placementAllowed
+    && (isEdit || joinDateReady && shiftReady);
   const selectedDocuments = EMPLOYEE_DOCUMENT_TYPES
     .map((doc) => ({ ...doc, file: documents[doc.key] }))
     .filter((doc) => doc.file);
@@ -1295,7 +1314,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
 
   const submit = (e) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (busy || !canSubmit) return;
 
     // The database's own format guards, applied before the round trip. Without this a mistyped PAN
     // comes back as a 400 naming a check constraint, which tells the person nothing about the PAN.
@@ -1313,6 +1332,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
         email: form.email.trim() || null,
         phone: form.phone.trim() || null,
         join_date: form.join_date || null,
+        ...(!isEdit ? { shift_id: chosenShift.id } : {}),
         status: form.status,
         entity_id: form.entity_id,
         branch_id: form.branch_id || null,
@@ -1376,6 +1396,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const blockers = [];
   if (!form.full_name.trim()) blockers.push('a full name');
   if (!form.entity_id) blockers.push('a company');
+  if (!isEdit && !joinDateReady) blockers.push('a valid join date');
+  if (!isEdit && !shiftReady) blockers.push(shiftsLoading ? 'shifts to finish loading' : shiftsQuery.error ? 'the shift list to load successfully' : 'an active shift');
   if (wantsAccess && !accessEmail) blockers.push('a login email');
   if (wantsAccess && access.password.length < 6) blockers.push('a longer password');
   if (wantsAccess && accessScope.missing) blockers.push(`a ${accessScope.noun} for that role`);
@@ -1384,6 +1406,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
   const completionItems = [
     { label: 'Profile', done: Boolean(form.full_name.trim() && form.entity_id), sub: 'Name and company' },
     { label: 'Placement', done: Boolean(form.branch_id || form.department_id || form.designation_id), sub: 'Branch, dept or role' },
+    !isEdit && { label: 'Shift', done: shiftReady && joinDateReady, sub: chosenShift ? `${chosenShift.name} · from join date` : 'Required for payroll' },
     { label: 'Payroll', done: Boolean(form.bank_account.trim() && form.bank_ifsc.trim() && form.pan.trim()), sub: 'Bank, IFSC and PAN' },
     {
       label: 'Documents',
@@ -1425,10 +1448,6 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
               <div>
                 <label className={L} htmlFor="emp-phone">Phone</label>
                 <input id="emp-phone" className={FORM_INPUT} value={form.phone} onChange={(e) => patch({ phone: e.target.value })} placeholder="+91…" />
-              </div>
-              <div>
-                <label className={L} htmlFor="emp-join-date">Join date</label>
-                <input id="emp-join-date" type="date" className={FORM_INPUT} value={form.join_date || ''} onChange={(e) => patch({ join_date: e.target.value })} />
               </div>
               <div>
                 <label className={L} htmlFor="emp-status">Status</label>
@@ -1510,8 +1529,30 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
           </div>
         </FormBlock>
 
-        <FormBlock step={2} title="Designation" hint="This decides who manages them and what they can see.">
+        <FormBlock step={2} title="Placement & shift" hint="Set their company, role and working schedule.">
           <EmployeeOrgFields org={org} value={form} onChange={patch} inputClass={FORM_INPUT} labelClass={L} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <div>
+              <label className={L} htmlFor="emp-join-date">Join date{!isEdit ? ' *' : ''}</label>
+              <input id="emp-join-date" type="date" required={!isEdit} className={FORM_INPUT} value={form.join_date || ''} onChange={(e) => patch({ join_date: e.target.value })} />
+            </div>
+            {!isEdit && <div>
+              <label className={L} htmlFor="emp-shift">Working shift *</label>
+              <select id="emp-shift" required className={FORM_INPUT} value={chosenShift?.id || ''}
+                disabled={busy || !form.entity_id || shiftsLoading || Boolean(shiftsQuery.error)}
+                onChange={(e) => patch({ shift_id: e.target.value })} aria-describedby="emp-shift-help">
+                <option value="">{!form.entity_id ? 'Choose a company first' : shiftsLoading ? 'Loading shifts…' : 'Choose a shift'}</option>
+                {availableShifts.map(shift => <option key={shift.id} value={shift.id}>{shift.name} · {shiftSchedule(shift)} · {shiftDailyBasis(shift)} paid{shift.is_default ? ' · default' : ''}</option>)}
+              </select>
+            </div>}
+          </div>
+          {!isEdit ? <div id="emp-shift-help" className="mt-2 text-xs text-neutral-500">
+            {shiftsQuery.error ? <p role="alert">Could not load shifts: {shiftsQuery.error.message || String(shiftsQuery.error)}. <button type="button" onClick={() => shiftsQuery.refetch()} disabled={shiftsQuery.isFetching} className="underline">Retry</button></p>
+              : shiftsLoading ? <p role="status">Loading available shifts…</p>
+                : form.entity_id && !availableShifts.length ? <p>No active shift is available for this company. Ask HR to set up a company or shared shift in Attendance setup → Shifts.</p>
+                  : chosenShift ? <p>{shiftSchedule(chosenShift)} IST · Daily salary basis: {shiftDailyBasis(chosenShift)}. Assigned from {form.join_date || 'the join date'}.</p>
+                    : <p>Choose a working shift. Its daily paid hours will be used for payroll from the join date.</p>}
+          </div> : <p className="mt-2 text-xs text-neutral-500">Existing shift assignments stay unchanged. {canAny('shift.manage') ? <a href="#/attendance-admin/shifts" className="underline">Manage dated shift assignments</a> : 'HR can update dated assignments in Attendance setup → Shifts.'}</p>}
         </FormBlock>
 
         {/* Everything below is optional to SAVE but required to PAY. A person with no bank

@@ -63,9 +63,9 @@ do $$ declare employee uuid; begin
     'orphan punches are adopted with employee ancestry';
   assert (select employee_id=audit_device_employee.id(4,1) from public.raw_punches
     where emp_code='DEVICE-AUDIT-NEW' and punch_time='2026-09-26 04:00:00+00'),'assigned punches keep their original owner';
-  assert (select array_agg(work_date order by work_date)=array['2026-09-17','2026-09-18','2026-09-24','2026-09-25']::date[]
+  assert (select array_agg(work_date order by work_date)=array['2026-09-16','2026-09-17','2026-09-18','2026-09-19','2026-09-23','2026-09-24','2026-09-25','2026-09-26']::date[]
     from public.attendance_recompute_queue where employee_id=employee and processed_at is null),
-    'adoption queues actual IST dates and their previous days, excluding unrelated dates and assigned punches';
+    'adoption queues each punch''s four possible shift ownership dates, excluding unrelated assigned punches';
 end $$;
 create table audit_device_employee.initial_queue as
   select q.id,q.work_date,q.generation from public.attendance_recompute_queue q
@@ -89,7 +89,7 @@ do $$ begin
     from public.biotime_employees be join public.employees e on e.id=be.employee_id where be.emp_code='DEVICE-AUDIT-NEW'),
     'refresh restores provisioned identity after legacy clearing and preserves every HR-maintained field';
   assert not exists(select from public.employees where employee_code='DEVICE-AUDIT-NEW'),'refresh does not duplicate a renamed employee';
-  assert (select count(*)=4 and bool_and(q.generation=i.generation) from public.attendance_recompute_queue q
+  assert (select count(*)=8 and bool_and(q.generation=i.generation) from public.attendance_recompute_queue q
     join audit_device_employee.initial_queue i on i.id=q.id
     join public.biotime_employees be on be.employee_id=q.employee_id where be.emp_code='DEVICE-AUDIT-NEW'),
     'repeated roster refresh does not duplicate or churn recompute jobs';
@@ -112,13 +112,13 @@ do $$ begin
     join public.biotime_employees be on be.emp_code=rp.emp_code
     where rp.emp_code='DEVICE-AUDIT-NEW' and rp.punch_time='2026-09-18 00:45:00+00'),
     'a same-identity trusted roster refresh adopts a punch inserted after initial linking';
-  assert (select count(*)=4 and count(*)filter(where q.work_date in('2026-09-17','2026-09-18') and q.generation>i.generation)=2
-    and count(*)filter(where q.work_date in('2026-09-24','2026-09-25') and q.generation=i.generation)=2
+  assert (select count(*)=8 and count(*)filter(where q.work_date between '2026-09-16' and '2026-09-19' and q.generation>i.generation)=4
+    and count(*)filter(where q.work_date between '2026-09-23' and '2026-09-26' and q.generation=i.generation)=4
     and bool_and(q.generation=l.generation)
     from public.attendance_recompute_queue q join public.biotime_employees be on be.employee_id=q.employee_id
     join audit_device_employee.initial_queue i on i.id=q.id join audit_device_employee.late_queue l on l.id=q.id
     where be.emp_code='DEVICE-AUDIT-NEW'),
-    'late orphan advances only its IST workday and previous day; following no-op refresh preserves generations';
+    'late orphan advances only its four possible ownership dates; following no-op refresh preserves generations';
   assert (select employee_id=audit_device_employee.id(4,1) from public.raw_punches
     where emp_code='DEVICE-AUDIT-NEW' and punch_time='2026-09-26 04:00:00+00'),
     'late orphan recovery never reparents an already assigned punch';
@@ -270,8 +270,8 @@ do $$ begin
     'trusted explicit backfill provisions without pretending the source just synced';
   assert (select rp.employee_id=be.employee_id from public.raw_punches rp join public.biotime_employees be on be.emp_code=rp.emp_code
     where be.emp_code='DEVICE-AUDIT-BACKFILL'),'explicit backfill adopts orphan punches';
-  assert (select count(*)=2 from public.attendance_recompute_queue q join public.biotime_employees be on be.employee_id=q.employee_id
-    where be.emp_code='DEVICE-AUDIT-BACKFILL' and q.processed_at is null),'explicit backfill queues both affected workdays';
+  assert (select count(*)=4 from public.attendance_recompute_queue q join public.biotime_employees be on be.employee_id=q.employee_id
+    where be.emp_code='DEVICE-AUDIT-BACKFILL' and q.processed_at is null),'explicit backfill queues all four possible ownership workdays';
 end $$;
 rollback;
 select 'PASS: device employee creation, HR identity preservation, duplicate review, trusted-sync gate, orphan punch adoption and overnight generation-safe recomputes' as result;

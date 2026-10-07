@@ -11,6 +11,8 @@ import {
   RefreshCw, AlertTriangle, Search, Server, Wifi, WifiOff, Download, Palmtree,
 } from 'lucide-react';
 import { useShifts, useSaveShift, useDeleteShift, WEEKDAYS } from '../data/shifts';
+import { BREAK_POLICIES, MAX_SHIFT_BREAK_WINDOWS, shiftFormDraft, shiftReachability } from '../lib/shiftForm.js';
+import EmployeeShiftAssignments from './EmployeeShiftAssignments';
 import { useHolidayCalendars, useHolidays, useSaveHoliday, useDeleteHoliday } from '../data/holidays';
 import { useLeaveTypes, useSaveLeaveType } from '../data/leaveTypes';
 import {
@@ -390,12 +392,6 @@ function MappingTab() {
 // Shifts
 // ---------------------------------------------------------------------------
 
-const BLANK_SHIFT = {
-  code: '', name: '', start_time: '09:30', end_time: '18:30',
-  grace_in_minutes: 15, grace_out_minutes: 15, break_minutes: 60,
-  weekly_offs: [0], full_day_minutes: 480, half_day_minutes: 240,
-  ot_after_minutes: 30, min_ot_minutes: 30, is_default: false, is_active: true,
-};
 
 function ShiftsTab() {
   const { data: shifts = [], isLoading } = useShifts();
@@ -420,23 +416,12 @@ function ShiftsTab() {
   const entities = org?.entities ?? [];
   const defaultEntityId = employee?.entity_id ?? (entities.length === 1 ? entities[0].id : '');
 
-  // Mirrors the shifts_full_day_reachable_check constraint, so the user sees the problem while
-  // typing instead of getting a database error on save.
-  const reachable = useMemo(() => {
-    if (!form) return { max: 0, ok: true };
-    const toMin = (t) => {
-      const [h = 0, m = 0] = String(t).split(':').map(Number);
-      return h * 60 + m;
-    };
-    const start = toMin(form.start_time);
-    const end = toMin(form.end_time);
-    const span = end <= start ? end - start + 1440 : end - start;
-    const max = span - (Number(form.break_minutes) || 0);
-    return { max, ok: (Number(form.full_day_minutes) || 0) <= max };
-  }, [form]);
+  const reachable = useMemo(() => shiftReachability(form), [form]);
+  const breakRule = BREAK_POLICIES.find(policy => policy.value === form?.break_policy);
 
   const submit = (e) => {
     e.preventDefault();
+    if (save.isPending || !reachable.ok) return;
     save.mutate(form, { onSuccess: () => setForm(null) });
   };
 
@@ -444,16 +429,17 @@ function ShiftsTab() {
     <div className="space-y-4">
       <div className="mobile-list-row flex justify-between items-center">
         <p className="text-xs text-neutral-500 max-w-2xl">
-          A shift defines the scheduled window, the grace either side, the unpaid break, and the
-          weekly offs. Employees without an explicit assignment fall back to the default shift.
+          Set each team’s day or night schedule, break allowance and attendance rules.
+          Employees without an assignment use the company’s default shift.
         </p>
-        <button onClick={() => setForm({ ...BLANK_SHIFT, entity_id: defaultEntityId })} className={btnPrimary}>
+        <button disabled={save.isPending} onClick={() => { save.reset(); setForm(shiftFormDraft({ entity_id: defaultEntityId })); }} className={btnPrimary}>
           <Plus size={13} /> New shift
         </button>
       </div>
 
       {form && (
         <form onSubmit={submit} className="premium-card space-y-3 animate-fade-in">
+          <fieldset disabled={save.isPending} className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <label className={label}>Company
               <select
@@ -475,38 +461,95 @@ function ShiftsTab() {
               <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} />
             </label>
             <label className={label}>Start
-              <input required type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} className={input} />
+              <input required type="time" step="1" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} className={input} />
             </label>
             <label className={label}>End
-              <input required type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} className={input} />
+              <input required type="time" step="1" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} className={input} />
             </label>
-            <label className={label}>Grace in (min)
-              <input type="number" value={form.grace_in_minutes} onChange={(e) => setForm({ ...form, grace_in_minutes: e.target.value })} className={input} />
+            <label className={label}>Arrival grace (min)
+              <input type="number" min="0" step="1" disabled={form.is_flexible} value={form.grace_in_minutes} onChange={(e) => setForm({ ...form, grace_in_minutes: e.target.value })} className={input} />
             </label>
-            <label className={label}>Grace out (min)
-              <input type="number" value={form.grace_out_minutes} onChange={(e) => setForm({ ...form, grace_out_minutes: e.target.value })} className={input} />
+            <label className={label}>Departure grace (min)
+              <input type="number" min="0" step="1" disabled={form.is_flexible} value={form.grace_out_minutes} onChange={(e) => setForm({ ...form, grace_out_minutes: e.target.value })} className={input} />
             </label>
-            <label className={label}>Unpaid break (min)
-              <input type="number" value={form.break_minutes} onChange={(e) => setForm({ ...form, break_minutes: e.target.value })} className={input} />
-            </label>
-            <label className={label}>Full day (min)
-              <input type="number" value={form.full_day_minutes} onChange={(e) => setForm({ ...form, full_day_minutes: e.target.value })}
+            {form.break_policy !== 'scheduled' && <label className={label}>{breakRule?.minutesLabel || 'Break (min)'}
+              <input type="number" min="0" step="1" value={form.break_minutes} onChange={(e) => setForm({ ...form, break_minutes: e.target.value })} className={input} />
+            </label>}
+            <label className={label}>Daily paid hours / salary basis (min)
+              <input type="number" min="1" step="1" value={form.full_day_minutes} onChange={(e) => setForm({ ...form, full_day_minutes: e.target.value })}
                 className={`${input} ${reachable.ok ? '' : 'border-red-400 dark:border-red-700'}`} />
             </label>
-            <label className={label}>Half day (min)
-              <input type="number" value={form.half_day_minutes} onChange={(e) => setForm({ ...form, half_day_minutes: e.target.value })} className={input} />
+            <label className={label}>{form.is_flexible ? 'Half-day threshold for fixed schedules (min)' : 'Half-day threshold (min)'}
+              <input type="number" min="0" step="1" value={form.half_day_minutes} onChange={(e) => setForm({ ...form, half_day_minutes: e.target.value })} className={input} />
             </label>
-            <label className={label}>OT starts after (min)
-              <input type="number" value={form.ot_after_minutes} onChange={(e) => setForm({ ...form, ot_after_minutes: e.target.value })} className={input} />
+            <label className={label}>OT grace before counting (min)
+              <input type="number" min="0" step="1" value={form.ot_after_minutes} onChange={(e) => setForm({ ...form, ot_after_minutes: e.target.value })} className={input} />
             </label>
             <label className={label}>Minimum OT (min)
-              <input type="number" value={form.min_ot_minutes} onChange={(e) => setForm({ ...form, min_ot_minutes: e.target.value })} className={input} />
+              <input type="number" min="0" step="1" value={form.min_ot_minutes} onChange={(e) => setForm({ ...form, min_ot_minutes: e.target.value })} className={input} />
             </label>
           </div>
 
-          {!reachable.ok && (
-            <Note error={{ message: `A full day of ${form.full_day_minutes} min is impossible in this shift — only ${reachable.max} min are workable once the break is deducted. Everyone on it would be marked Half Day.` }} />
-          )}
+          <p className="text-xs text-neutral-500" role="status">{reachable.crossesMidnight ? 'Ends next day. Attendance belongs to the date the shift starts.' : 'Starts and ends on the same day.'} Times are in IST. Scheduled span: {Number(reachable.span).toLocaleString('en-IN', { maximumFractionDigits: 2 })} min.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <label className={label}>Break deduction rule
+              <select className={input} value={form.break_policy} onChange={event => setForm({ ...form, break_policy: event.target.value })}>
+                {BREAK_POLICIES.map(policy => <option key={policy.value} value={policy.value}>{policy.label}</option>)}
+              </select>
+            </label>
+            <label className={label}>Attendance schedule
+              <select className={input} value={form.is_flexible ? 'flexible' : 'fixed'} onChange={event => setForm({ ...form, is_flexible: event.target.value === 'flexible' })}>
+                <option value="fixed">Fixed start and end</option><option value="flexible">Flexible attendance; track daily hours</option>
+              </select>
+            </label>
+            <label className={label}>OT measured from
+              <select className={input} disabled={form.is_flexible} value={form.is_flexible ? 'worked' : form.ot_basis} onChange={event => setForm({ ...form, ot_basis: event.target.value })}>
+                <option value="worked">Hours beyond the daily target</option><option value="schedule">Time after the scheduled end</option>
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-neutral-500">{breakRule?.help}</p>
+          {form.break_policy === 'scheduled' && <div className="space-y-3 rounded-xl border border-neutral-200 dark:border-neutral-800 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-xs font-semibold">Break times</h4>
+              <button type="button" className={btnGhost} disabled={form.break_windows.length >= MAX_SHIFT_BREAK_WINDOWS} onClick={() => setForm(current => ({ ...current,
+                break_windows: [...current.break_windows, { label: `Break ${current.break_windows.length + 1}`, start_time: '', end_time: '', is_paid: false }] }))}><Plus size={12} />Add break</button>
+            </div>
+            <p className="text-xs text-neutral-500">Enter each break’s actual clock times. On a night shift, times before the shift start are on the following day. Breaks may touch but must not overlap.</p>
+            {form.break_windows.map((window, index) => <div key={index} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 items-end">
+              <label className={label}>Break name<input className={input} required maxLength={100} value={window.label} aria-label={`Break ${index + 1} name`}
+                onChange={event => setForm(current => ({ ...current, break_windows: current.break_windows.map((item, position) => position === index ? { ...item, label: event.target.value } : item) }))} /></label>
+              <label className={label}>Start<input className={input} type="time" step="1" required value={window.start_time} aria-label={`Break ${index + 1} start`}
+                onChange={event => setForm(current => ({ ...current, break_windows: current.break_windows.map((item, position) => position === index ? { ...item, start_time: event.target.value } : item) }))} /></label>
+              <label className={label}>End<input className={input} type="time" step="1" required value={window.end_time} aria-label={`Break ${index + 1} end`}
+                onChange={event => setForm(current => ({ ...current, break_windows: current.break_windows.map((item, position) => position === index ? { ...item, end_time: event.target.value } : item) }))} /></label>
+              <label className="flex items-center gap-2 py-2 text-xs"><input type="checkbox" checked={window.is_paid} aria-label={`Break ${index + 1} is paid`}
+                onChange={event => setForm(current => ({ ...current, break_windows: current.break_windows.map((item, position) => position === index ? { ...item, is_paid: event.target.checked } : item) }))} />Paid break</label>
+              <button type="button" className={btnGhost} aria-label={`Remove break ${index + 1}`} onClick={() => setForm(current => ({ ...current, break_windows: current.break_windows.filter((_, position) => position !== index) }))}><Trash2 size={12} />Remove</button>
+            </div>)}
+            {!reachable.error && <p className="text-xs text-neutral-500">Scheduled payable time: <strong>{Number(reachable.max).toLocaleString('en-IN', { maximumFractionDigits: 2 })} minutes</strong> ({Math.floor(reachable.max / 60)}h {Number(reachable.max % 60).toLocaleString('en-IN', { maximumFractionDigits: 2 })}m), after unpaid break windows. Review the daily paid-hours / salary basis above against this schedule.</p>}
+          </div>}
+          {form.is_flexible && <p className="text-xs text-neutral-500">Flexible attendance grants a full attendance day when the employee attends, even if hours are short. It records short hours without late / early marks and measures OT from worked hours. The half-day threshold and absence grace rules are inactive. Hourly payroll still uses actual worked time.</p>}
+          {!reachable.ok && <Note error={{ message: reachable.error || `The daily paid-hours basis exceeds the ${Number(reachable.max).toLocaleString('en-IN', { maximumFractionDigits: 2 })} minutes available under this shift’s break rule.` }} />}
+          <details className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-3">
+            <summary className="cursor-pointer text-xs font-semibold">Missing punches and attendance exceptions</summary>
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+              <label className={label}>One recorded punch
+                <select className={input} value={form.missed_punch_policy} onChange={event => setForm({ ...form, missed_punch_policy: event.target.value })}>
+                  <option value="exception">Provisional half-day credit</option><option value="present">Provisional full-day credit</option>
+                </select>
+              </label>
+              <label className={label}>Short-day tolerance (min)
+                <input className={input} type="number" min="0" max="240" step="1" value={form.short_day_tolerance_minutes} onChange={event => setForm({ ...form, short_day_tolerance_minutes: event.target.value })} />
+              </label>
+              <label className={label}>Absent when lateness exceeds (min)
+                <input className={input} disabled={form.is_flexible} type="number" min="0" step="1" value={form.late_absent_minutes} onChange={event => setForm({ ...form, late_absent_minutes: event.target.value })} />
+              </label>
+              <label className={label}>Absent when early departure exceeds (min)
+                <input className={input} disabled={form.is_flexible} type="number" min="0" step="1" value={form.early_absent_minutes} onChange={event => setForm({ ...form, early_absent_minutes: event.target.value })} />
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-neutral-500">Missing punches remain flagged for HR review under both credit rules. The recorded-attendance payroll source stays blocked until the issue is resolved. Absence thresholds use lateness / early departure after the corresponding grace.</p>
+          </details>
 
           <div>
             <span className={label}>Weekly offs</span>
@@ -532,13 +575,15 @@ function ShiftsTab() {
             Default shift (used when an employee has no assignment)
           </label>
 
+          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={form.is_active} onChange={event => setForm({ ...form, is_active: event.target.checked })} />Active for new assignments</label>
+          </fieldset>
           <Note error={save.error} />
 
           <div className="flex gap-2">
             <button type="submit" disabled={save.isPending || !reachable.ok} className={btnPrimary}>
               {save.isPending ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Save
             </button>
-            <button type="button" onClick={() => setForm(null)} className={btnGhost}><X size={13} /> Cancel</button>
+            <button type="button" disabled={save.isPending} onClick={() => setForm(null)} className={btnGhost}><X size={13} /> Cancel</button>
           </div>
         </form>
       )}
@@ -557,7 +602,7 @@ function ShiftsTab() {
                   <th className="text-left">Grace</th>
                   <th className="text-left">Break</th>
                   <th className="text-left">Weekly offs</th>
-                  <th className="text-left">Full day</th>
+                  <th className="text-left">Daily paid hours / salary basis</th>
                   <th className="text-right">Actions</th>
                 </tr>
               </thead>
@@ -568,19 +613,19 @@ function ShiftsTab() {
                       {s.code}
                       {s.is_default ? <span className="badge badge-green ml-1.5">default</span> : null}
                     </td>
-                    <td data-label="Name">{s.name}</td>
+                    <td data-label="Name">{s.name}{s.is_active === false && <span className="block text-2xs text-neutral-500">Inactive for new assignments</span>}</td>
                     <td data-label="Window" className="font-mono">
                       {String(s.start_time).slice(0, 5)}–{String(s.end_time).slice(0, 5)}
-                      {s.crosses_midnight ? <span className="text-2xs text-amber-600 ml-1">+1d</span> : null}
+                      {s.crosses_midnight ? <span className="text-2xs text-amber-600 ml-1">Ends next day</span> : null}<span className="block text-2xs text-neutral-500">{s.is_flexible ? 'Flexible attendance' : 'Fixed schedule'}</span>
                     </td>
                     <td data-label="Grace" className="font-mono">{s.grace_in_minutes}/{s.grace_out_minutes}m</td>
-                    <td data-label="Break" className="font-mono">{s.break_minutes}m</td>
+                    <td data-label="Break"><span className="font-mono">{s.break_policy === 'scheduled' ? `${s.break_windows?.length ?? 0} windows` : `${s.break_minutes}m`}</span><span className="block text-2xs text-neutral-500">{BREAK_POLICIES.find(policy => policy.value === (s.break_policy ?? 'fixed'))?.label}</span></td>
                     <td data-label="Weekly offs">{(s.weekly_offs ?? []).map((d) => WEEKDAYS[d]).join(', ') || '—'}</td>
-                    <td data-label="Full day" className="font-mono">{s.full_day_minutes}m</td>
+                    <td data-label="Daily paid hours / salary basis" className="font-mono">{s.full_day_minutes}m</td>
                     <td data-label="Actions" className="text-right whitespace-nowrap">
-                      <button onClick={() => setForm({ ...s, start_time: String(s.start_time).slice(0, 5), end_time: String(s.end_time).slice(0, 5) })}
+                      <button disabled={save.isPending || remove.isPending} onClick={() => { save.reset(); setForm(shiftFormDraft(s)); }}
                         className="px-2 py-1 rounded-lg bg-neutral-200 dark:bg-neutral-800 text-2xs font-bold mr-1">Edit</button>
-                      <button onClick={() => { if (confirm(`Delete shift ${s.code}?`)) remove.mutate(s.id); }}
+                      <button disabled={save.isPending || remove.isPending} onClick={() => { if (confirm(`Delete shift ${s.code}?`)) remove.mutate(s.id); }}
                         className="px-2 py-1 rounded-lg bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-2xs font-bold">
                         <Trash2 size={10} />
                       </button>
@@ -594,6 +639,7 @@ function ShiftsTab() {
         <Note error={remove.error} />
         <Pagination {...pager} noun="shifts" sizes={[10, 25, 50]} disabled={save.isPending || remove.isPending} />
       </div>
+      <EmployeeShiftAssignments />
     </div>
   );
 }

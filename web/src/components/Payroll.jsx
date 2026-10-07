@@ -32,6 +32,7 @@ import ListSearch from './ui/ListSearch';
 import PayrollWorksheet from './PayrollWorksheet';
 import PayrollSalarySetup from './PayrollSalarySetup';
 import PayrollHistory from './PayrollHistory';
+import PayrollCalculationDetail from './PayrollCalculationDetail';
 
 const money = (n) =>
   n == null
@@ -235,29 +236,14 @@ function PayslipDetail({ payslip }) {
 
   return (
     <div className="mt-4 pt-4 border-t border-neutral-200 dark:border-neutral-850 space-y-4">
-      {payslip.payroll_register && (
-        <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          {[
-            ['Monthly salary', money(payslip.payroll_register.salary)],
-            ['Earned salary', money(payslip.payroll_register.earned_salary)],
-            ['Day rate', money(payslip.payroll_register.per_day_wages)],
-            ['Hour rate', money(payslip.payroll_register.per_hour_wages)],
-            ['Actual working days', payslip.payroll_register.actual_working_days],
-            ['Public holidays', payslip.payroll_register.public_holiday],
-            ['Off days', payslip.payroll_register.off_days],
-            ['Casual leave', payslip.payroll_register.casual_leave],
-            ['Approved OT hours', payslip.payroll_register.ot_hours],
-            ['Approved late hours', payslip.payroll_register.late_hours],
-          ].map(([label, value]) => <div key={label}><dt className="text-neutral-500">{label}</dt><dd className="mt-1 font-semibold text-neutral-800 dark:text-neutral-100">{value ?? '—'}</dd></div>)}
-        </dl>
-      )}
+      <PayrollCalculationDetail register={payslip.payroll_register} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <Col title="Earnings" rows={earnings} total={payslip.gross} tone="text-emerald-600 dark:text-emerald-400" />
         <Col title="Deductions" rows={deductions} total={payslip.deductions} tone="text-rose-500" />
       </div>
       <div className="mobile-list-row flex flex-wrap items-center justify-between gap-3 rounded-xl bg-neutral-50 dark:bg-charcoal-900/40 px-3 py-2.5">
         <span className="text-xs text-neutral-500">
-          Paid {payslip.paid_days ?? '—'} days{payslip.lop_days > 0 ? ` · ${payslip.lop_days} unpaid` : ''}
+          {payslip.payroll_register?.calculation_mode === 'hourly_workings' ? 'Credited' : 'Paid'} {payslip.paid_days ?? '—'} days{payslip.lop_days > 0 ? ` · ${payslip.lop_days} unpaid` : ''}
         </span>
         <span className="text-sm font-bold text-neutral-900 dark:text-white">Net {money(payslip.net)}</span>
       </div>

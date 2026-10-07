@@ -10,7 +10,7 @@
 //   - duplicate punches      -> collapsed within PUNCH_DEDUPE_SECONDS
 //   - no shift assigned      -> No Shift; the person is NOT marked absent on a guess
 import { env } from '../config/env';
-import { workDateAtTime, weekdayOf, minutesBetween, minutesToHours } from '../lib/time';
+import { workDateAtTime, toWorkDate, weekdayOf, minutesBetween, minutesToHours } from '../lib/time';
 import type { DayInput, DayResult, LeaveOverlay, PunchRecord, ShiftDefinition } from './types';
 
 /** How far either side of the scheduled shift a punch still counts as that shift's punch. */
@@ -23,65 +23,124 @@ export function scheduledWindow(
 ): { start: Date; end: Date } {
   const start = workDateAtTime(workDate, shift.startTime);
   const end = workDateAtTime(workDate, shift.endTime, shift.crossesMidnight ? 1 : 0);
+  if (end <= start || end.getTime() - start.getTime() >= 24 * 60 * 60_000) {
+    throw new Error(`Shift ${shift.code} on ${workDate} must be shorter than 24 hours and end after it starts.`);
+  }
   return { start, end };
 }
 
 /**
- * The window of punches belonging to this work date.
+ * One shared boundary between the previous work date and this one. Keep the established
+ * start-minus-six-hours cutover when it lies in the gap between schedules. A rotation from
+ * 22:00–06:00 to 09:00–17:30 instead cuts the three-hour gap at 07:30, so neither the night
+ * checkout nor the next arrival is counted twice. An exact scheduled checkout stays on its
+ * starting work date, which requires the boundary to be strictly after the previous end.
  *
- * For a day shift this is close to the calendar day. For a night shift (22:00 -> 06:00) it runs
- * from the evening of the work date into the following morning — which is the whole reason a
- * night-shift worker's 05:50 exit punch is credited to the day they started, not the day after.
+ * Keep this contract aligned with app.attendance_punch_window in migration 0164.
  */
-export function punchWindow(workDate: string, shift: ShiftDefinition | null): { from: Date; to: Date } {
-  if (!shift) {
-    return {
-      from: workDateAtTime(workDate, '00:00:00'),
-      to: workDateAtTime(workDate, '00:00:00', 1),
-    };
+export function punchBoundary(
+  workDate: string,
+  previousShift: ShiftDefinition | null,
+  currentShift: ShiftDefinition | null
+): Date {
+  const midnight = workDateAtTime(workDate, '00:00:00');
+  const previousDate = toWorkDate(workDateAtTime(workDate, '00:00:00', -1));
+  if (!currentShift) {
+    if (!previousShift) return midnight;
+    const previous = scheduledWindow(previousDate, previousShift);
+    // A missing assignment must not steal a previous night shift's morning checkout. Preserve
+    // its former end margin (or its next start-minus-six-hours cutover for a day shift).
+    const previousCutover = previousShift.crossesMidnight
+      ? previous.end.getTime() + WINDOW_MARGIN_MINUTES * 60_000
+      : workDateAtTime(workDate, previousShift.startTime).getTime() - WINDOW_MARGIN_MINUTES * 60_000;
+    return new Date(Math.max(midnight.getTime(), previousCutover));
   }
 
-  // A shift that stays inside one calendar day takes the whole calendar day, not the schedule plus
-  // a margin.
-  //
-  // The margin left a gap. GENERAL is 09:00-17:30, so start-6h to end+6h is 03:00-23:30, and the
-  // next day's window does not open until 03:00 either — a punch between 23:30 and 03:00 belonged
-  // to no work date and was silently dropped after being loaded. 41 punches across 6 people, and it
-  // does not fail quietly: Vishnu Sathyan (HO90-D4052) punched at 23:34, 23:52 and 23:37 on three
-  // January days, each his only punch that day, and all three days are stored Absent with zero
-  // minutes. Amal Mohanachandran works 18:15-23:15 and lost a 23:37 exit, which turned a measured
-  // 319-minute evening into a reconstructed 510-minute day.
-  //
-  // The calendar day is complete and cannot overlap its neighbours, which a widened margin would.
-  // The margin still applies to a night shift, where the window genuinely spans two dates and the
-  // 05:50 exit has to be credited to the day the shift started.
-  const { start, end } = scheduledWindow(workDate, shift);
-  if (!shift.crossesMidnight) {
-    // The day runs from MARGIN before the shift starts to the same instant the next day, so
-    // consecutive windows meet exactly and nothing falls between them.
-    //
-    // Two earlier attempts were both wrong, in opposite directions. The original was
-    // `start - 6h .. end + 6h`, which for GENERAL is 03:00-23:30 — and since the next day also
-    // opened at 03:00, a punch between 23:30 and 03:00 belonged to no date at all and was dropped
-    // after being loaded. Vishnu Sathyan's 23:34, 23:52 and 23:37 punches vanished and those days
-    // are stored Absent.
-    //
-    // Replacing it with the plain calendar day closed the gap but moved the boundary to midnight,
-    // which splits a late evening in half: a 00:00:35 exit is the PREVIOUS evening's, and filing it
-    // under the new date made it that day's arrival. Replaying history, 38 employee-days became
-    // absurd — one read 00:00:35 to 23:50 as a single 23h50m day and paid 920 minutes of overtime.
-    //
-    // Keeping the lower bound and carrying it forward a full day fixes both: complete, because the
-    // next window begins where this one ends; non-overlapping, for the same reason; and a
-    // post-midnight punch stays with the evening it belongs to, because 00:00:35 is still inside
-    // the window that opened at 03:00 the previous morning.
-    const from = new Date(start.getTime() - WINDOW_MARGIN_MINUTES * 60_000);
-    return { from, to: new Date(from.getTime() + 24 * 60 * 60_000) };
+  const current = scheduledWindow(workDate, currentShift);
+  const preferred = new Date(current.start.getTime() - WINDOW_MARGIN_MINUTES * 60_000);
+  if (!previousShift) return preferred;
+
+  const previous = scheduledWindow(previousDate, previousShift);
+  if (previous.end >= current.start) {
+    throw new Error(`Overlapping shift schedules between ${previousDate} and ${workDate}; correct the shift assignments before recomputing attendance.`);
   }
-  return {
-    from: new Date(start.getTime() - WINDOW_MARGIN_MINUTES * 60_000),
-    to: new Date(end.getTime() + WINDOW_MARGIN_MINUTES * 60_000),
-  };
+  if (preferred > previous.end && preferred <= current.start) return preferred;
+  return new Date(previous.end.getTime() + Math.floor((current.start.getTime() - previous.end.getTime()) / 2));
+}
+
+/**
+ * Punch ownership is a half-open interval between two shared boundaries. The caller must supply
+ * the actual neighbouring assignments, including outside a requested month or single-day run.
+ * Omitting neighbours is useful for a repeating shift in pure rule tests.
+ */
+export function punchWindow(
+  workDate: string,
+  shift: ShiftDefinition | null,
+  adjacent: { previous: ShiftDefinition | null; next: ShiftDefinition | null } = { previous: shift, next: shift }
+): { from: Date; to: Date } {
+  const nextDate = toWorkDate(workDateAtTime(workDate, '00:00:00', 1));
+  const from = punchBoundary(workDate, adjacent.previous, shift);
+  const to = punchBoundary(nextDate, shift, adjacent.next);
+  if (from >= to) {
+    throw new Error(`Conflicting shift punch boundaries for ${workDate}; correct the adjacent shift assignments before recomputing attendance.`);
+  }
+  return { from, to };
+}
+
+/** Resolve validated break clocks inside the assigned shift, including the following morning. */
+export function scheduledBreakWindows(
+  workDate: string,
+  shift: ShiftDefinition
+): Array<{ from: Date; to: Date; isPaid: boolean }> {
+  const windows = shift.breakWindows ?? [];
+  if (shift.breakPolicy !== 'scheduled' && windows.length === 0) return [];
+  if ((shift.breakPolicy === 'scheduled' && windows.length < 1) || windows.length > 16) {
+    throw new Error(`Shift ${shift.code} requires between 1 and 16 scheduled break windows.`);
+  }
+  const schedule = scheduledWindow(workDate, shift);
+  const resolved = windows.map((window) => {
+    const clock = /^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/;
+    if (typeof window.label !== 'string' || window.label.trim().length < 1 || window.label.trim().length > 100 ||
+        !clock.test(window.startTime) || !clock.test(window.endTime) || typeof window.isPaid !== 'boolean') {
+      throw new Error(`Shift ${shift.code} has an invalid scheduled break label, clock time or paid setting.`);
+    }
+    let from = workDateAtTime(workDate, window.startTime);
+    if (from < schedule.start) from = workDateAtTime(workDate, window.startTime, 1);
+    let to = workDateAtTime(workDate, window.endTime);
+    if (to <= from) to = workDateAtTime(workDate, window.endTime, 1);
+    if (from < schedule.start || to > schedule.end || to <= from) {
+      throw new Error(`Shift ${shift.code} scheduled breaks must fit inside its start and end times.`);
+    }
+    return { from, to, isPaid: window.isPaid };
+  }).sort((a, b) => a.from.getTime() - b.from.getTime());
+  for (let i = 1; i < resolved.length; i++) {
+    if (resolved[i]!.from < resolved[i - 1]!.to) {
+      throw new Error(`Shift ${shift.code} scheduled break windows must not overlap.`);
+    }
+  }
+  return resolved;
+}
+
+/** Scheduled unpaid time plus measured away-time outside every designated break window. */
+function scheduledBreakCost(
+  windows: Array<{ from: Date; to: Date; isPaid: boolean }>,
+  from: Date,
+  to: Date,
+  measured: Array<{ from: Date; to: Date }>
+): { deductionMinutes: number; outsideMinutes: number } {
+  const overlap = (left: Date, right: Date, window: { from: Date; to: Date }) =>
+    Math.max(0, Math.min(right.getTime(), window.to.getTime()) - Math.max(left.getTime(), window.from.getTime()));
+  const unpaid = windows.filter((window) => !window.isPaid)
+    .reduce((sum, window) => sum + overlap(from, to, window), 0);
+  let outside = 0;
+  for (const interval of measured) {
+    const start = new Date(Math.max(from.getTime(), interval.from.getTime()));
+    const end = new Date(Math.min(to.getTime(), interval.to.getTime()));
+    const duration = Math.max(0, end.getTime() - start.getTime());
+    const designated = windows.reduce((sum, window) => sum + overlap(start, end, window), 0);
+    outside += Math.max(0, duration - designated);
+  }
+  return { deductionMinutes: Math.round((unpaid + outside) / 60_000), outsideMinutes: Math.round(outside / 60_000) };
 }
 
 /**
@@ -208,6 +267,7 @@ function reconcilePunches(punches: Date[], correction: DayInput['regularization'
   return {
     checkIn,
     checkOut,
+    breaks: sessions.breaks,
     breakMinutes: sessions.breakMinutes,
     incomplete: sessions.incomplete || inBounds.length !== middle.length,
   };
@@ -362,9 +422,16 @@ function calculateDay(input: DayInput): DayResult {
 
   // --- worked time ------------------------------------------------------------
   // Time on site, less the break as the company's policy costs it. See breakDeduction above.
+  const breakWindows = scheduledBreakWindows(input.workDate, shift);
+  const deductBreaks = (from: Date, to: Date) => shift.breakPolicy === 'scheduled'
+    ? scheduledBreakCost(breakWindows, from, to, sessions.breaks).deductionMinutes
+    : breakDeduction(shift, result);
+  const longBreak = shift.breakPolicy === 'scheduled'
+    ? Boolean(checkIn && checkOut && scheduledBreakCost(breakWindows, checkIn, checkOut, sessions.breaks).outsideMinutes > 0)
+    : result.breakMinutes > shift.breakMinutes;
   if (checkIn && checkOut) {
     const gross = Math.max(0, minutesBetween(checkIn, checkOut));
-    result.workedMinutes = Math.max(0, gross - breakDeduction(shift, result));
+    result.workedMinutes = Math.max(0, gross - deductBreaks(checkIn, checkOut));
     result.hours = minutesToHours(result.workedMinutes);
   }
 
@@ -434,7 +501,7 @@ function calculateDay(input: DayInput): DayResult {
     // exceptions report could filter for them. Eleven more had a break past the allowance whose
     // excess WAS deducted from the paid overtime, while the field that exists to explain exactly
     // that said nothing.
-    result.isLongBreak = result.breakMinutes > shift.breakMinutes;
+    result.isLongBreak = longBreak;
 
     // A lone punch on a day off is flagged rather than reconstructed. A working day rebuilds the
     // missing half from the schedule, which cannot be right here: nobody was scheduled, so there is
@@ -517,7 +584,7 @@ function calculateDay(input: DayInput): DayResult {
       // at zero: nobody has worked beyond a full day until the day is done, and paying it out
       // mid-morning on a projection would be inventing a claim.
       const soFar = Math.max(0, minutesBetween(knownPunch, asOf));
-      result.workedMinutes = Math.max(0, soFar - breakDeduction(shift, result));
+      result.workedMinutes = Math.max(0, soFar - deductBreaks(knownPunch, asOf));
       result.hours = minutesToHours(result.workedMinutes);
       result.dayFraction = Math.max(result.dayFraction, 1);
       result.remarks = 'On site — has not punched out yet';
@@ -573,7 +640,7 @@ function calculateDay(input: DayInput): DayResult {
       : result.scheduledOut!;
 
     const gross = Math.max(0, minutesBetween(from, to));
-    result.workedMinutes = Math.max(0, gross - breakDeduction(shift, result));
+    result.workedMinutes = Math.max(0, gross - deductBreaks(from, to));
     result.hours = minutesToHours(result.workedMinutes);
 
     if (isDeparture) {
@@ -670,7 +737,7 @@ function calculateDay(input: DayInput): DayResult {
 
   // A break past the allowance had time deducted for it — true on any shift, and the figure people
   // query when overtime is smaller than the clock suggests.
-  result.isLongBreak = result.breakMinutes > shift.breakMinutes;
+  result.isLongBreak = longBreak;
 
   // An odd number of punches means one was missed, and the day was not saying so.
   //

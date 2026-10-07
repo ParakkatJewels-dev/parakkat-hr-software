@@ -20,6 +20,13 @@ export type AttendanceStatus =
   | 'Missing Punch'
   | 'No Shift';
 
+export interface ShiftBreakWindow {
+  label: string;
+  startTime: string;
+  endTime: string;
+  isPaid: boolean;
+}
+
 export interface ShiftDefinition {
   id: string;
   code: string;
@@ -35,7 +42,9 @@ export interface ShiftDefinition {
    * How the break is charged. 'fixed' always deducts breakMinutes; 'actual' deducts what was
    * measured; 'actual_over_allowance' deducts the greater of the two.
    */
-  breakPolicy: 'fixed' | 'actual' | 'actual_over_allowance' | 'excess';
+  breakPolicy: 'fixed' | 'actual' | 'actual_over_allowance' | 'excess' | 'scheduled';
+  /** Clock windows anchored to this shift's starting work date, including after midnight. */
+  breakWindows?: ShiftBreakWindow[];
   /** 0 = Sunday … 6 = Saturday. */
   weeklyOffs: number[];
   fullDayMinutes: number;
@@ -150,7 +159,7 @@ export interface DayResult {
    * with no flag on any of them.
    */
   isShortDay: boolean;
-  /** The break ran past the allowance, so the excess was deducted from worked time. */
+  /** Break time exceeded the allowance, or was measured outside scheduled break windows. */
   isLongBreak: boolean;
 
   leaveId: string | null;

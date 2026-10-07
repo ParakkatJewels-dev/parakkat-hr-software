@@ -220,7 +220,7 @@ export default function PayrollTransactions({ entityId, period, employees = EMPT
         <div className="ptx-people">{pager.slice.map(person => <button key={person.id} type="button" disabled={busy} aria-pressed={chosen?.id === person.id}
           onClick={() => choose(person)} className="ptx-person"><span><strong>{person.full_name}</strong><small>{person.employee_code || 'No code'}{person.branch?.code ? ` · ${person.branch.code}` : ''}</small></span><ChevronRight size={13} /></button>)}</div>
         {!filtered.length && <p className="ptx-empty">No employees match this search.</p>}
-        <Pagination {...pager} noun="employees" sizes={[10, 25, 50]} disabled={busy} />
+        <Pagination {...pager} noun="employees" sizes={[10, 25, 50, 100, 200]} disabled={busy} />
       </aside>
       <div className="ptx-detail" ref={editorRef}>
         {!chosen ? <div className="ptx-placeholder"><Users size={25} /><h4>Select an employee</h4><p>Search by name or employee code to manage their entries and advances.</p>

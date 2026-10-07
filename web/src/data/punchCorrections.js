@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabaseClient';
-import { regularizationTimes } from '../lib/regularizationTimes.js';
+import { punchCorrectionTimes } from '../lib/punchCorrectionTimes.js';
 
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '')
   && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
@@ -33,12 +33,12 @@ export function useSavePunchCorrection() {
   const client = useQueryClient();
   return useMutation({
     mutationKey: ['save-attendance-punch-correction'],
-    mutationFn: async ({ requestId, employeeId, workDate, checkIn, checkOut, checkOutNextDay, reason, sourceRevision }) => {
+    mutationFn: async ({ requestId, employeeId, workDate, checkIn, checkOut, checkOutNextDay, reason, sourceRevision, endpointEvidence }) => {
       if (!requestId || !employeeId) throw new Error('Choose an employee and keep the correction request ID when retrying.');
       if (!String(sourceRevision ?? '').trim()) throw new Error('Load the current punch details before saving.');
       const trimmedReason = String(reason ?? '').trim();
       if (trimmedReason.length < 3 || trimmedReason.length > 1000) throw new Error('Enter a correction reason between 3 and 1000 characters.');
-      const times = regularizationTimes({ workDate, checkIn, checkOut, checkOutNextDay });
+      const times = punchCorrectionTimes({ workDate, checkIn, checkOut, checkOutNextDay, endpointEvidence });
       // This is a Supabase-only override. Never insert fabricated device punches or call the
       // EasyTime/BioTime API; the server queues the existing attendance engine atomically.
       const { data, error } = await supabase.rpc('save_attendance_punch_correction', {

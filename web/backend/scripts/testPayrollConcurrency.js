@@ -15,9 +15,14 @@ async function main() {
       await client.query("set statement_timeout='8s'");
     }));
     const { rows: [{ entity, employee, actor }] } = await observer.query('select register_test.id(1,1) entity,register_test.id(4,1) employee,register_test.id(3,1) actor');
-    await observer.query(`insert into public.attendance(employee_id,work_date,status,day_fraction,day_type,worked_minutes)
-      select e.id,d::date,'Present',1,'working',480 from public.employees e
+    await observer.query(`insert into public.attendance(employee_id,work_date,status,day_fraction,day_type,worked_minutes,computed_at)
+      select e.id,d::date,'Present',1,'working',480,clock_timestamp() from public.employees e
       cross join generate_series('2026-10-01'::date,'2026-10-31'::date,'1 day')d where e.entity_id=$1`, [entity]);
+    // This fixture supplies freshly derived October rows; acknowledge migration-upgrade
+    // neighbour jobs only for those same rows, as the worker would after persisting them.
+    await observer.query(`update public.attendance_recompute_queue q set processed_at=clock_timestamp()
+      from public.employees e where e.id=q.employee_id and e.entity_id=$1
+      and q.work_date between '2026-10-01' and '2026-10-31' and q.processed_at is null`, [entity]);
     await observer.query("insert into public.payroll_runs(entity_id,period) values($1,'2026-11')", [entity]);
     await payroll.query("set role authenticated");
     await payroll.query("select set_config('request.jwt.claim.sub',$1,false)", [actor]);

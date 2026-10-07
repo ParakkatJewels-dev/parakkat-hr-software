@@ -177,11 +177,15 @@ async function queueTouchedDays(touched: Set<string>, signal?: AbortSignal): Pro
     const sep = key.indexOf('|');
     const employeeId = key.slice(0, sep);
     const workDate = key.slice(sep + 1);
-    const from = DateTime.fromISO(workDate).minus({ days: 1 }).toISODate()!;
+    // Ownership follows adjacent assigned shifts rather than the punch's calendar date. A
+    // midnight-start duty can own the previous evening; a long overnight duty followed by an
+    // unassigned date can retain its exit margin into a second following calendar date.
+    const from = DateTime.fromISO(workDate).minus({ days: 2 }).toISODate()!;
+    const to = DateTime.fromISO(workDate).plus({ days: 1 }).toISODate()!;
     const existing = ranges.get(employeeId);
     ranges.set(employeeId, {
       from: existing && existing.from < from ? existing.from : from,
-      to: existing && existing.to > workDate ? existing.to : workDate,
+      to: existing && existing.to > to ? existing.to : to,
     });
   }
   for (const [employeeId, range] of ranges) {

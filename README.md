@@ -49,20 +49,30 @@ so figures never drift from the rules that produced them.
 
 Full setup, commands and troubleshooting: **[services/attendance/README.md](services/attendance/README.md)**.
 
-Payroll's **Monthly Worksheet → Hours & deductions** uses calculated attendance automatically
-for OT and eligible late hours. HR can enter a reasoned hour override or use **Review / correct
+Payroll's **Monthly inputs** uses calculated attendance automatically. The paid-days method
+supports OT and eligible late-hour adjustments. HR can enter a reasoned hour override or use **Review / correct
 punches → Edit punches** to save a daily check-in/check-out correction with a reason. Corrections
 are stored only in Supabase, with history; EasyTime Pro and raw device punches stay unchanged.
 The attendance worker recalculates the day, and draft payroll must be recalculated before publication.
 Employees still request independent approval for their own attendance. Existing numeric monthly
 inputs remain overrides until HR selects **Use punch hours**. Apply pending migrations through
-`0162` with `npm run migrate` before deploying the updated client. See the
+`0165` with `npm run migrate` before deploying the updated client. See the
 [payroll operating guide](web/backend/README.md#automatic-punch-hours-and-hr-corrections).
 
-Payroll policy hours use decimal values: **8 hours 30 minutes = 8.5**, whereas **8.3 = 8 hours
-18 minutes**. New policy drafts suggest 8.5; HR must review and save the policy before calculating.
-The policy editor and saved calculation summaries show the corresponding duration. Existing saved
-policies and published registers retain their original values.
+Hourly payroll uses the daily paid hours of each date’s assigned shift, including changes within
+a month. Configure day/night schedules and paid/unpaid break windows in **Shifts**, then assign
+employees from an effective date. The assignment list supports search, bulk selection and 200 rows.
+New employees require a joining date and working shift in **Add person**. Both the employee and
+their dated assignment save together. Spreadsheet imports accept a shift per row or an explicit
+batch selection; existing employees keep their dated assignments.
+Legacy paid-days policy hours remain decimal: **8h 30m = 8.5**, whereas **8.3 = 8h 18m**. Published
+registers retain their original values.
+
+The **HR hourly workings** calculation adds the supplied salary sheet's payable-hour method,
+earned off-day/leave credits, explicit rounding, reviewed monthly attendance totals and TDS.
+Existing company policies remain unchanged until HR selects the method. Apply migrations through
+`0165` with the attendance worker paused, deploy its matching client and worker, then restart the worker. See the [monthly payroll operating guide](docs/payroll-operating-guide.md)
+for preparation, review, publication, advance recovery and salary holds.
 
 ## Access model
 

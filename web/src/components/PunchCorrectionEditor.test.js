@@ -79,7 +79,7 @@ test('missing endpoint saves the selected day, scoped employee, reason and loade
   const form = mount(); enter(form); await form.submit();
   const { requestId, ...payload } = form.save.calls[0];
   assert.match(requestId, /^[\da-f-]{36}$/);
-  assert.deepEqual(payload, { employeeId: 'worker', workDate: '2026-09-15', checkIn: '', checkOut: '18:00', checkOutNextDay: false, reason: 'Missed check-out', sourceRevision: 'revision-1' });
+  assert.deepEqual(payload, { employeeId: 'worker', workDate: '2026-09-15', checkIn: '', checkOut: '18:00', checkOutNextDay: false, reason: 'Missed check-out', sourceRevision: 'revision-1', endpointEvidence: { checkIn: null, checkOut: null } });
   assert.equal(form.form().props.disabled, true);
   assert.equal(form.closed, 0);
 });
@@ -156,6 +156,32 @@ test('an ambiguous committed save retries its exact request after evidence chang
   form.save.error.code = '40001';
   await form.submit(); assert.equal(form.save.calls.length, 2);
   assert.equal(form.form().props.disabled, true);
+});
+
+test('the draft freezes exact endpoint evidence through context refresh and an ambiguous save retry', async () => {
+  const form = mount({ workDate: '2026-09-02' });
+  const checkIn = '2026-09-02T09:22:09+05:30';
+  form.context.data.attendance.check_in = checkIn;
+  form.context.data.attendance.first_punch_at = checkIn;
+  form.context.data.raw_punches = [{ id: 'raw', punch_time: checkIn }];
+  form.change('Punch corrected check-in', '09:22'); enter(form);
+  form.save.fail = true;
+  await form.submit();
+  assert.equal(form.save.calls[0].endpointEvidence.checkIn, checkIn);
+  form.context.data = { ...form.context.data, source_revision: 'revision-2',
+    active_correction: { status: 'Approved', check_in: '2026-09-02T09:22:50+05:30', check_out: null } };
+  assert.equal(form.form().props.submitLabel, 'Retry save');
+  await form.submit();
+  assert.deepEqual(form.save.calls[1], form.save.calls[0]);
+});
+
+test('editing a previous approved correction passes its original second precision to the save', async () => {
+  const active = { status: 'Approved', check_in: '2026-09-15T22:00:17+05:30', check_out: '2026-09-16T06:00:41+05:30' };
+  const form = mount({ active });
+  form.change('Punch correction reason', 'Verified the existing overnight times');
+  await form.submit();
+  assert.deepEqual(form.save.calls[0].endpointEvidence, { checkIn: active.check_in, checkOut: active.check_out });
+  assert.equal(form.save.calls[0].checkOutNextDay, true);
 });
 
 

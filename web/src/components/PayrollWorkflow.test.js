@@ -137,12 +137,10 @@ test('prepare, review and publish each show one clear stage of the monthly workf
   assert.doesNotMatch(publish, /Employee monthly inputs|Search payroll register|Recalculate payroll/);
 });
 
-test('daily hours show their duration and saved register summaries retain their original policy', () => {
+test('hourly setup uses assigned shifts while legacy daily hours retain their saved policy', () => {
   const setup = render({ policyData: null, runData: null });
-  assert.match(setup, /Daily working hours \(decimal\)/);
-  assert.match(setup, /aria-describedby="payroll-daily-hours-help"[^>]*value="8\.5"/);
-  assert.match(setup, /8h 30m per day\./);
-  assert.match(setup, /8\.3 means 8h 18m/);
+  assert.match(setup, /Each date uses its assigned shift/);
+  assert.doesNotMatch(setup, /Daily working hours \(decimal\)/);
   const saved = render({ policyData: { ...policy, hours_per_day: 8.3 } });
   assert.match(saved, /Saved · calendar days · 8h 18m \/ day/);
   assert.match(saved, /aria-describedby="payroll-daily-hours-help"[^>]*value="8\.3"/);
@@ -473,4 +471,31 @@ test('active input work and limited company permission block workflow mutation h
     button.props.onClick();
   }
   assert.equal(busy.params.get('step'), 'review');
+});
+
+test('hourly policy setup is explicit for saved companies and explains the HR rounding and credit rules', () => {
+  const legacy = render();
+  assert.match(legacy, /value="paid_days" selected=""/);
+  assert.doesNotMatch(legacy, /Off-day \/ casual-leave credits/);
+  const hourly = render({ policyData: { ...policy, calculation_mode: 'hourly_workings', credit_mode: 'earned', hours_per_day: 8.5 } });
+  assert.match(hourly, /value="hourly_workings" selected=""/);
+  assert.match(hourly, /Casual leave: 1 day at 20 actual working days/);
+  assert.match(hourly, /rounded to 1 decimal/);
+  assert.match(hourly, /Attendance<\/button>/);
+  assert.doesNotMatch(hourly, /OT hourly multiplier|Deduct late hours at the calculated hourly rate/);
+});
+
+test('ordinary recorded version four registers with a null review reason remain exportable', () => {
+  const snapshot = { ...register, schema_version: 4, bonus: 0, adjustment_incentive: 0, adjustment_deductions: 0,
+    ledger_advance_recovery: 0, calculation_mode: 'hourly_workings', credit_mode: 'earned', attendance_source: 'recorded',
+    attendance_reviewed: false, attendance_review_reason: null, worked_minutes: 11985, worked_hours: 199.75,
+    credited_hours: 51, payable_hours: 250.75, other_paid_leave_days: 0, wages_roundoff: 1, net_roundoff: -.4, tds: 0,
+    policy: { ...policy, calculation_mode: 'hourly_workings', hours_per_day: 8.5 } };
+  const html = render({ step: 'review', rows: [{ id: 'slip', employee_id: employee.id, payroll_register: snapshot }] });
+  assert.equal(buttonDisabled(html, 'Export Excel'), false);
+  assert.match(html, /Hourly workings/);
+  assert.match(html, /Recorded attendance/);
+  assert.match(html, /Paid credit hours/);
+  assert.match(html, /Payable hours/);
+  assert.doesNotMatch(html.slice(html.indexOf('Payroll register ·')), /<th[^>]*>Ot Hours<\/th>/);
 });

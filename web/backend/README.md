@@ -57,6 +57,27 @@ backend/
 > `npm run dev` here just prints these commands — the backend is hosted, so there is no local
 > server to start. (It used to run `supabase start`, which this project doesn't use.)
 
+### Initial employee shifts
+
+Apply `0165_employee_initial_shift.sql` before using the updated Directory or employee importer.
+New browser records require a selected shift and joining date. The importer accepts a `Shift`
+column containing an active company/shared shift code or name, plus `Join Date`; explicit batch
+values fill missing cells. Preview errors block the import before any writes. Each employee and
+their initial assignment save atomically. A later row failure preserves completed rows, which
+are recognized when the same file is reviewed again. Existing-person updates do not reassign shifts.
+
+Trusted roster scripts and device provisioning use the configured active company default, then
+the shared default, for a new employee without an explicit shift. The assignment starts on the
+known joining/hire date. If that date is unknown, it starts on the current IST date with an audit
+note; the employee's unknown joining date is preserved. These scripts do not infer individual
+night duties from names or department labels. Configure the appropriate default before running
+them, or use the browser importer to select shifts per employee. A missing default is reported
+instead of creating an employee without a schedule; device enrolments remain available for review.
+No initial-assignment backfill or automatic reassignment of existing employees is performed.
+
+`admin_create_user_with_employee` and the `invite-user` function create logins and optionally link
+an existing employee. They do not create employee records and do not change shift assignments.
+
 ### Retrying migration 0144 after a Storage ownership error
 
 If `0144_immediate_account_revocation.sql` failed with `must be owner of table migrations`,
@@ -204,11 +225,16 @@ employee coverage and approved PF/ESI amounts for the wage period; use monthly o
 the statutory basis or transition calculation differs. Employer contributions remain separately
 configured and are not changed by an employee PF/ESI override.
 
-The supplied headings do not establish the employer's formulas or statutory applicability.
-[The dated SOP research](../../docs/research/payroll-sop-2026-10.md) records official sources and
-open policy decisions. Finance must still verify statutory deduction limits, outstanding advance
-balances and lawful loss/damage recovery; the worksheet does not implement those ledgers or legal
-approval processes. It does not generate EPFO/ESIC filings, PT/TDS calculations or bank transfers.
+The rules above describe the legacy paid-days method. Migration `0163_payroll_hourly_workings.sql`
+adds the later supplied workbook's hourly method, earned credits, reviewed monthly totals and TDS
+inputs. See the [current payroll operating guide](../../docs/payroll-operating-guide.md) for the
+calculation, effective per-shift daily hours, explicit rounding, source review and release steps. Existing companies
+retain their saved policy until HR selects the new method; published snapshots stay unchanged.
+
+[The dated SOP research](../../docs/research/payroll-sop-2026-10.md) records the earlier policy review.
+Advance balances and scheduled recoveries are supported by the payroll transaction ledger.
+Finance must still verify employee deduction applicability and approved amounts. The system does
+not generate statutory filings, calculate PT/TDS liability or send bank transfers.
 
 `tests/payroll_salary_register.sql` exercises the new contract after the historical payroll suite.
 The runner replays the migration twice in a disposable cluster. Frontend tests cover scoped views,
@@ -545,3 +571,5 @@ recalculation, including runs that predate worksheet snapshots.
 
 Ledger writes use scoped permissions, optimistic version checks and company payroll locks. New
 entries use stable request IDs, and every change is recorded in an immutable transaction history.
+
+Shift/payroll rollout through migration `0165`: pause the attendance worker before migration, apply pending migrations, deploy the matching frontend and updated attendance worker, then restart it. Wait for queued attendance recomputation before regenerating payroll. An old worker must not consume the upgrade queue.

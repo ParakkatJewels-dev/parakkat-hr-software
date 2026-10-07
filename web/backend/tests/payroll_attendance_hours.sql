@@ -153,10 +153,10 @@ insert into public.raw_punches(emp_code,employee_id,punch_time)
  values('HOURS-1',register_test.id(4,6),'2027-04-06T14:00:00Z');
 set role authenticated;
 select set_config('request.jwt.claim.sub',register_test.id(3,6)::text,false);
-select hours_test.expect('freshness/raw punch transaction durably queues current and previous day',hours_test.summary(6)->'pending_recompute_days','2');
+select hours_test.expect('freshness/raw punch transaction durably queues all adjacent shift ownership dates',hours_test.summary(6)->'pending_recompute_days','4');
 reset role;
 set request.jwt.claim.sub='';
-update public.attendance set computed_at=clock_timestamp() where employee_id=register_test.id(4,6) and work_date between '2027-04-05' and '2027-04-06';
+update public.attendance set computed_at=clock_timestamp() where employee_id=register_test.id(4,6) and work_date between '2027-04-04' and '2027-04-07';
 update public.attendance_recompute_queue set processed_at=clock_timestamp() where employee_id=register_test.id(4,6) and processed_at is null;
 select public.enqueue_recompute(null,'2027-04-07','2027-04-07','Whole workforce refresh');
 set role authenticated;

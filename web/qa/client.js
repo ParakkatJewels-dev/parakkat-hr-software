@@ -8,6 +8,7 @@ import { routineFixtures, routineRpc } from './routineFixtures';
 import { taskTrashFixtures, taskTrashRpc } from './taskTrashFixtures';
 import { payrollFixtures, payrollRpc } from './payrollFixtures';
 import { punchCorrectionRpc } from './punchCorrectionFixtures';
+import './employeeShiftFixtures.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
 const slowRequests = new URL(window.location.href).searchParams.has('qa-slow');

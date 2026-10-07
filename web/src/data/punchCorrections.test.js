@@ -63,3 +63,21 @@ test('save refreshes attendance, correction history and payroll; failed save ref
   await mutation.onError(new Error('Conflict'), { employeeId: 'employee', workDate: '2026-09-15' });
   assert.deepEqual(invalidated, [['attendance-punch-correction', 'employee', '2026-09-15']]);
 });
+
+test('Supabase saves retain reviewed endpoint seconds without changing blank or edited endpoints', async () => {
+  calls.length = 0;
+  response = { data: { correction_id: 'request', recompute_pending: true }, error: null };
+  const mutation = useSavePunchCorrection();
+  const input = { requestId: 'request', employeeId: 'employee', workDate: '2026-09-02', checkIn: '09:22',
+    checkOut: '19:45', checkOutNextDay: false, reason: 'Verified recorded arrival and missed checkout', sourceRevision: 'reviewed',
+    endpointEvidence: { checkIn: '2026-09-02T03:52:09.000Z', checkOut: '2026-09-02T14:19:02.000Z' } };
+  await mutation.mutationFn(input);
+  assert.equal(calls[0].args._check_in, '2026-09-02T03:52:09.000Z');
+  assert.equal(calls[0].args._check_out, '2026-09-02T14:15:00.000Z');
+  await mutation.mutationFn(input);
+  assert.deepEqual(calls[1], calls[0], 'retry sends identical reviewed instants');
+  await mutation.mutationFn({ ...input, checkIn: '' });
+  assert.equal(calls[2].args._check_in, null, 'blank still means device fallback');
+  await mutation.mutationFn({ ...input, checkIn: '09:23' });
+  assert.equal(calls[3].args._check_in, '2026-09-02T03:53:00.000Z');
+});

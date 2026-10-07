@@ -8,6 +8,8 @@ import { normalizePayrollAdjustment, normalizePayrollAdvance, normalizePayrollAd
 export const payrollFixtures = typeof window !== 'undefined'
   && new URL(window.location.href).searchParams.get('qaPayroll') === '1';
 
+const hourlyFixtures = payrollFixtures && new URL(window.location.href).searchParams.get('qa-payroll-hourly') === '1';
+
 if (payrollFixtures) {
   const entity = fixture.org.entities[0];
   const people = fixture.employees.filter(person => person.entity_id === entity.id);
@@ -17,6 +19,7 @@ if (payrollFixtures) {
   const stamp = `${today}T03:30:00.000Z`;
   const policy = { entity_id: entity.id, divisor_mode: 'fixed', fixed_days: 30, hours_per_day: 8,
     ot_multiplier: 2, deduct_late: false, notes: 'Synthetic reviewed policy for payroll grid QA.', updated_at: stamp };
+  if (hourlyFixtures) Object.assign(policy, { calculation_mode: 'hourly_workings', credit_mode: 'earned', hours_per_day: 8.5 });
   tables.payroll_policies = [policy];
   tables.payroll_monthly_inputs = people.slice(0, 160).map((person, index) => ({
     employee_id: person.id, period, entity_id: person.entity_id, zone_id: person.zone_id,
@@ -29,6 +32,11 @@ if (payrollFixtures) {
         : index % 6 === 0 || index % 9 === 0 ? 'Synthetic reviewed hour override.' : '' }),
     updated_at: stamp,
   }));
+  if (hourlyFixtures) {
+    tables.payroll_monthly_inputs.forEach(row => { row.ot_hours = null; row.late_hours = null; });
+    Object.assign(tables.payroll_monthly_inputs[0], normalizeMonthlyInput({ attendance_source: 'reviewed', worked_minutes: '199:45',
+      actual_working_days: 23.5, public_holiday_days: 1, tds: 250, notes: 'Synthetic HR-reviewed sheet: employee not yet enrolled on device.' }));
+  }
   const inputs = new Map(tables.payroll_monthly_inputs.map(row => [row.employee_id, row]));
   const runId = 'qa-payroll-company-1';
   const publishedFixture = new URL(window.location.href).searchParams.get('qa-payroll-published') === '1';
@@ -55,10 +63,12 @@ if (payrollFixtures) {
     const incentive = adjustments.filter(row => row.kind === 'incentive').reduce((total, row) => total + row.amount, 0);
     const itemizedDeductions = adjustments.filter(row => row.kind === 'deduction').reduce((total, row) => total + row.amount, 0);
     const ledgerRecovery = tables.payroll_advance_recoveries.filter(row => row.employee_id === person.id).reduce((total, row) => total + row.amount, 0);
-    const otAmount = attendance.effective_ot_hours * 250;
-    const gross = 30000 + additions + otAmount + bonus + incentive;
+    const otAmount = hourlyFixtures ? 0 : attendance.effective_ot_hours * 250;
+    const earnedSalary = hourlyFixtures ? Math.round(attendance.payable_hours * 117.6 * 100) / 100 : 30000;
+    const rawGross = earnedSalary + additions + otAmount + bonus + incentive;
+    const gross = hourlyFixtures ? Math.ceil(rawGross) : rawGross;
     const pf = input.pf ?? 1800;
-    const deductions = pf + input.advance_recovery + input.welfare_fund + input.other_deductions + itemizedDeductions + ledgerRecovery;
+    const deductions = pf + input.advance_recovery + input.welfare_fund + input.other_deductions + itemizedDeductions + ledgerRecovery + (input.tds ?? 0);
     return { id: `qa-payroll-payslip-${index}`, employee_id: person.id, employee: person,
       entity_id: entity.id, zone_id: person.zone_id, branch_id: person.branch_id, department_id: person.department_id,
       period, run_id: runId, status: publishedFixture ? 'Published' : 'Draft', gross, deductions, net: gross - deductions, paid_days: dayCount, lop_days: 0,
@@ -76,6 +86,12 @@ if (payrollFixtures) {
         advance_recovery: input.advance_recovery + ledgerRecovery,
         recorded_ot_hours: attendance.recorded_ot_hours, recorded_late_hours: attendance.recorded_late_hours,
         recorded_deductible_late_hours: attendance.deductible_late_hours, ot_source: attendance.ot_source, late_source: attendance.late_source, policy,
+        ...(hourlyFixtures ? { schema_version: 4, calculation_mode: 'hourly_workings', method_version: 'hourly_workings_v1', credit_mode: 'earned',
+          attendance_source: input.attendance_source, attendance_reviewed: attendance.reviewed_source_ready, attendance_review_reason: input.notes,
+          worked_minutes: Math.round(attendance.effective_worked_hours * 60), worked_hours: attendance.effective_worked_hours,
+          total_working_hours: attendance.effective_worked_hours, credited_hours: attendance.credited_hours, payable_hours: attendance.payable_hours,
+          other_paid_leave_days: 0, wages_roundoff: Math.round((gross - rawGross) * 100) / 100, net_roundoff: 0, tds: input.tds ?? 0,
+          per_day_working_hour: 8.5, per_hour_wages: 117.6, earned_salary: earnedSalary, ot_hours: 0, late_hours: 0 } : {}),
       } };
   }).filter(Boolean);
   tables.payslips = [...tables.payslips.filter(row => row.entity_id !== entity.id || row.period !== period), ...payslips];
@@ -183,6 +199,21 @@ function attendanceSummary(employee, index, month, input, policy) {
     recorded_late_hours: 0, deductible_late_hours: 0, effective_ot_hours: 0, effective_late_hours: 0,
     attendance_days: 0, expected_days: 0, missing_days: 0, invalid_days: 0, unresolved_days: 0, pending_recompute_days: 0,
     first_punch_at: null, last_punch_at: null, computed_at: null, override_issue: null };
+  if (hourlyFixtures) {
+    const reviewed = input?.attendance_source === 'reviewed';
+    const workedHours = reviewed ? Number(input.worked_minutes) / 60 : 208;
+    const actualDays = reviewed ? Number(input.actual_working_days) : 24;
+    const casualDays = input?.casual_leave_days ?? (actualDays >= 20 ? 1 : 0);
+    const offDays = input?.off_days ?? Math.min(4, Math.floor((actualDays + casualDays) / 6));
+    const creditedHours = (Number(input?.public_holiday_days ?? 1) + casualDays + offDays) * 8.5;
+    return { ...metadata, attendance_source: reviewed ? 'reviewed' : 'recorded', reviewed_source_ready: reviewed,
+      attendance_review_issue: null, effective_worked_hours: workedHours, credited_hours: creditedHours, payable_hours: workedHours + creditedHours,
+      recorded_worked_hours: index === 0 ? 0 : 208, recorded_ot_hours: 4, recorded_late_hours: .5, deductible_late_hours: 0,
+      effective_ot_hours: 0, effective_late_hours: 0, attendance_days: index === 0 ? 0 : days, expected_days: days,
+      missing_days: index === 0 ? days : 0, invalid_days: 0, unresolved_days: 0, pending_recompute_days: 0,
+      first_punch_at: index === 0 ? null : `${employmentFrom}T03:30:00.000Z`, last_punch_at: index === 0 ? null : `${employmentTo}T13:00:00.000Z`,
+      computed_at: `${today}T03:30:00.000Z`, override_issue: null };
+  }
   const expectedDays = Math.round((Date.parse(employmentTo) - Date.parse(employmentFrom)) / 86400000) + 1;
   const missing = index % 29 === 14 ? 1 : 0;
   const invalid = index % 41 === 18 ? 1 : 0;

@@ -18,6 +18,7 @@ const FIELD_ALIASES = {
   email: ['email', 'e-mail', 'email id'],
   phone: ['phone', 'mobile', 'contact', 'phone number'],
   join_date: ['join date', 'date of joining', 'doj', 'joined'],
+  shift: ['shift code', 'shift name', 'duty shift', 'work shift', 'shift'],
   // Statutory and banking (migration 0047). These are what a second, follow-up spreadsheet
   // usually carries — HR collects bank details after the roster exists.
   pan: ['pan', 'pan no', 'pan number', 'pan card'],
@@ -111,6 +112,7 @@ export function extractPeople(rows, layout) {
       email: columns.email !== undefined ? norm(row[columns.email]).toLowerCase() : '',
       phone: columns.phone !== undefined ? norm(row[columns.phone]) : '',
       join_date: dates.join_date,
+      shift: columns.shift !== undefined ? norm(row[columns.shift]) : '',
       pan: columns.pan !== undefined ? norm(row[columns.pan]).toUpperCase() : '',
       aadhaar: columns.aadhaar !== undefined ? norm(row[columns.aadhaar]).replace(/\D/g, '') : '',
       uan: columns.uan !== undefined ? norm(row[columns.uan]).replace(/\D/g, '') : '',
@@ -159,7 +161,9 @@ function toIsoDate(v) {
  * Compare the parsed people against what is already in this company.
  * Nothing is written — this is what the preview shows.
  */
-export function planImport(people, { existingByName, existingByCode, branches, designations }) {
+export function planImport(people, { existingByName, existingByCode, branches, designations,
+  entityId, shifts = [], defaultShiftId = '', defaultJoinDate = '' }) {
+  const availableShifts = shifts.filter(shift => shift.is_active && (!shift.entity_id || shift.entity_id === entityId));
   const seen = new Set();
   const rows = people.map((p) => {
     const nameKey = p.full_name.toLowerCase();
@@ -195,12 +199,40 @@ export function planImport(people, { existingByName, existingByCode, branches, d
     }
     seen.add(nameKey);
 
+    let initialShift = null;
+    let setupIssue = '';
+    let resolvedJoinDate = p.join_date;
+    if (status === 'new') {
+      resolvedJoinDate = toIsoDate(p.join_date || defaultJoinDate);
+      const requested = norm(p.shift).toLowerCase();
+      if (requested) {
+        // Codes are unique within a company. Prefer that company's exact code over a shared
+        // code; names must identify one shift in the same scope, never a fuzzy match.
+        const matches = availableShifts.filter(shift => shift.id.toLowerCase() === requested || shift.code.toLowerCase() === requested);
+        const byName = matches.length ? matches : availableShifts.filter(shift => shift.name.toLowerCase() === requested);
+        const companyMatches = byName.filter(shift => shift.entity_id === entityId);
+        const choices = companyMatches.length ? companyMatches : byName;
+        if (choices.length === 1) initialShift = choices[0];
+        else setupIssue = choices.length > 1
+          ? `Shift “${p.shift}” matches more than one schedule. Use its unique shift code.`
+          : `Shift “${p.shift}” is not an active shift for this company.`;
+      } else {
+        initialShift = availableShifts.find(shift => shift.id === defaultShiftId) ?? null;
+        if (!initialShift) setupIssue = 'Choose a shift for new employees or add a Shift column.';
+      }
+      if (!resolvedJoinDate) setupIssue = [setupIssue, 'Enter the join date in the sheet or the date field below.'].filter(Boolean).join(' ');
+    }
+
     return {
       ...p,
       status,
       note,
       updates,
       matchId: match?.id ?? null,
+      initialShiftId: initialShift?.id ?? null,
+      initialShiftLabel: initialShift ? `${initialShift.code} — ${initialShift.name}` : null,
+      resolvedJoinDate,
+      setupIssue,
       newBranch: Boolean(p.branch) && !branches.has(p.branch.toUpperCase()),
       newDesignation: Boolean(p.designation) && !designations.has(p.designation.toUpperCase()),
     };
@@ -214,6 +246,7 @@ export function planImport(people, { existingByName, existingByCode, branches, d
       update: rows.filter((r) => r.status === 'update').length,
       skip: rows.filter((r) => r.status === 'skip').length,
       duplicate: rows.filter((r) => r.status === 'duplicate').length,
+      invalid: rows.filter((r) => r.setupIssue).length,
       newBranches: new Set(rows.filter((r) => r.newBranch).map((r) => r.branch)).size,
       newDesignations: new Set(rows.filter((r) => r.newDesignation).map((r) => r.designation)).size,
     },
@@ -235,6 +268,10 @@ export async function runImport({ entityId, entityCode, rows, onProgress, create
   const todo = rows.filter((r) => r.status === 'new');
   const edits = rows.filter((r) => r.status === 'update' && r.matchId);
   if (!todo.length && !edits.length) return { created: 0, updated: 0, branches: 0, designations: 0 };
+  // Validate the complete preview before updating any existing row or creating organisation
+  // records. Employee creation and its initial assignment then commit together in the RPC.
+  const invalid = todo.find(row => row.setupIssue || !row.initialShiftId || !toIsoDate(row.resolvedJoinDate));
+  if (invalid) throw new Error(`Row ${invalid._row}: ${invalid.setupIssue || 'Choose an initial shift and a valid join date for every new employee.'}`);
 
   // ---- fill in existing people first ----------------------------------------------------------
   // Done before any inserts so that if the run fails half way, what completed is the harmless
@@ -298,25 +335,26 @@ export async function runImport({ entityId, entityCode, rows, onProgress, create
     full_name: r.full_name,
     email: r.email || null,
     phone: r.phone || null,
-    join_date: r.join_date || null,
+    join_date: r.resolvedJoinDate,
     status: 'Active',
   }));
 
-  // Chunked so one oversized request cannot time out, and so progress means something.
-  const CHUNK = 50;
+  // Each person and their shift are one transaction. A later row may fail, but it cannot leave
+  // an employee without the selected assignment. Completed rows are recognised on a retry.
   let created = 0;
-  for (let i = 0; i < payload.length; i += CHUNK) {
-    const slice = payload.slice(i, i + CHUNK);
-    const { error } = await supabase.from('employees').insert(slice);
+  for (let i = 0; i < payload.length; i++) {
+    const { error } = await supabase.rpc('create_employee_with_shift', {
+      _employee: payload[i], _shift_id: todo[i].initialShiftId,
+    });
     if (error) {
       throw new Error(
         `Created ${created} of ${payload.length} before failing on row ${todo[i]?._row}: ${error.message}. ` +
         `Those already created are saved — re-run the same file and they will be recognised.`
       );
     }
-    created += slice.length;
+    created++;
     onProgress?.(updated + created, edits.length + payload.length);
   }
 
-  return { created, updated, branches: missingBranches.length, designations: missingTitles.length };
+  return { created, updated, branches: createOrg ? missingBranches.length : 0, designations: createOrg ? missingTitles.length : 0 };
 }
