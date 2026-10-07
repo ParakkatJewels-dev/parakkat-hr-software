@@ -1,17 +1,41 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Maximize2, Minimize2 } from 'lucide-react';
 import { btnClass } from './ui/Btn';
+import { usePayrollSessionState } from '../lib/usePayrollSessionState';
+import { capturePayrollSheetPosition, restorePayrollSheetPosition } from '../lib/payrollSheetPosition';
 import './payrollSheetFrame.css';
 
 // Move a stable portal host instead of remounting the sheet: cell drafts, selection,
 // filters and scroll positions survive entering and leaving the full-screen workspace.
-export default function PayrollSheetFrame({ title, children, defaultExpanded = false }) {
-  const [expanded, setExpanded] = useState(defaultExpanded);
+export default function PayrollSheetFrame(props) {
+  return props.sessionKey ? <RetainedPayrollSheetFrame {...props} /> : <SheetFrame {...props} />;
+}
+
+function RetainedPayrollSheetFrame({ sessionKey, defaultExpanded = false, ...props }) {
+  const [retained, setRetained] = usePayrollSessionState(sessionKey, () => ({ expanded: defaultExpanded, position: null }));
+  return <SheetFrame {...props} defaultExpanded={defaultExpanded} retained={retained} setRetained={setRetained} />;
+}
+
+function SheetFrame({ title, children, defaultExpanded = false, retained, setRetained, restoreReady = true }) {
+  const [localExpanded, setLocalExpanded] = useState(defaultExpanded);
+  const expanded = retained?.expanded ?? localExpanded;
+  const setExpanded = useCallback(update => {
+    if (setRetained) setRetained(current => ({ ...current,
+      expanded: typeof update === 'function' ? update(current.expanded) : update }));
+    else setLocalExpanded(update);
+  }, [setRetained]);
   const [host] = useState(() => typeof document === 'undefined' ? null : document.createElement('div'));
   const anchor = useRef(null);
   const button = useRef(null);
-  const wasExpanded = useRef(defaultExpanded);
+  const wasExpanded = useRef(expanded);
+  const returningPosition = useRef(retained?.position ?? null);
+  const restored = useRef(false);
+  const rememberPosition = target => {
+    if (!host || !setRetained) return;
+    const position = capturePayrollSheetPosition(host, document.getElementById('main-content'), target);
+    setRetained(current => ({ ...current, expanded, position }));
+  };
   useEffect(() => {
     if (!host) return;
     (expanded ? document.body : anchor.current)?.appendChild(host);
@@ -42,7 +66,12 @@ export default function PayrollSheetFrame({ title, children, defaultExpanded = f
       document.body.style.overflow = previousOverflow;
       inertStates.forEach(([element, inert]) => { element.inert = inert; });
     };
-  }, [host, expanded]);
+  }, [host, expanded, setExpanded]);
+  useEffect(() => {
+    if (!host || !restoreReady || restored.current || !returningPosition.current) return undefined;
+    return restorePayrollSheetPosition(host, document.getElementById('main-content'), returningPosition.current,
+      () => { restored.current = true; });
+  }, [host, restoreReady, expanded]);
   useEffect(() => () => host?.remove(), [host]);
   const control = <button ref={button} type="button" className={btnClass('ghost')} aria-pressed={expanded}
     onClick={() => setExpanded(value => !value)}>
@@ -51,7 +80,7 @@ export default function PayrollSheetFrame({ title, children, defaultExpanded = f
   const content = <div className="payroll-sheet-content" role={expanded ? 'dialog' : undefined}
     aria-modal={expanded || undefined} aria-label={expanded ? title : undefined}>
     {expanded && <div className="payroll-sheet-caption"><span>{title}</span><span>Esc to return to payroll</span></div>}
-    {children({ control, expanded })}
+    {children({ control, expanded, rememberPosition })}
   </div>;
   return <div ref={anchor} className="payroll-sheet-anchor">{host ? createPortal(content, host) : content}</div>;
 }

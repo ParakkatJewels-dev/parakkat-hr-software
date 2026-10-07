@@ -268,12 +268,31 @@ only fully paid duty days. **Edit** switches an hour field to an HR override; **
 attendance calculation. Overrides cannot exceed the recorded eligible hours. New device punches
 and approved corrections refresh automatic values without overwriting manual overrides.
 
-**Review / correct punches** opens the employee's selected month. Authorized HR can select a day,
-enter corrected check-in/check-out times and a reason, and submit a regularization on behalf of
-the employee. A different authorized reviewer must approve it before the attendance engine uses
-the correction. Raw device evidence remains available. Missing punches, unresolved attendance
-and queued recalculations are shown for review; calculation/publication waits for the attendance
-engine to finish. Locked or published payroll dates reject correction changes.
+**Review / correct punches** opens the employee's selected month with **Issue dates only**
+already selected. This shows missing punches, incomplete breaks, missing shifts, invalid credits
+and dates without calculated attendance within the server's employment period, up to today.
+Use **Every day** to inspect the complete month. **Back to payroll** restores the original company,
+month, filters, columns, page, selection, full-screen setting and scroll position; unsaved worksheet
+cells stay in memory. Save or discard an open punch correction before returning.
+
+After applying
+`0162_hr_punch_corrections.sql` (following `0161`), authorized HR can choose **Edit punches** for
+a day, enter corrected check-in/check-out times and a reason, then save directly. The same action
+is available in **Attendance → By person**, Today and Exceptions. The editor also supports a day
+with no attendance yet and next-day check-outs. Leave an endpoint blank to derive it from device
+evidence; existing approved corrections prefill their manual endpoints so a later edit retains them.
+
+Corrections use a scoped Supabase RPC and an approved attendance overlay. Original device punches
+and EasyTime Pro stay unchanged. Replacing a correction preserves the prior values and reason in
+history. Immutable receipts record who changed the day and prevent duplicate network retries;
+changed source data requires a fresh review. HR cannot directly correct their own attendance,
+and pending employee requests must be reviewed first. The existing request/independent-approval
+flow remains available for self-service. Locked or published payroll dates reject correction changes.
+
+Saving queues the attendance worker; the editor shows processing status until it finishes.
+Missing punches, unresolved attendance and queued recalculations are shown for review;
+calculation/publication waits for the attendance engine to finish. Draft runs become stale and
+must be recalculated with the corrected hours.
 
 Automatic capture depends on the attendance service and BioTime connection being operational.
 The default device polling and queue schedules run every two minutes (typically two to four

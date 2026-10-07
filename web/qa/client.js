@@ -7,6 +7,7 @@ import { workflowFixtures, workflowLeaveRows, workflowRpc } from './workflowFixt
 import { routineFixtures, routineRpc } from './routineFixtures';
 import { taskTrashFixtures, taskTrashRpc } from './taskTrashFixtures';
 import { payrollFixtures, payrollRpc } from './payrollFixtures';
+import { punchCorrectionRpc } from './punchCorrectionFixtures';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
 const slowRequests = new URL(window.location.href).searchParams.has('qa-slow');
@@ -254,6 +255,13 @@ export const supabase = {
   },
   rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    const punchCorrection = punchCorrectionRpc(name, args, { employee: fixture.employees[0], userId: user.id, allows: fixtureAllows,
+      event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
+    if (punchCorrection) {
+      if (punchCorrection.error) return Promise.resolve({ data: null, error: punchCorrection.error });
+      if (punchCorrection.mutated) qaState.mutations += 1;
+      return new Query(punchCorrection.rows).single();
+    }
     const payroll = payrollRpc(name, args, { allows: fixtureAllows,
       event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
     if (payroll) {

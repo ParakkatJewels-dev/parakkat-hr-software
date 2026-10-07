@@ -106,11 +106,12 @@ test('policy save submits reviewed settings and surfaces server failures', async
   globalThis.worksheetClient = { invalidateQueries() {} };
   globalThis.worksheetDb = { rpc: async (name, args) => { captured = { name, args }; return { error: new Error('Published month is locked') }; } };
   await assert.rejects(useSavePayrollPolicy().mutationFn({ entityId: 'company', policy: {
-    divisor_mode: 'fixed', fixed_days: '30', hours_per_day: '8', ot_multiplier: '2', deduct_late: false,
+    divisor_mode: 'fixed', fixed_days: '30', hours_per_day: '8.5', ot_multiplier: '2', deduct_late: false,
   } }), /locked/);
   assert.equal(captured.name, 'save_payroll_policy');
   assert.equal(captured.args._entity_id, 'company');
   assert.equal(captured.args._policy.fixed_days, 30);
+  assert.equal(captured.args._policy.hours_per_day, 8.5, '8h 30m must reach the salary engine as 8.5 decimal hours');
   assert.equal(captured.args._expected_updated_at, null);
 });
 

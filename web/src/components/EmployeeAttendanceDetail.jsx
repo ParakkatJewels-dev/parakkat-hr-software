@@ -14,6 +14,8 @@ import {
 import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
 import { fmtMinutes, fmtTime, monthRange, todayIso } from '../data/attendance';
 import { usePermissions } from '../auth/usePermissions';
+import { useAuth } from '../auth/AuthContext';
+import PunchCorrectionEditor from './PunchCorrectionEditor';
 import { formatMinutesOfDay } from '../lib/clock';
 import { useClockFormat } from '../lib/timeFormat';
 import { explainDay, asHoursMinutes, onSiteMinutes, insideMinutes } from '../lib/attendanceSummary';
@@ -22,6 +24,7 @@ import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import PunchDetails from './ui/PunchDetails';
 import { recordedPunches, firstRecordedPunch, latestRecordedPunch, punchDate } from '../lib/recordedPunches';
 import { attendanceTimeline } from '../lib/attendanceTimeline';
+import { attendanceIssueReasons, attendanceReviewRows } from '../lib/attendanceIssues';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
@@ -31,6 +34,7 @@ import { SkeletonRows } from './ui/Skeleton';
 
 const SHOW = [
   { key: 'all', label: 'Every day' },
+  { key: 'issues', label: 'Issue dates only' },
   { key: 'late', label: 'Late only' },
   { key: 'absent', label: 'Absent only' },
   { key: 'leave', label: 'Leave only' },
@@ -49,8 +53,10 @@ const statusTone = (r) =>
 const fmtDate = (d) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
-export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee: fixedEmployee, onBack, embedded = false, period }) {
-  const { can } = usePermissions();
+export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee: fixedEmployee, onBack, embedded = false, period, correctDate, onCorrectionStateChange,
+  showFilter, onShowChange, payrollAttendance, fromPayroll = false }) {
+  const { can, viewingAsEmployee } = usePermissions();
+  const { employee: signedInEmployee } = useAuth();
   // Self-service supplies the signed-in employee. It needs neither a directory query
   // nor a person picker, even when the account also holds a management role.
   const { data: employees = [] } = useEmployees({ enabled: !fixedEmployee });
@@ -64,10 +70,14 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   const range = useDateRange('month');
   const fixedPeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(period ?? '');
   const { from, to } = fixedPeriod ? monthRange(Number(period.slice(0, 4)), Number(period.slice(5, 7))) : range;
-  const [show, setShow] = useState('all');
+  const [localShow, setLocalShow] = useState('all');
+  const show = SHOW.some(option => option.key === showFilter) ? showFilter : localShow;
+  const setShow = value => { setLocalShow(value); onShowChange?.(value); };
   const [q, setQ] = useState('');
   // Which day's punch timeline is open. One at a time — the table stays scannable.
   const [openDay, setOpenDay] = useState(null);
+  const [correctionDate, setCorrectionDate] = useState(() => /^\d{4}-\d{2}-\d{2}$/.test(correctDate ?? '') && correctDate <= todayIso() ? correctDate : null);
+  const [correctionBusy, setCorrectionBusy] = useState(false);
   // "Show" answers what happened; this answers what the day was scored as. They are not the same
   // question — Half Day, Missing Punch and Weekly Off have no entry in SHOW and were unreachable.
   const [status, setStatus] = useState('All statuses');
@@ -75,27 +85,37 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   const person = fixedEmployee ?? employees.find((e) => e.id === employeeId) ?? null;
   const canCorrect = Boolean(person && can('regularization.create', { entityId: person.entity_id,
     zoneId: person.zone_id, branchId: person.branch_id, deptId: person.department_id, employeeId: person.id }));
+  const canEditPunches = Boolean(person && !viewingAsEmployee && person.id !== signedInEmployee?.id
+    && can('attendance.manage', { entityId: person.entity_id, zoneId: person.zone_id,
+      branchId: person.branch_id, deptId: person.department_id, employeeId: person.id }));
+  const showRequestCorrection = canCorrect && !fromPayroll;
+  const showCorrection = showRequestCorrection || canEditPunches;
+  const correctionStateChange = value => { setCorrectionBusy(value); onCorrectionStateChange?.(value); };
   const { data: rows = [], isLoading, error, refetch, isFetching, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
+  const reviewRows = useMemo(() => attendanceReviewRows(rows, { employeeId, from, to, today: todayIso(), payrollAttendance }),
+    [rows, employeeId, from, to, payrollAttendance]);
+  const issueCount = reviewRows.filter(row => attendanceIssueReasons(row).length > 0).length;
 
   // Only the statuses this person actually has in the range, so the list never offers a dead end.
   const statusOptions = useMemo(() => {
-    const ORDER = ['Present', 'Absent', 'Half Day', 'Missing Punch', 'On Leave', 'No Shift', 'Weekly Off', 'Holiday'];
-    const seen = [...new Set(rows.map((r) => r.status).filter(Boolean))].sort((a, b) => {
+    const ORDER = ['Present', 'Absent', 'Half Day', 'Missing Punch', 'On Leave', 'No Shift', 'Not processed', 'Weekly Off', 'Holiday'];
+    const seen = [...new Set(reviewRows.map((r) => r.status).filter(Boolean))].sort((a, b) => {
       const ia = ORDER.indexOf(a), ib = ORDER.indexOf(b);
       return (ia === -1 ? ORDER.length : ia) - (ib === -1 ? ORDER.length : ib) || a.localeCompare(b);
     });
     return ['All statuses', ...seen];
-  }, [rows]);
+  }, [reviewRows]);
 
-  const filtered = useMemo(() => rows.filter((r) => {
+  const filtered = useMemo(() => reviewRows.filter((r) => {
     if (status !== 'All statuses' && r.status !== status) return false;
     if (show === 'late' && !r.is_late) return false;
     if (show === 'absent' && r.status !== 'Absent') return false;
     if (show === 'leave' && r.status !== 'On Leave') return false;
     if (show === 'ot' && !(r.ot_minutes > 0)) return false;
+    if (show === 'issues' && !attendanceIssueReasons(r).length) return false;
     if (show === 'exceptions' && !(r.is_late || r.is_early_exit || r.is_missing_punch || r.status === 'Absent')) return false;
     return true;
-  }), [rows, show, status]);
+  }), [reviewRows, show, status]);
 
   const pager = usePagination(filtered, 31, null, `${employeeId}:${from}:${to}:${status}:${show}`);
 
@@ -139,7 +159,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
     URL.revokeObjectURL(url);
   };
 
-  const exportButton = !error && rows.length > 0 && (
+  const exportButton = !error && reviewRows.length > 0 && (
     <button onClick={exportCsv} className={btnClass('ghost')}>
       <Download size={13} /> Export
     </button>
@@ -186,6 +206,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
               id="att-person"
               value={q}
               onChange={(e) => setQ(e.target.value)}
+              disabled={correctionBusy}
               placeholder="Search by name or employee code…"
               className="w-full text-sm rounded-lg pl-8 pr-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
             />
@@ -195,7 +216,8 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                 {peoplePager.slice.map((e) => (
                   <li key={e.id}>
                     <button
-                      onClick={() => { setEmployeeId(e.id); setQ(''); }}
+                      onClick={() => { if (correctionBusy) return; setEmployeeId(e.id); setQ(''); setCorrectionDate(null); }}
+                      disabled={correctionBusy}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-charcoal-800 flex justify-between gap-2 cursor-pointer"
                     >
                       <span className="font-semibold truncate">{e.full_name}</span>
@@ -222,17 +244,25 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
           <div className="premium-card space-y-2.5">
             <div className="mobile-toolbar flex flex-wrap items-center gap-1.5">
               {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
-              {canCorrect && <Link className="text-xs text-brand-ink underline" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(from > todayIso() ? todayIso() : from)}`}>Request a punch correction</Link>}
+              {canEditPunches ? <button type="button" className={btnClass('ghost', 'sm')} disabled={Boolean(correctionDate)} onClick={() => setCorrectionDate(filtered.find(row => row.work_date <= todayIso() && !row.is_locked)?.work_date || (from > todayIso() ? todayIso() : from))}>Edit punches</button> : showRequestCorrection && <Link className="text-xs text-brand-ink underline" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(from > todayIso() ? todayIso() : from)}`}>Request a punch correction</Link>}
               <span className="sm:ml-auto">
-                <FilterSelect label="Show" value={show} options={SHOW.map((s) => s.key)} allValue="all"
-                  onChange={setShow} />
+                <FilterSelect label="Show" value={SHOW.find(option => option.key === show)?.label} options={SHOW.map(option => option.label)} allValue="Every day"
+                  onChange={label => setShow(SHOW.find(option => option.label === label)?.key || 'all')} />
               </span>
               <span>
                 <FilterSelect label="Status" value={status} options={statusOptions}
                   onChange={setStatus} allValue="All statuses" />
               </span>
             </div>
+            {show === 'issues' && <p className="text-xs text-neutral-500">{issueCount} {issueCount === 1 ? 'date needs' : 'dates need'} review. Showing missing punches, incomplete breaks, missing shifts, invalid credits and unprocessed attendance.</p>}
+            {fromPayroll && !canEditPunches && <p className="text-xs text-amber-700 dark:text-amber-300">{person?.id === signedInEmployee?.id
+              ? 'Another HR manager must correct your own attendance.'
+              : 'You can review these dates, but attendance management permission is required to edit this employee’s punches.'}</p>}
+            {fromPayroll && Number(payrollAttendance?.pending_recompute_days) > 0 && <p role="status" className="text-xs text-neutral-500">Saved attendance changes are waiting to be processed. The issue dates and payroll hours will refresh after processing.</p>}
           </div>
+
+          {canEditPunches && correctionDate && <PunchCorrectionEditor key={`${employeeId}:${correctionDate}`} employee={person} workDate={correctionDate}
+            onStateChange={correctionStateChange} onClose={() => { setCorrectionDate(null); correctionStateChange(false); }} />}
 
           {error ? (
             <div role="alert" className="premium-card space-y-2">
@@ -246,6 +276,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
           ) : (
             <>
               {/* ---- the numbers --------------------------------------------------------- */}
+              {show !== 'issues' && <>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
                 {/* Each sub-line states the arithmetic behind the number above it. They drifted
                     apart once before — the rate counted half days as half while the caption
@@ -340,6 +371,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                   </div>
                 </div>
               )}
+              </>}
 
               {/* ---- the days ------------------------------------------------------------ */}
               <div className="premium-card p-0 overflow-hidden">
@@ -367,7 +399,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                         </th>
                         <th className="hidden md:table-cell">Late</th>
                         <th className="hidden md:table-cell">OT</th>
-                        {canCorrect && <th>Correction</th>}
+                        {showCorrection && <th>Correction</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -396,6 +428,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                                   {r.is_missing_punch && <span className="ml-1.5 text-2xs text-amber-600 dark:text-amber-400">review punches</span>}
                                 </span>
                               </div>
+                              {show === 'issues' && <p className="mt-1 text-2xs font-normal text-amber-700 dark:text-amber-300">{attendanceIssueReasons(r).join(' · ')}</p>}
                             </td>
                             <td data-label="First punch" className={`font-mono ${r.is_late ? 'text-amber-600 dark:text-amber-400' : ''}`}>
                               {fmtTime(firstRecordedPunch(r))}
@@ -431,13 +464,15 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                             <td data-label="OT" className="hidden md:table-cell tabular-nums text-brand-ink dark:text-brand-ink">
                               {r.ot_minutes ? `${r.ot_minutes}m` : '—'}
                             </td>
-                            {canCorrect && <td data-label="Correction">{r.is_locked
+                            {showCorrection && <td data-label="Correction">{r.is_locked
                               ? <span className="text-xs text-neutral-500">Published · locked</span>
-                              : r.work_date <= todayIso() && <Link onClick={event => event.stopPropagation()} className="text-xs text-brand-ink underline whitespace-nowrap" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>Correct times</Link>}</td>}
+                              : r.work_date <= todayIso() && (canEditPunches
+                                ? <button type="button" disabled={correctionBusy} onClick={event => { event.stopPropagation(); if (!correctionBusy) setCorrectionDate(r.work_date); }} className="text-xs text-brand-ink underline whitespace-nowrap disabled:opacity-50">Edit punches</button>
+                                : <Link onClick={event => event.stopPropagation()} className="text-xs text-brand-ink underline whitespace-nowrap" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>Correct times</Link>)}</td>}
                           </tr>
                           {open && (
                             <tr>
-                              <td colSpan={canCorrect ? 13 : 12} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
+                              <td colSpan={showCorrection ? 13 : 12} className="bg-neutral-50 dark:bg-neutral-900/50 px-3 py-2.5">
                                 <PunchTimeline
                                   punches={punches}
                                   breakMinutes={r.break_minutes}
@@ -489,8 +524,10 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                       })}
                       {filtered.length === 0 && (
                         <tr>
-                          <td colSpan={canCorrect ? 13 : 12} className="py-8 text-center text-sm text-neutral-500">
-                            {rows.length === 0
+                          <td colSpan={showCorrection ? 13 : 12} className="py-8 text-center text-sm text-neutral-500">
+                            {show === 'issues'
+                              ? (status === 'All statuses' ? 'No issue dates in this range.' : 'No issue dates match this status.')
+                              : reviewRows.length === 0
                               ? 'No attendance recorded in this range.'
                               : `No ${SHOW.find((s) => s.key === show)?.label.toLowerCase()} in this range.`}
                           </td>

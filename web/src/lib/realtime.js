@@ -11,7 +11,7 @@ import { mergeConversationReceipts } from './messageReceipts';
 
 const CHAT_TABLES = new Set(['messages', 'conversations', 'conversation_members']);
 const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']];
-const PAYROLL_ATTENDANCE_KEYS = [['payroll-attendance-summary'], ['payroll-runs'], ['payroll-worksheet-run']];
+const PAYROLL_ATTENDANCE_KEYS = [['payroll-attendance-summary'], ['payroll-runs'], ['payroll-worksheet-run'], ['attendance-punch-correction']];
 const PAYROLL_TRANSACTION_KEYS = [['payroll-adjustments'], ['payroll-advances'], ['payroll-advance-recoveries'], ['payroll-payments']];
 const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['routine-notes'], ['section-counts']];
 const TASK_KEYS = [['tasks'], ['deleted-tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],

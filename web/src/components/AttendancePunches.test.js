@@ -104,12 +104,22 @@ test('three-punch detail labels stay neutral and expose the exact 10-minute inte
   assert.deepEqual(labels, ['First punch', 'Punch · 60 min after previous', 'Latest punch · 10 min after previous']);
 });
 
-test('missing history does not display approved attendance as recorded punches', () => {
+test('manual-only attendance shows approved times separately from missing device evidence', () => {
   const html = renderToStaticMarkup(React.createElement(PunchDetails, {
     row: { punches: [], check_in: at('09:00'), check_out: at('18:00'), regularization_id: 'approved' },
   }));
-  assert.match(html, /No recorded punches/);
-  assert.doesNotMatch(html, /<time|09:00|18:00/);
+  assert.match(html, /No recorded device punches/);
+  assert.match(html, /Approved attendance: 09:00 – 18:00/);
+  assert.doesNotMatch(html, /<time|Recorded punches in time order|First punch|Latest punch/);
+});
+
+test('manual-only overnight attendance identifies the corrected checkout date', () => {
+  const html = renderToStaticMarkup(React.createElement(PunchDetails, {
+    row: { work_date: '2026-07-14', punches: [], check_in: at('22:00', '2026-07-14'),
+      check_out: at('06:00', '2026-07-15'), regularization_id: 'approved' },
+  }));
+  assert.match(html, /Approved attendance: 22:00 – 06:00 \(2026-07-15\)/);
+  assert.doesNotMatch(html, /<time|Recorded punches in time order/);
 });
 
 test('the timeline labels its ambiguous last event as latest punch instead of a departure', () => {

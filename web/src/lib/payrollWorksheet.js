@@ -100,11 +100,23 @@ export function payrollPolicyDraft(row) {
   return {
     divisor_mode: row?.divisor_mode ?? 'calendar',
     fixed_days: String(row?.fixed_days ?? 30),
-    hours_per_day: String(row?.hours_per_day ?? 8),
+    hours_per_day: String(row?.hours_per_day ?? 8.5),
     ot_multiplier: String(row?.ot_multiplier ?? 2),
     deduct_late: row?.deduct_late ?? false,
     notes: row?.notes ?? '',
   };
+}
+
+// Payroll stores decimal hours. Keep saved values exact: 8.3 is 8h 18m,
+// and hundredths of an hour can include seconds (8.01 is 8h 0m 36s).
+export function formatPayrollDayHours(value) {
+  if (!['number', 'string'].includes(typeof value) || String(value).trim() === '') return '—';
+  const hours = Number(value);
+  if (!Number.isFinite(hours) || hours <= 0 || hours > 24) return '—';
+  const totalSeconds = Math.round(hours * 3600);
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const seconds = totalSeconds % 60;
+  return `${Math.floor(totalSeconds / 3600)}h ${minutes}m${seconds ? ` ${seconds}s` : ''}`;
 }
 
 export function normalizePayrollPolicy(draft) {

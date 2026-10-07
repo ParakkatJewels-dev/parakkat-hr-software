@@ -110,6 +110,37 @@ fixtureTest('ATT-05: approved checkout-only night correction loads and persists 
   assert.equal(rows[0]!.is_missing_punch, false);
 });
 
+fixtureTest('replacing an approved correction recalculates from its complete replacement and preserves device evidence', async () => {
+  await client.$executeRaw`insert into raw_punches(employee_id, punch_time) values
+    (${id(1)}::uuid, '2026-07-14 09:00+05:30'), (${id(1)}::uuid, '2026-07-14 17:00+05:30')`;
+  await client.$executeRaw`insert into attendance_regularizations(id, employee_id, work_date, check_in, check_out, status)
+    values (${id(3001)}::uuid, ${id(1)}::uuid, '2026-07-14', '2026-07-14 09:15+05:30', '2026-07-14 17:30+05:30', 'Approved')`;
+  const recorded = await client.$queryRaw`select * from raw_punches order by id`;
+  await engine.recompute({ from: '2026-07-14', to: '2026-07-14' });
+  assert.deepEqual(await client.$queryRaw`select regularization_id, worked_minutes from attendance`,
+    [{ regularization_id: id(3001), worked_minutes: 495 }]);
+
+  // The direct HR RPC cancels the previous overlay and inserts the complete replacement in
+  // one transaction. A null endpoint intentionally uses device evidence again, not old history.
+  await client.$transaction([
+    client.$executeRaw`update attendance_regularizations set status='Cancelled' where id=${id(3001)}::uuid`,
+    client.$executeRaw`insert into attendance_regularizations(id, employee_id, work_date, check_in, check_out, status)
+      values (${id(3002)}::uuid, ${id(1)}::uuid, '2026-07-14', null, '2026-07-14 18:00+05:30', 'Approved')`,
+  ]);
+  await engine.enqueueRecompute(id(1), '2026-07-14', '2026-07-14', 'HR correction replaced');
+  assert.equal((await engine.drainRecomputeQueue())?.rowsWritten, 1);
+  assert.deepEqual(await client.$queryRaw`select regularization_id, check_in, check_out, worked_minutes,
+    is_missing_punch, source, status_override, punch_count, punches from attendance`, [{
+    regularization_id: id(3002), check_in: new Date('2026-07-14T03:30:00Z'), check_out: new Date('2026-07-14T12:30:00Z'),
+    worked_minutes: 540, is_missing_punch: false, source: 'regularized', status_override: null,
+    punch_count: 2, punches: ['2026-07-14T03:30:00.000Z', '2026-07-14T11:30:00.000Z'],
+  }]);
+  assert.deepEqual(await client.$queryRaw`select * from raw_punches order by id`, recorded);
+  assert.deepEqual(await client.$queryRaw`select status, check_in, check_out from attendance_regularizations where id=${id(3001)}::uuid`,
+    [{ status: 'Cancelled', check_in: new Date('2026-07-14T03:45:00Z'), check_out: new Date('2026-07-14T12:00:00Z') }]);
+  assert.equal(await engine.drainRecomputeQueue(), null);
+});
+
 fixtureTest('queue keeps future work pending and does not let future entries exhaust the batch', async () => {
   await engine.enqueueRecompute(id(1), '2026-07-16', '2026-07-18', 'Future approval');
   await engine.enqueueRecompute(id(1), '2026-07-14', '2026-07-14', 'Past correction');

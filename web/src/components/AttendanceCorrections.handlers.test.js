@@ -18,7 +18,7 @@ for (const [, clause, specifier] of source.matchAll(/import\s+([\s\S]*?)\s+from\
 Object.assign(stubs, {
   react: `export {default} from ${JSON.stringify(import.meta.resolve('react'))}; export const useState = initial => globalThis.correctionForm.state(initial);
     export const useRef = value => globalThis.correctionForm.state({current:value})[0]; export const useMemo = calculate => calculate();`,
-  'react-router-dom': 'export const Link="link"; export const useSearchParams=()=>[globalThis.correctionForm.params,()=>{}];',
+  'react-router-dom': 'export const Link="link"; export const useNavigate=()=>()=>{}; export const useSearchParams=()=>[globalThis.correctionForm.params,()=>{}];',
   '../auth/AuthContext': 'export const useAuth=()=>globalThis.correctionForm.auth;',
   '../auth/usePermissions': 'export const usePermissions=()=>globalThis.correctionForm.permissions;',
   '../data/employees': 'export const useEmployees=()=>({data:globalThis.correctionForm.people,isLoading:false,error:null});',

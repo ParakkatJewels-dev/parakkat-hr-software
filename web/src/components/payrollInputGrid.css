@@ -100,6 +100,7 @@
 
 .payroll-attendance-info { display: flex; gap: 16px; align-items: center; justify-content: space-between; margin: 12px 20px; padding: 12px 14px; background: var(--pi-soft); border: 1px solid var(--pi-line); border-radius: var(--radius-card); font-size: 12px; }
 .payroll-attendance-info p { margin-top: 4px; color: var(--pi-muted); font-size: 11px; line-height: 1.6; }
+.payroll-attendance-freshness { display: block; margin-top: 4px; color: var(--pi-muted); font-size: 11px; }
 .payroll-punch-link { display: inline-block; margin-top: 6px; color: #087449; font-size: 10px; text-decoration: underline; font-weight: 500; }
 .dark .payroll-punch-link { color: #6ee7b7; }
 .payroll-input-table .payroll-punch-metric { padding: 10px 12px; background: var(--pi-soft); min-width: 140px; }

@@ -29,8 +29,7 @@ const stubs = {
   '../lib/payrollInputGrid': `export { applyPayrollPaste, parsePayrollPaste, parsePayrollImportRows } from ${JSON.stringify(helperUrl)};
     export const readPayrollInputWorkbook = file => globalThis.payrollGrid.readWorkbook(file);
     export const exportPayrollInputTemplate = (...args) => { globalThis.payrollGrid.downloads.push(args); };`,
-  './ui/Pagination': `export default "payroll-pagination";
-    export const usePagination = (rows, size, _focus, key) => globalThis.payrollGrid.paginate(rows,size,key);`,
+  './ui/Pagination': 'export default "payroll-pagination";',
   './ui/ConfirmDialog': 'export default "payroll-confirm";',
   './ui/Btn': 'export const btnClass = () => "button";',
   './PayrollSheetFrame': 'export default "sheet-frame";',
@@ -101,13 +100,8 @@ function mount({ count = 30, published = false, query: overrides = {}, sessionSt
       return [sessionStore.get(cacheKey), next => sessionStore.set(cacheKey,
         typeof next === 'function' ? next(sessionStore.get(cacheKey)) : next)];
     },
-    paginate(rows, size, key) {
-      if (this.paginationKey !== key) { this.page = 1; this.paginationKey = key; }
-      this.page = Math.min(this.page, Math.max(1, Math.ceil(rows.length / size)));
-      return { slice: rows.slice((this.page - 1) * size, this.page * size), count: rows.length, page: this.page,
-        setPage: next => { this.page = typeof next === 'function' ? next(this.page) : next; } };
-    },
-    render() { cursor = 0; globalThis.payrollGrid = this; return PayrollInputGrid(this.props).props.children({ control: null, expanded: false }); },
+    render() { cursor = 0; globalThis.payrollGrid = this; return PayrollInputGrid(this.props).props.children({ control: null,
+      expanded: false, rememberPosition: target => { this.positionTarget = target; } }); },
     button(label) { return find(this.render(), node => node.type === 'button' && matches(node.props['aria-label'] || text(node), label)); },
     field(label) { return find(this.render(), node => ['input', 'select', 'textarea'].includes(node.type) && node.props['aria-label'] === label); },
     click(label) {
@@ -421,6 +415,10 @@ test('automatic punch hours refresh without creating a manual override or an uns
   assert.equal(grid.cell(1, 'Late hours').props.value, '1');
   assert.equal(grid.button('Save changes').props.disabled, true);
   grid.click('Earnings'); grid.edit(1, '250');
+  assert.match(text(grid.render()), /Worked hoursFROM PUNCHES/);
+  assert.match(text(grid.render()), /Recorded OTFROM ATTENDANCE/);
+  assert.match(text(grid.render()), /208h/);
+  assert.match(text(grid.render()), /6h/);
   await grid.click('Save 1 changes');
   assert.equal(grid.mutation.writes[0].rows[0].input.ot_hours, '');
   assert.equal(grid.query.data.find(row => row.employee_id === 'employee-1').ot_hours, null);
@@ -476,10 +474,57 @@ test('daily punch links retain employee and month and respect attendance access'
   const grid = mount({ count: 3 });
   grid.click('Hours & deductions');
   let links = findAll(grid.render(), node => node.type === 'a');
-  assert.equal(links[0].props.to, '/attendance/person?employee=employee-1&period=2026-10');
+  assert.equal(links[0].props.to, '/attendance/person?employee=employee-1&period=2026-10&show=issues&from=payroll&entity=company&payrollPeriod=2026-10');
+  const origin = { employee: 'employee-1' };
+  links[0].props.onClick({ currentTarget: origin });
+  assert.equal(grid.positionTarget, origin);
+  grid.mutation.isPending = true;
+  assert.equal(findAll(grid.render(), node => node.type === 'a').length, 0, 'an in-flight save cannot be navigated away from');
+  grid.mutation.isPending = false;
   grid.canReadAttendance = false;
   links = findAll(grid.render(), node => node.type === 'a');
   assert.equal(links.length, 0);
+});
+
+test('returning from punch review restores filters, columns, page size, selection and unchanged draft revisions', () => {
+  const grid = mount({ count: 240 });
+  grid.attendance.data.forEach(row => { row.unresolved_days = 1; });
+  grid.change('Search payroll employees', 'Person');
+  grid.change('Filter payroll branch', 'north');
+  grid.change('Filter input status', 'issues');
+  find(grid.render(), node => node.type === 'payroll-pagination').props.setPageSize(50);
+  grid.nextPage(2);
+  grid.edit(104, '777'); grid.select(104);
+  grid.click('Hours & deductions');
+  grid.change('Bulk fill field', 'notes'); grid.change('Bulk fill value', 'Keep this draft');
+  const original = grid.sessionStore.get(JSON.stringify(['inputs', 'company', '2026-10']))['employee-104'];
+  const link = find(grid.render(), node => node.props['data-payroll-employee'] === 'employee-104');
+  assert.ok(link); link.props.onClick({ currentTarget: {} });
+
+  const returned = mount({ count: 240, sessionStore: grid.sessionStore });
+  const loaded = returned.attendance.data;
+  returned.attendance.data = []; returned.props.employees = [];
+  returned.render(); // Temporary empty data on remount must not erase page 2.
+  returned.props.employees = grid.props.employees;
+  returned.attendance.data = loaded.map(row => ({ ...row, unresolved_days: 1 }));
+  assert.equal(returned.field('Search payroll employees').props.value, 'Person');
+  assert.equal(returned.field('Filter payroll branch').props.value, 'north');
+  assert.equal(returned.field('Filter input status').props.value, 'issues');
+  assert.equal(returned.button('Hours & deductions').props['aria-pressed'], true);
+  const pager = find(returned.render(), node => node.type === 'payroll-pagination').props;
+  assert.deepEqual([pager.page, pager.pageSize, pager.from], [2, 50, 51]);
+  assert.equal(returned.field('Select Person 104').props.checked, true);
+  assert.equal(returned.field('Bulk fill field').props.value, 'notes');
+  assert.equal(returned.field('Bulk fill value').props.value, 'Keep this draft');
+  assert.equal(returned.sessionStore.get(JSON.stringify(['inputs', 'company', '2026-10']))['employee-104'], original);
+  returned.click('Earnings');
+  assert.equal(returned.cell(104).props.value, '777');
+  assert.equal(original.expectedUpdatedAt, 'revision-employee-104');
+  returned.change('Search payroll employees', 'Person 104');
+  assert.equal(find(returned.render(), node => node.type === 'payroll-pagination').props.page, 1);
+
+  returned.props.period = '2026-09';
+  assert.equal(returned.field('Search payroll employees').props.value, '', 'other months have their own view state');
 });
 
 test('saved hour issues require attention while employees outside the month show a neutral status', () => {

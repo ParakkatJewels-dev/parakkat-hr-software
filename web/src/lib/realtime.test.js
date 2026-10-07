@@ -160,7 +160,7 @@ test('chat events refresh promptly and only the changed thread while bulk data s
   assert.deepEqual(live.invalidations.map(value => value.queryKey), [['messages', 'room-1'], ['conversations'], ['admin-conversations'], ['message-delivery']]);
   assert.ok(live.invalidations.every(value => value.refetchType === 'active'));
   t.mock.timers.tick(900);
-  for (const key of ['attendance', 'payroll-attendance-summary', 'payroll-runs', 'payroll-worksheet-run']) {
+  for (const key of ['attendance', 'payroll-attendance-summary', 'payroll-runs', 'payroll-worksheet-run', 'attendance-punch-correction']) {
     assert.equal(live.invalidations.filter(value => value.queryKey[0] === key).length, 1);
   }
 });

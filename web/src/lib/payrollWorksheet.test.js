@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import {
   PAYROLL_REGISTER_COLUMNS, payrollRegisterColumns, monthlyInputDraft, normalizeMonthlyInput, payrollPolicyDraft,
-  normalizePayrollPolicy, isCompletePayrollRegister, payrollRegisterRows, buildPayrollWorkbook,
+  normalizePayrollPolicy, formatPayrollDayHours, isCompletePayrollRegister, payrollRegisterRows, buildPayrollWorkbook,
 } from './payrollWorksheet.js';
 
 const expectedLabels = ['Employee Name', 'Branch', 'Salary', 'No Of  Days Per Month', 'Net Working Days',
@@ -116,5 +116,21 @@ test('policy validation supports each divisor but disallows zero hours and unsup
   for (const patch of [{ divisor_mode: 'unknown' }, { hours_per_day: '0' }, { hours_per_day: '24.01' },
     { fixed_days: '0' }, { fixed_days: '32' }, { ot_multiplier: '-1' }, { ot_multiplier: '11' }]) {
     assert.throws(() => normalizePayrollPolicy({ ...payrollPolicyDraft(), ...patch }));
+  }
+});
+
+test('daily working time suggests 8h 30m while preserving the meaning of saved decimal hours', () => {
+  const draft = payrollPolicyDraft();
+  assert.equal(draft.hours_per_day, '8.5');
+  assert.equal(normalizePayrollPolicy(draft).hours_per_day, 8.5);
+  assert.equal(formatPayrollDayHours(draft.hours_per_day), '8h 30m');
+  for (const [hours, duration] of [[8, '8h 0m'], [8.3, '8h 18m'], [8.01, '8h 0m 36s'],
+    [8.33, '8h 19m 48s'], [0.5, '0h 30m'], [24, '24h 0m']]) {
+    const savedDraft = payrollPolicyDraft({ hours_per_day: hours });
+    assert.equal(normalizePayrollPolicy(savedDraft).hours_per_day, hours, 'saved hours must not be reinterpreted');
+    assert.equal(formatPayrollDayHours(savedDraft.hours_per_day), duration);
+  }
+  for (const invalid of [null, undefined, '', ' ', false, {}, 'NaN', Infinity, -8.5, 0, 24.5]) {
+    assert.equal(formatPayrollDayHours(invalid), '—');
   }
 });

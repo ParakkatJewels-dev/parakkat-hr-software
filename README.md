@@ -51,10 +51,18 @@ Full setup, commands and troubleshooting: **[services/attendance/README.md](serv
 
 Payroll's **Monthly Worksheet → Hours & deductions** uses calculated attendance automatically
 for OT and eligible late hours. HR can enter a reasoned hour override or use **Review / correct
-punches** to request a daily time correction for independent approval. Existing numeric monthly
+punches → Edit punches** to save a daily check-in/check-out correction with a reason. Corrections
+are stored only in Supabase, with history; EasyTime Pro and raw device punches stay unchanged.
+The attendance worker recalculates the day, and draft payroll must be recalculated before publication.
+Employees still request independent approval for their own attendance. Existing numeric monthly
 inputs remain overrides until HR selects **Use punch hours**. Apply pending migrations through
-`0160` with `npm run migrate` before deploying the updated client. See the
+`0162` with `npm run migrate` before deploying the updated client. See the
 [payroll operating guide](web/backend/README.md#automatic-punch-hours-and-hr-corrections).
+
+Payroll policy hours use decimal values: **8 hours 30 minutes = 8.5**, whereas **8.3 = 8 hours
+18 minutes**. New policy drafts suggest 8.5; HR must review and save the policy before calculating.
+The policy editor and saved calculation summaries show the corresponding duration. Existing saved
+policies and published registers retain their original values.
 
 ## Access model
 

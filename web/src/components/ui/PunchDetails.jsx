@@ -1,11 +1,18 @@
 import { formatClock } from '../../lib/clock';
 import { useClockFormat } from '../../lib/timeFormat';
 import { recordedPunches, punchDate } from '../../lib/recordedPunches';
+import { correctionDateLabel } from '../../lib/regularizationTimes';
 
 export default function PunchDetails({ row, expanded = false }) {
   const { hour12 } = useClockFormat();
   const punches = recordedPunches(row);
-  if (!punches.length) return <span className="text-neutral-450">No recorded punches</span>;
+  const workDate = row?.work_date || punchDate(row?.check_in) || punchDate(row?.check_out);
+  const approvedAttendance = row?.regularization_id ? <p className="text-neutral-500">
+    Approved attendance: {formatClock(row.check_in, hour12)}{correctionDateLabel(row.check_in, workDate)} – {formatClock(row.check_out, hour12)}{correctionDateLabel(row.check_out, workDate)}. Recorded punches stay unchanged.
+  </p> : null;
+  if (!punches.length) return approvedAttendance
+    ? <div className="space-y-1 text-xs"><p className="text-neutral-450">No recorded device punches.</p>{approvedAttendance}</div>
+    : <span className="text-neutral-450">No recorded punches</span>;
   const endpointsOnly = !Array.isArray(row?.punches) || row.punches.length === 0;
   return (
     <details open={expanded || undefined} className="min-w-40 text-xs" onClick={event => event.stopPropagation()}>
@@ -32,9 +39,7 @@ export default function PunchDetails({ row, expanded = false }) {
         </ol>
         {endpointsOnly && <p className="text-neutral-500">Only the first and latest recorded times are available for this record.</p>}
         <p className="text-neutral-500">{!endpointsOnly && 'Every recorded punch is shown. '}The latest punch may be a return from a break.</p>
-        {row?.regularization_id && <p className="text-neutral-500">
-          Approved attendance: {formatClock(row.check_in, hour12)} – {formatClock(row.check_out, hour12)}. Recorded punches stay unchanged.
-        </p>}
+        {approvedAttendance}
       </div>
     </details>
   );

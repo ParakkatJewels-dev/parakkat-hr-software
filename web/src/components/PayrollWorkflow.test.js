@@ -17,7 +17,7 @@ const policy = { entity_id: entityId, divisor_mode: 'calendar', fixed_days: 30, 
 const run = { id: 'run', entity_id: entityId, period, status: 'Draft', employees: 1, total_gross: 30000, total_net: 29000, entity: company, needs_recalculation: false, source_fingerprint: 'reviewed-source-v1' };
 const register = { ...Object.fromEntries(PAYROLL_REGISTER_COLUMNS.map(({ key, type }) => [key, type === 'text' ? 'Test' : 0])),
   employee_name: employee.full_name, salary: 30000, earned_salary: 28000, gross_salary: 30000, net_pay_salary: 29000,
-  policy, days_per_month: 30, per_day_working_hour: 8, schema_version: 1 };
+  policy, days_per_month: 30, per_day_working_hour: 8, total_working_hours: 208.5, ot_hours: 4.5, late_hours: 0.75, schema_version: 1 };
 let server, Payroll, AuthContext, getSessionEntry, handlerLoader, TestRegister, TestCompanyWorksheet;
 
 before(async () => {
@@ -46,7 +46,7 @@ before(async () => {
       export const useSavePayrollPolicy = () => globalThis.payrollFlow.save;
       export const usePayrollMonthlyInputs = () => globalThis.payrollFlow.inputs;
       export const usePayrollAttendanceSummary = () => globalThis.payrollFlow.attendance;`,
-    '../lib/payrollWorksheet': `export { payrollRegisterColumns, payrollPolicyDraft, isCompletePayrollRegister } from ${JSON.stringify(new URL('../lib/payrollWorksheet.js', import.meta.url).href)}; export const exportPayrollRegister = (...args) => { globalThis.payrollFlow.exports.push(args); };`,
+    '../lib/payrollWorksheet': `export { payrollRegisterColumns, payrollPolicyDraft, formatPayrollDayHours, isCompletePayrollRegister } from ${JSON.stringify(new URL('../lib/payrollWorksheet.js', import.meta.url).href)}; export const exportPayrollRegister = (...args) => { globalThis.payrollFlow.exports.push(args); };`,
     '../lib/usePayrollSessionState': 'export const hasPayrollSessionChanges = () => globalThis.payrollFlow.pending; export const usePayrollSessionState = (key, initial) => globalThis.payrollFlow.sessionState(key, initial);',
     '../data/payroll': 'export const useRunPayroll = () => globalThis.payrollFlow.calculate; export const usePublishPayroll = () => globalThis.payrollFlow.publish;',
     './ui/Btn': 'export const btnClass = () => "button";',
@@ -137,12 +137,34 @@ test('prepare, review and publish each show one clear stage of the monthly workf
   assert.doesNotMatch(publish, /Employee monthly inputs|Search payroll register|Recalculate payroll/);
 });
 
-test('register opens as a six-column salary summary with access to all 33 columns', () => {
+test('daily hours show their duration and saved register summaries retain their original policy', () => {
+  const setup = render({ policyData: null, runData: null });
+  assert.match(setup, /Daily working hours \(decimal\)/);
+  assert.match(setup, /aria-describedby="payroll-daily-hours-help"[^>]*value="8\.5"/);
+  assert.match(setup, /8h 30m per day\./);
+  assert.match(setup, /8\.3 means 8h 18m/);
+  const saved = render({ policyData: { ...policy, hours_per_day: 8.3 } });
+  assert.match(saved, /Saved · calendar days · 8h 18m \/ day/);
+  assert.match(saved, /aria-describedby="payroll-daily-hours-help"[^>]*value="8\.3"/);
+  const reviewed = render({ step: 'review', policyData: { ...policy, hours_per_day: 8.5 },
+    rows: [{ id: 'slip', employee_id: employee.id, payroll_register: {
+      ...register, policy: { ...policy, hours_per_day: 8.3 },
+    } }] });
+  assert.match(reviewed, /Saved calculation basis: calendar days, 8h 18m per day/);
+});
+
+test('register shows saved worked, OT and late hours beside salary without expanding columns', () => {
   const html = render({ step: 'review' });
   assert.match(html, /Salary \(monthly\)/);
   assert.match(html, /Salary \(earned\)/);
   const registerHtml = html.slice(html.indexOf('Payroll register ·'));
-  assert.equal((registerHtml.match(/<th\b/g) ?? []).length, 6);
+  assert.equal((registerHtml.match(/<th\b/g) ?? []).length, 9);
+  assert.match(registerHtml, /Total Working Hours/);
+  assert.match(registerHtml, /Ot Hours/);
+  assert.match(registerHtml, /late hours/);
+  assert.match(registerHtml, />208\.5</);
+  assert.match(registerHtml, />4\.5</);
+  assert.match(registerHtml, />0\.75</);
   assert.match(registerHtml, /30,000\.00/);
   assert.match(registerHtml, /28,000\.00/);
   assert.match(html, /Payroll worker/);
@@ -324,13 +346,16 @@ function mountFlow({ component = 'workflow', step = 'prepare', canManageCompany 
 test('register column toggle expands all 33 columns while exports retain every employee after filtering', async () => {
   const flow = mountFlow({ component: 'register' });
   const columns = () => findNodes(flow.render(), node => node.type === 'th').map(nodeText);
-  assert.equal(columns().length, 6);
+  assert.equal(columns().length, 9);
   flow.click('Show all 33 columns');
   assert.equal(columns().length, 33);
   assert.ok(columns().includes('Salary (monthly)'));
   assert.ok(columns().includes('Salary (earned)'));
   flow.click('Show salary summary');
-  assert.equal(columns().length, 6);
+  assert.equal(columns().length, 9);
+  assert.ok(columns().includes('Total Working Hours'));
+  assert.ok(columns().includes('Ot Hours'));
+  assert.ok(columns().includes('late hours'));
   findNodes(flow.render(), node => node.type === 'list-search')[0].props.onChange('no matching employee');
   assert.match(nodeText(flow.render()), /No employees match this search/);
   await flow.click('Export Excel');

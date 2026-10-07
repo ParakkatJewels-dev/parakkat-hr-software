@@ -6,11 +6,11 @@
 // people raise a correction when the device missed something.
 import { Skeleton, SkeletonRows, SkeletonTable } from './ui/Skeleton';
 import React, { useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
   CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
-  SlidersHorizontal, Fingerprint, TrendingUp,
+  SlidersHorizontal, Fingerprint, TrendingUp, ArrowLeft,
 } from 'lucide-react';
 import {
   useAttendanceSummary, useMonthlyAttendance, useAttendanceExceptions,
@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { useEmployees } from '../data/employees';
+import { usePayrollAttendanceSummary } from '../data/payrollWorksheet';
 import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import PunchDetails from './ui/PunchDetails';
 import { firstRecordedPunch, latestRecordedPunch, punchDate } from '../lib/recordedPunches';
@@ -41,6 +42,7 @@ import { attendanceTimeline } from '../lib/attendanceTimeline';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
+import { btnClass } from './ui/Btn';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -83,29 +85,63 @@ const validWorkDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value ?? '')
 
 export function PersonAttendanceView() {
   const { can } = usePermissions();
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const people = useEmployees();
   const employees = (people.data ?? []).filter(person => can('attendance.read', employeeScope(person)));
+  const [correctionBusy, setCorrectionBusy] = useState(false);
   const employeeId = params.get('employee') ?? '';
   const period = validMonth(params.get('period')) ? params.get('period') : todayIso().slice(0, 7);
   const person = employees.find(item => item.id === employeeId);
-  const change = (key, value) => setParams(current => { const next = new URLSearchParams(current); next.set(key, value); return next; }, { replace: true });
+  const fromPayroll = params.get('from') === 'payroll';
+  const canReadPayroll = Boolean(fromPayroll && person && can('payroll.manage', employeeScope(person)));
+  const payrollSummary = usePayrollAttendanceSummary(person?.entity_id, period, { enabled: canReadPayroll });
+  const payrollAttendance = canReadPayroll ? payrollSummary.data?.find(row => row.employee_id === person.id) : null;
+  const payrollPeriod = validMonth(params.get('payrollPeriod')) ? params.get('payrollPeriod') : period;
+  const payrollParams = new URLSearchParams({ period: payrollPeriod, step: 'prepare' });
+  if (params.get('entity')) payrollParams.set('entity', params.get('entity'));
+  const change = (key, value) => {
+    if (correctionBusy) return;
+    setParams(current => { const next = new URLSearchParams(current); next.set(key, value); next.delete('correctDate'); return next; }, { replace: true });
+  };
   return <div className="space-y-4">
+    {fromPayroll && <div className="flex flex-wrap items-center gap-3">
+      <button type="button" className={btnClass('ghost', 'sm')} disabled={correctionBusy} onClick={() => navigate(`/payroll/run?${payrollParams}`)}><ArrowLeft size={13} /> Back to payroll</button>
+      <p className="text-xs text-neutral-500">{correctionBusy ? 'Save or discard your punch correction before returning to payroll.' : 'Review the issue dates, edit punches here, then return to your payroll worksheet.'}</p>
+    </div>}
     <section className="premium-card grid grid-cols-1 sm:grid-cols-2 gap-3">
       <label className="text-xs text-neutral-600 dark:text-neutral-300">Employee
-        <select aria-label="Attendance employee" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={person?.id ?? ''} onChange={event => change('employee', event.target.value)} disabled={people.isLoading || Boolean(people.error)}>
+        <select aria-label="Attendance employee" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={person?.id ?? ''} onChange={event => change('employee', event.target.value)} disabled={people.isLoading || Boolean(people.error) || correctionBusy}>
           <option value="">Choose an employee…</option>
           {employees.map(item => <option key={item.id} value={item.id}>{item.full_name} · {item.employee_code}</option>)}
         </select>
       </label>
       <label className="text-xs text-neutral-600 dark:text-neutral-300">Month
-        <input type="month" aria-label="Attendance month" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={period} max={todayIso().slice(0, 7)} onChange={event => { if (validMonth(event.target.value)) change('period', event.target.value); }} />
+        <input type="month" disabled={correctionBusy} aria-label="Attendance month" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={period} max={todayIso().slice(0, 7)} onChange={event => { if (validMonth(event.target.value)) change('period', event.target.value); }} />
       </label>
       {people.error && <ErrorNote error={people.error} />}
       {employeeId && !person && !people.isLoading && !people.error && <p role="alert" className="text-xs text-amber-700">This employee is not available in your attendance scope.</p>}
     </section>
-    {person && !people.error && <EmployeeAttendanceDetail key={`${person.id}:${period}`} employee={person} period={period} embedded />}
+    {person && !people.error && <>
+      {fromPayroll && canReadPayroll && payrollSummary.isLoading && <p role="status" className="text-xs text-neutral-500">Checking which attendance dates are expected for payroll…</p>}
+      {fromPayroll && (payrollSummary.error || !canReadPayroll) && <p role="status" className="text-xs text-amber-700 dark:text-amber-300">Recorded attendance is shown below. Unprocessed dates could not be checked against the payroll employment period.</p>}
+      <EmployeeAttendanceDetail key={`${person.id}:${period}`} employee={person} period={period} correctDate={validWorkDate(params.get('correctDate')) ? params.get('correctDate') : null}
+        onCorrectionStateChange={setCorrectionBusy} showFilter={params.get('show') || 'all'} onShowChange={value => change('show', value)}
+        payrollAttendance={payrollAttendance} fromPayroll={fromPayroll} embedded />
+    </>}
   </div>;
+}
+
+function DayPunchCorrectionLink({ row }) {
+  const { can, viewingAsEmployee } = usePermissions();
+  const { employee } = useAuth();
+  const scope = { entityId: row.entity_id, zoneId: row.zone_id, branchId: row.branch_id,
+    deptId: row.department_id, employeeId: row.employee_id };
+  if (viewingAsEmployee || employee?.id === row.employee_id || !can('attendance.manage', scope)) return null;
+  if (row.is_locked) return <span className="text-2xs text-neutral-500">Published · locked</span>;
+  if (row.work_date > todayIso()) return null;
+  return <Link className="text-xs text-brand-ink underline whitespace-nowrap"
+    to={`/attendance/person?employee=${encodeURIComponent(row.employee_id)}&period=${encodeURIComponent(row.work_date.slice(0, 7))}&correctDate=${encodeURIComponent(row.work_date)}`}>Edit punches</Link>;
 }
 
 function StatusBadge({ status, isLop }) {
@@ -542,6 +578,7 @@ function TodayView({ workDate, setWorkDate }) {
                       <AttendanceStatusControl
                         row={row}
                       />
+                      <div className="mt-1.5"><DayPunchCorrectionLink row={row} /></div>
                     </td>
                   </tr>
                 ))}
@@ -1003,6 +1040,7 @@ export function ExceptionsView() {
                         <AttendanceStatusControl
                           row={row}
                         />
+                        <div className="mt-1.5"><DayPunchCorrectionLink row={row} /></div>
                       </td>
                     </tr>
                   );

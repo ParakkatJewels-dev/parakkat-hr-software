@@ -22,6 +22,7 @@ const stubs = {
     export const useEffect = (fn, deps) => globalThis.pendingFormTest.useEffect(fn, deps);
     export const useMemo = fn => fn(); export const useCallback = fn => fn;`,
   'react-router-dom': `export const Link = "test-link"; export const useLocation = () => globalThis.pendingFormTest.location;
+    export const useNavigate = () => () => {};
     export const useSearchParams = () => [globalThis.pendingFormTest.params, globalThis.pendingFormTest.setParams];`,
   '../auth/AuthContext': 'export const useAuth = () => ({ employee: { id: "self" } });',
   '../auth/usePermissions': 'export const usePermissions = () => globalThis.pendingFormTest.permissions;',
@@ -29,6 +30,7 @@ const stubs = {
   '../data/ticketCategories': queryStubs(['useTicketAccess', 'useTicketCategories']) + mutationStubs(['useSaveTicketCategory']),
   '../data/org': queryStubs(['useVisibleOrg']),
   '../data/employees': queryStubs(['useEmployees']),
+  '../data/payrollWorksheet': queryStubs(['usePayrollAttendanceSummary']),
   '../data/leaves': queryStubs(['useLeaves']) + mutationStubs(['useApplyLeave']),
   '../data/leaveTypes': queryStubs(['useLeaveTypes', 'useLeaveBalances']),
   '../data/holidays': queryStubs(['useHolidays']),

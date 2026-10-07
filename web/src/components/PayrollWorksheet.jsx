@@ -11,7 +11,7 @@ import {
   useSavePayrollPolicy, usePayrollMonthlyInputs, usePayrollAttendanceSummary,
 } from '../data/payrollWorksheet';
 import {
-  payrollRegisterColumns, payrollPolicyDraft,
+  payrollRegisterColumns, payrollPolicyDraft, formatPayrollDayHours,
   isCompletePayrollRegister, exportPayrollRegister,
 } from '../lib/payrollWorksheet';
 import { btnClass } from './ui/Btn';
@@ -242,7 +242,7 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
       </div>
       <details className="premium-card space-y-3" open={!policy.data || undefined}>
         <summary className={`${TITLE} cursor-pointer`}>Company calculation policy
-          <span className="font-normal text-xs text-neutral-500 ml-2">{policy.data ? `Saved · ${policy.data.divisor_mode} days · ${policy.data.hours_per_day} hours / day · ${policy.data.ot_multiplier}× OT` : 'Set up once before calculating'}</span>
+          <span className="font-normal text-xs text-neutral-500 ml-2">{policy.data ? `Saved · ${policy.data.divisor_mode} days · ${formatPayrollDayHours(policy.data.hours_per_day)} / day · ${policy.data.ot_multiplier}× OT` : 'Set up once before calculating'}</span>
         </summary>
         <ErrorMessage error={policy.error} />
         {policy.isLoading ? <Loading>Loading saved policy…</Loading> : policy.isSuccess || policy.data !== undefined ?
@@ -349,14 +349,16 @@ function PolicyEditor({ entityId, record, disabled, onDirtyChange, onBusyChange 
     try { await save.mutateAsync({ entityId, policy: editor.draft, expectedUpdatedAt: record?.updated_at ?? null }); editor.saved(); setSuccess(true); }
     catch { /* shown below without clearing typed values */ }
   }}>
-    {!record && <p className="text-xs text-amber-700 dark:text-amber-300">No reviewed policy has been saved. Calendar days, 8 hours per day and 2× OT are suggestions. Review these values and save your company’s policy before running payroll.</p>}
+    {!record && <p className="text-xs text-amber-700 dark:text-amber-300">No reviewed policy has been saved. Daily working time starts at 8h 30m. Review the salary divisor and OT rules, then save your company’s policy before running payroll.</p>}
     <fieldset disabled={blocked} className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
         <label className={LABEL}><span>Salary divisor</span><select className={INPUT} value={editor.draft.divisor_mode} onChange={event => patch('divisor_mode', event.target.value)}>
           <option value="calendar">Calendar days in the month</option><option value="fixed">Fixed days</option><option value="working">Scheduled working days</option>
         </select></label>
         <label className={LABEL}><span>Fixed days</span><input type="number" className={INPUT} min="1" max="31" step="0.01" disabled={editor.draft.divisor_mode !== 'fixed'} value={editor.draft.fixed_days} onChange={event => patch('fixed_days', event.target.value)} /></label>
-        <label className={LABEL}><span>Working hours per day</span><input required type="number" className={INPUT} min="0.01" max="24" step="0.01" value={editor.draft.hours_per_day} onChange={event => patch('hours_per_day', event.target.value)} /></label>
+        <label className={LABEL}><span id="payroll-daily-hours-label">Daily working hours (decimal)</span><input required type="number" className={INPUT} min="0.01" max="24" step="0.01" aria-labelledby="payroll-daily-hours-label" aria-describedby="payroll-daily-hours-help" value={editor.draft.hours_per_day} onChange={event => patch('hours_per_day', event.target.value)} />
+          <span className="block font-normal text-neutral-500 dark:text-neutral-400" id="payroll-daily-hours-help"><strong className="font-medium">{formatPayrollDayHours(editor.draft.hours_per_day)} per day.</strong> Enter 8.5 for 8h 30m; 8.3 means 8h 18m.</span>
+        </label>
         <label className={LABEL}><span>OT hourly multiplier</span><input required type="number" className={INPUT} min="0" max="10" step="0.01" value={editor.draft.ot_multiplier} onChange={event => patch('ot_multiplier', event.target.value)} /></label>
       </div>
       <label className="flex items-center gap-2 text-xs text-neutral-700 dark:text-neutral-300"><input type="checkbox" checked={editor.draft.deduct_late} onChange={event => patch('deduct_late', event.target.checked)} />Deduct late hours at the calculated hourly rate</label>
@@ -386,7 +388,7 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
   const [exporting, setExporting] = useState(false);
   const [detailed, setDetailed] = useState(false);
   const columns = payrollRegisterColumns(register.data ?? EMPTY_ROWS);
-  const visibleColumns = detailed ? columns : columns.filter(({ key }) => ['employee_name', 'branch', 'salary', 'earned_salary', 'gross_salary', 'net_pay_salary'].includes(key));
+  const visibleColumns = detailed ? columns : columns.filter(({ key }) => ['employee_name', 'branch', 'salary', 'total_working_hours', 'earned_salary', 'ot_hours', 'late_hours', 'gross_salary', 'net_pay_salary'].includes(key));
   const [exportError, setExportError] = useState(null);
   const rows = register.data ?? EMPTY_ROWS;
   const filtered = useMemo(() => rows.filter(row => `${row.payroll_register?.employee_name ?? ''} ${row.payroll_register?.branch ?? ''}`.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
@@ -413,8 +415,8 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
         finally { setExporting(false); }
       }}>{exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}Export Excel</button></div>
     </div>
-    <p className={HELP}>Review monthly salary, earned salary and take-home pay here. Show all columns for the full breakdown. Excel export includes the full breakdown and every employee in your scope.</p>
-    {calculationPolicy && !readError && <p className={HELP}>Saved calculation basis: {calculationPolicy.divisor_mode === 'fixed' ? `${calculationPolicy.fixed_days} fixed days` : calculationPolicy.divisor_mode === 'working' ? 'scheduled working days' : 'calendar days'}, {calculationPolicy.hours_per_day} hours per day, {calculationPolicy.ot_multiplier}× OT. Late deduction {calculationPolicy.deduct_late ? 'enabled' : 'disabled'}. Total Working Hours shows recorded worked hours.</p>}
+    <p className={HELP}>Review worked hours, payroll OT and late hours alongside salary and take-home pay. Show all columns for the full breakdown. Excel export includes the full breakdown and every employee in your scope.</p>
+    {calculationPolicy && !readError && <p className={HELP}>Saved calculation basis: {calculationPolicy.divisor_mode === 'fixed' ? `${calculationPolicy.fixed_days} fixed days` : calculationPolicy.divisor_mode === 'working' ? 'scheduled working days' : 'calendar days'}, {formatPayrollDayHours(calculationPolicy.hours_per_day)} per day, {calculationPolicy.ot_multiplier}× OT. Late deduction {calculationPolicy.deduct_late ? 'enabled' : 'disabled'}. Total Working Hours shows recorded worked hours.</p>}
     <ErrorMessage error={readError || exportError} />
     {loading && <Loading>Loading the saved payroll register…</Loading>}
     {stale && <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">Inputs changed after this draft was calculated. Re-run payroll before reviewing, exporting or publishing these amounts.</p>}
