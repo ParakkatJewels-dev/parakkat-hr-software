@@ -15,6 +15,12 @@ const employees = [
 const paste = (text, overrides = {}) => applyPayrollPaste({ rows: employees, columns: ['incentive', 'tea_expense', 'notes'],
   startRow: 0, startColumn: 0, values: parsePayrollPaste(text), ...overrides });
 const importRows = rows => parsePayrollImportRows(rows, employees);
+
+test('a calculated transaction register cannot be re-imported and count itemized amounts twice', () => {
+  const result = importRows([['Employee Code', 'Incentive', 'Bonus', 'Gross Salary'], ['003', 500, 1000, 30000]]);
+  assert.equal(result.rows.length, 0);
+  assert.match(result.errors[0].message, /template.*twice/);
+});
 function workbookFile(workbook) {
   const bytes = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   return { size: bytes.length, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) };

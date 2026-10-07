@@ -46,13 +46,16 @@ before(async () => {
       export const useSavePayrollPolicy = () => globalThis.payrollFlow.save;
       export const usePayrollMonthlyInputs = () => globalThis.payrollFlow.inputs;
       export const usePayrollAttendanceSummary = () => globalThis.payrollFlow.attendance;`,
-    '../lib/payrollWorksheet': `export { PAYROLL_REGISTER_COLUMNS, payrollPolicyDraft, isCompletePayrollRegister } from ${JSON.stringify(new URL('../lib/payrollWorksheet.js', import.meta.url).href)}; export const exportPayrollRegister = (...args) => { globalThis.payrollFlow.exports.push(args); };`,
+    '../lib/payrollWorksheet': `export { payrollRegisterColumns, payrollPolicyDraft, isCompletePayrollRegister } from ${JSON.stringify(new URL('../lib/payrollWorksheet.js', import.meta.url).href)}; export const exportPayrollRegister = (...args) => { globalThis.payrollFlow.exports.push(args); };`,
     '../lib/usePayrollSessionState': 'export const hasPayrollSessionChanges = () => globalThis.payrollFlow.pending; export const usePayrollSessionState = (key, initial) => globalThis.payrollFlow.sessionState(key, initial);',
     '../data/payroll': 'export const useRunPayroll = () => globalThis.payrollFlow.calculate; export const usePublishPayroll = () => globalThis.payrollFlow.publish;',
     './ui/Btn': 'export const btnClass = () => "button";',
     './ui/Pagination': 'export default "pagination"; export const usePagination = rows => ({ slice: rows, count: rows.length });',
     './ui/ListSearch': 'export default "list-search";',
     './ui/ConfirmDialog': 'export default "confirm-dialog";',
+    '../data/payrollTransactions': 'export const usePayrollAdjustments = () => globalThis.payrollFlow.adjustments; export const usePayrollAdvanceRecoveries = () => globalThis.payrollFlow.recoveries;',
+    './PayrollTransactions': 'export default "transactions"; export const PayrollPayments = "payments";',
+    './PayrollSheetFrame': 'export default "sheet-frame";',
     './PayrollInputGrid': 'export default "input-grid";',
     './payrollWorkflow.css': 'export default {};',
   };
@@ -75,6 +78,7 @@ function render({ role = 'admin', route = 'run', step, runData = run, rows = [{ 
     [['payroll-monthly-inputs', entityId, period], []], [['payroll-policy', entityId], policyData], [['payroll-worksheet-run', entityId, period], runData],
     [['payroll-attendance-summary', entityId, period], [{ employee_id: employee.id, recorded_worked_hours: 208, recorded_ot_hours: 4, recorded_late_hours: 1, deductible_late_hours: 0.5, policy_deduct_late: false, attendance_days: 30, expected_days: 30, missing_days: 0, unresolved_days: 0, invalid_days: 0, pending_recompute_days: 0 }]],
     [['payroll-register', run.id], rows],
+    [['payroll-adjustments', entityId, period], []], [['payroll-advances', entityId], []], [['payroll-advance-recoveries', entityId], []], [['payroll-payments', run.id], []],
     [['payslips', 'all', period], payslipRows],
   ];
   for (const [key, data] of seeds) client.setQueryData(key, data);
@@ -169,7 +173,7 @@ test('published month keeps policy read-only while the saved register remains ex
     assert.doesNotMatch(review, /Recalculate payroll|Continue to publish/);
     assert.match(review, /read-only/);
     const publish = render({ step: 'publish', ...options });
-    assert.match(publish, /Payroll complete/);
+    assert.match(publish, /Salary payments/);
     assert.doesNotMatch(publish, />Publish payroll<|3\. Publish reviewed payroll/);
   }
 });
@@ -223,16 +227,31 @@ test('calculation waits for a saved company policy and successful current source
   for (const queryKey of [
     ['payroll-policy', entityId], ['payroll-monthly-inputs', entityId, period],
     ['payroll-attendance-summary', entityId, period], ['payroll-worksheet-run', entityId, period],
+    ['payroll-adjustments', entityId, period], ['payroll-advance-recoveries', entityId],
     ['org', 'all'], ['employees'],
   ]) for (const state of [{ fetchStatus: 'fetching' }, { status: 'error', error: new Error('Source read failed') }]) {
     assert.equal(buttonDisabled(render({ step: 'review', queryStates: [[queryKey, state]] }), 'Recalculate payroll'), true);
   }
 });
 
+test('historical published payslips can track payment without worksheet snapshots while incomplete reads fail closed', () => {
+  const legacyRun = { ...run, status: 'Published', source_fingerprint: null };
+  const slip = { id: 'legacy', employee_id: employee.id, status: 'Published', net: '29000.00', payroll_register: null,
+    employee: { full_name: employee.full_name, employee_code: employee.employee_code } };
+  assert.equal(buttonDisabled(render({ step: 'publish', runData: legacyRun, rows: [slip] }), 'Record paid'), false);
+  for (const net of [undefined, null, '', -1, 'NaN', false]) {
+    const html = render({ step: 'publish', runData: legacyRun, rows: [{ ...slip, net }] });
+    assert.equal(buttonDisabled(html, 'Record paid'), true);
+  }
+  const html = render({ step: 'publish', runData: { ...legacyRun, employees: 2 }, rows: [slip] });
+  assert.equal(buttonDisabled(html, 'Record paid'), true);
+});
+
 test('retained monthly inputs, import reviews, policy and salary edits block calculation and publication', () => {
   for (const unsaved of [
     { key: ['inputs', entityId, period], value: { worker: { draft: { incentive: '100' } } } },
     { key: ['preview', entityId, period], value: { rows: [] } },
+    { key: ['transactions', entityId, period], value: { dirty: true } },
     { key: ['policy', entityId], value: { dirty: true } },
     { key: ['salary-setup'], value: { employeeId: employee.id, entityId, form: { basic: '32000' }, initialForm: { basic: '30000' } } },
   ]) {
@@ -273,7 +292,7 @@ function mountFlow({ component = 'workflow', step = 'prepare', canManageCompany 
   const harness = {
     pending: false, activeSaves: 0, exports: [], params: new URLSearchParams({ entity: entityId, period, step }),
     policy: query(policy), run: query(run), register: query([{ id: 'slip', employee_id: employee.id, payroll_register: register }]),
-    inputs: query([]), attendance: query([]), calculate: mutation(), publish: mutation(), save: mutation(),
+    inputs: query([]), attendance: query([]), adjustments: query([]), recoveries: query([]), calculate: mutation(), publish: mutation(), save: mutation(),
     props: { entity: company, period, employees: [employee], canManageCompany, inputsDirty: false, inputBusy: false, scopeReadBlocked: false },
     client: { isMutating: ({ predicate }) => { harness.liveMutationPredicate = predicate; return harness.activeSaves; }, getQueryData: key => key[0] === 'payroll-worksheet-run' ? harness.run.data : harness.register.data },
     state(initial) {
@@ -288,7 +307,7 @@ function mountFlow({ component = 'workflow', step = 'prepare', canManageCompany 
     },
     render() {
       cursor = 0; globalThis.payrollFlow = this;
-      return component === 'register' ? TestRegister({ ...this.props, runQuery: this.run, registerQuery: this.register }) : TestCompanyWorksheet(this.props);
+      return component === 'register' ? TestRegister({ ...this.props, runQuery: this.run, registerQuery: this.register }).props.children({ control: null, expanded: false }) : TestCompanyWorksheet(this.props);
     },
     button(label) {
       return findNodes(this.render(), node => node.type === 'button' && (label instanceof RegExp ? label.test(nodeText(node)) : nodeText(node).trim() === label))[0];

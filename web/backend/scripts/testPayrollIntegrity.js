@@ -25,13 +25,15 @@ module.exports = function testPayrollIntegrity({ run, connection, directory }) {
         `\\i ${quote(join(backend, 'tests', 'payroll_bulk_monthly_inputs.sql'))}`,
       ] : []),
       `\\i ${quote(join(migrations, file))}`,
-      ...(/^(0143|0158|0159|0160)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0143|0158|0159|0160|0161)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     `\\i ${quote(join(backend, 'tests', 'payroll_attendance_hours.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'payroll_transactions.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-Xq', '-f', bootstrap]);
   console.log(output.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
   console.log(run(process.execPath, [join(__dirname, 'testPayrollConcurrency.js'), connection[1]]).trim());
   console.log(run(process.execPath, [join(__dirname, 'testPayrollHoursConcurrency.js'), connection[1]]).trim());
+  console.log(run(process.execPath, [join(__dirname, 'testPayrollTransactionsConcurrency.js'), connection[1]]).trim());
 };

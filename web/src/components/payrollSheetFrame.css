@@ -1,0 +1,23 @@
+.payroll-sheet-anchor, .payroll-sheet-host, .payroll-sheet-content { min-width: 0; }
+.payroll-sheet-expanded { position: fixed; inset: 0; z-index: 60; background: #f8faf9; padding: 12px; overflow: auto; }
+.dark .payroll-sheet-expanded { background: #101713; }
+.payroll-sheet-expanded .payroll-sheet-content { height: 100%; display: flex; flex-direction: column; gap: 8px; }
+.payroll-sheet-caption { display: flex; justify-content: space-between; gap: 12px; padding: 0 4px; color: var(--pf-muted); font-size: 11px; }
+.payroll-sheet-expanded .payroll-input-workspace, .payroll-sheet-expanded .payroll-register-workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.payroll-sheet-expanded .payroll-input-table-wrap, .payroll-sheet-expanded .payroll-register-scroll { flex: 1 1 240px; min-height: 180px; max-height: none; }
+.payroll-sheet-expanded .payroll-input-heading { padding: 12px 16px; }
+.payroll-sheet-expanded .payroll-input-toolbar { padding: 10px 16px; }
+.payroll-sheet-expanded .payroll-input-stats { padding: 8px 16px; }
+.payroll-sheet-expanded .payroll-input-savebar { padding: 10px 16px; }
+.payroll-sheet-expanded .payroll-input-table td, .payroll-sheet-expanded .payroll-input-table tbody th { height: 46px; }
+.payroll-sheet-expanded .payroll-input-table td > input[type=text] { height: 45px; }
+.payroll-sheet-expanded .payroll-input-table .payroll-input-employee { padding: 7px 12px; }
+.payroll-sheet-expanded .payroll-input-eyebrow { display: none; }
+.payroll-sheet-expanded .payroll-import-preview { flex-shrink: 0; max-height: 45vh; overflow: auto; }
+.payroll-sheet-expanded .pagination-shell { flex-shrink: 0; }
+@media(max-width: 640px) {
+  .payroll-sheet-expanded { padding: 6px; }
+  .payroll-sheet-caption span:last-child { display: none; }
+  .payroll-sheet-expanded .payroll-sheet-content { height: auto; min-height: 100%; }
+  .payroll-sheet-expanded .payroll-input-table-wrap, .payroll-sheet-expanded .payroll-register-scroll { min-height: 40dvh; max-height: 65dvh; }
+}

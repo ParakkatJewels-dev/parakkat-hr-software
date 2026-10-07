@@ -74,7 +74,7 @@ export function usePayrollRegister(runId, { enabled = true } = {}) {
     queryKey: ['payroll-register', runId],
     enabled: enabled && Boolean(runId),
     queryFn: () => fetchCollection(() => supabase.from('payslips')
-      .select('id, employee_id, run_id, payroll_register').eq('run_id', runId).order('id')),
+      .select('id, employee_id, run_id, status, net, payroll_register, employee:employees(full_name, employee_code)').eq('run_id', runId).order('id')),
   });
 }
 

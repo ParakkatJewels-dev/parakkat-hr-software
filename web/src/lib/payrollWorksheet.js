@@ -36,6 +36,15 @@ export const PAYROLL_REGISTER_COLUMNS = [
   ['net_pay_salary', 'Net Pay Salary', 'money'],
 ].map(([key, label, type]) => ({ key, label, type }));
 
+// Preserve historical exports; new registers show bonus explicitly instead of hiding it
+// inside another allowance. Incentive/deduction/recovery columns already contain totals.
+export function payrollRegisterColumns(payslips) {
+  if (!payslips.some(row => Object.hasOwn(row.payroll_register ?? {}, 'bonus'))) return PAYROLL_REGISTER_COLUMNS;
+  const columns = [...PAYROLL_REGISTER_COLUMNS];
+  columns.splice(columns.findIndex(column => column.key === 'gross_salary'), 0, { key: 'bonus', label: 'Bonus', type: 'money' });
+  return columns;
+}
+
 export const MONTHLY_INPUT_FIELDS = [
   { key: 'incentive', label: 'Incentive', group: 'Earnings' },
   { key: 'target_incentive', label: 'Target incentive', group: 'Earnings' },
@@ -111,6 +120,8 @@ export function normalizePayrollPolicy(draft) {
 
 export function isCompletePayrollRegister(row) {
   if (!row || typeof row !== 'object') return false;
+  if (Number(row.schema_version) >= 3 && ['bonus', 'adjustment_incentive', 'adjustment_deductions', 'ledger_advance_recovery'].some(key =>
+    !['number', 'string'].includes(typeof row[key]) || String(row[key]).trim() === '' || !Number.isFinite(Number(row[key])) || Number(row[key]) < 0)) return false;
   return PAYROLL_REGISTER_COLUMNS.every(({ key, type }) => {
     if (!Object.hasOwn(row, key)) return false;
     if (type === 'text') return typeof row[key] === 'string';
@@ -120,22 +131,24 @@ export function isCompletePayrollRegister(row) {
 }
 
 export function payrollRegisterRows(payslips) {
+  const columns = payrollRegisterColumns(payslips);
   return payslips.map((payslip) => {
     if (!isCompletePayrollRegister(payslip.payroll_register)) {
       throw new Error('This run has missing or incomplete worksheet snapshots. Recalculate the draft before exporting.');
     }
-    return PAYROLL_REGISTER_COLUMNS.map(({ key, type }) => type === 'text'
-      ? payslip.payroll_register[key] : Number(payslip.payroll_register[key]));
+    return columns.map(({ key, type }) => type === 'text'
+      ? payslip.payroll_register[key] : Number(payslip.payroll_register[key] ?? 0));
   });
 }
 
 export function buildPayrollWorkbook(XLSX, payslips) {
   const rows = payrollRegisterRows(payslips);
-  const worksheet = XLSX.utils.aoa_to_sheet([PAYROLL_REGISTER_COLUMNS.map(({ label }) => label), ...rows]);
+  const columns = payrollRegisterColumns(payslips);
+  const worksheet = XLSX.utils.aoa_to_sheet([columns.map(({ label }) => label), ...rows]);
   // Explicit text cells preserve employee names beginning with =, +, - or @ as literal text.
   // AOA also preserves the user's two distinct columns with identical Salary headers.
   for (let row = 0; row <= rows.length; row += 1) {
-    PAYROLL_REGISTER_COLUMNS.forEach(({ type }, column) => {
+    columns.forEach(({ type }, column) => {
       const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: column })];
       if (row === 0 || type === 'text') {
         cell.t = 's';
@@ -143,7 +156,7 @@ export function buildPayrollWorkbook(XLSX, payslips) {
       } else cell.z = type === 'money' ? '#,##0.00' : '0.##';
     });
   }
-  worksheet['!cols'] = PAYROLL_REGISTER_COLUMNS.map(({ key, type }) => ({ wch: key === 'employee_name' ? 28 : type === 'text' ? 20 : 19 }));
+  worksheet['!cols'] = columns.map(({ key, type }) => ({ wch: key === 'employee_name' ? 28 : type === 'text' ? 20 : 19 }));
   worksheet['!autofilter'] = { ref: worksheet['!ref'] };
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Payroll register');

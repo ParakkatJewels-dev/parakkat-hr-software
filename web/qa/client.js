@@ -241,6 +241,7 @@ class Query {
 const tablePermissions = { employees: 'employee.read', attendance: 'attendance.read', leaves: 'leave.read',
   attendance_regularizations: 'attendance.read', payslips: 'payslip.read', salary_structures: 'payroll.manage',
   payroll_monthly_inputs: 'payroll.manage', payroll_policies: 'payroll.manage', payroll_runs: 'payroll.manage',
+  payroll_adjustments: 'payroll.manage', payroll_advances: 'payroll.manage', payroll_advance_recoveries: 'payroll.manage', payroll_payments: 'payroll.manage',
   goals: 'goal.read', tasks: 'task.read', leave_balances: 'leave.read' };
 export const supabase = {
   from(name) {

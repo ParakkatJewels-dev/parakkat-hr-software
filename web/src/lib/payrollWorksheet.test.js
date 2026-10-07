@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import {
-  PAYROLL_REGISTER_COLUMNS, monthlyInputDraft, normalizeMonthlyInput, payrollPolicyDraft,
+  PAYROLL_REGISTER_COLUMNS, payrollRegisterColumns, monthlyInputDraft, normalizeMonthlyInput, payrollPolicyDraft,
   normalizePayrollPolicy, isCompletePayrollRegister, payrollRegisterRows, buildPayrollWorkbook,
 } from './payrollWorksheet.js';
 
@@ -52,6 +52,24 @@ test('missing legacy snapshots and malformed numeric values cannot become invent
   }
   const incomplete = snapshot(); delete incomplete.pf;
   assert.throws(() => buildPayrollWorkbook(XLSX, [{ payroll_register: incomplete }]), /snapshots/);
+});
+
+test('transaction registers export a separate bonus without doubling totals already in incentive and deductions', () => {
+  const row = { ...snapshot(), schema_version: 3, bonus: 1250.50, incentive: 600, adjustment_incentive: 100,
+    other_deductions: 200, adjustment_deductions: 75, advance_recovery: 1500, ledger_advance_recovery: 1500 };
+  const slips = [{ payroll_register: row }];
+  const columns = payrollRegisterColumns(slips);
+  assert.equal(columns.length, 34);
+  const [values] = payrollRegisterRows(slips);
+  assert.equal(values[columns.findIndex(column => column.key === 'bonus')], 1250.50);
+  assert.equal(values[columns.findIndex(column => column.key === 'incentive')], 600);
+  const workbook = buildPayrollWorkbook(XLSX, slips);
+  const exported = XLSX.utils.sheet_to_json(workbook.Sheets['Payroll register'], { header: 1 });
+  assert.equal(exported[0].filter(label => label === 'Bonus').length, 1);
+  for (const key of ['bonus', 'adjustment_incentive', 'adjustment_deductions', 'ledger_advance_recovery']) {
+    assert.equal(isCompletePayrollRegister({ ...row, [key]: undefined }), false);
+    assert.throws(() => payrollRegisterRows([{ payroll_register: { ...row, [key]: -1 } }]), /snapshots/);
+  }
 });
 
 test('blank statutory and hour inputs use configured components and attendance while explicit zero remains an override', () => {

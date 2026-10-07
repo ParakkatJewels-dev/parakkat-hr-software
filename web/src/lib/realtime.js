@@ -12,13 +12,14 @@ import { mergeConversationReceipts } from './messageReceipts';
 const CHAT_TABLES = new Set(['messages', 'conversations', 'conversation_members']);
 const CHAT_KEYS = [['messages'], ['conversations'], ['admin-conversations'], ['message-delivery']];
 const PAYROLL_ATTENDANCE_KEYS = [['payroll-attendance-summary'], ['payroll-runs'], ['payroll-worksheet-run']];
+const PAYROLL_TRANSACTION_KEYS = [['payroll-adjustments'], ['payroll-advances'], ['payroll-advance-recoveries'], ['payroll-payments']];
 const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['routine-notes'], ['section-counts']];
 const TASK_KEYS = [['tasks'], ['deleted-tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],
   ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
 // a staff transfer or a permission change can alter the queue without changing its request rows.
 const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['ticket-access'],
-  ['ticket-categories'], ['tickets'], ['notification-ref-statuses'], ...ROUTINE_KEYS, ...TASK_KEYS, ...PAYROLL_ATTENDANCE_KEYS];
+  ['ticket-categories'], ['tickets'], ['notification-ref-statuses'], ...ROUTINE_KEYS, ...TASK_KEYS, ...PAYROLL_ATTENDANCE_KEYS, ...PAYROLL_TRANSACTION_KEYS];
 
 // public table → query-key prefixes to invalidate when it changes. A prefix invalidates every
 // query whose key starts with it (e.g. ['attendance'] covers ['attendance','day',date]).
@@ -61,9 +62,15 @@ const TABLE_KEYS = {
   onboarding: [['onboarding'], ['section-counts']],
   candidates: [['candidates'], ['section-counts']],
   jobs: [['jobs'], ['candidates'], ['section-counts']],
-  payroll_runs: [['payroll-runs'], ['payroll-worksheet-run'], ['payroll-register'], ['payroll-attendance-summary'], ['payslips'], ['payslip-lines'], ['section-counts']],
+  payroll_runs: [['payroll-runs'], ['payroll-worksheet-run'], ['payroll-register'], ['payroll-attendance-summary'], ['payslips'], ['payslip-lines'], ['section-counts'], ['payroll-payments'], ['payroll-advance-recoveries']],
   payroll_policies: [['payroll-policy'], ...PAYROLL_ATTENDANCE_KEYS],
   payroll_monthly_inputs: [['payroll-monthly-input'], ['payroll-monthly-inputs'], ...PAYROLL_ATTENDANCE_KEYS],
+  payroll_adjustments: [['payroll-adjustments'], ['payroll-register'], ...PAYROLL_ATTENDANCE_KEYS],
+  payroll_advances: [['payroll-advances'], ['payroll-advance-recoveries']],
+  payroll_advance_recoveries: [['payroll-advance-recoveries'], ['payroll-register'], ...PAYROLL_ATTENDANCE_KEYS],
+  // Publication seeds scoped payment rows. Branch HR can receive these even when company
+  // run totals are outside their scope, so refresh the server-derived recovery posting status.
+  payroll_payments: [['payroll-payments'], ['payroll-advance-recoveries']],
   shifts: [['shifts'], ...PAYROLL_ATTENDANCE_KEYS],
   employee_shift_assignments: [['shift-assignments'], ...PAYROLL_ATTENDANCE_KEYS],
   holidays: [['holidays'], ...PAYROLL_ATTENDANCE_KEYS],

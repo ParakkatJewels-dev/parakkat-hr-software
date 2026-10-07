@@ -148,7 +148,9 @@ local database tests do not apply anything to the hosted database. Existing publ
 remain unchanged. Legacy published payslips remain available but cannot acquire a new register
 without recalculation, so their worksheet export is unavailable.
 
-The operating sequence is **Monthly Worksheet → Run Payroll → Review register → Publish**:
+The operating sequence is **Run Payroll → Prepare data → Review payroll → Publish & payments**.
+Both the editable worksheet and calculated register have a full-screen view, retaining edits,
+filters and scroll position when opened or closed. Company and month stay selected throughout:
 
 1. Select the company and month. Review and save the salary divisor, daily hours, OT multiplier
    and whether approved late time is deductible. Calendar days, 8 hours and 2× OT shown before
@@ -163,7 +165,8 @@ The operating sequence is **Monthly Worksheet → Run Payroll → Review registe
    numbers (including zero) are HR overrides and need a reason. PF/ESI blank means configured employee
    component deductions; zero explicitly overrides the employee deduction with zero. Other deductions
    also require a reason. Concurrent saves reject a stale revision.
-4. Run the draft and reconcile its 33-column register and payslip breakdown. Source changes mark
+4. Run the draft and reconcile its register and payslip breakdown (33 historical columns, plus
+   an explicit Bonus column for new calculations). Source changes mark
    affected drafts for recalculation. Failed calculation is atomic and preserves the previous draft.
    Excel export includes every accessible row in the run, independent of the displayed page or
    search, and refuses stale, incomplete or failed reads. Both original `Salary` headers are retained.
@@ -491,3 +494,35 @@ Administration → Developer Settings. Keys can be restricted to one company and
 Migration `0135_developer_api_keys.sql` stores only key hashes and enforces all API access in SQL;
 the Vercel function exposes employee directory, organization and daily attendance endpoints.
 See [Developer API](DEVELOPER_API.md) for deployment, request examples and access controls.
+
+
+## Payroll adjustments, advances and salary payment status (0161)
+
+Apply `0161_payroll_transactions.sql` after `0160` **before deploying this client**. Tests use
+private local PostgreSQL clusters; they do not migrate the hosted database. Existing published
+registers remain unchanged. Drafts require recalculation after the migration.
+
+In **Prepare data → Adjustments & advances**, search for an employee to add separate bonus,
+incentive or deduction entries. Each amount has its own required reason and payslip line. These
+entries are additional to the spreadsheet inputs; do not enter the same amount in both places.
+New register exports show Bonus separately; incentive and deduction columns include their itemized
+entries. A calculated register with these additions cannot be re-imported as monthly inputs: use
+the Excel input template to avoid counting totals twice.
+
+Record an issued salary advance once, with its date, amount and reason. Schedule the recovery for
+the selected payroll month; later installments are entered by selecting their month. Draft schedules
+reserve the advance balance; publication recognizes the recovery. Issued, recovered, planned and
+remaining amounts remain visible. Multiple recoveries cannot exceed the issued amount. Ledger
+recoveries and the old manual advance-recovery cell cannot coexist for one employee/month. Clear
+one before using the other. An unused advance can be voided with a reason after clearing its draft
+schedules; an advance with a published recovery cannot be voided.
+
+After publishing, **Publish & payments** lists each salary as unpaid, held or paid. A hold
+requires a reason, and recording payment requires a reference. Held salaries must be released
+before being marked paid. Holds preserve the full amount owed. Paid records are final. This records
+completed payments; it does not initiate bank transfers, and the published payroll stays immutable.
+Legacy published payroll can acquire payment tracking from its stored payslip amounts without
+recalculation, including runs that predate worksheet snapshots.
+
+Ledger writes use scoped permissions, optimistic version checks and company payroll locks. New
+entries use stable request IDs, and every change is recorded in an immutable transaction history.

@@ -133,6 +133,11 @@ export function parsePayrollImportRows(aoa, employees) {
   const headerIndex = aoa.findIndex(row => Array.isArray(row) && row.some(value => !isBlank(value)));
   if (headerIndex < 0) { fail(1, 'The workbook is empty.'); return result; }
   const headers = aoa[headerIndex];
+  if (headers.some(header => String(header).trim().toLowerCase() === 'bonus')
+    && headers.some(header => String(header).trim().toLowerCase() === 'gross salary')) {
+    fail(headerIndex + 1, 'This calculated register includes itemized adjustments. Use the monthly input template to avoid importing those totals twice. Manage bonuses in Adjustments & advances.');
+    return result;
+  }
   if (headers.length > MAX_IMPORT_COLUMNS) { fail(headerIndex + 1, `Use at most ${MAX_IMPORT_COLUMNS} import columns.`); return result; }
   const mapped = []; const seenHeaders = new Set(); const ignoredComputed = new Set();
   headers.forEach((value, column) => {

@@ -162,7 +162,8 @@
     "0157_routine_audit_notes.sql",
     "0158_payroll_salary_register.sql",
     "0159_payroll_bulk_monthly_inputs.sql",
-    "0160_payroll_attendance_hours.sql"
+    "0160_payroll_attendance_hours.sql",
+    "0161_payroll_transactions.sql"
   ],
   "roles": [
     {

@@ -4,11 +4,16 @@ import assert from 'node:assert/strict';
 globalThis.window = { location: { href: 'http://127.0.0.1:5174/?qaPayroll=1&qa-role=super_admin' } };
 const { payrollFixtures, payrollRpc } = await import('./payrollFixtures.js');
 const { fixture, tables, period } = await import('./fixtures.js');
-const originals = structuredClone({ inputs: tables.payroll_monthly_inputs, policies: tables.payroll_policies, runs: tables.payroll_runs });
+const originals = structuredClone({ inputs: tables.payroll_monthly_inputs, policies: tables.payroll_policies, runs: tables.payroll_runs,
+  adjustments: tables.payroll_adjustments, advances: tables.payroll_advances, recoveries: tables.payroll_advance_recoveries, payments: tables.payroll_payments });
 beforeEach(() => {
   tables.payroll_monthly_inputs = structuredClone(originals.inputs);
   tables.payroll_policies = structuredClone(originals.policies);
   tables.payroll_runs = structuredClone(originals.runs);
+  tables.payroll_adjustments = structuredClone(originals.adjustments);
+  tables.payroll_advances = structuredClone(originals.advances);
+  tables.payroll_advance_recoveries = structuredClone(originals.recoveries);
+  tables.payroll_payments = structuredClone(originals.payments);
 });
 const context = { allows: () => true, canWrite: true };
 const batch = rows => payrollRpc('save_payroll_monthly_inputs', { _entity_id: 'company-1', _period: period, _rows: rows }, context);
@@ -150,4 +155,74 @@ test('fixture hour overrides require reasons and expose recorded-hour cap issues
   assert.equal(summary().override_issue, 'Late deductions are disabled by company policy.');
   tables.payroll_policies[0].deduct_late = true;
   assert.equal(summary().override_issue, 'Late override exceeds lateness on fully paid working days.');
+});
+
+test('itemized adjustment fixtures are idempotent on create and protect revisions and published months', () => {
+  const person = fixture.employees.find(row => row.entity_id === 'company-1');
+  const args = { _employee_id: person.id, _period: period, _id: 'new-adjustment', _expected_updated_at: null,
+    _adjustment: { kind: 'bonus', amount: 500, reason: 'Festival bonus' } };
+  const first = payrollRpc('save_payroll_adjustment', args, context);
+  assert.equal(first.error, undefined);
+  assert.equal(first.rows[0].amount, 500);
+  assert.equal(payrollRpc('save_payroll_adjustment', args, context).mutated, undefined);
+  assert.equal(tables.payroll_adjustments.filter(row => row.id === args._id).length, 1);
+  assert.equal(payrollRpc('save_payroll_adjustment', { ...args, _adjustment: { ...args._adjustment, amount: 600 } }, context).error.code, '40001');
+  const saved = payrollRpc('save_payroll_adjustment', { ...args, _expected_updated_at: first.rows[0].updated_at,
+    _adjustment: { ...args._adjustment, amount: 600 } }, context);
+  assert.equal(saved.rows[0].amount, 600);
+  assert.equal(payrollRpc('delete_payroll_adjustment', { _id: args._id, _expected_updated_at: first.rows[0].updated_at }, context).error.code, '40001');
+  tables.payroll_runs.find(row => row.id === 'qa-payroll-company-1').status = 'Published';
+  assert.equal(payrollRpc('delete_payroll_adjustment', { _id: args._id, _expected_updated_at: saved.rows[0].updated_at }, context).error.code, '55000');
+});
+
+test('advance fixtures track reserved balance, block double recovery and allow reasoned void after clearing plans', () => {
+  const person = fixture.employees.filter(row => row.entity_id === 'company-1')[1];
+  const args = { _employee_id: person.id, _issued_on: `${period}-01`, _amount: 500, _reason: 'Requested advance', _request_id: 'new-advance-request' };
+  const first = payrollRpc('create_payroll_advance', args, context);
+  assert.equal(first.error, undefined);
+  assert.equal(payrollRpc('create_payroll_advance', args, context).mutated, undefined);
+  assert.equal(payrollRpc('create_payroll_advance', { ...args, _amount: 1000 }, context).error.code, '40001');
+  const advance = first.rows[0];
+  const request = { _advance_id: advance.id, _period: period, _amount: 500, _expected_updated_at: null };
+  const recovery = payrollRpc('save_payroll_advance_recovery', request, context).rows[0];
+  assert.equal(recovery.amount, 500);
+  const nextPeriod = new Date(Date.UTC(Number(period.slice(0, 4)), Number(period.slice(5, 7)), 1)).toISOString().slice(0, 7);
+  assert.match(payrollRpc('save_payroll_advance_recovery', { ...request, _period: nextPeriod, _amount: 0.01 }, context).error.message, /balance/);
+  const input = tables.payroll_monthly_inputs.find(row => row.employee_id === person.id);
+  assert.match(batch([edit(input, { advance_recovery: 1 })]).error.message, /tracked/);
+  assert.match(payrollRpc('void_payroll_advance', { _id: advance.id, _reason: 'Entry error', _expected_updated_at: advance.updated_at }, context).error.message, /schedules/);
+  assert.equal(payrollRpc('save_payroll_advance_recovery', { ...request, _amount: 0, _expected_updated_at: recovery.updated_at }, context).rows.length, 0);
+  const voided = payrollRpc('void_payroll_advance', { _id: advance.id, _reason: 'Entry error', _expected_updated_at: advance.updated_at }, context).rows[0];
+  assert.ok(voided.voided_at);
+  assert.equal(voided.void_reason, 'Entry error');
+  assert.match(payrollRpc('save_payroll_advance_recovery', request, context).error.message, /Voided/);
+});
+
+test('recovery reads disclose only scoped records with publication state even without run-list access', () => {
+  const read = overrides => payrollRpc('get_payroll_advance_recoveries', { _entity_id: 'company-1' }, { ...context, ...overrides });
+  const original = tables.payroll_advance_recoveries[0];
+  assert.deepEqual(read().rows, [{ ...original, posted: false }]);
+  tables.payroll_runs.find(row => row.id === 'qa-payroll-company-1').status = 'Published';
+  assert.equal(read({ canWrite: false }).rows[0].posted, true);
+  assert.deepEqual(read({ allows: () => false }).rows, []);
+});
+
+test('hold, release and payment fixtures preserve earned net salary and require release before payment', () => {
+  const run = tables.payroll_runs.find(row => row.id === 'qa-payroll-company-1');
+  const slip = tables.payslips.find(row => row.run_id === run.id);
+  const originalNet = slip.net;
+  const args = { _run_id: run.id, _employee_id: slip.employee_id, _status: 'held', _reason: 'Bank details pending', _expected_updated_at: null };
+  assert.match(payrollRpc('set_payroll_payment_status', args, context).error.message, /Publish/);
+  run.status = 'Published';
+  const held = payrollRpc('set_payroll_payment_status', args, context).rows[0];
+  assert.equal(held.status, 'held');
+  assert.equal(slip.net, originalNet);
+  assert.match(payrollRpc('set_payroll_payment_status', { ...args, _status: 'paid', _reference: 'NEFT-42', _expected_updated_at: held.updated_at }, context).error.message, /Release/);
+  const released = payrollRpc('set_payroll_payment_status', { ...args, _status: 'unpaid', _expected_updated_at: held.updated_at }, context).rows[0];
+  assert.equal(released.hold_reason, null);
+  assert.match(payrollRpc('set_payroll_payment_status', { ...args, _status: 'paid', _expected_updated_at: released.updated_at }, context).error.message, /reference/);
+  const paid = payrollRpc('set_payroll_payment_status', { ...args, _status: 'paid', _reference: 'NEFT-42', _expected_updated_at: released.updated_at }, context).rows[0];
+  assert.equal(paid.payment_reference, 'NEFT-42');
+  assert.equal(slip.net, originalNet);
+  assert.match(payrollRpc('set_payroll_payment_status', { ...args, _status: 'unpaid', _expected_updated_at: paid.updated_at }, context).error.message, /cannot be changed/);
 });

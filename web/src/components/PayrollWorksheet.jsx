@@ -11,7 +11,7 @@ import {
   useSavePayrollPolicy, usePayrollMonthlyInputs, usePayrollAttendanceSummary,
 } from '../data/payrollWorksheet';
 import {
-  PAYROLL_REGISTER_COLUMNS, payrollPolicyDraft,
+  payrollRegisterColumns, payrollPolicyDraft,
   isCompletePayrollRegister, exportPayrollRegister,
 } from '../lib/payrollWorksheet';
 import { btnClass } from './ui/Btn';
@@ -19,6 +19,9 @@ import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
 import { hasPayrollSessionChanges, usePayrollSessionState } from '../lib/usePayrollSessionState';
 import PayrollInputGrid from './PayrollInputGrid';
+import PayrollSheetFrame from './PayrollSheetFrame';
+import PayrollTransactions, { PayrollPayments } from './PayrollTransactions';
+import { usePayrollAdjustments, usePayrollAdvanceRecoveries } from '../data/payrollTransactions';
 import { useRunPayroll, usePublishPayroll } from '../data/payroll';
 import ConfirmDialog from './ui/ConfirmDialog';
 import './payrollWorkflow.css';
@@ -80,7 +83,8 @@ export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
   useEffect(() => () => onBusyChange?.(false), [onBusyChange]);
   const [inputDirty, setInputDirty] = useState(false);
   const [policyDirty, setPolicyDirty] = useState(false);
-  const dirty = inputDirty || policyDirty;
+  const [transactionDirty, setTransactionDirty] = useState(false);
+  const dirty = inputDirty || policyDirty || transactionDirty;
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
   useEffect(() => {
@@ -124,7 +128,7 @@ export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
           </select>
         </label>
         <label className={LABEL}><span>Payroll month</span>
-          <input type="month" disabled={busy} className={INPUT} value={period} max={todayIso().slice(0, 7)} onChange={event => {
+          <input type="month" disabled={busy} className={INPUT} value={period} onChange={event => {
             if (monthPattern.test(event.target.value)) changeContext({ period: event.target.value });
           }} />
         </label>
@@ -142,7 +146,7 @@ export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
     </section>}
     {entity && <CompanyWorksheet key={`${entity.id}:${period}`} entity={entity} period={period}
       employees={managedEmployees.filter(employee => employee.entity_id === entity.id)}
-      canManageCompany={can('payroll.manage', { entityId: entity.id })} onInputDirtyChange={setInputDirty} onPolicyDirtyChange={setPolicyDirty} onInputBusyChange={setInputBusy} onPolicyBusyChange={setPolicyBusy} inputBusy={inputBusy} scopeReadBlocked={org.isFetching || employees.isFetching || Boolean(org.error || employees.error)} inputsDirty={inputDirty || policyDirty} />}
+      canManageCompany={can('payroll.manage', { entityId: entity.id })} onInputDirtyChange={setInputDirty} onPolicyDirtyChange={setPolicyDirty} onInputBusyChange={setInputBusy} onPolicyBusyChange={setPolicyBusy} inputBusy={inputBusy} scopeReadBlocked={org.isFetching || employees.isFetching || Boolean(org.error || employees.error)} inputsDirty={dirty} onTransactionDirtyChange={setTransactionDirty} />}
 
   </div>;
 }
@@ -150,14 +154,15 @@ export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
 const FLOW_STEPS = [
   { id: 'prepare', label: 'Prepare data', detail: 'Policy & monthly inputs' },
   { id: 'review', label: 'Review payroll', detail: 'Calculate & check salaries' },
-  { id: 'publish', label: 'Publish', detail: 'Release employee payslips' },
+  { id: 'publish', label: 'Publish & payments', detail: 'Payslips, holds & paid status' },
 ];
-const payrollWrite = mutation => ['save-payroll-monthly-inputs', 'save-payroll-policy', 'save-salary-structure', 'run-payroll', 'publish-payroll'].includes(mutation.options.mutationKey?.[0]);
+const payrollWrite = mutation => ['save-payroll-monthly-inputs', 'save-payroll-policy', 'save-salary-structure', 'run-payroll', 'publish-payroll', 'save-payroll-adjustment', 'delete-payroll-adjustment', 'create-payroll-advance', 'void-payroll-advance', 'save-payroll-advance-recovery', 'set-payroll-payment-status'].includes(mutation.options.mutationKey?.[0]);
 const rupees = value => value == null ? '—' : `₹${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 
-function CompanyWorksheet({ entity, period, employees, canManageCompany, onInputDirtyChange, onPolicyDirtyChange, onInputBusyChange, onPolicyBusyChange, inputBusy, scopeReadBlocked, inputsDirty }) {
+function CompanyWorksheet({ entity, period, employees, canManageCompany, onInputDirtyChange, onPolicyDirtyChange, onInputBusyChange, onPolicyBusyChange, inputBusy, scopeReadBlocked, inputsDirty, onTransactionDirtyChange }) {
   const client = useQueryClient();
   const [params, setParams] = useSearchParams();
+  const [prepareView, setPrepareView] = usePayrollSessionState(['prepare-view', entity.id, period], 'sheet');
   const [savedStep, setSavedStep] = usePayrollSessionState(['step', entity.id, period], 'prepare');
   const routeStep = params.get('step');
   const step = FLOW_STEPS.some(item => item.id === routeStep) ? routeStep : savedStep;
@@ -173,6 +178,9 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
   const run = runQuery.data;
   const register = usePayrollRegister(run?.id, { enabled: runQuery.isSuccess });
   const inputs = usePayrollMonthlyInputs(entity.id, period);
+  const adjustments = usePayrollAdjustments(entity.id, period);
+  const recoveries = usePayrollAdvanceRecoveries(entity.id);
+  const transactionsReadBlocked = [adjustments, recoveries].some(query => !query.isSuccess || query.isFetching || query.error);
   const published = run?.status === 'Published' || run?.status === 'Paid';
   const attendance = usePayrollAttendanceSummary(entity.id, period, { enabled: !published });
   const runPayroll = useRunPayroll();
@@ -186,12 +194,16 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
   const rows = register.data ?? EMPTY_ROWS;
   const registerReady = Boolean(run && register.isSuccess && !register.isFetching && !register.error && rows.length
     && rows.every(row => isCompletePayrollRegister(row.payroll_register))
-    && (!canManageCompany || Number(run.employees) === rows.length) && !run.needs_recalculation && run.source_fingerprint);
-  const calculateBlocked = !canManageCompany || published || busy || pending || scopeReadBlocked || runReadBlocked
+    && (!canManageCompany || Number(run.employees) === rows.length) && (published || (!run.needs_recalculation && run.source_fingerprint)));
+  const paymentsReady = Boolean(published && register.isSuccess && !register.isFetching && !register.error && rows.length
+    && rows.every(row => row.status === 'Published' && ['number', 'string'].includes(typeof row.net) && String(row.net).trim() !== '' && Number.isFinite(Number(row.net)) && Number(row.net) >= 0)
+    && (!canManageCompany || Number(run.employees) === rows.length));
+  const futureMonth = period > todayIso().slice(0, 7);
+  const calculateBlocked = futureMonth || !canManageCompany || published || busy || pending || scopeReadBlocked || runReadBlocked
     || !policy.isSuccess || policy.isFetching || !policy.data || Boolean(policy.error)
     || !inputs.isSuccess || inputs.isFetching || Boolean(inputs.error)
-    || !attendance.isSuccess || attendance.isFetching || Boolean(attendance.error);
-  const publishBlocked = !canManageCompany || published || busy || pending || scopeReadBlocked || runReadBlocked || !registerReady;
+    || !attendance.isSuccess || attendance.isFetching || Boolean(attendance.error) || transactionsReadBlocked;
+  const publishBlocked = !canManageCompany || published || busy || pending || scopeReadBlocked || runReadBlocked || transactionsReadBlocked || !registerReady;
   const attendanceIssues = (attendance.data ?? []).filter(row => row.in_payroll_month !== false && (row.employment_issue || row.override_issue
     || Number(row.missing_days) > 0 || Number(row.unresolved_days) > 0 || Number(row.invalid_days) > 0 || Number(row.pending_recompute_days) > 0)).length;
   const contextQuery = `entity=${encodeURIComponent(entity.id)}&period=${encodeURIComponent(period)}`;
@@ -214,8 +226,9 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
         <span><strong>{item.label}</strong><small>{item.detail}</small></span>
       </button>)}
     </nav>
-    {published && <div className="payroll-complete" role="status"><LockKeyhole size={18} /><div><strong>{period} payroll is published</strong><p>Payslips are available to employees. This month’s inputs and calculations are read-only.</p></div></div>}
+    {published && <div className="payroll-complete" role="status"><LockKeyhole size={18} /><div><strong>{period} payroll is published</strong><p>Inputs and salary calculations are read-only. Track salary holds and completed payments in Publish & payments.</p></div></div>}
     {pending && <p role="status" className="payroll-flow-notice">You have unsaved changes. Save or discard them in Prepare data or Salary setup before calculating, exporting or publishing.</p>}
+    {futureMonth && <p className="payroll-flow-notice">Plan adjustments and advance repayments for this month now. Payroll calculation becomes available when the month starts.</p>}
     <ErrorMessage error={runQuery.error} />
     {runQuery.isLoading && <Loading>Loading this payroll month…</Loading>}
     {step === 'prepare' && <>
@@ -231,8 +244,14 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
           <PolicyEditor entityId={entity.id} record={policy.data} onDirtyChange={onPolicyDirtyChange} disabled={scopeReadBlocked || published || runReadBlocked || busy || policy.isFetching || Boolean(policy.error) || !canManageCompany} /> : null}
         {!canManageCompany && <p className={HELP}>A company payroll manager saves policy and runs payroll. You can prepare the employees within your scope.</p>}
       </details>
-      <PayrollInputGrid entityId={entity.id} period={period} employees={employees} published={published}
+      <div className="payroll-prepare-tabs" role="group" aria-label="Prepare payroll view">
+        <button type="button" disabled={busy} aria-pressed={prepareView === 'sheet'} onClick={() => setPrepareView('sheet')}>Monthly inputs</button>
+        <button type="button" disabled={busy} aria-pressed={prepareView === 'entries'} onClick={() => setPrepareView('entries')}>Adjustments & advances</button>
+      </div>
+      {prepareView === 'sheet' ? <PayrollInputGrid entityId={entity.id} companyName={entity.name} period={period} employees={employees} published={published}
         disabled={runReadBlocked || scopeReadBlocked || busy} snapshots={rows} onDirtyChange={onInputDirtyChange} onBusyChange={onInputBusyChange} />
+        : <PayrollTransactions entityId={entity.id} period={period} employees={employees} run={run} registerRows={rows} published={published}
+          disabled={runReadBlocked || scopeReadBlocked || busy} onDirtyChange={onTransactionDirtyChange} onBusyChange={onInputBusyChange} />}
       <div className="premium-card payroll-flow-footer"><p className={HELP}>{pending ? 'Save your changes above to continue.' : 'Monthly inputs ready? Continue to calculate and review salaries.'}</p>
         <button type="button" className={btnClass('primary')} disabled={busy || pending || runReadBlocked || scopeReadBlocked} onClick={() => changeStep('review')}>Continue to review<ArrowRight size={14} /></button>
       </div>
@@ -250,7 +269,7 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
         {!published && !policy.data && <p className="payroll-flow-notice">Save the company calculation policy in Prepare data before calculating.</p>}
         {!published && attendanceIssues > 0 && <p className={HELP}>Review attendance issues in Prepare data. Calculation will report any records that must be corrected.</p>}
         {!canManageCompany && <p className={HELP}>A company payroll manager must calculate and publish this month.</p>}
-        <ErrorMessage error={runPayroll.error || (!published && (policy.error || inputs.error || attendance.error))} />
+        <ErrorMessage error={runPayroll.error || (!published && (policy.error || inputs.error || attendance.error || adjustments.error || recoveries.error))} />
         {runPayroll.isPending && <Loading>Calculating salary from saved inputs and attendance…</Loading>}
         {run && <PayrollTotals run={run} />}
       </section>
@@ -260,11 +279,11 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
       </div>
     </>}
     {step === 'publish' && <section className="premium-card space-y-4">
-      <div><h3 className={TITLE}>{published ? 'Payroll complete' : '3. Publish reviewed payroll'}</h3><p className={`${HELP} mt-1`}>{entity.name} · {period}</p></div>
+      <div><h3 className={TITLE}>{published ? 'Salary payments' : '3. Publish reviewed payroll'}</h3><p className={`${HELP} mt-1`}>{entity.name} · {period}</p></div>
       {run && <PayrollTotals run={run} />}
       {!published && <>
         <p className="text-sm text-neutral-700 dark:text-neutral-300">Publishing releases payslips to employees and locks this payroll and its attendance. Check the register and approved adjustments before proceeding.</p>
-        <p className={HELP}>Bank payments and statutory remittances are completed separately.</p>
+        <p className={HELP}>After publishing, hold or release an employee’s salary and record completed payments here. Bank transfers are made separately.</p>
         {!registerReady && <p role="alert" className="payroll-flow-notice">Calculate and review a complete, up-to-date register before publishing.</p>}
         {run?.needs_recalculation && <p className={HELP}>Inputs changed. Return to Review payroll and recalculate this draft.</p>}
         <ErrorMessage error={register.error} />
@@ -274,6 +293,9 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
           : <button type="button" className={btnClass('primary')} disabled={publishBlocked} onClick={() => { publish.reset(); setConfirmPublish(run); }}><Check size={14} />Publish payroll</button>}
       </div>
     </section>}
+    {step === 'publish' && published && <PayrollPayments entityId={entity.id} period={period} employees={employees} run={run} registerRows={rows} published
+      disabled={scopeReadBlocked || runReadBlocked || !paymentsReady || busy} onDirtyChange={onTransactionDirtyChange} onBusyChange={onInputBusyChange} />}
+    {step === 'publish' && published && !paymentsReady && <p role="alert" className="payroll-flow-notice">Payment actions require a complete, successfully loaded set of published payslip amounts. Refresh this payroll before recording a payment.</p>}
     {confirmPublish && <ConfirmDialog title="Publish reviewed payroll?" tone="primary" confirmLabel="Publish payroll" busy={publish.isPending} error={publish.error?.message}
       onCancel={() => { publish.reset(); setConfirmPublish(null); }} onConfirm={async () => {
         if (publishBlocked || client.isMutating({ predicate: payrollWrite }) || hasPayrollSessionChanges(client, entity.id, period)) return;
@@ -357,7 +379,8 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
   const [search, setSearch] = useState('');
   const [exporting, setExporting] = useState(false);
   const [detailed, setDetailed] = useState(false);
-  const visibleColumns = detailed ? PAYROLL_REGISTER_COLUMNS : PAYROLL_REGISTER_COLUMNS.filter(({ key }) => ['employee_name', 'branch', 'salary', 'earned_salary', 'gross_salary', 'net_pay_salary'].includes(key));
+  const columns = payrollRegisterColumns(register.data ?? EMPTY_ROWS);
+  const visibleColumns = detailed ? columns : columns.filter(({ key }) => ['employee_name', 'branch', 'salary', 'earned_salary', 'gross_salary', 'net_pay_salary'].includes(key));
   const [exportError, setExportError] = useState(null);
   const rows = register.data ?? EMPTY_ROWS;
   const filtered = useMemo(() => rows.filter(row => `${row.payroll_register?.employee_name ?? ''} ${row.payroll_register?.branch ?? ''}`.toLowerCase().includes(search.trim().toLowerCase())), [rows, search]);
@@ -371,20 +394,20 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
   const blocked = processing || inputsDirty || loading || Boolean(readError) || !run || !rows.length || incomplete || countMismatch || stale;
   const format = (value, type) => value == null ? '—' : type === 'text' ? String(value)
     : Number.isFinite(Number(value)) ? Number(value).toLocaleString('en-IN', { minimumFractionDigits: type === 'money' ? 2 : 0, maximumFractionDigits: 2 }) : '—';
-  return <section className="premium-card space-y-3 min-w-0">
+  return <PayrollSheetFrame title={`${entity.name} · ${period} · Payroll register`}>{({ control }) => <section className="premium-card space-y-3 min-w-0 payroll-register-workspace">
     {inputsDirty && <p className="text-xs text-amber-700 dark:text-amber-300">This register shows the last saved calculation. Save or discard worksheet changes, then recalculate before exporting.</p>}
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div><h3 className={TITLE}>Payroll register{run ? ` · ${run.status}` : ''}</h3>
         <p className={`${HELP} mt-1`}>{period} · {entity.code} · {rows.length} visible employees. Amounts are in rupees.</p></div>
-      <button type="button" className={btnClass('ghost')} disabled={blocked || exporting} onClick={async () => {
+      <div className="payroll-input-actions">{control}<button type="button" className={btnClass('ghost')} disabled={blocked || exporting} onClick={async () => {
         if (blocked || client.isMutating({ predicate: payrollWrite })) return;
         setExportError(null); setExporting(true);
         try { await exportPayrollRegister(rows, entity.code, period); }
         catch (error) { setExportError(error); }
         finally { setExporting(false); }
-      }}>{exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}Export Excel</button>
+      }}>{exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}Export Excel</button></div>
     </div>
-    <p className={HELP}>Review monthly salary, earned salary and take-home pay here. Show all columns for the full breakdown. Excel export always includes all 33 columns and all employees in your scope.</p>
+    <p className={HELP}>Review monthly salary, earned salary and take-home pay here. Show all columns for the full breakdown. Excel export includes the full breakdown and every employee in your scope.</p>
     {calculationPolicy && !readError && <p className={HELP}>Saved calculation basis: {calculationPolicy.divisor_mode === 'fixed' ? `${calculationPolicy.fixed_days} fixed days` : calculationPolicy.divisor_mode === 'working' ? 'scheduled working days' : 'calendar days'}, {calculationPolicy.hours_per_day} hours per day, {calculationPolicy.ot_multiplier}× OT. Late deduction {calculationPolicy.deduct_late ? 'enabled' : 'disabled'}. Total Working Hours shows recorded worked hours.</p>}
     <ErrorMessage error={readError || exportError} />
     {loading && <Loading>Loading the saved payroll register…</Loading>}
@@ -395,7 +418,7 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
     {run && !loading && !readError && rows.length === 0 && <p className={HELP}>No register rows are available within your scope for this run.</p>}
     {rows.length > 0 && !readError && <>
       <div className="flex flex-wrap items-center gap-3"><div className="flex-1 min-w-48"><ListSearch value={search} onChange={setSearch} label="Search payroll register" placeholder="Search employee or branch…" /></div>
-        <button type="button" className={btnClass('ghost')} aria-pressed={detailed} onClick={() => setDetailed(value => !value)}>{detailed ? 'Show salary summary' : 'Show all 33 columns'}</button></div>
+        <button type="button" className={btnClass('ghost')} aria-pressed={detailed} onClick={() => setDetailed(value => !value)}>{detailed ? 'Show salary summary' : `Show all ${columns.length} columns`}</button></div>
       <div className="payroll-register-scroll rounded-xl border border-neutral-200 dark:border-neutral-850" tabIndex={0} aria-label="Payroll register, scroll horizontally for all columns">
         <table className="w-full text-xs text-neutral-700 dark:text-neutral-200">
           <caption className="sr-only">{entity.name} payroll register for {period}{stale ? ', pending recalculation' : ''}</caption>
@@ -406,5 +429,5 @@ function Register({ entity, period, runQuery, registerQuery: register, canManage
       {filtered.length === 0 && <p className={HELP}>No employees match this search.</p>}
       <Pagination {...pager} noun="employees" />
     </>}
-  </section>;
+  </section>}</PayrollSheetFrame>;
 }

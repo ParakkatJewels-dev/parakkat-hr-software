@@ -16,7 +16,7 @@ const money = value => value == null ? '—' : `₹${Number(value).toLocaleStrin
 const statusClass = status => status === 'Published' || status === 'Paid'
   ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
   : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400';
-const inputSave = mutation => ['save-payroll-monthly-inputs', 'save-payroll-policy', 'save-salary-structure', 'run-payroll', 'publish-payroll'].includes(mutation.options.mutationKey?.[0]);
+const inputSave = mutation => ['save-payroll-monthly-inputs', 'save-payroll-policy', 'save-salary-structure', 'run-payroll', 'publish-payroll', 'save-payroll-adjustment', 'delete-payroll-adjustment', 'create-payroll-advance', 'void-payroll-advance', 'save-payroll-advance-recovery', 'set-payroll-payment-status'].includes(mutation.options.mutationKey?.[0]);
 const EMPTY_RUNS = [];
 
 export default function PayrollHistory({ onBusyChange }) {

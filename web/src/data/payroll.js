@@ -93,7 +93,7 @@ export function useRunPayroll() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => Promise.all(['payroll-runs', 'payroll-worksheet-run', 'payroll-attendance-summary', 'section-counts', 'payslips', 'payslip-lines', 'payroll-register'].map(key => qc.invalidateQueries({ queryKey: [key] }))),
+    onSuccess: () => Promise.all(['payroll-runs', 'payroll-worksheet-run', 'payroll-attendance-summary', 'section-counts', 'payslips', 'payslip-lines', 'payroll-register', 'payroll-payments', 'payroll-advance-recoveries'].map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
@@ -108,7 +108,7 @@ export function usePublishPayroll() {
       });
       if (error) throw error;
     },
-    onSuccess: () => Promise.all(['payroll-runs', 'payroll-worksheet-run', 'payroll-attendance-summary', 'section-counts', 'payslips', 'payroll-register'].map(key => qc.invalidateQueries({ queryKey: [key] }))),
+    onSuccess: () => Promise.all(['payroll-runs', 'payroll-worksheet-run', 'payroll-attendance-summary', 'section-counts', 'payslips', 'payroll-register', 'payroll-payments', 'payroll-advance-recoveries'].map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 

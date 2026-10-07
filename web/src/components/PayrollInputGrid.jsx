@@ -10,6 +10,7 @@ import { applyPayrollPaste, parsePayrollPaste, parsePayrollImportRows, readPayro
 import Pagination, { usePagination } from './ui/Pagination';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
+import PayrollSheetFrame from './PayrollSheetFrame';
 import './payrollInputGrid.css';
 
 const EMPTY = [];
@@ -55,7 +56,7 @@ function stagePayrollDrafts(current, patches, records) {
   return next;
 }
 
-export default function PayrollInputGrid({ entityId, period, employees, published, disabled, snapshots = EMPTY, onDirtyChange, onBusyChange }) {
+export default function PayrollInputGrid({ entityId, companyName, period, employees, published, disabled, snapshots = EMPTY, onDirtyChange, onBusyChange }) {
   const { can } = usePermissions();
   const query = usePayrollMonthlyInputs(entityId, period);
   const attendance = usePayrollAttendanceSummary(entityId, period, { enabled: !published });
@@ -191,12 +192,13 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
     || row.expectedUpdatedAt !== (records.get(row.employeeId)?.updated_at ?? null) || !equal(row.before, currentDraft(row.employeeId))));
   const previewIssues = preview && (preview.errors.length + preview.rows.filter(row => row.error).length);
 
-  return <section className="payroll-input-workspace premium-card" aria-label="Employee monthly inputs">
+  return <PayrollSheetFrame title={`${companyName ? `${companyName} · ` : ''}${period} · Monthly inputs`}>{({ control }) => <section className="payroll-input-workspace premium-card" aria-label="Employee monthly inputs">
     <div className="payroll-input-heading">
       <div><div className="payroll-input-eyebrow"><FileSpreadsheet size={14} /> MONTHLY INPUTS <span>{period}</span></div>
         <h3>Employee monthly inputs</h3>
-        <p>Edit cells, paste from Excel, or import your payroll sheet. Only the first worksheet is read. Edits are kept when you switch views. Save before refreshing or signing out.</p></div>
+        <p>Edit cells or paste from Excel. Save your changes before reviewing payroll.</p></div>
       <div className="payroll-input-actions">
+        {control}
         <button type="button" className={btnClass('ghost')} disabled={blocked || !employees.length} onClick={async () => {
           setBusyFile(true); setError('');
           try { await exportPayrollInputTemplate(employees, new Map(employees.map(person => [person.id, currentDraft(person.id)])), period); }
@@ -212,10 +214,10 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
       <span className={errorCount || conflicts.length || attendanceIssues.length ? 'payroll-input-danger' : ''}><b>{new Set([...Object.keys(errors), ...conflicts, ...attendanceIssues.map(person => person.id)]).size}</b> need attention</span>
       <span className="payroll-input-month-status">{published ? 'Published · read-only' : 'Draft inputs'}</span>
     </div>
-    <div className="payroll-attendance-info"><div><strong>{published ? 'Hours from the published register' : 'Punch time flows into payroll automatically'}</strong>
-      <p>{published ? 'These hours are frozen with the published salary.' : 'Worked hours, OT and eligible late hours come from calculated attendance. HR can override payable hours with a reason, or review daily punches to request a time correction.'}</p></div>
+    {group !== 'Earnings' && <div className="payroll-attendance-info"><div><strong>{published ? 'Hours from the published register' : 'Punch time flows into payroll automatically'}</strong>
+      <p>{published ? 'These hours are frozen with the published salary.' : 'Attendance supplies worked, OT and late hours. Enter an override only when needed, with a reason.'}</p></div>
       {!published && <button type="button" className={btnClass('ghost', 'sm')} disabled={attendance.isFetching || saving} onClick={() => attendance.refetch()}>Refresh punch hours</button>}
-    </div>
+    </div>}
     {!published && attendance.isLoading && <p role="status" className="payroll-input-feedback"><Loader2 size={14} className="animate-spin" />Loading punch-derived hours…</p>}
     {!published && attendance.error && <p role="alert" className="payroll-input-feedback payroll-input-danger">{message(attendance.error)}</p>}
     {!published && attendance.isSuccess && attendanceIssues.length > 0 && <p className="payroll-input-callout">{attendanceIssues.length} employees need attendance or hour-override review. Check each row’s status before calculating payroll.</p>}
@@ -269,7 +271,7 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
         <input aria-label="Bulk fill value" value={fillValue} inputMode={fillField === 'notes' || isHour(fillField) ? 'text' : 'decimal'} placeholder={fillField === 'notes' ? 'Enter a reason' : isHour(fillField) ? 'Hours or AUTO' : 'Value'} onChange={event => setFillValue(event.target.value)} disabled={blocked || Boolean(preview)} />
         <button type="button" className={btnClass('ghost', 'sm')} disabled={blocked || Boolean(preview) || !selectedPeople.length} onClick={() => preparePreview(selectedPeople.map(person => ({ employeeId: person.id, patch: { [fillField]: fillValue } })), `Bulk fill · ${fieldLabel(fillField)}`)}>Review fill</button></div>}
     </div>
-    <p className="payroll-input-tip">Amounts in ₹ · Tab moves across · Enter moves down · Paste into a cell in the current page. OT / late blank or AUTO = attendance. A number, including 0, overrides the automatic value and needs a reason. PF / ESI blank = configured component.</p>
+    <details className="payroll-input-tip"><summary>Spreadsheet help · amounts in ₹</summary><p>Tab moves across · Enter moves down · Paste into a cell on the current page. OT / late blank or AUTO = attendance. A number, including 0, overrides attendance and needs a reason. PF / ESI blank = configured component. Imports read the first worksheet. Edits stay when switching views; save before refreshing or signing out.</p></details>
     <div className="payroll-input-table-wrap" ref={tableRef} tabIndex={0} role="region" aria-label="Scrollable monthly input table">
       <table className="payroll-input-table"><caption className="sr-only">Employee monthly inputs for {period}</caption><thead><tr>
         <th className="payroll-input-select"><input type="checkbox" aria-label="Select current page" checked={pager.slice.length > 0 && pager.slice.every(person => selected.has(person.id))} disabled={blocked || !pager.slice.length} onChange={event => setSelected(current => {
@@ -289,7 +291,7 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
           <th scope="row" className="payroll-input-employee"><strong>{person.full_name}</strong><small>{person.employee_code} · {branchLabel(person)}</small>
             {person.status !== 'Active' && <small>{person.status}</small>}
             {time?.in_payroll_month === false && <small>Outside payroll month</small>}
-            {canReview && <Link className="payroll-punch-link" to={`/attendance/person?employee=${encodeURIComponent(person.id)}&period=${encodeURIComponent(period)}`}>Review / correct punches</Link>}
+            {canReview && (group !== 'Earnings' || issue) && <Link className="payroll-punch-link" to={`/attendance/person?employee=${encodeURIComponent(person.id)}&period=${encodeURIComponent(period)}`}>Review / correct punches</Link>}
             {group !== 'Earnings' && !published && <small>Last punch: {punchStamp(time?.last_punch_at)} IST</small>}
           </th>
           {group !== 'Earnings' && <><td className="payroll-punch-metric"><strong>{hours(time?.recorded_worked_hours)}h</strong><small>{published ? 'Published snapshot' : `${time?.attendance_days ?? '—'} / ${time?.expected_days ?? '—'} days calculated`}</small></td>
@@ -328,5 +330,5 @@ export default function PayrollInputGrid({ entityId, period, employees, publishe
     {discard && <ConfirmDialog title={discard === 'all' ? 'Discard all unsaved inputs?' : 'Reload this employee’s saved inputs?'} confirmLabel={discard === 'all' ? 'Discard changes' : 'Reload row'} onCancel={() => setDiscard(null)} onConfirm={() => {
       setDrafts(current => { if (discard === 'all') return {}; const next = { ...current }; delete next[discard]; return next; }); setDiscard(null); setError('');
     }}><p>{discard === 'all' ? `${dirtyIds.length} employee rows` : people.get(discard)?.full_name} will return to the latest saved values.</p></ConfirmDialog>}
-  </section>;
+  </section>}</PayrollSheetFrame>;
 }

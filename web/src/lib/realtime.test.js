@@ -190,6 +190,19 @@ test('attendance, payroll policy and source changes refresh automatic payroll ho
   assert.equal(live.invalidations.filter(value => value.queryKey[0] === 'payroll-attendance-summary').length, 1);
 });
 
+test('ledger changes refresh balances and invalidate calculated payroll; payment changes refresh paid and held status', t => {
+  const live = useLiveHarness(t);
+  live.status('SUBSCRIBED'); live.invalidations.length = 0;
+  for (const table of ['payroll_adjustments', 'payroll_advances', 'payroll_advance_recoveries', 'payroll_payments']) {
+    live.handlers.get(table)({ eventType: 'UPDATE', new: { id: `${table}-1` } });
+  }
+  t.mock.timers.tick(1000);
+  const keys = live.invalidations.map(item => item.queryKey[0]);
+  for (const key of ['payroll-adjustments', 'payroll-advances', 'payroll-advance-recoveries', 'payroll-payments', 'payroll-register', 'payroll-runs', 'payroll-worksheet-run']) {
+    assert.equal(keys.filter(value => value === key).length, 1);
+  }
+});
+
 test('a disconnected socket refreshes visible chat within ten seconds and stops on reconnect or unmount', (t) => {
   const live = useLiveHarness(t);
   t.mock.timers.tick(10_000);

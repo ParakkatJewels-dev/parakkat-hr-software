@@ -33,6 +33,7 @@ const stubs = {
     export const usePagination = (rows, size, _focus, key) => globalThis.payrollGrid.paginate(rows,size,key);`,
   './ui/ConfirmDialog': 'export default "payroll-confirm";',
   './ui/Btn': 'export const btnClass = () => "button";',
+  './PayrollSheetFrame': 'export default "sheet-frame";',
   './payrollInputGrid.css': 'export default {};',
 };
 const loader = registerHooks({
@@ -106,7 +107,7 @@ function mount({ count = 30, published = false, query: overrides = {}, sessionSt
       return { slice: rows.slice((this.page - 1) * size, this.page * size), count: rows.length, page: this.page,
         setPage: next => { this.page = typeof next === 'function' ? next(this.page) : next; } };
     },
-    render() { cursor = 0; globalThis.payrollGrid = this; return PayrollInputGrid(this.props); },
+    render() { cursor = 0; globalThis.payrollGrid = this; return PayrollInputGrid(this.props).props.children({ control: null, expanded: false }); },
     button(label) { return find(this.render(), node => node.type === 'button' && matches(node.props['aria-label'] || text(node), label)); },
     field(label) { return find(this.render(), node => ['input', 'select', 'textarea'].includes(node.type) && node.props['aria-label'] === label); },
     click(label) {
@@ -468,6 +469,7 @@ test('attendance refresh failures block writes, processing gaps are visible and 
 
 test('daily punch links retain employee and month and respect attendance access', () => {
   const grid = mount({ count: 3 });
+  grid.click('Hours & deductions');
   let links = findAll(grid.render(), node => node.type === 'a');
   assert.equal(links[0].props.to, '/attendance/person?employee=employee-1&period=2026-10');
   grid.canReadAttendance = false;

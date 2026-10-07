@@ -139,6 +139,7 @@ test('unload guard finds retained edits outside the selected payroll month and i
   for (const [key, dirty, clean] of [
     [['inputs', 'a', '2026-08'], { employee: { draft: { incentive: '100' } } }, {}],
     [['preview', 'a', '2026-08'], { rows: [] }, null],
+    [['transactions', 'a', '2026-08'], { dirty: true }, { dirty: false }],
     [['policy', 'a'], { dirty: true }, { dirty: false }],
     [['salary-setup'], { entityId: 'a', form: { basic: '100' }, initialForm: { basic: '90' } }, null],
   ]) {
