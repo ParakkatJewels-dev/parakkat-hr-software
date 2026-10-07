@@ -17,7 +17,26 @@ export function hasPayrollSessionChanges(client, entityId, period) {
   const inputs = period ? read(['inputs', entityId, period]) : undefined;
   const preview = period ? read(['preview', entityId, period]) : undefined;
   const policy = read(['policy', entityId]);
-  return Boolean((inputs && Object.keys(inputs).length > 0) || preview != null || policy?.dirty);
+  const salary = read(['salary-setup']);
+  // A salary change can affect any calculated month for its company. Merely opening the editor
+  // is safe; a retained edit must be saved or discarded before calculating or publishing.
+  const salaryDirty = salary?.entityId === entityId
+    && JSON.stringify(salary.form) !== JSON.stringify(salary.initialForm);
+  return Boolean((inputs && Object.keys(inputs).length > 0) || preview != null || policy?.dirty || salaryDirty);
+}
+
+/** Check retained drafts at unload time, including editors hidden by another payroll view. */
+export function hasAnyPayrollSessionChanges(client) {
+  const entries = sessions.get(client);
+  if (!entries) return false;
+  for (const [serialized, entry] of entries) {
+    const key = JSON.parse(serialized);
+    if (!Array.isArray(key)) continue;
+    if (['inputs', 'preview', 'policy'].includes(key[0]) && hasPayrollSessionChanges(client, key[1], key[2])) return true;
+    const salary = key[0] === 'salary-setup' ? entry.getSnapshot() : null;
+    if (salary && JSON.stringify(salary.form) !== JSON.stringify(salary.initialForm)) return true;
+  }
+  return false;
 }
 
 /** Internal entry helper, exported for tests without a React renderer. Keys must serialize to JSON. */

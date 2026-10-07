@@ -5,15 +5,15 @@ import { allScreenIds } from './navMap.js';
 export const APP_TAB_PATHS = {
   attendance: ['today', 'person', 'calendar', 'overview', 'exceptions', 'regularizations'],
   'attendance-admin': ['mapping', 'shifts', 'holidays', 'leaveTypes', 'sync'],
-  payroll: ['payslips', 'run', 'worksheet', 'salary', 'components'],
+  payroll: ['run', 'history', 'payslips', 'salary', 'components'],
   documents: ['employee', 'company'],
   performance: ['mine', 'team'],
   tasks: ['board', 'todo', 'requests', 'routine', 'deleted'],
   reports: ['attendance', 'leave', 'expenses', 'headcount'],
 };
 
-// TaskManagement deliberately sends these former views to its board. Keep existing bookmarks.
-export const LEGACY_TAB_PATHS = { tasks: ['flow', 'people'] };
+// Keep existing bookmarks for views folded into the current workflows.
+export const LEGACY_TAB_PATHS = { tasks: ['flow', 'people'], payroll: ['worksheet'] };
 export const DETAIL_SCREENS = ['directory', 'assets'];
 export const DETAIL_ID_PATTERN = '[A-Za-z0-9_-]+';
 const DETAIL_ID = new RegExp(`^${DETAIL_ID_PATTERN}$`);

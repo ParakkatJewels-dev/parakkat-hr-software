@@ -61,7 +61,7 @@ export function usePayrollWorksheetRun(entityId, period, { enabled = true } = {}
     enabled: enabled && Boolean(entityId && period),
     queryFn: async () => {
       const { data, error } = await supabase.from('payroll_runs')
-        .select('id, entity_id, period, status, employees, needs_recalculation')
+        .select('id, entity_id, period, status, employees, total_gross, total_net, published_at, needs_recalculation, source_fingerprint')
         .eq('entity_id', entityId).eq('period', period).maybeSingle();
       if (error) throw error;
       return data ?? null;

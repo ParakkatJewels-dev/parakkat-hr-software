@@ -20,7 +20,7 @@ export function usePayslips(employeeId, { period = '', enabled = true } = {}) {
       // A manager reviews one month at a time, loading every employee in that month even if
       // the API imposes a response cap. Dashboard/self-history callers retain their window.
       if (period) return fetchCollection(() => {
-        let query = supabase.from('payslips').select(`id, period, gross, deductions, net, status,
+        let query = supabase.from('payslips').select(`id, entity_id, period, gross, deductions, net, status,
           paid_days, lop_days, employer_cost, run_id, employee_id, payroll_register,
           employee:employees(id, full_name, employee_code, branch:branches(code))`)
           .eq('period', period).order('id');
@@ -30,7 +30,7 @@ export function usePayslips(employeeId, { period = '', enabled = true } = {}) {
       let q = supabase
         .from('payslips')
         .select(
-          `id, period, gross, deductions, net, status, paid_days, lop_days, employer_cost, run_id,
+          `id, entity_id, period, gross, deductions, net, status, paid_days, lop_days, employer_cost, run_id,
            employee_id, payroll_register,
            employee:employees(id, full_name, employee_code, branch:branches(code))`
         )
@@ -84,6 +84,7 @@ export function usePayrollRuns() {
 export function useRunPayroll() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: ['run-payroll'],
     mutationFn: async ({ entity_id, period }) => {
       const { data, error } = await supabase.rpc('run_payroll', {
         _entity_id: entity_id,
@@ -92,21 +93,14 @@ export function useRunPayroll() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
-      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
-      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
-      qc.invalidateQueries({ queryKey: ['section-counts'] });
-      qc.invalidateQueries({ queryKey: ['payslips'] });
-      qc.invalidateQueries({ queryKey: ['payslip-lines'] });
-      qc.invalidateQueries({ queryKey: ['payroll-register'] });
-    },
+    onSuccess: () => Promise.all(['payroll-runs', 'payroll-worksheet-run', 'payroll-attendance-summary', 'section-counts', 'payslips', 'payslip-lines', 'payroll-register'].map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
 export function usePublishPayroll() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: ['publish-payroll'],
     mutationFn: async ({ runId, expectedFingerprint }) => {
       const { error } = await supabase.rpc('publish_payroll', {
         _run_id: runId,
@@ -114,14 +108,7 @@ export function usePublishPayroll() {
       });
       if (error) throw error;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['payroll-runs'] });
-      qc.invalidateQueries({ queryKey: ['payroll-worksheet-run'] });
-      qc.invalidateQueries({ queryKey: ['payroll-attendance-summary'] });
-      qc.invalidateQueries({ queryKey: ['section-counts'] });
-      qc.invalidateQueries({ queryKey: ['payslips'] });
-      qc.invalidateQueries({ queryKey: ['payroll-register'] });
-    },
+    onSuccess: () => Promise.all(['payroll-runs', 'payroll-worksheet-run', 'payroll-attendance-summary', 'section-counts', 'payslips', 'payroll-register'].map(key => qc.invalidateQueries({ queryKey: [key] }))),
   });
 }
 
@@ -186,6 +173,7 @@ function describeSalaryError(error) {
 export function useSaveSalaryStructure() {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: ['save-salary-structure'],
     mutationFn: async ({ id, ...row }) => {
       const q = id
         ? supabase.from('salary_structures').update(row).eq('id', id)

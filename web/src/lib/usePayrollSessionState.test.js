@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { QueryClient } from '@tanstack/react-query';
-import { getPayrollSessionStateEntry, hasPayrollSessionChanges } from './usePayrollSessionState.js';
+import { getPayrollSessionStateEntry, hasPayrollSessionChanges, hasAnyPayrollSessionChanges } from './usePayrollSessionState.js';
 
 test('same-client remounts recover state and keep the setter stable for an equivalent serialized key', () => {
   const client = new QueryClient();
@@ -113,4 +113,40 @@ test('change lookup scopes input drafts and previews to company/month and policy
   assert.equal(hasPayrollSessionChanges(client, 'b', '2026-10'), false);
   policy.set({ dirty: false, draft: {} });
   assert.equal(hasPayrollSessionChanges(client, 'a', '2026-10'), false);
+});
+
+test('retained salary edits block only their company until saved or discarded', () => {
+  const client = new QueryClient();
+  const salary = getPayrollSessionStateEntry(client, ['salary-setup'], null);
+  const form = { employee_id: 'worker', effective_from: '2026-09-01', basic: '10000', gross_components: [] };
+  salary.set({ employeeId: 'worker', entityId: 'a', form, initialForm: { ...form } });
+  assert.equal(hasPayrollSessionChanges(client, 'a', '2026-10'), false, 'opening a salary editor does not block payroll');
+  salary.set(value => ({ ...value, form: { ...value.form, basic: '12000' } }));
+  assert.equal(hasPayrollSessionChanges(client, 'a', '2026-10'), true);
+  assert.equal(hasPayrollSessionChanges(client, 'a', '2026-11'), true, 'salary affects multiple months');
+  assert.equal(hasPayrollSessionChanges(client, 'b', '2026-10'), false);
+  assert.equal(hasPayrollSessionChanges(new QueryClient(), 'a', '2026-10'), false);
+  salary.set(null);
+  assert.equal(hasPayrollSessionChanges(client, 'a', '2026-10'), false);
+});
+
+
+test('unload guard finds retained edits outside the selected payroll month and ignores clean navigation state', () => {
+  const client = new QueryClient();
+  getPayrollSessionStateEntry(client, ['context'], { entityId: 'b', period: '2026-10' });
+  getPayrollSessionStateEntry(client, ['step', 'b', '2026-10'], 'review');
+  assert.equal(hasAnyPayrollSessionChanges(client), false);
+  for (const [key, dirty, clean] of [
+    [['inputs', 'a', '2026-08'], { employee: { draft: { incentive: '100' } } }, {}],
+    [['preview', 'a', '2026-08'], { rows: [] }, null],
+    [['policy', 'a'], { dirty: true }, { dirty: false }],
+    [['salary-setup'], { entityId: 'a', form: { basic: '100' }, initialForm: { basic: '90' } }, null],
+  ]) {
+    const entry = getPayrollSessionStateEntry(client, key, clean);
+    entry.set(dirty);
+    assert.equal(hasAnyPayrollSessionChanges(client), true);
+    entry.set(clean);
+    assert.equal(hasAnyPayrollSessionChanges(client), false);
+  }
+  assert.equal(hasAnyPayrollSessionChanges(new QueryClient()), false);
 });

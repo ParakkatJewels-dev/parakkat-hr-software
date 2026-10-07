@@ -129,12 +129,13 @@ test('monthly payroll renders 25 payslips rather than all 675 employees', () => 
   assert.equal((html.match(/Net pay/g) ?? []).length, 25);
   assert.match(html, /of 675 payslips/); assert.match(html, /Payslip month/);
 });
-test('salary structures page the full current roster and retain the search field', () => {
+test('salary setup pages the employee directory and retains search without an employee dropdown', () => {
   const structures = accountFixtures().employees.map((employee) => ({ id: `salary-${employee.id}`,
     employee_id: employee.id, employee, effective_from: '2020-01-01', basic: 10000, gross: 20000 }));
   const html = render(Payroll, [[['salary-structures', 'all'], structures]], {}, '/payroll/salary');
   assert.equal((html.match(/data-label="Employee"/g) ?? []).length, 25);
-  assert.match(html, /of 675 salary records/); assert.match(html, /Search current salaries/);
+  assert.match(html, /of 675 employees/); assert.match(html, /Search salary employees/);
+  assert.equal((html.match(/aria-label="Set salary for /g) ?? []).length, 25);
 });
 
 test('675 attendance corrections render 25 review rows and page personal history without truncating it', () => {

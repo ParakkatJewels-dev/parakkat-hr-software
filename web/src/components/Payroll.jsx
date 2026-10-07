@@ -3,25 +3,20 @@
 // Salary is calculated by the database (public.run_payroll) from attendance the engine already
 // derived — this screen never does money maths, it configures inputs and shows results.
 //
-// Tabs, gated by permission:
-//   Payslips    everyone with payslip.read (an employee sees only their own)
-//   Run Payroll payroll.manage — pick company + month, run, review, publish
-//   Salary      payroll.manage — effective-dated basic/gross per employee
-//   Deductions  payroll.manage — the configurable, scoped component catalogue
-import React, { useMemo, useState } from 'react';
-import { useIsMutating, useQueryClient } from '@tanstack/react-query';
-import { hasPayrollSessionChanges } from '../lib/usePayrollSessionState';
-import { Link, useSearchParams } from 'react-router-dom';
+// Managers use a single monthly workflow, with history and recurring setup alongside it.
+// Employees see only their permitted payslips.
+import React, { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { hasAnyPayrollSessionChanges } from '../lib/usePayrollSessionState';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  DollarSign, FileText, Loader2, AlertTriangle, Play, Check, Plus, Trash2, X,
-  Settings2, Users, Calculator,
+  DollarSign, FileText, Loader2, AlertTriangle, Play, Plus, Trash2, X,
+  Settings2, Users, History,
 } from 'lucide-react';
 import {
-  usePayslips, usePayslipLines, usePayrollRuns, useRunPayroll, usePublishPayroll,
-  useSalaryStructures, useSaveSalaryStructure, usePayComponents, useSavePayComponent,
-  useDeletePayComponent, useDeletePayrollRun,
+  usePayslips, usePayslipLines, usePayComponents, useSavePayComponent,
+  useDeletePayComponent,
 } from '../data/payroll';
-import { useEmployees } from '../data/employees';
 import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
@@ -34,18 +29,9 @@ import { SkeletonRows } from './ui/Skeleton';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
-import ConfirmDialog from './ui/ConfirmDialog';
-import IconInput from './ui/IconInput';
 import PayrollWorksheet from './PayrollWorksheet';
-import {
-  blankGrossComponent,
-  grossComponentsFromNotes,
-  normalizeGrossComponentsDraft,
-  parseMoneyDraft,
-  salaryNotesFromGrossComponents,
-  totalGrossComponentsDraft,
-  totalGrossFromParts,
-} from '../lib/salaryDraft';
+import PayrollSalarySetup from './PayrollSalarySetup';
+import PayrollHistory from './PayrollHistory';
 
 const money = (n) =>
   n == null
@@ -68,30 +54,13 @@ const Err = ({ e }) =>
     </p>
   ) : null;
 
-/**
- * Every tab this screen can draw, and the ids the URL may carry.
- *
- * One definition, at module scope, because two hand-written lists drifted and took the whole
- * payroll admin with them: the whitelist read ['payslips','runs','structures','reports'] while the
- * tabs were payslips/run/salary/components, so three of the four failed the check in useUrlTab and
- * bounced back to Payslips. No salary could be entered, no component configured and no payroll run
- * — from the app at all. Reports & Analytics had the identical bug.
- *
- * The id list handed to useUrlTab is now the PERMITTED set, not the whole catalogue.
- *
- * It used to be every id, on the reasoning that "a URL is valid or it is not". That is true of a
- * typo and false of a permission: the tab bar hid Run Payroll, Salary Structures and Deductions
- * from anyone without payroll.manage, but the content below switches on `tab` alone — so typing
- * /payroll/run drew the whole payroll console for a user who was never offered it. Validating
- * against what this caller may see means an unpermitted id is simply not a tab they have, and
- * useUrlTab falls back to Payslips exactly as it does for a stale bookmark.
- */
+// The legacy worksheet route opens the same monthly workflow so old bookmarks keep working.
 const TAB_DEFS = [
-  { id: 'payslips', label: 'Payslips', icon: FileText, managerOnly: false },
   { id: 'run', label: 'Run Payroll', icon: Play, managerOnly: true },
-  { id: 'worksheet', label: 'Monthly Worksheet', icon: Calculator, managerOnly: true },
-  { id: 'salary', label: 'Salary Structures', icon: Users, managerOnly: true },
-  { id: 'components', label: 'Deductions & Allowances', icon: Settings2, managerOnly: true },
+  { id: 'history', label: 'Payroll history', icon: History, managerOnly: true },
+  { id: 'payslips', label: 'Payslips', icon: FileText, managerOnly: false },
+  { id: 'salary', label: 'Salary setup', icon: Users, managerOnly: true },
+  { id: 'components', label: 'Pay components', icon: Settings2, managerOnly: true },
 ];
 
 export default function Payroll() {
@@ -102,8 +71,25 @@ export default function Payroll() {
 
   const TABS = TAB_DEFS.filter((t) => !t.managerOnly || canManage);
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
-  const [tab, setTab] = useUrlTab('payslips', TABS.map((t) => t.id));
+  const [routeTab] = useUrlTab(canManage ? 'run' : 'payslips', [...TABS.map((t) => t.id), ...(canManage ? ['worksheet'] : [])]);
+  const tab = routeTab === 'worksheet' ? 'run' : routeTab;
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const setTab = id => {
+    const next = new URLSearchParams(params);
+    next.delete('step');
+    navigate(`/payroll/${id}${next.size ? `?${next}` : ''}`, { replace: true });
+  };
   const [worksheetBusy, setWorksheetBusy] = useState(false);
+  const client = useQueryClient();
+  useEffect(() => {
+    const warn = event => {
+      if (!hasAnyPayrollSessionChanges(client) && !worksheetBusy) return;
+      event.preventDefault(); event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [client, worksheetBusy]);
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
@@ -113,7 +99,7 @@ export default function Payroll() {
         </h1>
         <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
           {canManage
-            ? 'Prepare monthly inputs, calculate salary from attendance, review the register, then publish.'
+            ? 'Run each month in three steps. Keep salary setup and past payroll in one place.'
             : 'Your payslips.'}
         </p>
       </div>
@@ -141,9 +127,9 @@ export default function Payroll() {
       )}
 
       {tab === 'payslips' && <PayslipsTab />}
-      {tab === 'run' && <RunTab />}
-      {tab === 'worksheet' && <PayrollWorksheet onBusyChange={setWorksheetBusy} />}
-      {tab === 'salary' && <SalaryTab />}
+      {tab === 'run' && <PayrollWorksheet onBusyChange={setWorksheetBusy} />}
+      {tab === 'history' && <PayrollHistory onBusyChange={setWorksheetBusy} />}
+      {tab === 'salary' && <PayrollSalarySetup onBusyChange={setWorksheetBusy} />}
       {tab === 'components' && <ComponentsTab />}
 
     </div>
@@ -157,7 +143,10 @@ function PayslipsTab() {
   const { employee } = useAuth();
   const { viewingAsEmployee, canBeyondSelf } = usePermissions();
   const mineOnly = viewingAsEmployee || !canBeyondSelf('payslip.read');
-  const [period, setPeriod] = useState(todayIso().slice(0, 7));
+  const [params] = useSearchParams();
+  const { data: org } = useVisibleOrg();
+  const [companyId, setCompanyId] = useState(() => mineOnly ? '' : params.get('entity') || '');
+  const [period, setPeriod] = useState(() => /^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('period') ?? '') ? params.get('period') : todayIso().slice(0, 7));
   const [search, setSearch] = useState('');
   const { data: payslips = [], isLoading, error } = usePayslips(mineOnly ? employee?.id : undefined, {
     period, enabled: !mineOnly || Boolean(employee?.id),
@@ -166,12 +155,17 @@ function PayslipsTab() {
 
   // A payroll run produces one payslip per person — 242 rows. Hook sits above the early
   // returns so it runs in the same order on every render.
-  const matching = payslips.filter((p) => `${p.employee?.full_name ?? ''} ${p.employee?.employee_code ?? ''} ${p.employee?.branch?.code ?? ''} ${p.status}`.toLowerCase().includes(search.trim().toLowerCase()));
-  const pager = usePagination(matching, 25, null, `${period}:${search}:${mineOnly}`);
+  const matching = payslips.filter((p) => (!companyId || mineOnly || p.entity_id === companyId) && `${p.employee?.full_name ?? ''} ${p.employee?.employee_code ?? ''} ${p.employee?.branch?.code ?? ''} ${p.status}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const pager = usePagination(matching, 25, null, `${period}:${companyId}:${search}:${mineOnly}`);
 
   return (
     <div className="space-y-2">
       <div className="premium-card flex flex-col sm:flex-row gap-3 sm:items-end">
+        {!mineOnly && <label className="text-xs font-semibold text-neutral-500">Company
+          <select aria-label="Payslip company" value={companyId} onChange={event => setCompanyId(event.target.value)} className={INPUT + ' block mt-1'}>
+            <option value="">All companies</option>{(org?.entities ?? []).map(entity => <option value={entity.id} key={entity.id}>{entity.code} — {entity.name}</option>)}
+          </select>
+        </label>}
         <label className="text-xs font-semibold text-neutral-500">Payroll month
           <input type="month" required aria-label="Payslip month" value={period} onChange={(e) => { if (e.target.value) setPeriod(e.target.value); }} className={INPUT + ' block mt-1'} />
         </label>
@@ -277,481 +271,6 @@ function PayslipDetail({ payslip }) {
   );
 }
 
-// ---------------------------------------------------------------- run payroll
-function RunTab() {
-  const client = useQueryClient();
-  const activeInputSaves = useIsMutating({ predicate: mutation => ['save-payroll-monthly-inputs', 'save-payroll-policy'].includes(mutation.options.mutationKey?.[0]) });
-  const worksheetPending = (company, month) => Boolean(activeInputSaves) || hasPayrollSessionChanges(client, company, month);
-  // payroll_runs_write checks ONLY the entity — has_perm('payroll.manage', entity_id, null, null,
-  // null, null) — so that is exactly what this asks. Publish and Delete were drawn on every draft
-  // regardless of which company it belonged to.
-  const { can } = usePermissions();
-  const canManageRun = (r) => can('payroll.manage', { entityId: r.entity_id });
-  const { data: org } = useVisibleOrg();
-  const { data: runs = [], isLoading: runsLoading, error: runsError } = usePayrollRuns();
-  const runPayroll = useRunPayroll();
-  const publish = usePublishPayroll();
-  const deleteRun = useDeletePayrollRun();
-  const entities = org?.entities ?? [];
-  const [params] = useSearchParams();
-
-  const [entityId, setEntityId] = useState(params.get('entity') || '');
-  const [period, setPeriod] = useState(/^\d{4}-(0[1-9]|1[0-2])$/.test(params.get('period') || '') ? params.get('period') : todayIso().slice(0, 7));
-  const [result, setResult] = useState(null);
-  const [draftToDelete, setDraftToDelete] = useState(null);
-  const [draftToPublish, setDraftToPublish] = useState(null);
-  const [historySearch, setHistorySearch] = useState('');
-  const matchingRuns = runs.filter((r) => `${r.period} ${r.entity?.code ?? ''} ${r.entity?.name ?? ''} ${r.status}`.toLowerCase().includes(historySearch.trim().toLowerCase()));
-  const runPager = usePagination(matchingRuns, 10, null, historySearch);
-
-  const go = async () => {
-    if (worksheetPending(entityId, period)) return;
-    setResult(null);
-    try {
-      setResult(await runPayroll.mutateAsync({ entity_id: entityId, period }));
-    } catch {
-      /* surfaced below */
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <section className="premium-card space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-          Calculate a month
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1">Company</label>
-            <select value={entityId} onChange={(e) => setEntityId(e.target.value)} className={INPUT + ' cursor-pointer'}>
-              <option value="">Choose…</option>
-              {entities.filter((e) => can('payroll.manage', { entityId: e.id })).map((e) => (
-                <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1">Month</label>
-            <input
-              type="month"
-              value={period}
-              max={todayIso().slice(0, 7)}
-              onChange={(e) => e.target.value && setPeriod(e.target.value)}
-              className={INPUT}
-            />
-          </div>
-          <div className="flex items-end">
-            <button onClick={go} disabled={!entityId || !can('payroll.manage', { entityId }) || runPayroll.isPending || worksheetPending(entityId, period)} className={BTN + ' w-full justify-center'}>
-              {runPayroll.isPending ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />} Run payroll
-            </button>
-          </div>
-        </div>
-        <p className="text-2xs text-neutral-400">
-          Save the company policy and approved monthly inputs in Monthly Worksheet first. Complete
-          attendance and salary records before running. Re-running replaces a draft; published months stay locked.
-        </p>
-        {worksheetPending(entityId, period) && <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">There are unsaved worksheet changes or an input save in progress. Save or discard them in Monthly Worksheet before calculating or publishing.</p>}
-        <Err e={runPayroll.error} />
-        {result && (
-          <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
-            <Check size={14} className="text-emerald-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-emerald-700 dark:text-emerald-300">
-              {result.period}: {result.employees} employees · gross {money(result.total_gross)} · net{' '}
-              {money(result.total_net)}. Review the register, then publish to make payslips visible to staff.
-              {result.policy_configured === false && ' Save a reviewed company policy and run again before publication.'}
-            </p>
-          </div>
-        )}
-      </section>
-
-      <section className="premium-card">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-3">
-          Previous runs
-        </h3>
-        <ListSearch value={historySearch} onChange={setHistorySearch} label="Search payroll runs" placeholder="Search company, month or status…" />
-        <Err e={runsError} />
-        {runsLoading ? <SkeletonRows rows={3} /> : runsError ? null : matchingRuns.length === 0 ? (
-          <p className="py-6 text-center text-xs text-neutral-500">{historySearch ? 'No matching payroll runs.' : 'No payroll has been run yet.'}</p>
-        ) : (
-          <div className="space-y-2">
-            {runPager.slice.map((r) => (
-              <div
-                key={r.id}
-                className="mobile-list-row flex flex-wrap items-center justify-between gap-3 rounded-xl border border-neutral-200/70 dark:border-neutral-850 px-3 py-2.5"
-              >
-                <div className="min-w-0">
-                  <span className="block text-xs font-bold text-neutral-800 dark:text-warm-gray-100">
-                    {r.period} · {r.entity?.code}
-                  </span>
-                  <span className="block text-2xs text-neutral-500 mt-0.5">
-                    {r.employees} employees · net {money(r.total_net)}
-                  </span>
-                  {r.needs_recalculation && r.status === 'Draft' && <span className="block text-2xs text-amber-600 mt-1">Inputs changed — run payroll again before publishing.</span>}
-                  {r.status === 'Draft' && worksheetPending(r.entity_id, r.period) && <span className="block text-2xs text-amber-600 mt-1">Finish unsaved worksheet changes before publishing.</span>}
-                  {!r.source_fingerprint && r.status === 'Draft' && <span className="block text-2xs text-amber-600 mt-1">Recalculate this draft to prepare its reviewable register.</span>}
-                </div>
-                <div className="mobile-list-actions flex items-center gap-2">
-                  <span className={`text-2xs font-bold uppercase px-2 py-1 rounded ${statusClass(r.status)}`}>
-                    {r.status}
-                  </span>
-                  <Link to={`/payroll/worksheet?entity=${encodeURIComponent(r.entity_id)}&period=${encodeURIComponent(r.period)}`} className={BTN_GHOST}>Review register</Link>
-                  {r.status === 'Draft' && canManageRun(r) && (
-                    <>
-                      <button onClick={() => { publish.reset(); setDraftToPublish(r); }} disabled={publish.isPending || worksheetPending(r.entity_id, r.period) || r.needs_recalculation || r.employees === 0 || !r.source_fingerprint} className={BTN}>
-                        {publish.isPending ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} Publish
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          deleteRun.reset();
-                          setDraftToDelete(r);
-                        }}
-                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition-colors hover:bg-rose-100 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-400 dark:hover:bg-rose-950/50"
-                        title="Delete draft payroll"
-                        aria-label={`Delete ${r.period} draft payroll`}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        <Pagination {...runPager} noun="payroll runs" sizes={[10, 25, 50]} disabled={publish.isPending || deleteRun.isPending} />
-      </section>
-
-      {draftToPublish && (
-        <ConfirmDialog
-          title="Publish reviewed payroll?"
-          tone="primary"
-          confirmLabel="Publish payroll"
-          busy={publish.isPending}
-          error={publish.error?.message}
-          onCancel={() => { publish.reset(); setDraftToPublish(null); }}
-          onConfirm={async () => {
-            if (worksheetPending(draftToPublish.entity_id, draftToPublish.period)) return;
-            try {
-              await publish.mutateAsync({ runId: draftToPublish.id, expectedFingerprint: draftToPublish.source_fingerprint });
-              setDraftToPublish(null);
-            } catch { /* shown in the dialog */ }
-          }}
-        >
-          <p>{draftToPublish.period} · {draftToPublish.entity?.name || draftToPublish.entity?.code} · {draftToPublish.employees} employees</p>
-          <p>Gross <b>{money(draftToPublish.total_gross)}</b> · Net pay <b>{money(draftToPublish.total_net)}</b></p>
-          <p>Confirm that you have reconciled the register, approved adjustments, and statutory deductions. Publication releases payslips to employees and locks this payroll and its attendance.</p>
-          <p className="text-neutral-500 dark:text-neutral-400">Bank payment and statutory remittances are completed separately.</p>
-        </ConfirmDialog>
-      )}
-
-      {draftToDelete && (
-        <ConfirmDialog
-          title="Delete draft payroll?"
-          confirmLabel="Delete draft"
-          busy={deleteRun.isPending}
-          error={deleteRun.error?.message}
-          onCancel={() => {
-            deleteRun.reset();
-            setDraftToDelete(null);
-          }}
-          onConfirm={async () => {
-            try {
-              await deleteRun.mutateAsync(draftToDelete.id);
-              if (result?.run_id === draftToDelete.id) setResult(null);
-              setDraftToDelete(null);
-            } catch {
-              /* shown in the dialog */
-            }
-          }}
-        >
-          <p>
-            The <b>{draftToDelete.period}</b> payroll draft for{' '}
-            <b>{draftToDelete.entity?.name || draftToDelete.entity?.code}</b> will be removed.
-          </p>
-          <p className="text-neutral-500 dark:text-neutral-400">
-            Its generated draft payslips and breakdown lines will also be deleted. You can run the
-            month again later. Published payroll cannot be deleted.
-          </p>
-        </ConfirmDialog>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- salary structures
-function SalaryTab() {
-  const { data: employees = [] } = useEmployees();
-  const { data: structures = [], isLoading: structuresLoading, error: structuresError } = useSalaryStructures();
-  const save = useSaveSalaryStructure();
-  const [formError, setFormError] = useState(null);
-  const [form, setForm] = useState({
-    employee_id: '',
-    effective_from: `${todayIso().slice(0, 7)}-01`,
-    basic: '',
-    gross_components: [blankGrossComponent()],
-  });
-
-  const patchGrossComponent = (index, patch) => {
-    setForm((s) => ({
-      ...s,
-      gross_components: s.gross_components.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    }));
-  };
-
-  const addGrossComponent = () => {
-    setForm((s) => ({ ...s, gross_components: [...s.gross_components, blankGrossComponent()] }));
-  };
-
-  const removeGrossComponent = (index) => {
-    setForm((s) => {
-      const next = s.gross_components.filter((_, i) => i !== index);
-      return { ...s, gross_components: next.length ? next : [blankGrossComponent()] };
-    });
-  };
-
-  // The newest row already in force per employee is the one payroll will use today. Future-dated
-  // raises stay in history without replacing the current row on profile/dashboard surfaces.
-  const latest = useMemo(() => {
-    const m = new Map();
-    const today = todayIso();
-    for (const s of structures) {
-      if ((!s.effective_from || s.effective_from <= today) && !m.has(s.employee_id)) {
-        m.set(s.employee_id, s);
-      }
-    }
-    return m;
-  }, [structures]);
-  const [salarySearch, setSalarySearch] = useState('');
-  const matchingSalaries = [...latest.values()].filter((s) => `${s.employee?.full_name ?? ''} ${s.employee?.employee_code ?? ''}`.toLowerCase().includes(salarySearch.trim().toLowerCase()));
-  const salaryPager = usePagination(matchingSalaries, 25, null, salarySearch);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setFormError(null);
-    save.reset();
-    const basic = parseMoneyDraft(form.basic);
-    const componentDraft = normalizeGrossComponentsDraft(form.gross_components);
-    const gross = parseMoneyDraft(totalGrossFromParts(form.basic, form.gross_components));
-    if (!form.employee_id) {
-      setFormError(new Error('Choose an employee.'));
-      return;
-    }
-    if (!form.effective_from) {
-      setFormError(new Error('Choose an effective-from date.'));
-      return;
-    }
-    if (componentDraft.error) {
-      setFormError(new Error(componentDraft.error));
-      return;
-    }
-    if (basic == null || gross == null) {
-      setFormError(new Error('Monthly basic and gross component amounts have to be valid amounts.'));
-      return;
-    }
-    if (basic < 0 || componentDraft.total < 0 || gross < 0) {
-      setFormError(new Error('Pay cannot be negative.'));
-      return;
-    }
-
-    const existing = structures.find(
-      (s) => s.employee_id === form.employee_id && s.effective_from === form.effective_from
-    );
-    try {
-      await save.mutateAsync({
-        id: existing?.id,
-        employee_id: form.employee_id,
-        effective_from: form.effective_from,
-        basic,
-        gross,
-        notes: salaryNotesFromGrossComponents(form.gross_components, existing?.notes),
-      });
-      setForm({ ...form, employee_id: '', basic: '', gross_components: [blankGrossComponent()] });
-    } catch {
-      /* surfaced below */
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <form onSubmit={submit} className="premium-card space-y-3">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">Set salary</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <select
-            required
-            value={form.employee_id}
-            onChange={(e) => setForm({ ...form, employee_id: e.target.value })}
-            className={INPUT + ' cursor-pointer'}
-          >
-            <option value="">Employee…</option>
-            {employees.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.full_name} {e.employee_code ? `(${e.employee_code})` : ''}
-              </option>
-            ))}
-          </select>
-          <input
-            type="date"
-            required
-            value={form.effective_from}
-            onChange={(e) => setForm({ ...form, effective_from: e.target.value })}
-            className={INPUT}
-            title="Effective from" aria-label="Effective from"
-          />
-          <IconInput
-            icon={DollarSign}
-            type="number"
-            required
-            min="0"
-            step="0.01"
-            placeholder="Basic"
-            value={form.basic}
-            onChange={(e) => setForm({ ...form, basic: e.target.value })}
-            inputClassName={INPUT + ' font-mono'}
-          />
-          <IconInput
-            icon={Calculator}
-            type="text"
-            readOnly
-            placeholder="Gross total"
-            value={totalGrossFromParts(form.basic, form.gross_components)}
-            inputClassName={INPUT + ' font-mono bg-neutral-100 dark:bg-neutral-950'}
-            title="Monthly gross total"
-            aria-label="Monthly gross total"
-          />
-        </div>
-
-        <div className="rounded-xl border border-neutral-200 dark:border-neutral-850 bg-neutral-50/70 dark:bg-neutral-950/35 p-3 space-y-2.5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h4 className="text-xs font-bold text-neutral-700 dark:text-neutral-200">Gross components</h4>
-              <p className="text-2xs text-neutral-400">Name each gross part and enter its monthly amount.</p>
-            </div>
-            <button type="button" onClick={addGrossComponent} className={BTN_GHOST}>
-              <Plus size={12} /> Add gross
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {form.gross_components.map((component, index) => (
-              <div key={index} className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                <IconInput
-                  icon={FileText}
-                  type="text"
-                  placeholder="Gross name, e.g. HRA"
-                  value={component.name}
-                  onChange={(e) => patchGrossComponent(index, { name: e.target.value })}
-                  inputClassName={INPUT}
-                  className="sm:col-span-6"
-                  title="Gross component name"
-                  aria-label={`Gross component ${index + 1} name`}
-                />
-                <IconInput
-                  icon={Plus}
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="Amount"
-                  value={component.amount}
-                  onChange={(e) => patchGrossComponent(index, { amount: e.target.value })}
-                  inputClassName={INPUT + ' font-mono'}
-                  className="sm:col-span-5"
-                  title="Gross component amount"
-                  aria-label={`Gross component ${index + 1} amount`}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeGrossComponent(index)}
-                  className="sm:col-span-1 inline-flex min-h-10 items-center justify-center rounded-xl border border-neutral-200 dark:border-neutral-850 text-neutral-500 hover:text-rose-600 hover:border-rose-200 dark:hover:border-rose-900/60 transition-colors"
-                  title="Remove gross component"
-                  aria-label={`Remove gross component ${index + 1}`}
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-white/75 dark:bg-neutral-950/60 border border-neutral-200/80 dark:border-neutral-850 px-3 py-2">
-            <span className="text-2xs font-bold uppercase tracking-wider text-neutral-400">Components total</span>
-            <span className="font-mono text-xs font-bold text-neutral-800 dark:text-neutral-100">
-              {money(totalGrossComponentsDraft(form.gross_components) || 0)}
-            </span>
-          </div>
-        </div>
-        <div className="form-section-actions flex flex-wrap items-center gap-3">
-          <button type="submit" disabled={save.isPending} className={BTN}>
-            {save.isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Save salary
-          </button>
-          <span className="text-2xs text-neutral-400">
-            Effective-dated: a raise is a new row. Gross total is Basic + named gross components.
-          </span>
-        </div>
-        <Err e={formError || save.error} />
-      </form>
-
-      <section className="premium-card">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 mb-3">
-          Current salaries ({latest.size} of {employees.length} employees)
-        </h3>
-        <ListSearch value={salarySearch} onChange={setSalarySearch} label="Search current salaries" placeholder="Search employee name or code…" />
-        <Err e={structuresError} />
-        {structuresLoading ? <SkeletonRows rows={3} /> : structuresError ? null : matchingSalaries.length === 0 ? (
-          <p className="py-6 text-center text-xs text-neutral-500">
-            {salarySearch ? 'No matching salaries.' : 'No salaries set. Employees without a salary structure are skipped by payroll.'}
-          </p>
-        ) : (
-          <div className="table-scroll">
-            <table className="premium-table w-full text-left">
-              <thead>
-                <tr className="text-xs font-bold uppercase tracking-wider text-neutral-450 border-b border-neutral-200/70 dark:border-neutral-850">
-                  <th className="py-1.5 pr-2">Employee</th>
-                  <th className="py-1.5 px-2">Effective</th>
-                  <th className="py-1.5 px-2 text-right">Basic</th>
-                  <th className="py-1.5 px-2 text-right">Gross components</th>
-                  <th className="py-1.5 pl-2 text-right">Gross</th>
-                </tr>
-              </thead>
-              <tbody>
-                {salaryPager.slice.map((s) => {
-                  const grossComponents = grossComponentsFromNotes(s.notes, s.basic, s.gross)
-                    .filter((row) => row.name || String(row.amount ?? '').trim());
-                  return (
-                    <tr key={s.id} className="border-b border-neutral-100 dark:border-neutral-900/60 last:border-0 text-xs">
-                      <td data-label="Employee" className="py-1.5 pr-2 font-bold text-neutral-800 dark:text-warm-gray-100">
-                        {s.employee?.full_name}{' '}
-                        <span className="font-mono text-2xs text-neutral-400">{s.employee?.employee_code}</span>
-                      </td>
-                      <td data-label="Effective" className="py-1.5 px-2 font-mono text-neutral-500">{s.effective_from}</td>
-                      <td data-label="Basic" className="py-1.5 px-2 text-right font-mono">{money(s.basic)}</td>
-                      <td data-label="Gross components" className="py-1.5 px-2 text-right">
-                        {grossComponents.length ? (
-                          <div className="space-y-0.5">
-                            {grossComponents.map((component, index) => (
-                              <div key={`${component.name}-${index}`} className="flex items-center justify-end gap-2">
-                                <span className="truncate text-neutral-500 dark:text-neutral-400">{component.name}</span>
-                                <span className="font-mono">{money(parseMoneyDraft(component.amount))}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="font-mono text-neutral-400">—</span>
-                        )}
-                      </td>
-                      <td data-label="Gross" className="py-1.5 pl-2 text-right font-mono font-bold">{money(s.gross)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <Pagination {...salaryPager} noun="salary records" />
-      </section>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------- components
 const BLANK = {
   code: '',
@@ -773,7 +292,7 @@ const BLANK = {
 
 function ComponentsTab() {
   // pay_components_write checks the full ancestry, unlike payroll_runs_write which stops at the
-  // entity — so this helper is deliberately a different shape from RunTab's.
+  // entity — component permissions also consider the branch scope.
   const { can, isSuperAdmin } = usePermissions();
   const { employee } = useAuth();
   const canManageComponent = (c) => can('payroll.manage', {

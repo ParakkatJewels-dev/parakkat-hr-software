@@ -224,8 +224,8 @@ for (const key of KEYS) {
   });
   test(`${key}: payroll deep links offer management only to payroll roles`, () => {
     const html = render(Payroll, actor(key), [], '/payroll/run');
-    assert.equal(html.includes('Salary Structures'), PAYROLL.includes(key));
-    assert.equal(html.includes('Deductions &amp; Allowances'), PAYROLL.includes(key));
+    assert.equal(html.includes('Salary setup'), PAYROLL.includes(key));
+    assert.equal(html.includes('Pay components'), PAYROLL.includes(key));
     if (!PAYROLL.includes(key)) assert.match(html, /Payslip month/);
   });
   test(`${key}: dashboard approval KPIs, priorities and inline inbox agree on actionable rows`, () => {
