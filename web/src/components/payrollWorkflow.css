@@ -3,7 +3,7 @@
 .payroll-context { display: grid; grid-template-columns: 1fr minmax(300px, 1fr); gap: 18px 32px; align-items: center; }
 .payroll-eyebrow { font-size: 10px; font-weight: 750; letter-spacing: .12em; color: var(--pf-muted); margin-bottom: 7px; }
 .payroll-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.payroll-steps button { display: flex; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--pf-line); border-radius: 12px; padding: 16px; color: var(--pf-muted); cursor: pointer; transition: background .15s, border-color .15s; }
+.payroll-steps button { display: flex; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--pf-line); border-radius: var(--radius-control); padding: 16px; color: var(--pf-muted); cursor: pointer; transition: background .15s, border-color .15s; }
 .payroll-steps button:hover { background: var(--pf-soft); }
 .payroll-steps button[aria-current=step] { border-color: #149a65; background: #0a956610; color: var(--pf-ink); box-shadow: inset 0 0 0 1px #149a6520; }
 .payroll-step-number { display: flex; align-items: center; justify-content: center; flex: 0 0 30px; width: 30px; min-width: 30px; height: 30px; border: 1px solid var(--pf-line); border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--pf-soft); }
@@ -13,20 +13,20 @@
 .payroll-steps button:disabled { opacity: .55; cursor: wait; }
 .payroll-workflow button:focus-visible, .payroll-workflow summary:focus-visible { outline: 2px solid #149a65; outline-offset: 3px; }
 .payroll-section-heading, .payroll-flow-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
-.payroll-readiness, .payroll-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--pf-line); border-radius: 10px; background: var(--pf-soft); overflow: hidden; }
+.payroll-readiness, .payroll-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--pf-line); border-radius: var(--radius-card); background: var(--pf-soft); overflow: hidden; }
 .payroll-readiness > div, .payroll-totals > div { padding: 15px 18px; min-width: 0; }
 .payroll-readiness span, .payroll-totals dt { display: block; font-size: 11px; color: var(--pf-muted); }
 .payroll-readiness strong { display: block; margin-top: 5px; font-size: 12px; font-weight: 600; color: var(--pf-ink); }
 .payroll-totals { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .payroll-totals dd { margin-top: 6px; font-size: 21px; letter-spacing: -.03em; font-weight: 700; color: var(--pf-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .payroll-totals dd.payroll-total-status { font-size: 14px; letter-spacing: 0; padding-top: 5px; }
-.payroll-flow-notice { padding: 12px 15px; font-size: 12px; line-height: 1.6; border: 1px solid #d99d4140; background: #eaa32a0d; color: var(--pf-ink); border-radius: 9px; }
-.payroll-complete { display: flex; align-items: center; gap: 12px; border: 1px solid #0a956640; background: #0a956610; border-radius: 12px; padding: 16px; color: var(--pf-ink); font-size: 13px; }
+.payroll-flow-notice { padding: 12px 15px; font-size: 12px; line-height: 1.6; border: 1px solid #d99d4140; background: #eaa32a0d; color: var(--pf-ink); border-radius: var(--radius-card); }
+.payroll-complete { display: flex; align-items: center; gap: 12px; border: 1px solid #0a956640; background: #0a956610; border-radius: var(--radius-card); padding: 16px; color: var(--pf-ink); font-size: 13px; }
 .payroll-complete svg { flex-shrink: 0; color: #0a9566; }
 .payroll-complete p { margin-top: 4px; font-size: 12px; color: var(--pf-muted); }
 .payroll-start { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 48px 20px; text-align: center; }
 .payroll-start > p { max-width: 460px; line-height: 1.7; }
-.payroll-start-icon { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 15px; background: #0a956610; color: #0a9566; margin-bottom: 8px; }
+.payroll-start-icon { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: var(--radius-card); background: #0a956610; color: #0a9566; margin-bottom: 8px; }
 .payroll-start-path { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--pf-muted); margin-top: 10px; }
 @media (max-width: 850px) {
   .payroll-context { grid-template-columns: minmax(0, 1fr); }
