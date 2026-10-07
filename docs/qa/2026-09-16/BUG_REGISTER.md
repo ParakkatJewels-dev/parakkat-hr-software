@@ -1,4 +1,4 @@
-# HRMS bug register — 16 September 2026
+QQQ# HRMS bug register — 16 September 2026
 
 **Original audit: 21 confirmed defects, 1 confirmed workflow gap, and 4 policy/meaning questions. All confirmed defects and the workflow gap are now fixed locally; policy choices are resolved.** See the [fix status and verification](fixes/README.md). The table below preserves the original pre-fix observations. Findings concern the current local source, including existing uncommitted changes; they do not establish which migrations are deployed remotely. Tests used synthetic identities and records only.
 

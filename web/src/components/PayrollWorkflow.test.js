@@ -363,7 +363,16 @@ test('register export waits for calculation completion and rejects stale handler
 
 test('step changes preserve company/month and calculation and publication each require their own action', async () => {
   const flow = mountFlow();
-  flow.click('Continue to review');
+  const sheet = findNodes(flow.render(), node => node.type === 'input-grid')[0];
+  assert.equal(sheet.props.continueDisabled, false);
+  flow.pending = true;
+  sheet.props.onContinue();
+  assert.equal(flow.params.get('step'), 'prepare', 'a retained draft blocks even an earlier sheet callback');
+  flow.pending = false; flow.activeSaves = 1;
+  sheet.props.onContinue();
+  assert.equal(flow.params.get('step'), 'prepare', 'an in-flight write blocks the sheet callback');
+  flow.activeSaves = 0;
+  sheet.props.onContinue();
   assert.equal(flow.params.get('step'), 'review');
   assert.equal(flow.params.get('entity'), entityId);
   assert.equal(flow.params.get('period'), period);

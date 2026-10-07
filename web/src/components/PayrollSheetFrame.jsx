@@ -6,16 +6,19 @@ import './payrollSheetFrame.css';
 
 // Move a stable portal host instead of remounting the sheet: cell drafts, selection,
 // filters and scroll positions survive entering and leaving the full-screen workspace.
-export default function PayrollSheetFrame({ title, children }) {
-  const [expanded, setExpanded] = useState(false);
+export default function PayrollSheetFrame({ title, children, defaultExpanded = false }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [host] = useState(() => typeof document === 'undefined' ? null : document.createElement('div'));
   const anchor = useRef(null);
   const button = useRef(null);
+  const wasExpanded = useRef(defaultExpanded);
   useEffect(() => {
     if (!host) return;
     (expanded ? document.body : anchor.current)?.appendChild(host);
     host.className = `payroll-sheet-host payroll-workflow${expanded ? ' payroll-sheet-expanded' : ''}`;
-    if (!expanded) return;
+    const returning = wasExpanded.current && !expanded;
+    wasExpanded.current = expanded;
+    if (!expanded) { if (returning) button.current?.focus(); return; }
     const previousOverflow = document.body.style.overflow;
     const siblings = [...document.body.children].filter(element => element !== host);
     const inertStates = siblings.map(element => [element, element.inert]);

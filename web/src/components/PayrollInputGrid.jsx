@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePermissions } from '../auth/usePermissions';
 import { useIsMutating } from '@tanstack/react-query';
-import { AlertTriangle, Check, Download, FileSpreadsheet, Loader2, Search, Upload, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Check, Download, FileSpreadsheet, Loader2, Search, Upload, Users } from 'lucide-react';
 import { usePayrollSessionState } from '../lib/usePayrollSessionState';
 import { usePayrollMonthlyInputs, usePayrollAttendanceSummary, useSavePayrollMonthlyInputs } from '../data/payrollWorksheet';
 import { MONTHLY_INPUT_FIELDS, monthlyInputDraft, normalizeMonthlyInput } from '../lib/payrollWorksheet';
@@ -16,7 +16,7 @@ import './payrollInputGrid.css';
 const EMPTY = [];
 const NOTES = { key: 'notes', label: 'Notes / deduction reason', group: 'Notes' };
 const ALL_FIELDS = [...MONTHLY_INPUT_FIELDS, NOTES];
-const GROUPS = ['Earnings', 'Hours & deductions', 'All inputs'];
+const GROUPS = ['All inputs', 'Earnings', 'Hours & deductions'];
 const message = error => error?.message || String(error);
 const needsNote = draft => !String(draft.notes ?? '').trim() && (String(draft.ot_hours ?? '').trim() !== '' || String(draft.late_hours ?? '').trim() !== '' || Number(draft.other_deductions) > 0 || String(draft.pf ?? '').trim() !== '' || String(draft.esi ?? '').trim() !== '');
 const rowError = draft => { try { normalizeMonthlyInput(draft); return ''; } catch (error) { return message(error); } };
@@ -56,7 +56,7 @@ function stagePayrollDrafts(current, patches, records) {
   return next;
 }
 
-export default function PayrollInputGrid({ entityId, companyName, period, employees, published, disabled, snapshots = EMPTY, onDirtyChange, onBusyChange }) {
+export default function PayrollInputGrid({ entityId, companyName, period, employees, published, disabled, snapshots = EMPTY, onDirtyChange, onBusyChange, onContinue, continueDisabled = false }) {
   const { can } = usePermissions();
   const query = usePayrollMonthlyInputs(entityId, period);
   const attendance = usePayrollAttendanceSummary(entityId, period, { enabled: !published });
@@ -68,7 +68,7 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
   const [search, setSearch] = useState('');
   const [branch, setBranch] = useState('');
   const [status, setStatus] = useState('all');
-  const [group, setGroup] = useState('Earnings');
+  const [group, setGroup] = useState('All inputs');
   const [selected, setSelected] = useState(new Set());
   const [fillField, setFillField] = useState('incentive');
   const [fillValue, setFillValue] = useState('');
@@ -192,7 +192,7 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
     || row.expectedUpdatedAt !== (records.get(row.employeeId)?.updated_at ?? null) || !equal(row.before, currentDraft(row.employeeId))));
   const previewIssues = preview && (preview.errors.length + preview.rows.filter(row => row.error).length);
 
-  return <PayrollSheetFrame title={`${companyName ? `${companyName} · ` : ''}${period} · Monthly inputs`}>{({ control }) => <section className="payroll-input-workspace premium-card" aria-label="Employee monthly inputs">
+  return <PayrollSheetFrame defaultExpanded title={`${companyName ? `${companyName} · ` : ''}${period} · Monthly inputs`}>{({ control }) => <section className="payroll-input-workspace premium-card" aria-label="Employee monthly inputs">
     <div className="payroll-input-heading">
       <div><div className="payroll-input-eyebrow"><FileSpreadsheet size={14} /> MONTHLY INPUTS <span>{period}</span></div>
         <h3>Employee monthly inputs</h3>
@@ -292,7 +292,7 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
             {person.status !== 'Active' && <small>{person.status}</small>}
             {time?.in_payroll_month === false && <small>Outside payroll month</small>}
             {canReview && (group !== 'Earnings' || issue) && <Link className="payroll-punch-link" to={`/attendance/person?employee=${encodeURIComponent(person.id)}&period=${encodeURIComponent(period)}`}>Review / correct punches</Link>}
-            {group !== 'Earnings' && !published && <small>Last punch: {punchStamp(time?.last_punch_at)} IST</small>}
+            {group !== 'Earnings' && !published && <small className="payroll-input-last-punch">Last punch: {punchStamp(time?.last_punch_at)} IST</small>}
           </th>
           {group !== 'Earnings' && <><td className="payroll-punch-metric"><strong>{hours(time?.recorded_worked_hours)}h</strong><small>{published ? 'Published snapshot' : `${time?.attendance_days ?? '—'} / ${time?.expected_days ?? '—'} days calculated`}</small></td>
             <td className="payroll-punch-metric"><strong>{hours(time?.recorded_ot_hours)}h</strong><small>{published ? 'Published snapshot' : 'Calculated from punches'}</small></td>
@@ -325,7 +325,9 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
       <div><strong>{dirtyIds.length ? `${dirtyIds.length} employee rows with unsaved changes` : query.isLoading ? 'Loading saved inputs…' : query.error ? 'Saved inputs unavailable' : 'No unsaved changes'}</strong><p>{errorCount ? `Fix ${errorCount} rows before saving.` : 'Save includes changed rows across every page and filter. Recalculate payroll after saving.'}</p></div>
       <div className="payroll-input-actions"><button type="button" className={btnClass('ghost')} disabled={!dirtyIds.length || saving} onClick={() => { setStatus('changed'); setSearch(''); setBranch(''); }}>Review changes</button>
         <button type="button" className={btnClass('ghost')} disabled={!dirtyIds.length || saving || Boolean(preview)} onClick={() => setDiscard('all')}>Discard</button>
-        <button type="button" className={btnClass('primary')} disabled={blocked || !dirtyIds.length || Boolean(errorCount || conflicts.length || preview)} onClick={saveAll}>{saving && <Loader2 size={14} className="animate-spin" />}Save {dirtyIds.length ? `${dirtyIds.length} changes` : 'changes'}</button></div>
+        <button type="button" className={btnClass(dirtyIds.length ? 'primary' : 'ghost')} disabled={blocked || !dirtyIds.length || Boolean(errorCount || conflicts.length || preview)} onClick={saveAll}>{saving && <Loader2 size={14} className="animate-spin" />}Save {dirtyIds.length ? `${dirtyIds.length} changes` : 'changes'}</button>
+        {onContinue && <button type="button" className={btnClass('primary')} disabled={continueDisabled || saving || busyFile || dirtyIds.length > 0 || Boolean(preview)}
+          onClick={() => { if (!continueDisabled && !saving && !busyFile && !writeInFlight.current && !dirtyIds.length && !preview) onContinue(); }}>Continue to review<ArrowRight size={14} /></button>}</div>
     </div>
     {discard && <ConfirmDialog title={discard === 'all' ? 'Discard all unsaved inputs?' : 'Reload this employee’s saved inputs?'} confirmLabel={discard === 'all' ? 'Discard changes' : 'Reload row'} onCancel={() => setDiscard(null)} onConfirm={() => {
       setDrafts(current => { if (discard === 'all') return {}; const next = { ...current }; delete next[discard]; return next; }); setDiscard(null); setError('');

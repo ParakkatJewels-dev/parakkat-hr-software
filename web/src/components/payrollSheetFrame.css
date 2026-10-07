@@ -6,6 +6,10 @@
 .payroll-sheet-expanded .payroll-input-workspace, .payroll-sheet-expanded .payroll-register-workspace { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .payroll-sheet-expanded .payroll-input-table-wrap, .payroll-sheet-expanded .payroll-register-scroll { flex: 1 1 240px; min-height: 180px; max-height: none; }
 .payroll-sheet-expanded .payroll-input-heading { padding: 12px 16px; }
+.payroll-sheet-expanded .payroll-input-heading > div > p { margin-top: 2px; }
+.payroll-sheet-expanded .payroll-attendance-info { margin: 8px 16px; padding: 8px 10px; }
+.payroll-sheet-expanded .payroll-attendance-info p, .payroll-sheet-expanded .payroll-input-last-punch { display: none; }
+.payroll-sheet-expanded .payroll-input-tip { padding-block: 6px; }
 .payroll-sheet-expanded .payroll-input-toolbar { padding: 10px 16px; }
 .payroll-sheet-expanded .payroll-input-stats { padding: 8px 16px; }
 .payroll-sheet-expanded .payroll-input-savebar { padding: 10px 16px; }

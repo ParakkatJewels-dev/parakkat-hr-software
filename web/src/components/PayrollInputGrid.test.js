@@ -19,7 +19,7 @@ const stubs = {
     export const useMemo = compute => compute(); export const useEffect = () => {};`,
   'react-router-dom': 'export const Link = "a";',
   '../auth/usePermissions': 'export const usePermissions = () => ({can: () => globalThis.payrollGrid.canReadAttendance !== false});',
-  'lucide-react': 'export const AlertTriangle="icon", Check="icon", Download="icon", FileSpreadsheet="icon", Loader2="icon", Search="icon", Upload="icon", Users="icon";',
+  'lucide-react': 'export const AlertTriangle="icon", ArrowRight="icon", Check="icon", Download="icon", FileSpreadsheet="icon", Loader2="icon", Search="icon", Upload="icon", Users="icon";',
   '@tanstack/react-query': 'export const useIsMutating = filters => { globalThis.payrollGrid.mutationFilters = filters; return globalThis.payrollGrid.activeMutations ?? 0; };',
   '../data/payrollWorksheet': `export const usePayrollMonthlyInputs = () => globalThis.payrollGrid.query;
     export const usePayrollAttendanceSummary = (_entity, _period, options) => { globalThis.payrollGrid.attendanceOptions = options; return globalThis.payrollGrid.attendance; };
@@ -145,7 +145,10 @@ function workbookFile(rows, name = 'monthly-inputs.xlsx') {
 
 test('cell edits survive pages and filters, and one save includes all changed employees with original revisions', async () => {
   const grid = mount();
+  let continued = 0;
+  grid.props.onContinue = () => { continued += 1; };
   grid.edit(1, '1250.50'); grid.nextPage(2); grid.edit(26, '650'); grid.edit(30, '700');
+  assert.equal(grid.button('Continue to review').props.disabled, true);
   grid.change('Search payroll employees', 'Person 01');
   assert.equal(grid.cell(1).props.value, '1250.50');
   assert.equal(grid.cell(26), null);
@@ -159,6 +162,8 @@ test('cell edits survive pages and filters, and one save includes all changed em
   ]);
   assert.match(text(grid.render()), /3 employee rows saved/);
   assert.equal(grid.button('Save changes').props.disabled, true);
+  grid.click('Continue to review');
+  assert.equal(continued, 1);
 });
 
 test('a failed atomic save preserves each draft for a successful retry', async () => {

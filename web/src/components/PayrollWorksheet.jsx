@@ -207,6 +207,11 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
   const attendanceIssues = (attendance.data ?? []).filter(row => row.in_payroll_month !== false && (row.employment_issue || row.override_issue
     || Number(row.missing_days) > 0 || Number(row.unresolved_days) > 0 || Number(row.invalid_days) > 0 || Number(row.pending_recompute_days) > 0)).length;
   const contextQuery = `entity=${encodeURIComponent(entity.id)}&period=${encodeURIComponent(period)}`;
+  const continueBlocked = busy || pending || runReadBlocked || scopeReadBlocked;
+  const continueReview = () => {
+    if (continueBlocked || client.isMutating({ predicate: payrollWrite }) || hasPayrollSessionChanges(client, entity.id, period)) return;
+    changeStep('review');
+  };
   const calculate = async () => {
     if (calculateBlocked || client.isMutating({ predicate: payrollWrite }) || hasPayrollSessionChanges(client, entity.id, period)) return;
     try {
@@ -249,12 +254,13 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
         <button type="button" disabled={busy} aria-pressed={prepareView === 'entries'} onClick={() => setPrepareView('entries')}>Adjustments & advances</button>
       </div>
       {prepareView === 'sheet' ? <PayrollInputGrid entityId={entity.id} companyName={entity.name} period={period} employees={employees} published={published}
-        disabled={runReadBlocked || scopeReadBlocked || busy} snapshots={rows} onDirtyChange={onInputDirtyChange} onBusyChange={onInputBusyChange} />
+        disabled={runReadBlocked || scopeReadBlocked || busy} snapshots={rows} onDirtyChange={onInputDirtyChange} onBusyChange={onInputBusyChange}
+        onContinue={continueReview} continueDisabled={continueBlocked} />
         : <PayrollTransactions entityId={entity.id} period={period} employees={employees} run={run} registerRows={rows} published={published}
           disabled={runReadBlocked || scopeReadBlocked || busy} onDirtyChange={onTransactionDirtyChange} onBusyChange={onInputBusyChange} />}
-      <div className="premium-card payroll-flow-footer"><p className={HELP}>{pending ? 'Save your changes above to continue.' : 'Monthly inputs ready? Continue to calculate and review salaries.'}</p>
-        <button type="button" className={btnClass('primary')} disabled={busy || pending || runReadBlocked || scopeReadBlocked} onClick={() => changeStep('review')}>Continue to review<ArrowRight size={14} /></button>
-      </div>
+      {prepareView !== 'sheet' && <div className="premium-card payroll-flow-footer"><p className={HELP}>{pending ? 'Save your changes above to continue.' : 'Monthly inputs ready? Continue to calculate and review salaries.'}</p>
+        <button type="button" className={btnClass('primary')} disabled={continueBlocked} onClick={continueReview}>Continue to review<ArrowRight size={14} /></button>
+      </div>}
     </>}
     {step === 'review' && <>
       <section className="premium-card space-y-4">
