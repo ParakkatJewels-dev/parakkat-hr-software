@@ -47,6 +47,8 @@
 .payroll-input-table .payroll-input-row-status { min-width: 190px; max-width: 240px; padding: 9px 12px; font-size: 11px; }
 .payroll-input-row-status p { line-height: 1.5; font-size: 10px; margin-top: 4px; color: var(--pi-muted); }
 .payroll-input-row-status button { font-size: 10px; text-decoration: underline; cursor: pointer; color: var(--pi-muted); margin-top: 5px; }
+.payroll-input-table .payroll-input-total-salary { min-width: 175px; padding: 9px 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.payroll-input-total-salary strong { display: block; white-space: nowrap; font-weight: 650; }
 .payroll-input-danger { color: #be3434 !important; }
 .dark .payroll-input-danger { color: #fda4af !important; }
 .payroll-input-success { color: #087449; }

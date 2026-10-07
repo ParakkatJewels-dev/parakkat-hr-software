@@ -60,7 +60,7 @@ function stagePayrollDrafts(current, patches, records) {
   return next;
 }
 
-export default function PayrollInputGrid({ entityId, companyName, period, employees, published, disabled, snapshots = EMPTY, onDirtyChange, onBusyChange, onContinue, continueDisabled = false, calculationMode = 'paid_days', creditMode = 'earned' }) {
+export default function PayrollInputGrid({ entityId, companyName, period, employees, published, disabled, snapshots = EMPTY, salaryState = 'uncalculated', onDirtyChange, onBusyChange, onContinue, continueDisabled = false, calculationMode = 'paid_days', creditMode = 'earned' }) {
   const { can } = usePermissions();
   const hourly = calculationMode === 'hourly_workings';
   const groups = hourly ? ['All inputs', 'Earnings', 'Deductions', 'Attendance'] : GROUPS;
@@ -102,10 +102,10 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
   const attendanceMap = useMemo(() => new Map((attendance.data ?? EMPTY).map(row => [row.employee_id, row])), [attendance.data]);
   const latestPunch = useMemo(() => (attendance.data ?? EMPTY).reduce((latest, row) =>
     people.has(row.employee_id) && Date.parse(row.last_punch_at) > (Date.parse(latest) || 0) ? row.last_punch_at : latest, null), [attendance.data, people]);
-  const snapshotMap = useMemo(() => new Map(snapshots.map(row => [row.employee_id, row.payroll_register])), [snapshots]);
+  const snapshotMap = useMemo(() => new Map(snapshots.map(row => [row.employee_id, row])), [snapshots]);
   const attendanceFor = id => {
     if (!published) return attendanceMap.get(id);
-    const snapshot = snapshotMap.get(id);
+    const snapshot = snapshotMap.get(id)?.payroll_register;
     return snapshot ? { recorded_worked_hours: snapshot.recorded_worked_hours ?? snapshot.total_working_hours,
       recorded_ot_hours: snapshot.recorded_ot_hours, recorded_late_hours: snapshot.recorded_late_hours,
       deductible_late_hours: snapshot.recorded_deductible_late_hours, policy_deduct_late: snapshot.policy?.deduct_late,
@@ -314,10 +314,21 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
         <th scope="col">{hourly ? 'Worked time' : 'Worked hours'}<small>{hourly ? 'SAVED SOURCE · H:MM' : 'FROM PUNCHES'}</small></th>{hourly ? <><th scope="col">Paid credit time<small>OFF / LEAVE / HOLIDAY · H:MM</small></th><th scope="col">Payable time<small>WORKED + CREDIT · H:MM</small></th></> : <><th scope="col">Recorded OT<small>FROM ATTENDANCE</small></th><th scope="col">Eligible late<small>FULLY PAID DUTY DAYS</small></th></>}
         {columns.map(field => <th scope="col" key={field.key} className={field.key === 'notes' ? 'payroll-input-notes' : ''}>{field.label}<small>{field.type === 'duration' ? 'H:MM' : field.type === 'source' ? 'RECORDED / REVIEWED' : field.group === 'Attendance' ? (field.auto && creditMode !== 'attendance' ? 'DAYS · BLANK = AUTO' : 'DAYS · REQUIRED FOR REVIEWED') : field.group === 'Hours' ? 'HOURS' : field.key === 'notes' ? 'REFERENCE / REASON' : 'INR'}</small></th>)}
         <th scope="col">Status</th>
+        <th scope="col" className="payroll-input-total-salary" title="Net payable after earnings and deductions. Updates when payroll is calculated.">Total salary<small>INR · NET PAY</small></th>
       </tr></thead><tbody>{pager.slice.map((person, rowIndex) => {
         const draft = currentDraft(person.id), dirty = Boolean(drafts[person.id]), conflict = conflicts.includes(person.id), rowIssue = errors[person.id];
         const time = attendanceFor(person.id);
         const issue = published ? '' : timeIssue(time);
+        const payslip = snapshotMap.get(person.id);
+        const salary = payslip?.net;
+        const hasSalary = ['current', 'stale'].includes(salaryState) && ['number', 'string'].includes(typeof salary)
+          && String(salary).trim() !== '' && Number.isFinite(Number(salary)) && Number(salary) >= 0;
+        const salaryAmount = hasSalary ? `₹${Number(salary).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—';
+        const salaryOutdated = !published && (dirty || salaryState === 'stale' || Boolean(issue));
+        const salaryNote = salaryState === 'loading' ? 'Loading salary…' : salaryState === 'unavailable' ? 'Salary unavailable'
+          : salaryState === 'uncalculated' ? 'Calculate payroll'
+            : !hasSalary ? (payslip ? 'Salary unavailable' : published ? 'No published payslip' : 'Not in this run')
+              : published ? 'Published net pay' : salaryOutdated ? 'Last calculation · recalculate' : 'Calculated net pay';
         const canReview = can('attendance.read', { entityId: person.entity_id, zoneId: person.zone_id, branchId: person.branch_id, deptId: person.department_id, employeeId: person.id });
         return <tr key={person.id} className={dirty ? 'payroll-input-dirty' : ''}>
           <td className="payroll-input-select"><input type="checkbox" aria-label={`Select ${person.full_name}`} checked={selected.has(person.id)} disabled={blocked} onChange={() => toggle(person.id)} /></td>
@@ -359,6 +370,10 @@ export default function PayrollInputGrid({ entityId, companyName, period, employ
             {(rowIssue || conflict || issue) && <p id={`payroll-issue-${person.id}`}>{conflict ? 'Compare saved values, then reload this row.' : rowIssue || issue}</p>}
             {hourly && !published && (Number(draft.ot_hours) > 0 || Number(draft.late_hours) > 0) && <button type="button" disabled={blocked || Boolean(preview)} onClick={() => stage([{ employeeId: person.id, patch: { ot_hours: '', late_hours: '' } }])}>Clear separate OT / late overrides</button>}
             {dirty && <button type="button" disabled={saving || Boolean(preview)} onClick={() => setDiscard(person.id)}>{conflict ? 'Reload row' : 'Undo row'}</button>}
+          </td>
+          <td className="payroll-input-total-salary" aria-label={`${person.full_name} · Total salary · ${salaryAmount} · ${salaryNote}`}>
+            <strong>{salaryAmount}</strong>
+            <small className={salaryOutdated && hasSalary ? 'payroll-input-unsaved' : ''}>{salaryNote}</small>
           </td>
         </tr>;
       })}</tbody></table>

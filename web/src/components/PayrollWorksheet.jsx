@@ -192,6 +192,10 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
   const pending = inputsDirty || hasPayrollSessionChanges(client, entity.id, period);
   const runReadBlocked = !runQuery.isSuccess || runQuery.isFetching || Boolean(runQuery.error);
   const rows = register.data ?? EMPTY_ROWS;
+  const salaryState = runQuery.error || register.error ? 'unavailable'
+    : runReadBlocked || (run && (!register.isSuccess || register.isFetching)) ? 'loading'
+      : !run ? 'uncalculated'
+        : !published && (pending || run.needs_recalculation || !run.source_fingerprint) ? 'stale' : 'current';
   const registerReady = Boolean(run && register.isSuccess && !register.isFetching && !register.error && rows.length
     && rows.every(row => isCompletePayrollRegister(row.payroll_register))
     && (!canManageCompany || Number(run.employees) === rows.length) && (published || (!run.needs_recalculation && run.source_fingerprint)));
@@ -254,6 +258,7 @@ function CompanyWorksheet({ entity, period, employees, canManageCompany, onInput
         <button type="button" disabled={busy} aria-pressed={prepareView === 'entries'} onClick={() => setPrepareView('entries')}>Adjustments & advances</button>
       </div>
       {prepareView === 'sheet' ? <PayrollInputGrid entityId={entity.id} companyName={entity.name} period={period} employees={employees} published={published}
+        salaryState={salaryState}
         calculationMode={policy.data?.calculation_mode ?? 'paid_days'} creditMode={policy.data?.credit_mode ?? 'attendance'} disabled={runReadBlocked || scopeReadBlocked || busy || !policy.isSuccess || policy.isFetching || Boolean(policy.error)} snapshots={rows} onDirtyChange={onInputDirtyChange} onBusyChange={onInputBusyChange}
         onContinue={continueReview} continueDisabled={continueBlocked} />
         : <PayrollTransactions entityId={entity.id} period={period} employees={employees} run={run} registerRows={rows} published={published}

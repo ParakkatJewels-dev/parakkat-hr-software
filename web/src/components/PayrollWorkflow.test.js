@@ -100,6 +100,19 @@ const buttonDisabled = (html, label) => {
   return /\sdisabled(?:=|\s|$)/.test(button[1]);
 };
 
+test('monthly input salary follows the selected payroll calculation and its read/recalculation state', () => {
+  const rows = [{ id: 'slip', employee_id: employee.id, net: '29000', payroll_register: register }];
+  const salaryCell = options => render({ rows, ...options }).match(/<td[^>]*aria-label="Payroll worker · Total salary ·[^"]*"[^>]*>([\s\S]*?)<\/td>/)?.[1];
+  assert.match(salaryCell({}), /₹29,000\.00[\s\S]*Calculated net pay/);
+  assert.match(salaryCell({ runData: { ...run, needs_recalculation: true } }), /Last calculation · recalculate/);
+  assert.match(salaryCell({ runData: null }), /Calculate payroll/);
+  const loading = salaryCell({ queryStates: [[['payroll-register', run.id], { fetchStatus: 'fetching' }]] });
+  assert.match(loading, /Loading salary/); assert.doesNotMatch(loading, /₹/);
+  const failed = salaryCell({ error: new Error('Register unavailable') });
+  assert.match(failed, /Salary unavailable/); assert.doesNotMatch(failed, /₹/);
+  assert.match(salaryCell({ runData: { ...run, status: 'Published' } }), /₹29,000\.00[\s\S]*Published net pay/);
+});
+
 test('managers start in the three-step monthly workflow with one company and month context', () => {
   const html = render({ route: '' });
   assert.match(html, /Monthly payroll steps/);

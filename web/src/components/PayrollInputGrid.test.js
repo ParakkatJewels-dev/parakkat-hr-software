@@ -137,6 +137,38 @@ function workbookFile(rows, name = 'monthly-inputs.xlsx') {
   return { name, size: bytes.length, arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) };
 }
 
+test('total salary uses saved net pay after Status and labels amounts that need recalculation', () => {
+  const grid = mount({ count: 2 });
+  grid.props.salaryState = 'current';
+  grid.props.snapshots = [{ employee_id: 'employee-1', net: '28450.5', payroll_register: { salary: 30000 } },
+    { employee_id: 'employee-2', net: 0 }];
+  const salaryCell = () => find(grid.render(), node => node.props['aria-label']?.startsWith('Person 01 · Total salary ·'));
+  const headings = findAll(find(grid.render(), node => node.type === 'thead'), node => node.type === 'th').map(text);
+  assert.deepEqual(headings.slice(-2), ['Status', 'Total salaryINR · NET PAY']);
+  assert.equal(text(salaryCell()), '₹28,450.50Calculated net pay');
+  assert.equal(text(find(grid.render(), node => node.props['aria-label']?.startsWith('Person 02 · Total salary ·'))), '₹0.00Calculated net pay');
+  grid.edit(1, '1500');
+  assert.equal(text(salaryCell()), '₹28,450.50Last calculation · recalculate');
+  assert.equal(grid.cell(1, 'Total salary'), null, 'calculated salary is not an editable input');
+  assert.equal(grid.mutation.calls.length, 0);
+});
+
+test('total salary distinguishes missing values and unavailable reads from a real zero salary', () => {
+  const grid = mount({ count: 1, published: true });
+  grid.props.snapshots = [{ employee_id: 'employee-1', net: '12500' }];
+  const cellText = () => text(find(grid.render(), node => node.props['aria-label']?.startsWith('Person 01 · Total salary ·')));
+  for (const [state, expected] of [['uncalculated', 'Calculate payroll'], ['loading', 'Loading salary…'], ['unavailable', 'Salary unavailable']]) {
+    grid.props.salaryState = state;
+    assert.equal(cellText(), `—${expected}`);
+  }
+  grid.props.salaryState = 'current';
+  assert.equal(cellText(), '₹12,500.00Published net pay');
+  for (const net of [null, undefined, '', ' ', 'not a number', Infinity, false, -1]) {
+    grid.props.snapshots = [{ employee_id: 'employee-1', net }];
+    assert.equal(cellText(), '—Salary unavailable');
+  }
+});
+
 test('cell edits survive pages and filters, and one save includes all changed employees with original revisions', async () => {
   const grid = mount();
   let continued = 0;
