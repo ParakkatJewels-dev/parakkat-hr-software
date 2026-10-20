@@ -22,6 +22,7 @@ module.exports = function testWorkLedger({ run, connection, directory }) {
     `\\i ${quote(join(backend, 'tests', 'work_ledger.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'work_ledger_writes.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'work_ledger_planning.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'work_tasks.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-q', '-f', bootstrap]);
