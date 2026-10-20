@@ -219,3 +219,12 @@ test('security retains labelled password fields and shared password requirements
   }
   assert.ok(!text(security).includes('Not your own name'));
 });
+
+test('the AI assistant tab appears only for people whose role can connect one', () => {
+  const employee = render().html;
+  assert.doesNotMatch(employee, /AI assistant/);
+  assert.equal(openings(employee).some(tag => attribute(tag, 'id') === 'settings-panel-assistant'), false);
+  const admin = panel(render({ isSuperAdmin: true }).html, 'AI assistant');
+  assert.equal(attribute(admin.tab, 'aria-selected'), 'false');
+  assert.ok(has(admin.target, 'hidden'), 'not the initial section');
+});

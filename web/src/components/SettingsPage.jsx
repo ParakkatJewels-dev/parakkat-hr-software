@@ -21,8 +21,10 @@ import {
   ShieldCheck,
   Palette,
   ChevronRight,
+  Bot,
 } from 'lucide-react';
 import ChangePassword from './ChangePassword';
+import AgentAccessSettings from './AgentAccessSettings';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { useEmployee } from '../data/employees';
@@ -431,11 +433,16 @@ const SETTINGS_SECTIONS = [
   { id: 'security', label: 'Security', description: 'Password & access', icon: ShieldCheck },
   { id: 'workspace', label: 'Workspace', description: 'Company defaults', icon: Building2 },
 ];
+// Shown only to people whose role can connect an AI assistant.
+const ASSISTANT_SECTION = { id: 'assistant', label: 'AI assistant', description: 'Connect Hermes', icon: Bot };
 
 export default function SettingsPage({
   theme, onToggleTheme, installAvailable, installed, updateAvailable, online, onInstall, onUpdate,
   appName = PRODUCT_NAME,
 }) {
+  const { canAny } = usePermissions();
+  const showAssistant = canAny('api.connect');
+  const sections = useMemo(() => showAssistant ? [...SETTINGS_SECTIONS, ASSISTANT_SECTION] : SETTINGS_SECTIONS, [showAssistant]);
   const [section, setSection] = useState('general');
   const [verticalTabs, setVerticalTabs] = useState(false);
   const tabs = useRef([]);
@@ -452,14 +459,14 @@ export default function SettingsPage({
   };
   const moveTab = (event, index) => {
     let next;
-    if (['ArrowRight', 'ArrowDown'].includes(event.key)) next = (index + 1) % SETTINGS_SECTIONS.length;
-    else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) next = (index + SETTINGS_SECTIONS.length - 1) % SETTINGS_SECTIONS.length;
+    if (['ArrowRight', 'ArrowDown'].includes(event.key)) next = (index + 1) % sections.length;
+    else if (['ArrowLeft', 'ArrowUp'].includes(event.key)) next = (index + sections.length - 1) % sections.length;
     else if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = SETTINGS_SECTIONS.length - 1;
+    else if (event.key === 'End') next = sections.length - 1;
     else return;
     event.preventDefault();
     tabs.current[next]?.focus({ preventScroll: true });
-    selectSection(SETTINGS_SECTIONS[next].id);
+    selectSection(sections[next].id);
   };
 
   return (
@@ -470,7 +477,7 @@ export default function SettingsPage({
       </header>
       <div className="settings-workspace">
         <nav className="settings-categories" role="tablist" aria-label="Settings sections" aria-orientation={verticalTabs ? 'vertical' : 'horizontal'}>
-          {SETTINGS_SECTIONS.map(({ id, label, description, icon: Icon }, index) => (
+          {sections.map(({ id, label, description, icon: Icon }, index) => (
             <button key={id} type="button" role="tab" className="settings-category"
               aria-label={label}
               id={`settings-tab-${id}`} aria-controls={`settings-panel-${id}`}
@@ -502,6 +509,11 @@ export default function SettingsPage({
           <section className="settings-panel" role="tabpanel" id="settings-panel-workspace" aria-labelledby="settings-tab-workspace" hidden={section !== 'workspace'} tabIndex={0}>
             <WorkspaceCard />
           </section>
+          {showAssistant && (
+            <section className="settings-panel" role="tabpanel" id="settings-panel-assistant" aria-labelledby="settings-tab-assistant" hidden={section !== 'assistant'} tabIndex={0}>
+              <AgentAccessSettings />
+            </section>
+          )}
         </div>
       </div>
     </div>

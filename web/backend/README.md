@@ -540,6 +540,13 @@ Migration `0135_developer_api_keys.sql` stores only key hashes and enforces all 
 the Vercel function exposes employee directory, organization and daily attendance endpoints.
 See [Developer API](DEVELOPER_API.md) for deployment, request examples and access controls.
 
+Migration `0168_hermes_agent_api.sql` adds personal AI assistant keys. A super admin turns on
+**AI assistant access** in Developer Settings and grants the `api.connect` permission to roles; a
+manager then creates a key in Settings → AI assistant. Hermes (or any MCP client) connects to
+`/api/mcp` and acts as that manager under the app's own row policies, for tasks and requests, leave
+decisions, assets and goals only. No assistant tool deletes anything. See
+[AI assistants](DEVELOPER_API.md#ai-assistants-hermes).
+
 
 ## Payroll adjustments, advances and salary payment status (0161)
 

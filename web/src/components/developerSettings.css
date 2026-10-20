@@ -117,3 +117,14 @@
 .app-content .app-main .page-shell.developer-settings > .developer-heading:first-child { display: grid; justify-content: start; gap: 3px; padding: 0; border: 0; background: transparent !important; box-shadow: none; overflow: visible; }
 .app-content .app-main .page-shell.developer-settings > .developer-heading:first-child::before { display: none; }
 .app-main .developer-settings > * + * { margin-top: 0 !important; }
+/* Settings → AI assistant: a person's own Hermes keys. */
+.agent-access-rules { display: grid; gap: 4px; margin: -8px 0 20px; padding-left: 18px; list-style: disc; color: var(--surface-text-soft); font-size: 13px; line-height: 1.6; }
+.agent-access-empty { margin: 4px 0 0; color: var(--surface-text-soft); font-size: 13px; }
+.agent-access-created { margin-bottom: 4px; padding: 18px 0 22px; border-top: 1px solid var(--surface-border); }
+.agent-access-created h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 6px; font-size: 15px; font-weight: 700; }
+.agent-access-created h3 svg { color: var(--accent-ink); }
+.agent-access-created h4 { margin: 0; font-size: 12px; font-weight: 750; }
+.agent-access-created .developer-guide-heading { margin: 16px 0 8px; }
+.agent-access-created code { font-size: 12px; overflow-wrap: anywhere; }
+@media (min-width: 640px) { .agent-access .developer-key-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.developer-key-owner { margin: 10px 0 0; font-size: 12px !important; }

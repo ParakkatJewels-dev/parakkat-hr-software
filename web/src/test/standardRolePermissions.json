@@ -186,6 +186,7 @@
   "super_admin": {
     "rank": 100,
     "permissions": [
+      "api.connect",
       "asset.manage",
       "asset.read",
       "attendance.manage",

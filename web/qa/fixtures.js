@@ -13,7 +13,11 @@ export const goalsFixtures = typeof window !== 'undefined' && new URL(window.loc
 const developerNow = Date.now();
 const developerDate = days => new Date(developerNow + days * 86400000).toISOString();
 export const developerFixture = {
-  settings: { enabled: false, updated_at: developerDate(-3) },
+  settings: { enabled: false, agent_enabled: false, updated_at: developerDate(-3) },
+  // The QA super admin's own assistant keys (Settings → AI assistant).
+  agentKeys: developerFixtures ? [
+    { id: 'qa-agent-key-hermes', name: 'QA Hermes laptop', key_prefix: 'qa_sample_agent_', scopes: ['tasks:manage', 'leave:manage'], created_at: developerDate(-4), expires_at: developerDate(26), last_used_at: developerDate(-1), revoked_at: null },
+  ] : [],
   keys: developerFixtures ? [
     { id: 'qa-key-reporting', name: 'QA reporting dashboard', key_prefix: 'qa_sample_reporting_', scopes: ['employees:read', 'organization:read'], entity_id: null, created_at: developerDate(-7), expires_at: developerDate(83), last_used_at: developerDate(-1), revoked_at: null },
     { id: 'qa-key-attendance', name: 'QA attendance export', key_prefix: 'qa_sample_attendance_', scopes: ['attendance:read'], entity_id: 'company-1', created_at: developerDate(-40), expires_at: developerDate(-10), last_used_at: developerDate(-11), revoked_at: null },

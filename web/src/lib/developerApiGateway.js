@@ -56,13 +56,13 @@ class InvalidRequest extends Error {
 }
 const invalid = (message) => { throw new InvalidRequest(400, message); };
 
-function header(request, name) {
+export function header(request, name) {
   if (typeof request.headers?.get === 'function') return request.headers.get(name);
   const entries = Object.entries(request.headers ?? {}).filter(([key]) => key.toLowerCase() === name);
   return entries.length === 1 ? entries[0][1] : entries.length ? null : undefined;
 }
 
-function bearerKey(request) {
+export function bearerKey(request) {
   const duplicateCount = (request.rawHeaders ?? []).filter((value, index) => index % 2 === 0 && String(value).toLowerCase() === 'authorization').length;
   const value = header(request, 'authorization');
   const match = typeof value === 'string' && value.length <= 300 && value.trim().match(/^Bearer[ \t]+([^\s,]+)$/i);
@@ -162,7 +162,11 @@ function publicProjectKey(value) {
   } catch { return null; }
 }
 
-export function developerApiEnvironment(environment = {}) {
+// The only database functions a gateway may call: the read API and the assistant entry point.
+const GATEWAY_RPCS = new Set(['developer_api_read', 'developer_api_call']);
+
+export function developerApiEnvironment(environment = {}, rpc = 'developer_api_read') {
+  if (!GATEWAY_RPCS.has(rpc)) return null;
   const address = environment.SUPABASE_URL || environment.VITE_SUPABASE_URL;
   const publicKey = publicProjectKey(environment.SUPABASE_ANON_KEY || environment.VITE_SUPABASE_ANON_KEY);
   try {
@@ -170,7 +174,7 @@ export function developerApiEnvironment(environment = {}) {
     const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
     if (!publicKey || (url.protocol !== 'https:' && !(url.protocol === 'http:' && local))
         || url.username || url.password || url.search || url.hash || url.pathname !== '/') return null;
-    return { endpoint: `${url.origin}/rest/v1/rpc/developer_api_read`, ...publicKey };
+    return { endpoint: `${url.origin}/rest/v1/rpc/${rpc}`, ...publicKey };
   } catch { return null; }
 }
 

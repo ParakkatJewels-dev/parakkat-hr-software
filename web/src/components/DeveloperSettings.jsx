@@ -1,13 +1,13 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Check, ChevronRight, Code2, Copy, KeyRound, Plus, ShieldCheck, Trash2 } from 'lucide-react';
+import { Bot, Check, ChevronRight, Code2, Copy, KeyRound, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
 import { useDeveloperSettings, useDeveloperKeys } from '../data/developerSettings';
 import { useVisibleOrg } from '../data/org';
 import { supabase } from '../lib/supabaseClient';
-import { API_KEY_SCOPES, API_KEY_EXPIRY_DAYS, developerSettingsKey, developerKeysKey, developerKeyStatus, createDeveloperKey, revokeDeveloperKey, saveDeveloperSettings } from '../lib/developerSettings';
+import { API_KEY_SCOPES, API_KEY_EXPIRY_DAYS, developerSettingsKey, developerKeysKey, developerKeyStatus, createDeveloperKey, revokeDeveloperKey, saveAgentAccess, saveDeveloperSettings, scopeLabel } from '../lib/developerSettings';
 import FormSection, { Field, FormError } from './ui/FormSection';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
@@ -51,6 +51,19 @@ function DeveloperWorkspace() {
     return () => cancelAnimationFrame(frame);
   }, [showCreate, replacement?.id]);
   const enabled = settings.data?.enabled === true;
+  const agentEnabled = settings.data?.agent_enabled === true;
+  const changeAgent = async next => {
+    if (busy) return;
+    setBusy(true); setError(''); setNotice('');
+    try {
+      const saved = await saveAgentAccess(supabase, next);
+      queryClient.setQueryData(developerSettingsKey(user?.id), saved);
+      await settings.refetch();
+      setConfirm(null);
+      setNotice(next ? 'AI assistant access enabled.' : 'AI assistant access disabled. Personal keys are kept but stop working.');
+    } catch (err) { setError(err.message || 'Could not update AI assistant access. Please try again.'); }
+    finally { setBusy(false); }
+  };
   const changeEnabled = async next => {
     if (busy) return;
     setBusy(true); setError(''); setNotice('');
@@ -76,14 +89,18 @@ function DeveloperWorkspace() {
     finally { setBusy(false); }
   };
   const openConfirm = value => { setError(''); setNotice(''); setConfirm(value); };
-  const confirmation = confirm && <ConfirmDialog title={confirm.type === 'disable' ? 'Disable API access?' : 'Revoke API key?'} confirmLabel={confirm.type === 'disable' ? 'Disable access' : 'Revoke key'} busy={busy} error={error} onCancel={() => { if (!busy) { setConfirm(null); setError(''); } }} onConfirm={confirm.type === 'disable' ? () => changeEnabled(false) : revoke}>
-    {confirm.type === 'disable' ? <p>All integrations will stop reading HR data immediately. Your saved keys will work again when you enable access, if they have not expired or been revoked.</p> : <p><strong>{confirm.key.name}</strong> will stop working immediately. This cannot be undone; create a new key if this integration needs access again.</p>}
-  </ConfirmDialog>;
+  const confirmation = confirm && (confirm.type === 'disable-agent'
+    ? <ConfirmDialog title="Disable AI assistant access?" confirmLabel="Disable access" busy={busy} error={error} onCancel={() => { if (!busy) { setConfirm(null); setError(''); } }} onConfirm={() => changeAgent(false)}>
+      <p>Every connected assistant stops working immediately. Personal keys are kept and work again when you turn access back on, if they have not expired or been revoked.</p>
+    </ConfirmDialog>
+    : <ConfirmDialog title={confirm.type === 'disable' ? 'Disable API access?' : 'Revoke API key?'} confirmLabel={confirm.type === 'disable' ? 'Disable access' : 'Revoke key'} busy={busy} error={error} onCancel={() => { if (!busy) { setConfirm(null); setError(''); } }} onConfirm={confirm.type === 'disable' ? () => changeEnabled(false) : revoke}>
+      {confirm.type === 'disable' ? <p>All integrations will stop reading HR data immediately. Your saved keys will work again when you enable access, if they have not expired or been revoked.</p> : <p><strong>{confirm.key.name}</strong> will stop working immediately. This cannot be undone; create a new key if this integration needs access again.</p>}
+    </ConfirmDialog>);
   return <div className="page-shell developer-settings animate-fade-in">
     <header className="developer-heading">
       <p className="developer-eyebrow"><ShieldCheck size={13} /> Administration</p>
       <h1>Developer Settings</h1>
-      <p>Connect your tools to HR data with scoped, read-only API keys.</p>
+      <p>Connect your tools to HR data with scoped, read-only API keys, and control whether managers can connect an AI assistant.</p>
     </header>
 
     <section className="premium-card developer-access" aria-labelledby="developer-access-title">
@@ -96,6 +113,15 @@ function DeveloperWorkspace() {
       {settings.error && <div className="developer-access-error"><FormError message="API settings could not be loaded." /><button type="button" className={btnClass('ghost')} onClick={() => settings.refetch()}>Try again</button></div>}
     </section>
 
+    <section className="premium-card developer-access" aria-labelledby="developer-agent-title">
+      <div className="developer-access-icon"><Bot size={23} /></div>
+      <div className="developer-access-copy"><div className="developer-title-line"><h2 id="developer-agent-title">AI assistant access</h2>{settings.data && <span className="developer-status" data-status={agentEnabled ? 'active' : 'disabled'}>{agentEnabled ? 'Enabled' : 'Disabled'}</span>}</div>
+        <p>{agentEnabled ? 'People whose role includes “Connect an AI assistant” can make personal keys for Hermes in Settings. Each key acts as its owner and can only do what their role allows. Nothing can be deleted.' : 'Turn this on, then give the “Connect an AI assistant” permission to the roles that should have it in Roles.'}</p>
+      </div>
+      {settings.isLoading ? <Skeleton className="h-7 w-12 rounded-full" /> : <button type="button" className="developer-switch" role="switch" aria-checked={agentEnabled} aria-label="Enable AI assistant access" disabled={busy || Boolean(settings.error) || !settings.data}
+        onClick={() => agentEnabled ? openConfirm({ type: 'disable-agent' }) : changeAgent(true)}><span /></button>}
+    </section>
+
     {notice && <p role="status" className="developer-notice"><Check size={16} />{notice}</p>}
     {error && !confirm && <FormError message={error} />}
 
@@ -104,7 +130,7 @@ function DeveloperWorkspace() {
         {created && <CreatedKey value={created.api_key} name={created.key.name} onDone={() => setCreated(null)} />}
 
         <section className="premium-card developer-key-section" aria-labelledby="developer-keys-title">
-          <div className="developer-section-heading"><div><h2 id="developer-keys-title"><KeyRound size={18} /> API keys</h2><p>Give each integration its own key and access level.</p></div>
+          <div className="developer-section-heading"><div><h2 id="developer-keys-title"><KeyRound size={18} /> API keys</h2><p>Give each integration its own key and access level. Personal assistant keys made by managers are listed here too.</p></div>
             <button type="button" className={btnClass('primary')} disabled={showCreate || Boolean(created) || Boolean(keys.error) || keys.isLoading} onClick={() => { setReplacement(null); setShowCreate(true); setNotice(''); setError(''); }}><Plus size={16} /> Create key</button>
           </div>
           <p className="developer-copy-note">Full keys are shown only once, immediately after creation. If you did not save a key, create a replacement to get a new one you can copy.</p>
@@ -178,13 +204,15 @@ export function CreatedKey({ value, name, onDone }) {
 export function KeyRow({ item, entity, secret = null, onRevoke, onReplace, replacementDisabled = false }) {
   const state = developerKeyStatus(item);
   const status = state[0].toUpperCase() + state.slice(1);
+  // Personal assistant keys belong to their owner: only the owner can make a replacement.
+  const personal = item.kind === 'manage';
   return <article className="developer-key-row">
     <div className="developer-key-title"><div><h3>{item.name}</h3><code>{item.key_prefix}••••••••</code></div><span className="developer-status" data-status={status.toLowerCase()}>{status}</span></div>
-    <div className="developer-key-scopes">{item.scopes.map(scope => <span key={scope}>{API_KEY_SCOPES.find(option => option.key === scope)?.label || scope}</span>)}</div>
-    <dl className="developer-key-meta"><div><dt>Company</dt><dd>{item.entity_id ? entity?.name || entity?.code || 'Selected company' : 'All companies'}</dd></div><div><dt>Created</dt><dd>{dateLabel(item.created_at)}</dd></div><div><dt>Expires</dt><dd>{dateLabel(item.expires_at)}</dd></div><div><dt>Last used</dt><dd>{dateLabel(item.last_used_at)}</dd></div></dl>
+    <div className="developer-key-scopes">{item.scopes.map(scope => <span key={scope}>{scopeLabel(scope)}</span>)}</div>
+    <dl className="developer-key-meta"><div><dt>{personal ? 'Acts as' : 'Company'}</dt><dd>{personal ? item.owner_name || 'Key owner' : item.entity_id ? entity?.name || entity?.code || 'Selected company' : 'All companies'}</dd></div><div><dt>Created</dt><dd>{dateLabel(item.created_at)}</dd></div><div><dt>Expires</dt><dd>{dateLabel(item.expires_at)}</dd></div><div><dt>Last used</dt><dd>{dateLabel(item.last_used_at)}</dd></div></dl>
     <>
-      {!secret && <p className="developer-saved-key-note">The full key was shown only when it was created.</p>}
-      <div className="developer-key-actions">{secret ? <CopyValue value={secret} label="Copy key" ariaLabel={`Copy key for ${item.name}`} manualLabel={`Full API key for ${item.name}`} tone="primary" /> : <button type="button" className={btnClass('ghost')} disabled={replacementDisabled} onClick={onReplace} aria-label={`Create replacement for ${item.name}`}><Plus size={14} /> Create replacement</button>}
+      {!secret && <p className="developer-saved-key-note">{personal ? 'Personal AI assistant key. Only its owner can see or replace it.' : 'The full key was shown only when it was created.'}</p>}
+      <div className="developer-key-actions">{secret ? <CopyValue value={secret} label="Copy key" ariaLabel={`Copy key for ${item.name}`} manualLabel={`Full API key for ${item.name}`} tone="primary" /> : !personal && <button type="button" className={btnClass('ghost')} disabled={replacementDisabled} onClick={onReplace} aria-label={`Create replacement for ${item.name}`}><Plus size={14} /> Create replacement</button>}
         {status !== 'Revoked' && <button type="button" className={`${btnClass('ghost')} developer-revoke`} onClick={onRevoke} aria-label={`Revoke key ${item.name}`}><Trash2 size={14} /> Revoke key</button>}</div>
     </>
   </article>;
@@ -230,5 +258,6 @@ export function GettingStarted() {
     <div className="developer-guide-heading"><h3>Example request</h3><CopyValue value={example} label="Copy" ariaLabel="Copy example request" manualLabel="Example request" /></div><pre className="developer-code"><code>{example}</code></pre>
     <h3>Read endpoints</h3><dl className="developer-endpoints"><div><dt><code>GET /employees</code></dt><dd>Work directory</dd></div><div><dt><code>GET /organization</code></dt><dd>Companies, locations and departments</dd></div><div><dt><code>GET /attendance</code></dt><dd>Include <code>from=YYYY-MM-DD</code> and <code>to=YYYY-MM-DD</code>, up to 31 days per request.</dd></div></dl>
     <h3>Pages and limits</h3><p>Use <code>limit</code> and <code>offset</code> to page through results. The default page has 50 records; the maximum is 100.</p><p>Each key allows up to 60 requests per minute. Revoking a key stops its access immediately.</p>
+    <h3>AI assistants</h3><p>Hermes connects to <code>{base.replace(/\/api\/v1$/, '/api/mcp')}</code> with a manager’s personal key from Settings → AI assistant. It acts as that manager and cannot delete anything.</p>
   </aside>;
 }

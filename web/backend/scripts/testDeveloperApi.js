@@ -15,9 +15,11 @@ module.exports = function testDeveloperApi({ run, connection, directory }) {
         "insert into public.shifts(code,name,start_time,end_time) values ('GN','Synthetic configured baseline','09:00','17:30');",
       ] : []),
       `\\i ${quote(join(migrations, file))}`,
-      ...(file.startsWith('0135_') ? [`\\i ${quote(join(migrations, file))}`] : []),
+      // Both developer API migrations promise safe reruns.
+      ...(/^(0135|0168)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     `\\i ${quote(join(backend, 'tests', 'developer_api.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'developer_api_write.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-q', '-f', bootstrap]);

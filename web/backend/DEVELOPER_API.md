@@ -108,3 +108,92 @@ settings and the HTTP gateway. `npm --prefix web/backend test` verifies key issu
 permissions, scope isolation, expiry, revocation, master disable and rate limiting in a disposable
 local PostgreSQL cluster. The optional `?qa-developer` preview uses synthetic keys and in-memory
 settings; it never creates a production credential.
+
+## AI assistants (Hermes)
+
+Managers can connect an AI assistant such as [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp)
+to manage day-to-day work from chat. Unlike the read API above, an assistant key **acts as the person
+who created it**: every action is recorded under their name and is limited to exactly what their
+role already allows in the app. Attendance, payroll, documents and employee/company setup are not
+reachable, and **no tool deletes, trashes or removes anything**; work is closed by changing its status.
+
+### Setup
+
+1. Apply `0168_hermes_agent_api.sql` with the normal migration runner and deploy `web` (it adds
+   `api/mcp.js`). Assistant access starts **off**.
+2. A super admin turns on **AI assistant access** in Administration → Developer Settings. This switch is
+   separate from the read API switch.
+3. In Administration → Roles, the super admin ticks **Connect an AI assistant** (`api.connect`) for the
+   roles that may use it. Super admins have it by default.
+4. The manager opens **Settings → AI assistant**, picks the areas (Tasks & requests, Leave approvals,
+   Assets, Goals) and an expiry (7, 30 or 90 days), and creates a key. The key is shown once, together
+   with a ready-to-paste block for `~/.hermes/config.yaml`:
+
+```yaml
+mcp_servers:
+  parakkat_hr:
+    url: "https://parakkat-hr-software.vercel.app/api/mcp"
+    headers:
+      Authorization: "Bearer YOUR_PERSONAL_KEY"
+```
+
+5. In Hermes, run `/reload-mcp`. Hermes lists the tools allowed by the key's areas.
+
+Each person may hold up to five active assistant keys and can revoke their own keys in Settings, even
+after losing the permission. Super admins see every key, with whose name it acts under, in Developer
+Settings and can revoke any of them.
+
+### Endpoint
+
+`POST /api/mcp` speaks MCP over stateless Streamable HTTP: one JSON-RPC message per request, one JSON
+reply, no session and no server-sent stream. Supported methods are `initialize`, `ping`, `tools/list`
+and `tools/call`; notifications receive `202`. Requests with an `Origin` header (browsers), batches,
+bodies over 64 KB and unknown `MCP-Protocol-Version` values are refused. A missing, invalid, expired or
+revoked key, or a key whose owner lost `api.connect`, gets `401`; assistant access switched off gets `503`.
+Problems inside a tool (bad arguments, not permitted, not found) are returned as tool errors with a
+plain sentence so the assistant can correct itself.
+
+| Area | Tools |
+| --- | --- |
+| Always | `whoami`, `find_employees`, `list_departments` |
+| Tasks & requests | `list_tasks`, `get_task`, `create_task`, `update_task`, `add_task_helpers`, `comment_on_task`, `add_subtask`, `tick_subtask`, `list_routines`, `create_routine`, `update_routine`, `stop_routine`, `list_help_requests`, `request_help`, `answer_help_request`, `cancel_help_request`, `list_ticket_categories`, `list_tickets`, `create_ticket`, `set_ticket_status` |
+| Leave approvals | `list_leave_requests`, `decide_leave` |
+| Assets | `list_assets`, `add_asset`, `update_asset`, `assign_asset`, `return_asset` |
+| Goals | `list_goals`, `create_goal`, `update_goal` |
+
+Deliberately left out: changing a task's main person (the app does that by removing the old person),
+removing helpers, subtasks or routine jobs, the task trash, unticking a routine job, reopening decided
+leave, file uploads, and asset licence keys.
+
+### How it is enforced
+
+`public.developer_api_call(_api_key, _tool, _args)` is the only entry point and is granted to `anon`
+alone, so SQL is authoritative even when PostgREST is called directly. It:
+
+1. validates the key in `agent_gateway.authorize` (format, assistant switch, hash, kind `manage`, expiry,
+   revocation, the owner's account state and current `api.connect`, the tool's area and the 60-per-minute
+   key budget);
+2. sets `request.jwt.claim.sub` / `request.jwt.claims` to the key owner and switches the role to
+   `authenticated` for the rest of the transaction. This is an INVOKER function on purpose: PostgREST's
+   login role is a member of `authenticated`, and role changes are not allowed in SECURITY DEFINER code;
+3. runs one whitelisted `hr_agent.*` tool. Tools are INVOKER functions executable only by `authenticated`,
+   so the app's existing row policies, triggers and checked RPCs (`decide_leave`, `request_department_help`,
+   `create_routine_set`, …) apply exactly as they do for the person in the app;
+4. restores the original role and identity, and returns `{ok, data}` or `{ok: false, error}`.
+
+Failed tool calls still use the rate budget and are audited (`API_CALL` / `API_CALL_FAILED` in
+`audit_log`, with the key id and owner). Responses use explicit field lists; database messages are
+reduced to plain sentences.
+
+### Verification
+
+`npm --prefix web/backend test` runs `tests/developer_api_write.sql` after the read API tests. It
+simulates PostgREST's login role and checks attribution, scope, every refusal path, identity restoration
+after each call, routine-job protection, auditing of failed calls, and that **no row is deleted** by any
+assistant action. `npm --prefix web test` covers the MCP protocol (`mcpGateway.test.js`), the tool list
+staying identical to the database dispatcher (`hermesTools.test.js`) and the Settings screens. The
+`?qa-developer` preview includes synthetic assistant keys that do not work against the real API.
+
+Before the first production rollout, confirm on the hosted project that the PostgREST login role is a
+member of `authenticated` (Supabase default) and that `anon`'s `statement_timeout` leaves room for a
+write.

@@ -16,14 +16,14 @@ after(async () => { await server?.close(); });
 const metadata = { id: 'key-1', name: 'Reporting dashboard', key_prefix: 'hr_live_test', scopes: ['employees:read'],
   entity_id: 'company-1', created_at: '2026-01-01T00:00:00Z', expires_at: '2099-01-01T00:00:00Z', last_used_at: null, revoked_at: null };
 const auth = { user: { id: 'viewer', email: 'viewer@example.test' }, isSuperAdmin: true, employee: null, assignments: [], permissions: [] };
-function render({ Component = DeveloperSettings, props = {}, isSuperAdmin = true, enabled = false, keys = [metadata], state } = {}) {
+function render({ Component = DeveloperSettings, props = {}, isSuperAdmin = true, enabled = false, agentEnabled = false, keys = [metadata], state } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, staleTime: Infinity } } });
   const seed = (queryKey, data) => {
     if (state === 'loading') return;
     if (state === 'error') client.getQueryCache().build(client, { queryKey }).setState({ status: 'error', error: new Error('Unavailable'), fetchStatus: 'idle' });
     else client.setQueryData(queryKey, data);
   };
-  seed(['developer-settings', 'viewer'], { enabled, updated_at: null });
+  seed(['developer-settings', 'viewer'], { enabled, agent_enabled: agentEnabled, updated_at: null });
   seed(['developer-api-keys', 'viewer'], keys);
   client.setQueryData(['org', 'all'], { entities: [{ id: 'company-1', name: 'Sample Company' }], branches: [], departments: [], designations: [], zones: [] });
   try {
@@ -125,4 +125,23 @@ test('getting started names supported endpoints, header, pagination and rate lim
   for (const detail of ['/api/v1', 'Authorization: Bearer YOUR_API_KEY', 'GET /employees', 'GET /organization',
     'GET /attendance', 'from=YYYY-MM-DD', 'to=YYYY-MM-DD', '50 records', 'maximum is 100', '60 requests per minute']) assert.ok(html.includes(detail), detail);
   for (const label of ['Copy base URL', 'Copy authentication header', 'Copy example request']) assert.ok(html.includes(`aria-label="${label}"`));
+});
+
+test('AI assistant access has its own switch, off by default and independent of the read API', () => {
+  const html = render({ enabled: true });
+  assert.match(html, /role="switch" aria-checked="true" aria-label="Enable API access"/);
+  assert.match(html, /role="switch" aria-checked="false" aria-label="Enable AI assistant access"/);
+  assert.match(html, /Connect an AI assistant/);
+  assert.match(render({ agentEnabled: true }), /role="switch" aria-checked="true" aria-label="Enable AI assistant access"/);
+  assert.ok(render({ keys: [] }).includes('/api/mcp'), 'getting started names the assistant endpoint');
+});
+
+test('personal assistant keys show whose name they act under and cannot be replaced by the super admin', () => {
+  const html = render({ Component: KeyRow, props: { item: { ...metadata, kind: 'manage', owner_name: 'Asha Menon', scopes: ['tasks:manage', 'leave:manage'] }, onRevoke() {}, onReplace() {} } });
+  assert.match(html, /Acts as/);
+  assert.match(html, /Asha Menon/);
+  assert.match(html, /Tasks &amp; requests/);
+  assert.match(html, /Leave approvals/);
+  assert.doesNotMatch(html, /Create replacement/);
+  assert.match(html, /Revoke key/);
 });

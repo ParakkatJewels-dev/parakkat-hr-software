@@ -296,7 +296,12 @@ export const supabase = {
       return workflow.one ? query.single() : query;
     }
     if (qaRole === 'super_admin' && name === 'get_developer_settings') return new Query([{ ...developerFixture.settings }]).single();
-    if (qaRole === 'super_admin' && name === 'list_developer_api_keys') return new Query(developerFixture.keys.map(key => ({ ...key })));
+    if (qaRole === 'super_admin' && name === 'list_developer_api_keys') {
+      return new Query([...developerFixture.agentKeys.map(key => ({ ...key, entity_id: null, kind: 'manage', owner_name: 'QA Super Admin' })),
+        ...developerFixture.keys.map(key => ({ ...key, kind: 'read', owner_name: 'QA Super Admin' }))]);
+    }
+    if (qaRole === 'super_admin' && name === 'get_my_agent_access') return new Query([{ enabled: developerFixture.settings.agent_enabled === true, allowed: true }]).single();
+    if (qaRole === 'super_admin' && name === 'list_my_api_keys') return new Query(developerFixture.agentKeys.map(key => ({ ...key })));
     if (developerFixtures && qaRole === 'super_admin' && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {
       if (name === 'set_developer_settings' && typeof args._enabled === 'boolean') {
         Object.assign(developerFixture.settings, { enabled: args._enabled, updated_at: new Date().toISOString() });
@@ -313,9 +318,24 @@ export const supabase = {
         // This synthetic string is deliberately unusable by the real API. Only metadata is retained.
         return new Query([{ api_key: `qa_nonfunctional_${key.id}_synthetic_only`, key: { ...key } }]).single();
       }
-      if (name === 'revoke_developer_api_key') {
-        const key = developerFixture.keys.find(key => key.id === args._key_id);
+      if (name === 'revoke_developer_api_key' || name === 'revoke_my_api_key') {
+        const key = [...developerFixture.keys, ...developerFixture.agentKeys].find(key => key.id === args._key_id);
         if (key) { key.revoked_at = new Date().toISOString(); qaState.mutations += 1; return new Query([]).single(); }
+      }
+      if (name === 'set_agent_api_enabled' && typeof args._enabled === 'boolean') {
+        Object.assign(developerFixture.settings, { agent_enabled: args._enabled, updated_at: new Date().toISOString() });
+        qaState.mutations += 1;
+        return new Query([{ ...developerFixture.settings }]).single();
+      }
+      if (name === 'create_my_api_key' && typeof args._name === 'string' && args._name.trim() && args._name.length <= 80
+          && Array.isArray(args._scopes) && args._scopes.length && args._scopes.every(scope => ['tasks:manage', 'leave:manage', 'assets:manage', 'goals:manage'].includes(scope))
+          && [7, 30, 90].includes(args._expires_in_days)) {
+        const key = { id: `qa-agent-key-created-${developerFixture.agentKeys.length}`, name: args._name.trim(), key_prefix: 'qa_nonfunctional_agent_',
+          scopes: [...args._scopes], created_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + args._expires_in_days * 86400000).toISOString(), last_used_at: null, revoked_at: null };
+        developerFixture.agentKeys.unshift(key); qaState.mutations += 1;
+        // Deliberately unusable by the real API, like the read-key fixture above.
+        return new Query([{ api_key: `qa_nonfunctional_${key.id}_synthetic_only`, key: { ...key } }]).single();
       }
     }
     if (chatFixtures && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {

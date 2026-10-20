@@ -3,11 +3,13 @@ import assert from 'node:assert/strict';
 import {
   createDeveloperKey, fetchDeveloperKeys, fetchDeveloperSettings, saveDeveloperSettings,
   revokeDeveloperKey, developerKeysKey, developerSettingsKey, developerKeyStatus,
+  saveAgentAccess, fetchMyAgentAccess, fetchMyAgentKeys, createMyAgentKey, revokeMyAgentKey,
+  myAgentKeysKey, agentEndpoint, hermesConfig,
 } from './developerSettings.js';
 
 const metadata = { id: 'key-1', name: 'Directory sync', key_prefix: 'phr_test_1234',
   scopes: ['employees:read'], entity_id: 'company-1', created_at: '2026-09-14T00:00:00Z',
-  expires_at: '2026-12-13T00:00:00Z', last_used_at: null, revoked_at: null };
+  expires_at: '2026-12-13T00:00:00Z', last_used_at: null, revoked_at: null, kind: 'read', owner_name: null };
 const secret = 'synthetic-api-key-used-only-in-tests';
 function stub(data, error = null) {
   const calls = [];
@@ -31,7 +33,7 @@ test('listing allowlists metadata and drops any unexpected plaintext or hash', a
   assert.ok(client.calls.length > 1, 'probe the end rather than trusting the server page size');
   assert.ok(client.calls.every(([name]) => name === 'list_developer_api_keys'));
   const settings = await fetchDeveloperSettings(stub({ enabled: false, updated_at: null, api_key: secret }));
-  assert.deepEqual(settings, { enabled: false, updated_at: null });
+  assert.deepEqual(settings, { enabled: false, agent_enabled: false, updated_at: null });
 });
 
 test('creation returns the one-time key directly and sends only selected scopes/company/expiry', async () => {
@@ -112,4 +114,56 @@ test('revoked and expired keys never display as active, including expiry boundar
   assert.equal(developerKeyStatus(metadata, now), 'expired');
   assert.equal(developerKeyStatus({ ...metadata, revoked_at: metadata.created_at }, now), 'revoked');
   assert.equal(developerKeyStatus({ ...metadata, expires_at: 'invalid' }, now), 'expired');
+});
+
+const agentKey = { id: 'key-9', name: 'Hermes', key_prefix: 'phr_agent123', scopes: ['tasks:manage'],
+  created_at: '2026-10-20T00:00:00Z', expires_at: '2026-11-19T00:00:00Z', last_used_at: null, revoked_at: null };
+
+test('personal assistant keys keep only assistant areas and never cache secrets or owner details', async () => {
+  const client = stub([{ ...agentKey, api_key: secret, secret_hash: secret, created_by: 'user-1', scopes: ['tasks:manage', 'employees:read'] }]);
+  assert.deepEqual(await fetchMyAgentKeys(client), [agentKey]);
+  assert.deepEqual(client.calls, [['list_my_api_keys', undefined]]);
+  assert.notDeepEqual(myAgentKeysKey('a'), myAgentKeysKey('b'));
+  const listed = await fetchDeveloperKeys(stub([{ ...metadata, kind: 'manage', owner_name: 'Asha Menon', scopes: ['leave:manage'] }]));
+  assert.deepEqual(listed[0].scopes, ['leave:manage'], 'super admin overview keeps assistant areas');
+  assert.equal(listed[0].owner_name, 'Asha Menon');
+});
+
+test('creating a personal key sends only assistant areas and the chosen expiry', async () => {
+  const client = stub({ api_key: secret, key: { ...agentKey, secret_hash: 'private' } });
+  const result = await createMyAgentKey(client, { name: ' Hermes ', scopes: ['tasks:manage', 'tasks:manage'], expiresInDays: 30 });
+  assert.deepEqual(result, { api_key: secret, key: agentKey });
+  assert.deepEqual(client.calls, [['create_my_api_key', { _name: 'Hermes', _scopes: ['tasks:manage'], _expires_in_days: 30 }]]);
+  const refuse = { rpc() { assert.fail('invalid input must not be submitted'); } };
+  for (const values of [{ name: 'x', scopes: ['employees:read'] }, { name: 'x', scopes: [] }, { name: ' ', scopes: ['tasks:manage'] },
+    { name: 'x', scopes: ['tasks:manage'], expiresInDays: 91 }, { name: 'x', scopes: ['tasks:manage'], expiresInDays: 0 }]) {
+    await assert.rejects(createMyAgentKey(refuse, values));
+  }
+  const revoke = stub(null);
+  await revokeMyAgentKey(revoke, 'key-9');
+  assert.deepEqual(revoke.calls, [['revoke_my_api_key', { _key_id: 'key-9' }]]);
+});
+
+test('personal key errors speak to the person, not to a super admin, and never echo details', async () => {
+  for (const [code, pattern] of [['PT403', /role does not allow/], ['PT503', /turned off/], ['PT400', /up to 5 active keys/], ['XX000', /Refresh/]]) {
+    await assert.rejects(createMyAgentKey(stub(null, { code, message: secret }), { name: 'Hermes', scopes: ['goals:manage'] }),
+      (error) => pattern.test(error.message) && !error.message.includes(secret) && !/super admin/.test(error.message));
+  }
+  assert.deepEqual(await fetchMyAgentAccess(stub({ enabled: true, allowed: false, extra: secret })), { enabled: true, allowed: false });
+  await assert.rejects(fetchMyAgentAccess(stub({ enabled: 'yes' })));
+});
+
+test('the super admin switch for assistant access uses its own RPC', async () => {
+  const client = stub({ enabled: false, agent_enabled: true, updated_at: null });
+  assert.equal((await saveAgentAccess(client, true)).agent_enabled, true);
+  assert.deepEqual(client.calls, [['set_agent_api_enabled', { _enabled: true }]]);
+  await assert.rejects(saveAgentAccess(client, 1));
+});
+
+test('the Hermes setup points at /api/mcp on the canonical site and carries the key in a header', () => {
+  assert.equal(agentEndpoint('https://hr.example.com/some/path', 'http://localhost:5173'), 'https://hr.example.com/api/mcp');
+  assert.equal(agentEndpoint(undefined, 'http://localhost:5173'), 'http://localhost:5173/api/mcp');
+  assert.equal(agentEndpoint('javascript:alert(1)', ''), 'https://YOUR_HR_APP/api/mcp');
+  const config = hermesConfig('https://hr.example.com/api/mcp', 'phr_x');
+  assert.match(config, /^mcp_servers:\n  parakkat_hr:\n    url: "https:\/\/hr\.example\.com\/api\/mcp"\n    headers:\n      Authorization: "Bearer phr_x"$/);
 });
