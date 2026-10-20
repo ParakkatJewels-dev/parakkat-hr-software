@@ -89,6 +89,7 @@ try {
   console.log(run(process.execPath, [join(__dirname, 'testPunchCorrectionsConcurrency.js'), directory]).trim());
   require('./testAdminPassword')({ run, connection, directory });
   require('./testDeveloperApi')({ run, connection, directory });
+  require('./testWorkLedger')({ run, connection, directory });
   require('./testPayrollIntegrity')({ run, connection, directory });
   require('./testRoleMatrix')({ run, connection: ['-h', directory, '-U', 'audit_owner'], directory });
   require('./testMigrationOwnership')({ run, connection, directory });

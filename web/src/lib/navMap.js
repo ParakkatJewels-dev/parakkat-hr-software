@@ -32,6 +32,8 @@ export const ESS_NAV = [
       { id: 'messages', label: 'Messages', perm: null, needsEmployee: true },
       { id: 'attendance', label: 'My Attendance', perm: 'attendance.read' },
       { id: 'performance', label: 'My Goals', perm: 'goal.read' },
+      // A personal ledger (0169): private to its owner and their line managers.
+      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use' },
     ],
   },
   {
@@ -79,6 +81,7 @@ export const OVERSIGHT_NAV = [
     tabs: [
       { id: 'tasks', label: 'Tasks', perm: 'task.read' },
       { id: 'performance', label: 'Goals', perm: 'goal.read' },
+      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use' },
     ],
   },
   {

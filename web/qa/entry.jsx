@@ -98,7 +98,7 @@ const routes = ['dashboard', 'directory', 'employee-import', 'organization', 'at
   'attendance/overview', 'attendance/exceptions', 'attendance/regularizations', 'attendance-person',
   'attendance-admin/mapping', 'attendance-admin/shifts', 'attendance-admin/holidays',
   'attendance-admin/leaveTypes', 'attendance-admin/sync', 'leave', 'tasks/board',
-  'tasks/todo', 'tasks/requests', 'tasks/routine', 'messages', 'team',
+  'tasks/todo', 'tasks/requests', 'tasks/routine', 'ledger/reports', 'ledger/settings', 'messages', 'team',
   'payroll/payslips', 'payroll/salary', 'payroll/run', 'payroll/components', 'expense',
   'performance/mine', 'performance/team', 'assets', 'my-assets', 'documents/employee',
   'documents/company', 'recruitment', 'onboarding', 'helpdesk', 'reports/attendance',

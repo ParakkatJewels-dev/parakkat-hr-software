@@ -6,13 +6,14 @@ import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib
 import { workflowFixtures, workflowLeaveRows, workflowRpc } from './workflowFixtures';
 import { routineFixtures, routineRpc } from './routineFixtures';
 import { taskTrashFixtures, taskTrashRpc } from './taskTrashFixtures';
+import { ledgerFixtures, ledgerRpc } from './ledgerFixtures';
 import { payrollFixtures, payrollRpc } from './payrollFixtures';
 import { punchCorrectionRpc } from './punchCorrectionFixtures';
 import './employeeShiftFixtures.js';
 export const isSupabaseConfigured = true;
 export const qaState = { failReads: new URL(window.location.href).searchParams.has('qa-fail'), reads: 0, mutations: 0 };
 const slowRequests = new URL(window.location.href).searchParams.has('qa-slow');
-const user = { id: `qa-user-v3-${qaRole}${workflowFixtures ? '-workflow' : ''}${routineFixtures ? '-routines' : ''}${taskTrashFixtures ? '-task-trash' : ''}${goalsFixtures ? '-goals' : ''}${payrollFixtures ? '-payroll' : ''}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
+const user = { id: `qa-user-v3-${qaRole}${workflowFixtures ? '-workflow' : ''}${routineFixtures ? '-routines' : ''}${taskTrashFixtures ? '-task-trash' : ''}${ledgerFixtures ? '-ledger' : ''}${goalsFixtures ? '-goals' : ''}${payrollFixtures ? '-payroll' : ''}${mobileFixtures ? '-mobile' : ''}${chatFixtures ? '-chat' : ''}${actionsFixtures ? '-actions' : ''}${developerFixtures ? '-developer' : ''}${paginationFixtures ? '-pagination' : ''}${qaState.failReads ? '-offline' : ''}`, email: 'qa@example.test', user_metadata: {} };
 let session = { user, access_token: 'synthetic-only', expires_at: 9999999999 };
 const listeners = new Set();
 const emit = (event) => listeners.forEach((cb) => cb(event, session));
@@ -270,6 +271,13 @@ export const supabase = {
       if (payroll.mutated) qaState.mutations += 1;
       const query = new Query(payroll.rows);
       return payroll.one ? query.single() : query;
+    }
+    const ledger = ledgerRpc(name, args, { canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
+    if (ledger) {
+      if (ledger.error) return Promise.resolve({ data: null, error: ledger.error });
+      if (ledger.mutated) qaState.mutations += 1;
+      const query = new Query(ledger.rows);
+      return ledger.one ? query.single() : query;
     }
     const trash = taskTrashRpc(name, args, { employee: fixture.employees[0], userId: user.id, allows: fixtureAllows,
       event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });

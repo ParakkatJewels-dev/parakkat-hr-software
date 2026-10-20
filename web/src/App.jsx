@@ -5,7 +5,7 @@ import {
 } from './lib/navMap';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell, MessageSquare,
+  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell, MessageSquare, NotebookPen,
 } from 'lucide-react';
 
 // Import components
@@ -33,6 +33,7 @@ const ReportsAnalytics = lazy(() => import('./components/ReportsAnalytics'));
 const Administration = lazy(() => import('./components/Administration'));
 const DeveloperSettings = lazy(() => import('./components/DeveloperSettings'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
+const WorkLedger = lazy(() => import('./components/WorkLedger'));
 const Messages = lazy(() => import('./components/Messages'));
 const ChatMonitor = lazy(() => import('./components/ChatMonitor'));
 const Team = lazy(() => import('./components/Team'));
@@ -347,10 +348,13 @@ export default function App() {
     syncNativeTheme(theme);
   }, [theme]);
 
-  // Command Palette global key listener (Ctrl + K)
+  // Command Palette global key listener (Ctrl + K). The Work Ledger has its own command bar on the
+  // same shortcut, so the app palette stands aside there.
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k' && activeTabRef.current !== 'ledger') {
         e.preventDefault();
         setShowCommandPalette(prev => !prev);
       }
@@ -462,7 +466,7 @@ export default function App() {
   };
   const ESS_ICONS = {
     dashboard: LayoutDashboard, attendance: Clock, leave: Calendar, payroll: DollarSign,
-    tasks: ListChecks, messages: MessageSquare, performance: Target, expense: Receipt, 'my-assets': Boxes,
+    tasks: ListChecks, messages: MessageSquare, performance: Target, ledger: NotebookPen, expense: Receipt, 'my-assets': Boxes,
     documents: FolderOpen, helpdesk: HelpCircle, profile: UserRound, notifications: Bell,
     settings: Settings,
   };
@@ -1090,6 +1094,8 @@ export default function App() {
                 return <Leave />;
               case 'tasks':
                 return <TaskManagement />;
+              case 'ledger':
+                return <WorkLedger />;
               case 'messages':
                 return <Messages />;
               case 'admin-chats':

@@ -60,7 +60,7 @@ test('direct links keep query parameters during hash normalization and leave aut
 test('route tab catalog stays aligned with the page definitions that use useUrlTab', () => {
   for (const [screen, filename, variable] of [
     ['attendance', 'Attendance', 'TABS'], ['attendance-admin', 'AttendanceAdmin', 'TABS'], ['payroll', 'Payroll', 'TAB_DEFS'],
-    ['documents', 'DocumentManagement', 'SCOPES'], ['reports', 'ReportsAnalytics', 'TABS'],
+    ['documents', 'DocumentManagement', 'SCOPES'], ['reports', 'ReportsAnalytics', 'TABS'], ['ledger', 'WorkLedger', 'TABS'],
   ]) {
     const source = readFileSync(new URL(`../components/${filename}.jsx`, import.meta.url), 'utf8');
     const definition = source.match(new RegExp(`const ${variable} = \\[([\\s\\S]*?)\\n\\];`))?.[1];
