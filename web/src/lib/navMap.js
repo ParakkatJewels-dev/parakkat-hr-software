@@ -32,8 +32,8 @@ export const ESS_NAV = [
       { id: 'messages', label: 'Messages', perm: null, needsEmployee: true },
       { id: 'attendance', label: 'My Attendance', perm: 'attendance.read' },
       { id: 'performance', label: 'My Goals', perm: 'goal.read' },
-      // A personal ledger (0169): private to its owner and their line managers.
-      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use' },
+      // A personal ledger (0169). Retired 2026-10-20: its features are moving into Task Management.
+      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use', retired: true },
     ],
   },
   {
@@ -81,9 +81,9 @@ export const OVERSIGHT_NAV = [
     tabs: [
       { id: 'tasks', label: 'Tasks', perm: 'task.read' },
       { id: 'performance', label: 'Goals', perm: 'goal.read' },
-      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use' },
-      // Read-only view of the ledgers of people the reader manages (0169 app.ledger_can_read).
-      { id: 'team-ledgers', label: 'Team ledgers', perm: 'ledger.read_team' },
+      // Retired 2026-10-20 with the personal ledger: Task Management is getting these features.
+      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use', retired: true },
+      { id: 'team-ledgers', label: 'Team ledgers', perm: 'ledger.read_team', retired: true },
     ],
   },
   {
@@ -183,6 +183,8 @@ export function canSeeTab(tab, { canAny, canBeyondSelf, hidden, isSuperAdmin = f
   // Accepts a Set (what predicatesFor builds) or a plain array (what a caller may hand over).
   const isHidden = hidden instanceof Set ? hidden.has(tab.id) : (hidden ?? []).includes(tab.id);
   if (isHidden) return false;
+  // A retired screen keeps its route and data but is offered to nobody, super admins included.
+  if (tab.retired) return false;
   /*
    * Some screens are about being a member of staff, not about holding a permission.
    *

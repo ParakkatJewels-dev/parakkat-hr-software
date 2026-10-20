@@ -433,3 +433,10 @@ test('needsEmployee defaults to satisfied, so no existing tab is affected', () =
   assert.equal(canSeeTab({ id: 'x', perm: null }, { canAny: () => true, canBeyondSelf: () => true }), true);
   assert.equal(canSeeTab({ id: 'x', perm: null }, predicatesFor([])), true);
 });
+
+test('retired screens are offered to nobody, super admins included', () => {
+  const tab = { id: 'ledger', perm: 'ledger.use', retired: true };
+  assert.equal(canSeeTab(tab, { canAny: () => true, canBeyondSelf: () => true, hidden: [], isSuperAdmin: true }), false);
+  const shown = visibleSections('employee', { canAny: () => true, canBeyondSelf: () => true, hidden: [], isSuperAdmin: true });
+  assert.ok(!shown.some((section) => section.tabs.some((t) => ['ledger', 'team-ledgers'].includes(t.id))));
+});
