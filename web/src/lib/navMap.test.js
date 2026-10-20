@@ -35,7 +35,7 @@ const screensFor = (role) =>
 
 test('a plain employee gets the self-service tree and nothing from oversight', () => {
   const screens = screensFor('employee');
-  for (const id of ['dashboard', 'attendance', 'leave', 'payroll', 'tasks', 'my-assets']) {
+  for (const id of ['dashboard', 'attendance', 'leave', 'payroll', 'ledger', 'my-assets']) {
     assert.ok(screens.includes(id), `employee should see ${id}`);
   }
   // The oversight-only screens must not appear, whatever the ESS tree happens to contain.
@@ -234,10 +234,10 @@ function mobileSectionsFor(role, options = {}, permissions = mobileRolePermissio
 }
 
 for (const role of MOBILE_ROLES) {
-  test(`${role} gets Home, Tasks, Chat, Time and its own Profile on mobile`, () => {
+  test(`${role} gets Home, Work Ledger, Chat, Time and its own Profile on mobile`, () => {
     const sections = mobileSectionsFor(role);
     const destinations = mobilePrimarySections(sections, role);
-    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'tasks', 'messages', 'attendance', 'profile']);
+    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'ledger', 'messages', 'attendance', 'profile']);
     assert.equal(destinations.length, MOBILE_NAV_SLOTS);
     const allowed = new Set(sections.flatMap((section) => section.tabs.map((tab) => tab.id)));
     for (const destination of destinations) {
@@ -254,7 +254,7 @@ test('mobile destinations do not depend on desktop section order', () => {
     const reordered = [...sections].reverse().map((section) => ({ ...section, tabs: [...section.tabs].reverse() }));
     assert.deepEqual(
       mobilePrimarySections(reordered, role).map((section) => section.id),
-      ['dashboard', 'tasks', 'messages', 'attendance', 'profile'],
+      ['dashboard', 'ledger', 'messages', 'attendance', 'profile'],
       role
     );
   }
@@ -267,12 +267,12 @@ test('unlinked accounts have no Chat destination and keep Profile last', () => {
     assert.ok(!destinations.some((section) => section.id === 'messages'), role);
     assert.equal(destinations.at(-1).id, 'profile', role);
     assert.ok(destinations.length <= MOBILE_NAV_SLOTS, role);
-    assert.deepEqual(destinations.slice(0, 3).map((section) => section.id), ['dashboard', 'tasks', 'attendance']);
+    assert.deepEqual(destinations.slice(0, 3).map((section) => section.id), ['dashboard', 'ledger', 'attendance']);
     assert.equal(destinations[3].id, role === 'employee' ? 'leave' : 'directory', 'replacement must be useful and allowed');
   }
 });
 
-test('missing task access uses an allowed fallback and never restores Tasks', () => {
+test('missing task access uses an allowed fallback and never restores the Work Ledger', () => {
   const permissions = mobileRolePermissions('employee').filter((permission) => permission.permission !== 'task.read');
   const sections = mobileSectionsFor('employee', {}, permissions);
   const destinations = mobilePrimarySections(sections, 'employee');
@@ -281,14 +281,14 @@ test('missing task access uses an allowed fallback and never restores Tasks', ()
 
 test('hidden primary routes are excluded from fallback selection for every ordinary role', () => {
   for (const role of MOBILE_ROLES.filter((key) => key !== 'super_admin')) {
-    const sections = mobileSectionsFor(role, { hiddenScreens: ['tasks', 'messages', 'attendance'] });
+    const sections = mobileSectionsFor(role, { hiddenScreens: ['ledger', 'messages', 'attendance'] });
     const destinations = mobilePrimarySections(sections, role);
     const allowed = new Set(sections.flatMap((section) => section.tabs.map((tab) => tab.id)));
     assert.equal(destinations[0].id, 'dashboard', role);
     assert.equal(destinations.at(-1).id, 'profile', role);
     assert.equal(new Set(destinations.map((section) => section.id)).size, destinations.length, role);
     for (const destination of destinations) assert.ok(allowed.has(destination.id), `${role}: ${destination.id}`);
-    for (const hidden of ['tasks', 'messages', 'attendance']) assert.ok(!destinations.some((section) => section.id === hidden), `${role}: ${hidden}`);
+    for (const hidden of ['ledger', 'messages', 'attendance']) assert.ok(!destinations.some((section) => section.id === hidden), `${role}: ${hidden}`);
   }
 });
 
@@ -296,7 +296,7 @@ test('a hidden Profile preserves the full menu as an action without an invented 
   for (const role of MOBILE_ROLES.filter((key) => key !== 'super_admin')) {
     const sections = mobileSectionsFor(role, { hiddenScreens: ['profile'] });
     const destinations = mobilePrimarySections(sections, role);
-    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'tasks', 'messages', 'attendance', 'menu'], role);
+    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'ledger', 'messages', 'attendance', 'menu'], role);
     assert.equal(destinations.at(-1).label, 'Menu');
     assert.deepEqual(destinations.at(-1).tabs, [], 'Menu is a dialog action, not a route');
     for (const route of ['profile', 'settings', 'notifications', 'menu']) {
@@ -345,7 +345,7 @@ test('an employee section carries the drawer heading it belongs under', () => {
   for (const section of sections) {
     assert.ok(titles.includes(section.group), `${section.id} has no drawer heading`);
   }
-  assert.equal(sections.find((s) => s.id === 'tasks').group, 'Work');
+  assert.equal(sections.find((s) => s.id === 'ledger').group, 'Work');
   assert.equal(sections.find((s) => s.id === 'payroll').group, 'Me');
 });
 

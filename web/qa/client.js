@@ -6,7 +6,7 @@ import { createPasswordRecoveryState, capturePasswordRecovery } from '../src/lib
 import { workflowFixtures, workflowLeaveRows, workflowRpc } from './workflowFixtures';
 import { routineFixtures, routineRpc } from './routineFixtures';
 import { taskTrashFixtures, taskTrashRpc } from './taskTrashFixtures';
-import { ledgerFixtures, ledgerRpc } from './ledgerFixtures';
+import { ledgerFixtures, ledgerRpc, ledgerWrite } from './ledgerFixtures';
 import { payrollFixtures, payrollRpc } from './payrollFixtures';
 import { punchCorrectionRpc } from './punchCorrectionFixtures';
 import './employeeShiftFixtures.js';
@@ -224,6 +224,11 @@ class Query {
         tables.routine_ticks.splice(0, tables.routine_ticks.length, ...tables.routine_ticks.filter((row) => !changed.includes(row)));
       }
       return Promise.resolve({ data: changed, error: null }).then(resolve, reject);
+    }
+    // The Work Ledger demo keeps its task, note, deliverable, mark and help writes in memory.
+    if (this.write && !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write')) {
+      const ledger = ledgerWrite(this);
+      if (ledger) return Promise.resolve(ledger).then(resolve, reject);
     }
     if (this.write || qaState.failReads) return Promise.resolve({ data: null,
       error: { message: this.write ? 'QA mode: this write is intentionally blocked.' : 'QA simulated connection failure' } }).then(resolve, reject);

@@ -32,6 +32,20 @@ export function resolveAppRoute(pathname) {
   return { screen, knownScreen, valid: Boolean(valid) };
 }
 
+/**
+ * The Work Ledger replaced Task Management (0173). Old links, bookmarks, notifications and the
+ * dashboard still say /tasks/<view>; send each to the Ledger tab that holds the same view, keeping
+ * any ?focus= or ?routineView=. Returns null for anything that is not a Task Management address.
+ */
+export function tasksToLedger(pathname, search = '', { canTeam = false } = {}) {
+  const parts = String(pathname ?? '').split('/').filter(Boolean);
+  if (parts[0] !== 'tasks') return null;
+  const view = parts[1] ?? '';
+  const tab = { todo: 'home', requests: 'requests', routine: 'routines', deleted: 'deleted' }[view]
+    ?? (canTeam ? 'team' : 'home');
+  return `/ledger/${tab}${search ?? ''}`;
+}
+
 /** Unknown screens are 404s; known screens still respect their original access guard first. */
 export function appRouteDisposition(route, allowed) {
   if (!route.knownScreen) return 'not-found';

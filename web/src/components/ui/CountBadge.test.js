@@ -107,7 +107,7 @@ test('real employees keep their granted support count and hidden screens do not 
   const employee = { ...auth, isSuperAdmin: false, assignments: [{ role: 'employee', scope_type: 'self' }],
     permissions: ['task.read', 'attendance.read', 'ticket.read', 'ticket.manage'].map(permission => ({ permission, scope_type: 'self', scope_id: null })) };
   const own = renderApp({ actor: employee, path: '/not-a-page' });
-  assert.match(own, /aria-label="My Tasks, 127 tasks to complete"/);
+  assert.match(own, /aria-label="Work Ledger, 127 tasks to complete"/);
   assert.match(own, /aria-label="Help &amp; Support, 2 unresolved tickets"/);
   const manager = { ...auth, isSuperAdmin: false, assignments: [{ role: 'entity_admin', scope_type: 'entity', scope_id: 'entity' }],
     permissions: ['attendance.read', 'leave.read', 'device.manage'].map(permission => ({ permission, scope_type: 'entity', scope_id: 'entity' })), hiddenScreens: ['leave'] };

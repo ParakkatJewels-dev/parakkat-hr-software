@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { allScreenIds } from './navMap.js';
-import { APP_TAB_PATHS, LEGACY_TAB_PATHS, DETAIL_SCREENS, DETAIL_ID_PATTERN, resolveAppRoute, appRouteDisposition } from './appRoutes.js';
+import { APP_TAB_PATHS, LEGACY_TAB_PATHS, DETAIL_SCREENS, DETAIL_ID_PATTERN, resolveAppRoute, appRouteDisposition, tasksToLedger } from './appRoutes.js';
 import { normalizedHashRoute } from './passwordRecovery.js';
 import { tabFromPath } from './urlTab.js';
 
@@ -109,3 +109,17 @@ test('the hosting 404 is standalone HTML with accessible recovery, dark mode, an
   assert.match(html, /prefers-color-scheme: dark/);
   assert.doesNotMatch(html, /<script[^>]+src=|app-assets|http-equiv="refresh"/);
 });
+
+test('old Task Management links open the matching Work Ledger tab and keep their query', () => {
+  assert.equal(tasksToLedger('/tasks', ''), '/ledger/home');
+  assert.equal(tasksToLedger('/tasks', '', { canTeam: true }), '/ledger/team');
+  assert.equal(tasksToLedger('/tasks/board', '?focus=t-1', { canTeam: true }), '/ledger/team?focus=t-1');
+  assert.equal(tasksToLedger('/tasks/todo', '?focus=t-2', { canTeam: true }), '/ledger/home?focus=t-2');
+  assert.equal(tasksToLedger('/tasks/requests', ''), '/ledger/requests');
+  assert.equal(tasksToLedger('/tasks/routine', '?routineView=mine'), '/ledger/routines?routineView=mine');
+  assert.equal(tasksToLedger('/tasks/deleted', ''), '/ledger/deleted');
+  assert.equal(tasksToLedger('/tasks/flow', ''), '/ledger/home', 'retired views land on Home');
+  assert.equal(tasksToLedger('/ledger/home', ''), null);
+  assert.equal(tasksToLedger('/taskset', ''), null);
+});
+

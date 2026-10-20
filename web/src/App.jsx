@@ -64,7 +64,7 @@ import { useVersionCheck } from './lib/versionCheck';
 import { isStandalonePwa } from './lib/pwa';
 import { watchPwaIdentity } from './lib/pwaIdentity';
 import { stripFocus } from './lib/focusRow';
-import { appRouteDisposition, resolveAppRoute } from './lib/appRoutes';
+import { appRouteDisposition, resolveAppRoute, tasksToLedger } from './lib/appRoutes';
 import { syncNativeTheme } from './mobile/native';
 
 // Prettify a role key like 'branch_manager' -> 'Branch Manager'.
@@ -178,6 +178,9 @@ export default function App() {
   // command-palette caller keeps working untouched. Switching screens drops the inner tab, which
   // is right: the exceptions tab of Attendance means nothing on Payroll.
   const setActiveTab = useCallback((id) => navigate(`/${id}`), [navigate]);
+  // Task Management now lives inside the Work Ledger: its old addresses open the matching tab.
+  const ledgerTarget = tasksToLedger(location.pathname, location.search, { canTeam: canBeyondSelf('task.read') });
+  useEffect(() => { if (ledgerTarget) navigate(ledgerTarget, { replace: true }); }, [ledgerTarget, navigate]);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [menuSearch, setMenuSearch] = useState('');
@@ -1072,6 +1075,7 @@ export default function App() {
           <div ref={routeStageRef} className="route-stage" data-route={location.pathname}>
             <Suspense fallback={<SkeletonPage />}>
             {(() => {
+              if (ledgerTarget) return <SkeletonPage />;
               if (routeDisposition === 'not-found') return <NotFound appName={appName} />;
               if (routeDisposition === 'access-denied') {
                 return <AccessDenied />;

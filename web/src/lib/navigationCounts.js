@@ -1,5 +1,6 @@
 export const NAVIGATION_COUNT_LABELS = {
   tasks: ['task to complete', 'tasks to complete'],
+  ledger: ['task to complete', 'tasks to complete'],
   leave: ['leave request to review', 'leave requests to review'],
   expense: ['expense to review', 'expenses to review'],
   attendance: ['attendance request to review', 'attendance requests to review'],
@@ -27,6 +28,7 @@ const QUEUES = {
 };
 const SOURCES = {
   tasks: ['tasks', 'task_requests', 'task_routine'],
+  ledger: ['tasks', 'task_requests', 'task_routine'],
   helpdesk: ['helpdesk', 'exits'],
   performance: ['performance_mine', 'performance_team'],
   'attendance-admin': ['attendance_mapping'],
@@ -52,7 +54,7 @@ export function navigationScreenCount(id, counts, unreadMessageCount) {
   const keys = SOURCES[id] ?? [id];
   // Never present a partial total as exact: every contributing queue must be known.
   const values = keys.map(key => validNavigationCount(counts?.[key]));
-  const aggregate = id === 'tasks' ? counts?.task_requests > 0 || counts?.task_routine > 0
+  const aggregate = id === 'tasks' || id === 'ledger' ? counts?.task_requests > 0 || counts?.task_routine > 0
     : id === 'helpdesk' && counts?.exits > 0;
   return {
     count: values.every(value => value !== null) ? values.reduce((sum, value) => sum + value, 0) : null,

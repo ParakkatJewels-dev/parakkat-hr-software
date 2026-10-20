@@ -26,14 +26,14 @@ export const ESS_NAV = [
     title: 'Work',
     items: [
       { id: 'dashboard', label: 'Dashboard', perm: null },
-      { id: 'tasks', label: 'My Tasks', perm: 'task.read' },
+      // The Work Ledger replaced Task Management; old /tasks links redirect to it (tasksToLedger).
+      { id: 'ledger', label: 'Work Ledger', perm: 'task.read' },
+      { id: 'tasks', label: 'My Tasks', perm: 'task.read', retired: true },
       // No permission: everybody can talk to everybody. A directory that will not let one branch
       // message another is a directory people work around rather than use (0115).
       { id: 'messages', label: 'Messages', perm: null, needsEmployee: true },
       { id: 'attendance', label: 'My Attendance', perm: 'attendance.read' },
       { id: 'performance', label: 'My Goals', perm: 'goal.read' },
-      // The one place for work (0173): runs on Task Management's records.
-      { id: 'ledger', label: 'Work Ledger', perm: 'task.read' },
     ],
   },
   {
@@ -79,11 +79,11 @@ export const OVERSIGHT_NAV = [
     id: 'work',
     label: 'Work',
     tabs: [
-      { id: 'tasks', label: 'Tasks', perm: 'task.read' },
-      { id: 'performance', label: 'Goals', perm: 'goal.read' },
-      // The one place for work (0173): runs on Task Management's records. Team ledgers is retired:
-      // managers read their people's work from the Ledger's Team tab and reports.
+      // The one place for work (0173), on Task Management's records. Tasks and Team ledgers are
+      // retired: old /tasks links redirect to the Ledger, and managers use its Team tab and reports.
       { id: 'ledger', label: 'Work Ledger', perm: 'task.read' },
+      { id: 'tasks', label: 'Tasks', perm: 'task.read', retired: true },
+      { id: 'performance', label: 'Goals', perm: 'goal.read' },
       { id: 'team-ledgers', label: 'Team ledgers', perm: 'ledger.read_team', retired: true },
     ],
   },
@@ -246,8 +246,8 @@ export function visibleSections(primaryRole, predicates) {
 /** Four daily destinations and a permanent profile/menu entry. */
 export const MOBILE_NAV_SLOTS = 5;
 export const MOBILE_PRIMARY_IDS = {
-  employee: ['dashboard', 'tasks', 'messages', 'attendance', 'profile'],
-  oversight: ['dashboard', 'tasks', 'messages', 'attendance', 'profile'],
+  employee: ['dashboard', 'ledger', 'messages', 'attendance', 'profile'],
+  oversight: ['dashboard', 'ledger', 'messages', 'attendance', 'profile'],
 };
 
 /** Arrange actual permitted screens, independent of desktop section grouping. */

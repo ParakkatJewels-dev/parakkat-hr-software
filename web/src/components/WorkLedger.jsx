@@ -7,9 +7,11 @@ import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useStat
 import {
   BarChart3, CheckSquare, FileText, HandHelping, Home, NotebookPen, Plus, Search, Settings, Trash2, Users,
 } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { useUrlTab } from '../lib/useUrlTab';
+import { focusIdFrom, stripFocus } from '../lib/focusRow';
 import { istToday } from '../lib/dates';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { useSectionCounts } from '../data/sectionCounts';
@@ -78,6 +80,17 @@ export default function WorkLedger() {
   const [newTask, setNewTask] = useState(false);
   const lastSync = useRef(0);
   const connected = Boolean(home.data?.google?.connected);
+  const { pathname, search } = useLocation();
+  const navigate = useNavigate();
+
+  // A notification or old Task Management link to one task opens it here. Team keeps its own
+  // highlight-the-row behaviour (Task Management's board reads ?focus= itself).
+  const linked = tab === 'team' ? null : focusIdFrom(search);
+  useEffect(() => {
+    if (!linked) return;
+    setDrawer({ kind: 'task', payload: linked });
+    navigate({ pathname, search: stripFocus(search) }, { replace: true });
+  }, [linked, pathname, search, navigate]);
 
   const open = useCallback((kind, payload) => {
     if (kind === 'command') setCommand(payload ?? '');

@@ -356,7 +356,8 @@ test('unlinked system login cannot open messaging or file personal leave/expense
 
 test('unassigned account cannot gain protected screens from a typed route', async () => {
   const auth = actor('employee', { employee: null, permissions: [], assignments: [] });
-  for (const route of ['directory', 'payroll', 'administration', 'reports', 'admin-chats', 'messages', 'tasks']) {
+  // /tasks now forwards to the Work Ledger, which refuses the same way.
+  for (const route of ['directory', 'payroll', 'administration', 'reports', 'admin-chats', 'messages', 'ledger']) {
     assert.match(await renderApp(auth, `/${route}`), /Access restricted/, route);
   }
 });
