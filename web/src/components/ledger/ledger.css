@@ -91,9 +91,9 @@
 .ledger-status, .ledger-tag { display: inline-block; padding: .125rem .375rem; border-radius: .25rem; background: var(--surface-muted); color: var(--surface-text-soft);
   font-size: .6875rem; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; white-space: nowrap; }
 .ledger-tag { margin-left: 6px; }
-.ledger-status[data-status="In Progress"] { background: var(--ledger-blue-wash); color: var(--ledger-blue-ink); }
-.ledger-status[data-status="Internal Review"], .ledger-status[data-status="Awaiting Approval"], .ledger-status[data-status="Revisions"] { background: var(--ledger-warn-wash); color: var(--ledger-warn-ink); }
-.ledger-status[data-status="Approved"], .ledger-status[data-status="Delivered"] { background: var(--accent-soft); color: var(--accent-ink); }
+.ledger-status[data-status="In progress"] { background: var(--ledger-blue-wash); color: var(--ledger-blue-ink); }
+.ledger-status[data-status="In review"], .ledger-status[data-status="Waiting for approval"], .ledger-status[data-status="Changes needed"] { background: var(--ledger-warn-wash); color: var(--ledger-warn-ink); }
+.ledger-status[data-status="Approved"], .ledger-status[data-status="Done"] { background: var(--accent-soft); color: var(--accent-ink); }
 .ledger-status[data-status="Blocked"] { background: var(--ledger-danger-wash); color: var(--ledger-danger-ink); }
 .ledger-chip-flag { display: inline-flex; align-items: center; gap: 3px; margin: 0 6px 0 0; padding: .0625rem .375rem; border-radius: .25rem;
   background: var(--ledger-warn-wash); color: var(--ledger-warn-ink); font-size: .6875rem; font-weight: 700; white-space: nowrap; }
@@ -364,6 +364,17 @@ textarea.ledger-input { resize: vertical; }
 .ledger-insight-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
 .ledger-insight h3 { margin: 0 0 4px; }
 .ledger-chart { width: 100%; height: 200px; margin-top: 6px; }
+
+/* ---- Task panel, new task ---- */
+.ledger-drawer.ledger-drawer-wide { width: min(760px, 100%); }
+.ledger-card-open { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ledger-card-open:hover { color: var(--accent-ink); }
+.ledger-card-open:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; border-radius: .25rem; }
+.ledger-task-drawer { display: grid; gap: .75rem; }
+.ledger-task-summary { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .75rem; }
+.ledger-task-summary .ledger-quiet:last-of-type { margin-right: auto; }
+.ledger-task-description { margin: 0; white-space: pre-wrap; font-size: var(--text-sm); }
+.ledger-new-task { display: block; }
 
 /* ---- Phones: big buttons on Home, one-column board, drawers become bottom sheets ---- */
 @media (max-width: 1100px) {

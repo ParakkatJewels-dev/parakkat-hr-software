@@ -2,7 +2,8 @@
 // ten minutes before a Calendar meeting. Checked every 30 seconds from the data already loaded.
 import React, { useEffect, useRef, useState } from 'react';
 import { BellRing, X } from 'lucide-react';
-import { syncGoogleCalendar, useGoogleEvents, useLedgerAction } from '../../data/workLedger';
+import { syncGoogleCalendar, useGoogleEvents } from '../../data/workLedger';
+import { useWorkRpc } from '../../data/work';
 import { chime, istStamp, timeOf } from './ui';
 import { btnClass } from '../ui/Btn';
 
@@ -22,7 +23,7 @@ export function dueItems({ schedule = [], events = [], now = Date.now() }) {
 }
 
 export default function DueBanner({ home, sound }) {
-  const act = useLedgerAction();
+  const act = useWorkRpc();
   const connected = Boolean(home?.google?.connected);
   const events = useGoogleEvents(connected);
   const [items, setItems] = useState([]);

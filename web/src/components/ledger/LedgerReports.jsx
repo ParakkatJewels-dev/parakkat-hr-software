@@ -1,7 +1,12 @@
-// Reports: pick a period, read the report, then prepare the share text — edit it, copy it or share it.
-import React, { useState } from 'react';
-import { Copy, RotateCcw, Share2 } from 'lucide-react';
-import { fetchCampaignDetails, useLedgerReport } from '../../data/workLedger';
+// Reports: pick a period (and, for a manager, a person), read the report built from task activity,
+// then prepare the share text — edit it, copy it or share it. Also the weekly review, the printable
+// monthly page and a CSV of the period.
+import React, { useMemo, useState } from 'react';
+import { Copy, Download, RotateCcw, Share2 } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
+import { useEmployees } from '../../data/employees';
+import { useWorkReport } from '../../data/work';
+import { downloadCsv } from '../../lib/csv';
 import { istToday } from '../../lib/dates';
 import { humanDbError } from '../../lib/dbErrors';
 import { addDays, longDate, monthDay, periodArgument, periodLabel, PERIOD_TITLES } from '../../lib/ledger/periods.js';
@@ -11,6 +16,21 @@ import { monthlyDocument, weeklyReview } from '../../lib/ledger/documents.js';
 import DocumentDrawer from './DocumentDrawer';
 import Drawer from './Drawer';
 import { btnClass } from '../ui/Btn';
+import { useLedger } from './ui';
+
+/** The period as rows for a spreadsheet: what was worked on, delivered and given as help. */
+export function reportRows(report) {
+  const rows = [];
+  for (const item of report.worked_on ?? []) {
+    const notes = item.notes ?? [];
+    if (!notes.length) rows.push(['Worked on', '', item.title, item.status ?? '', item.event ?? '', '', '', '']);
+    for (const note of notes) rows.push(['Worked on', note.date, item.title, item.status ?? '', note.note, note.minutes ?? '', '', '']);
+  }
+  for (const item of report.delivered ?? []) rows.push(['Delivered', item.delivered_on ?? '', item.title, 'Done', '', '', item.outcome ?? '', '']);
+  for (const item of report.support ?? []) rows.push(['Help given', item.date ?? '', item.title, item.type ?? '', '', item.minutes ?? '', '', item.for_whom ?? '']);
+  return rows;
+}
+export const REPORT_COLUMNS = ['Section', 'Date', 'Task', 'Step', 'Note', 'Minutes', 'Outcome', 'For whom'];
 
 const PERIOD_CHOICES = [
   { id: 'day', label: 'Today' }, { id: 'week', label: 'Pick a week' }, { id: 'month', label: 'Pick a month' },
@@ -18,8 +38,14 @@ const PERIOD_CHOICES = [
 ];
 const money = (value) => `₹${Math.round(Number(value) || 0).toLocaleString('en-IN')}`;
 
-export default function LedgerReports({ owner = null }) {
+export default function LedgerReports() {
   const today = istToday();
+  const { canTeam } = useLedger();
+  const { employee } = useAuth();
+  const employeesQuery = useEmployees();
+  const [person, setPerson] = useState('');
+  const people = useMemo(() => (employeesQuery.data ?? []).filter((e) => e.id !== employee?.id && e.status !== 'Inactive')
+    .sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '')), [employeesQuery.data, employee?.id]);
   const [period, setPeriod] = useState('day');
   const [day, setDay] = useState(today);
   const [month, setMonth] = useState(today.slice(0, 7));
@@ -27,21 +53,24 @@ export default function LedgerReports({ owner = null }) {
   const [to, setTo] = useState(today);
   const rangeInvalid = period === 'range' && (!from || !to || to < from);
   const date = periodArgument(period, { day, month, from, to });
-  const report = useLedgerReport({ owner, period: rangeInvalid ? null : period, date });
-  const key = `${period}:${date}`;
+  const report = useWorkReport({ employee: person || null, period: rangeInvalid ? null : period, date });
+  const key = `${person}:${period}:${date}`;
   // The edited draft is kept for this period until Regenerate or another period is loaded.
   const [draft, setDraft] = useState(null);
   const [drawer, setDrawer] = useState(false);
   const [status, setStatus] = useState('');
   const [extra, setExtra] = useState(null);
   const [extraError, setExtraError] = useState('');
-  const data = report.data;
-  const openMonthly = async () => {
+  // Someone else's report says whose it is.
+  const data = report.data && person ? { ...report.data, subject: report.data.employee_name } : report.data;
+  const openMonthly = () => {
     setExtraError('');
-    try {
-      const doc = monthlyDocument(data, { campaigns: await fetchCampaignDetails(owner), today });
-      setExtra({ kind: 'monthly', title: doc.title, text: doc.text });
-    } catch (failure) { setExtraError(humanDbError(failure) || 'The campaigns could not be loaded.'); }
+    const doc = monthlyDocument(data, { campaigns: [] });
+    setExtra({ kind: 'monthly', title: doc.title, text: doc.text });
+  };
+  const exportCsv = () => {
+    const who = (data.employee_name ?? 'me').toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    downloadCsv(`work-report-${who}-${data.from}-to-${data.to}.csv`, REPORT_COLUMNS, reportRows(data));
   };
 
   const openDraft = () => {
@@ -66,6 +95,10 @@ export default function LedgerReports({ owner = null }) {
           ))}
         </div>
         <div className="ledger-pickers">
+          {canTeam && people.length > 0 && (
+            <label>Report for <select value={person} onChange={(e) => { setPerson(e.target.value); setDraft(null); }}>
+              <option value="">Me</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+            </select></label>)}
           {period === 'day' && <label>Day <input type="date" value={day} max={today} onChange={(e) => setDay(e.target.value || today)} /></label>}
           {period === 'week' && <label>Any day in the week <input type="date" value={day} onChange={(e) => setDay(e.target.value || today)} /></label>}
           {period === 'month' && <label>Month <input type="month" value={month} onChange={(e) => setMonth(e.target.value || today.slice(0, 7))} /></label>}
@@ -76,6 +109,7 @@ export default function LedgerReports({ owner = null }) {
         </div>
         {period === 'week' && <button type="button" className={btnClass('ghost')} disabled={!data} onClick={() => setExtra({ kind: 'weekly' })}>Weekly review</button>}
         {period === 'month' && <button type="button" className={btnClass('ghost')} disabled={!data} onClick={openMonthly}>Management page for this month</button>}
+        <button type="button" className={btnClass('ghost')} disabled={!data} onClick={exportCsv}><Download size={14} /> CSV</button>
         <button type="button" className={btnClass('primary')} disabled={!data} onClick={openDraft}>Prepare report to share</button>
       </div>
       {extraError && <p className="ledger-alert" role="alert">{extraError}</p>}

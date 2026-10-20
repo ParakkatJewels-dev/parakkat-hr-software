@@ -67,7 +67,11 @@ const WINDOW_NOTE = `Open tasks never age off this board. Completed and cancelle
 const TASKS_PER_PAGE = 10;
 const EMPTY_ROWS = [];
 
-export default function TaskManagement() {
+/**
+ * `embedded` mounts one view inside the Work Ledger, which supplies its own header and tabs. The
+ * view, its filters, the composer and every rule are the same as on this screen.
+ */
+export default function TaskManagement({ embedded = false, embeddedView = 'board' } = {}) {
   const { data: tasks = [], isLoading, error } = useTasks();
   const employeesQuery = useEmployees();
   const { data: employees = [] } = employeesQuery;
@@ -124,7 +128,9 @@ export default function TaskManagement() {
   // 'flow' and 'people' were retired in 0114. tabFromPath falls back to the default for an id it
   // does not recognise, so an old link or a bookmarked ?tab=flow lands on the board rather than
   // rendering nothing — which is the whole reason that fallback exists.
-  const [view, setView] = useUrlTab('board', ['board', 'todo', 'requests', 'routine', 'deleted']);
+  const [urlView, setUrlView] = useUrlTab('board', ['board', 'todo', 'requests', 'routine', 'deleted']);
+  const view = embedded ? embeddedView : urlView;
+  const setView = embedded ? () => {} : setUrlView;
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   // What the By Person view used to answer — "who is carrying what" — as a narrowing of the one
@@ -440,7 +446,7 @@ export default function TaskManagement() {
       )}
 
       <div className="work-browse" hidden={composerOpen}>
-      <header className="work-page-header">
+      {!embedded && <header className="work-page-header">
         <div>
           <div className="work-eyebrow">Workspace / Tasks</div>
           <h1 ref={browseHeading} tabIndex={-1}>{canViewTeamTasks ? 'Tasks' : 'My tasks'}</h1>
@@ -449,15 +455,21 @@ export default function TaskManagement() {
         {canCreate && isBoard && (
           <button ref={newTaskButton} type="button" onClick={(event) => openComposer({ defaultAssignee: employee?.id }, event.currentTarget)} className="work-button work-button-primary"><Plus size={16} /> New task</button>
         )}
-      </header>
-      <nav className="work-view-tabs" aria-label="Task views">
+      </header>}
+      {embedded && canCreate && isBoard && (
+        <div className="flex justify-end">
+          <button ref={newTaskButton} type="button" onClick={(event) => openComposer({ defaultAssignee: employee?.id }, event.currentTarget)}
+            className="work-button work-button-primary"><Plus size={16} /> Assign a task</button>
+        </div>
+      )}
+      {!embedded && <nav className="work-view-tabs" aria-label="Task views">
         {canViewTeamTasks && <ViewBtn active={isBoard} onClick={() => setView('board')} icon={ListChecks} label="Team tasks" />}
         <ViewBtn active={effectiveView === 'todo'} onClick={() => setView('todo')} icon={User} label="My tasks" badge={myTasksBadge} />
         {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests"
           badge={requestsBadge} />}
         <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" badge={routineBadge} />
         {canUseDeletedTasks && <ViewBtn active={effectiveView === 'deleted'} onClick={() => setView('deleted')} icon={Trash2} label="Deleted tasks" />}
-      </nav>
+      </nav>}
       {isBoard && <>
         <div className="work-overview" aria-label="Task summary">
           <Stat label="All tasks" value={stats.total} active={statusFilter === 'All'} onClick={() => { setStatusFilter('All'); pager.setPage(1); }} />

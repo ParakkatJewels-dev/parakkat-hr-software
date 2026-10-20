@@ -18,7 +18,7 @@ function section(title, lines) {
 }
 
 export function buildShareText(report) {
-  const header = [`*Parakkat Work — ${PERIOD_TITLES[report.period] ?? 'Period'} Report*`, periodLabel(report)];
+  const header = [`*Parakkat Work — ${PERIOD_TITLES[report.period] ?? 'Period'} Report*`, ...(report.subject ? [report.subject] : []), periodLabel(report)];
   const blocks = [];
 
   const worked = (report.worked_on ?? []).flatMap((item) => [

@@ -72,7 +72,7 @@ export function useCreateTask() {
   const progress = useRef({});
   const inFlight = useRef(null);
   const invalidate = () => {
-    for (const key of ['tasks', 'section-counts', 'task-checklist', 'notification-ref-statuses', 'task-attachments', 'task-attachment-counts']) {
+    for (const key of ['tasks', 'section-counts', 'task-checklist', 'notification-ref-statuses', 'task-attachments', 'task-attachment-counts', 'work']) {
       qc.invalidateQueries({ queryKey: [key] });
     }
   };
@@ -111,6 +111,7 @@ export function useUpdateTask() {
       qc.invalidateQueries({ queryKey: ['tasks'] }),
       qc.invalidateQueries({ queryKey: ['section-counts'] }),
       qc.invalidateQueries({ queryKey: ['notification-ref-statuses'] }),
+      qc.invalidateQueries({ queryKey: ['work'] }),
     ]),
   });
 }

@@ -7,7 +7,7 @@ import { btnClass } from '../ui/Btn';
 
 const FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export default function Drawer({ title, subtitle, onClose, children, footer, initialFocus }) {
+export default function Drawer({ title, subtitle, onClose, children, footer, initialFocus, wide = false }) {
   const panel = useRef(null);
   const restoreTo = useRef(null);
   const onCloseRef = useRef(onClose);
@@ -36,7 +36,7 @@ export default function Drawer({ title, subtitle, onClose, children, footer, ini
 
   return (
     <div className="ledger-drawer-backdrop" onClick={() => onCloseRef.current?.()}>
-      <aside ref={panel} className="ledger-drawer" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
+      <aside ref={panel} className={`ledger-drawer${wide ? ' ledger-drawer-wide' : ''}`} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}
         onClick={(event) => event.stopPropagation()}>
         <header className="ledger-drawer-head">
           <div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>

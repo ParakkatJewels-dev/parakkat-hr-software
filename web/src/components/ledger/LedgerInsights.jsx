@@ -1,7 +1,9 @@
 // Insights: the last six months at a glance. Loaded on demand (it brings the chart library), read-only.
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useLedgerInsights } from '../../data/workLedger';
+import { useAuth } from '../../auth/AuthContext';
+import { useEmployees } from '../../data/employees';
+import { useWorkInsights } from '../../data/work';
 import { formatMinutes } from '../../lib/ledger/documents.js';
 import { Message, dateLabel, money, useLedger } from './ui';
 
@@ -46,34 +48,43 @@ function SmallTable({ title, head, rows, empty = 'Nothing yet.' }) {
 }
 
 export default function LedgerInsights() {
-  const { owner } = useLedger();
-  const insights = useLedgerInsights(owner);
-  if (insights.isLoading) return <p className="ledger-quiet">Working out the last six months…</p>;
-  if (insights.error) return <Message error={insights.error} />;
+  const { canTeam, creative } = useLedger();
+  const { employee } = useAuth();
+  const employeesQuery = useEmployees();
+  const [person, setPerson] = useState('');
+  const people = useMemo(() => (employeesQuery.data ?? []).filter((e) => e.id !== employee?.id)
+    .sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '')), [employeesQuery.data, employee?.id]);
+  const insights = useWorkInsights(person || null);
+  const picker = canTeam && people.length > 0 && (
+    <div className="ledger-pickers"><label>Insights for <select value={person} onChange={(e) => setPerson(e.target.value)}>
+      <option value="">Me</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></label></div>);
+  if (insights.isLoading) return <>{picker}<p className="ledger-quiet">Working out the last six months…</p></>;
+  if (insights.error) return <>{picker}<Message error={insights.error} /></>;
   const data = insights.data;
   const months = data.months.map((m) => ({ ...m, on_time_rate: m.with_deadline ? Math.round((m.on_time / m.with_deadline) * 100) : null }));
   const withDeadline = months.reduce((sum, m) => sum + m.with_deadline, 0);
   const onTime = months.reduce((sum, m) => sum + m.on_time, 0);
   return (
     <div className="ledger-insights">
+      {picker}
       <p className="ledger-quiet">{dateLabel(data.from)} to {dateLabel(data.to)}. On time overall: {withDeadline ? `${Math.round((onTime / withDeadline) * 100)}% of ${withDeadline} tasks with a deadline` : 'no deadlines set'}
         {data.average_revisions != null ? ` · ${data.average_revisions} revisions per delivered task on average` : ''}.</p>
       <div className="ledger-insight-grid">
         <Chart title="Delivered per month" data={months} bars={[['delivered', 'Delivered', 'var(--accent)']]} />
         <Chart title="On time" note="Delivered on or before the deadline, among tasks that had one." data={months.map((m) => ({ ...m, on_time_rate: m.on_time_rate ?? 0 }))}
           bars={[['on_time_rate', 'On time', 'var(--tone-blue)']]} format={(v) => `${v}%`} />
-        <Chart title="Spend: estimate and actual" data={months} bars={[['est', 'Estimate', 'var(--surface-border-strong)'], ['actual', 'Actual', 'var(--accent)']]} format={money} />
+        {creative && <Chart title="Spend: estimate and actual" data={months} bars={[['est', 'Estimate', 'var(--surface-border-strong)'], ['actual', 'Actual', 'var(--accent)']]} format={money} />}
         <Chart title="Help given per month" note={`${formatMinutes(months.reduce((sum, m) => sum + m.support_minutes, 0))} in total.`} data={months}
           bars={[['support', 'Help entries', 'var(--tone-violet)']]} />
       </div>
       <div className="ledger-insight-grid">
-        <SmallTable title="Delivered by brand" head={['Brand', 'Delivered']} rows={data.by_brand.map((b) => [b.brand, b.delivered])} />
+        {creative && <SmallTable title="Delivered by brand" head={['Brand', 'Delivered']} rows={data.by_brand.map((b) => [b.brand, b.delivered])} />}
         <SmallTable title="Average turnaround by type" head={['Type', 'Days', 'Tasks']} rows={data.turnaround_by_type.map((t) => [t.type, t.days, t.count])} />
         <SmallTable title="Open tasks by status" head={['Status', 'Tasks']} rows={data.open_by_status.map((s) => [s.status, s.count])} empty="Nothing open." />
         <SmallTable title="How old open tasks are" head={['Age', 'Tasks']} rows={[['Up to a week', data.ageing.week], ['8–30 days', data.ageing.month],
           ['31–90 days', data.ageing.quarter], ['Over 90 days', data.ageing.older]]} />
-        <SmallTable title="Vendors used" head={['Vendor', 'Tasks', 'Spend', 'Last']} rows={data.vendors.map((v) => [v.vendor, v.tasks, v.spend ? money(v.spend) : '—', dateLabel(v.last)])}
-          empty="No vendors named on tasks in this period." />
+        {creative && <SmallTable title="Vendors used" head={['Vendor', 'Tasks', 'Spend', 'Last']} rows={data.vendors.map((v) => [v.vendor, v.tasks, v.spend ? money(v.spend) : '—', dateLabel(v.last)])}
+          empty="No vendors named on tasks in this period." />}
       </div>
     </div>
   );

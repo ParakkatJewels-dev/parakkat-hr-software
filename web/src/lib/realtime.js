@@ -15,7 +15,7 @@ const PAYROLL_ATTENDANCE_KEYS = [['payroll-attendance-summary'], ['payroll-runs'
 const PAYROLL_TRANSACTION_KEYS = [['payroll-adjustments'], ['payroll-advances'], ['payroll-advance-recoveries'], ['payroll-payments']];
 const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['routine-notes'], ['section-counts']];
 const TASK_KEYS = [['tasks'], ['deleted-tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],
-  ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist']];
+  ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist'], ['work']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
 // a staff transfer or a permission change can alter the queue without changing its request rows.
 const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['ticket-access'],
@@ -26,7 +26,12 @@ const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'],
 const TABLE_KEYS = {
   notifications: [['notifications'], ['section-counts']],
   tasks: [...TASK_KEYS, ['help-requests']],
-  task_assignees: [['tasks'], ['section-counts'], ['notification-ref-statuses']],
+  task_assignees: [['tasks'], ['section-counts'], ['notification-ref-statuses'], ['work']],
+  // The Work Ledger's parts of a task (0173): Home, the board and reports read them.
+  task_progress: [['work']],
+  task_deliverables: [['work']],
+  task_marks: [['work']],
+  task_help_log: [['work']],
   goals: [['goals'], ['section-counts']],
   // A help request is answered by somebody else, on another screen, and the person who raised it is
   // sitting looking at it. Without this the answer only arrives on the 5-minute safety poll.
@@ -34,8 +39,8 @@ const TABLE_KEYS = {
   help_requests: [['help-requests'], ['tasks'], ['section-counts'], ['notification-ref-statuses']],
   // A thread that needs a refresh is not a conversation, and a completion board a head is watching
   // should fill in as the floor ticks things off.
-  task_comments:    [['task-comments'], ['task-comment-counts']],
-  task_attachments: [['task-attachments'], ['task-attachment-counts']],
+  task_comments:    [['task-comments'], ['task-comment-counts'], ['work']],
+  task_attachments: [['task-attachments'], ['task-attachment-counts'], ['work']],
   routine_ticks: ROUTINE_KEYS,
   routine_items: ROUTINE_KEYS,
   routine_sets: ROUTINE_KEYS,

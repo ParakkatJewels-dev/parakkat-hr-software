@@ -3,8 +3,8 @@ import React, { createContext, useContext, useId } from 'react';
 import { humanDbError } from '../../lib/dbErrors';
 import { longDate, shortDate } from '../../lib/ledger/periods.js';
 
-/** Whose ledger is open, whether it can be changed, and how to open the shared drawers. */
-export const LedgerContext = createContext({ owner: null, readOnly: false, boot: null, today: '', open: () => {} });
+/** Who is signed in, today's date (India time), what they may do, and how to open the shared panels. */
+export const LedgerContext = createContext({ employeeId: null, today: '', canTeam: false, creative: false, open: () => {} });
 export const useLedger = () => useContext(LedgerContext);
 
 export const STATUSES = ['Brief', 'In Progress', 'Internal Review', 'Awaiting Approval', 'Revisions', 'Approved', 'Delivered', 'Blocked', 'Cancelled'];
@@ -92,5 +92,5 @@ export function chime() {
   } catch { /* no audio */ }
 }
 
-export const SHORTCUTS = [['N', 'New task'], ['H', 'Log help'], ['R', 'Reminder (opens the command bar with remind:)'], ['/ or Ctrl K', 'Search or quick add'],
-  ['1 – 7', 'Home, Campaigns, Reports, Insights, Ideas, Library, Settings'], ['Alt ← / →', 'Move the selected board card one column'], ['Esc', 'Close a drawer or the command bar']];
+export const SHORTCUTS = [['N', 'New task'], ['H', 'Log help'], ['R', 'Reminder (opens quick add with remind:)'], ['/', 'Search or quick add'],
+  ['1 – 9', 'Switch tabs, in the order shown'], ['Alt ← / →', 'Move the selected board card one lane'], ['Esc', 'Close a panel or quick add']];

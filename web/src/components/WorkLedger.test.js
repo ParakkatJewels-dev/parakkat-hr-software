@@ -6,29 +6,28 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { createServer } from 'vite';
 
-let server, AuthContext, WorkLedger, shortcutFor, ReportView, LedgerSettings, Drawer, CampaignDetail, LedgerContext, dueItems, TeamLedgers;
+let server, AuthContext, WorkLedger, shortcutFor, visibleTabs, ReportView, reportRows, LedgerSettings, Drawer, CampaignDetail, LedgerContext, dueItems, TeamLedgers, nextMoves;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
-  ({ default: WorkLedger, shortcutFor } = await server.ssrLoadModule('/src/components/WorkLedger.jsx'));
+  ({ default: WorkLedger, shortcutFor, visibleTabs } = await server.ssrLoadModule('/src/components/WorkLedger.jsx'));
+  ({ nextMoves } = await server.ssrLoadModule('/src/components/work/TaskWorkSections.jsx'));
   ({ CampaignDetail } = await server.ssrLoadModule('/src/components/ledger/LedgerCampaigns.jsx'));
   ({ LedgerContext } = await server.ssrLoadModule('/src/components/ledger/ui.jsx'));
   ({ dueItems } = await server.ssrLoadModule('/src/components/ledger/DueBanner.jsx'));
   ({ default: TeamLedgers } = await server.ssrLoadModule('/src/components/TeamLedgers.jsx'));
-  ({ ReportView } = await server.ssrLoadModule('/src/components/ledger/LedgerReports.jsx'));
+  ({ ReportView, reportRows } = await server.ssrLoadModule('/src/components/ledger/LedgerReports.jsx'));
   ({ default: LedgerSettings } = await server.ssrLoadModule('/src/components/ledger/LedgerSettings.jsx'));
   ({ default: Drawer } = await server.ssrLoadModule('/src/components/ledger/Drawer.jsx'));
 });
 after(async () => { await server?.close(); });
 
-const boot = {
-  owner: { user_id: 'viewer', name: 'Vivek Menon', designation: 'Creative Head' },
-  settings: { seeded_at: '2026-10-20T00:00:00Z', imported_at: null, import_locked_at: null, sound: false },
-  brands: [{ id: 'b1', name: 'Parakkat Jewels', label: 'Jewels', sort_order: 1, foundation: {} }],
-  templates: [], vendors: [], campaigns: [], people: [], used_types: [], used_brands: [],
-  counts: { tasks: 812, support: 140, progress: 960, subtasks: 300, deliverables: 120, campaigns: 18, ideas: 77, vendors: 12, templates: 4, key_dates: 20, reminders: 9 },
-};
-const auth = { user: { id: 'viewer', email: 'viewer@example.test' }, isSuperAdmin: false, employee: { id: 'e1' }, assignments: [], permissions: [{ permission: 'ledger.use', scope_type: 'self' }] };
+const boot = { owner: { user_id: 'viewer', name: 'Vivek Menon', designation: 'Creative Head' }, brands: [] };
+const employeeAuth = { user: { id: 'viewer', email: 'viewer@example.test' }, isSuperAdmin: false, employee: { id: 'e1', full_name: 'Vivek Menon' }, assignments: [],
+  permissions: ['task.read', 'task.update'].map((permission) => ({ permission, scope_type: 'self' })) };
+const managerAuth = { ...employeeAuth, permissions: [...employeeAuth.permissions,
+  ...['task.read', 'task.create', 'task.update', 'task.manage', 'task.request'].map((permission) => ({ permission, scope_type: 'department', scope_id: 'd1' }))] };
+let auth = employeeAuth;
 
 function render(element, { path = '/ledger', seed = {} } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, retryOnMount: false, staleTime: Infinity } } });
@@ -56,71 +55,91 @@ const report = {
   cost: { est: 12000, actual: 15500 }, ideas_captured: [{ id: 'i1', text: 'Reel on resort mornings' }],
 };
 
-const card = (fields) => ({ id: fields.title, brand: 'Parakkat Jewels', brand_label: 'Jewels', status: 'Brief', priority: 'Medium', deadline: null, pinned: false,
-  focused: false, tags: [], stale: false, subtasks_total: 0, subtasks_done: 0, depends_on_title: null, last_progress: null, ...fields });
+const card = (fields) => ({ id: fields.title, status: 'To Do', review_stage: null, lane: 'todo', step: 'To do', priority: 'Medium', due_date: null,
+  pinned: false, focused: false, tags: [], stale: false, subtasks_total: 0, subtasks_done: 0, comments_count: 0, attachments_count: 0,
+  depends_on_title: null, last_progress: null, can_edit: true, employee_id: 'e1', revision: 0, ...fields });
 const home = {
-  today: '2026-10-20',
+  today: '2026-10-20', employee_id: 'e1',
   pending: [
-    card({ title: 'Diwali hoarding v2', status: 'Internal Review', pinned: true, focused: true, subtasks_total: 2, subtasks_done: 1, deadline: '2026-10-18', type: 'Print' }),
-    ...['Reel one', 'Reel two', 'Reel three', 'Reel four'].map((title) => card({ title, status: 'In Progress', brand: 'Parakkat Munnar Resort', brand_label: 'Munnar' })),
-    card({ title: 'Showroom signage', status: 'Blocked', waiting_on: 'Landlord approval', stale: true }),
+    card({ title: 'Diwali hoarding v2', status: 'In Progress', review_stage: 'Internal Review', lane: 'review', step: 'In review', pinned: true, focused: true,
+      subtasks_total: 2, subtasks_done: 1, due_date: '2026-10-18', revision: 1 }),
+    ...['Reel one', 'Reel two', 'Reel three', 'Reel four'].map((title) => card({ title, status: 'In Progress', lane: 'progress', step: 'In progress' })),
+    card({ title: 'Showroom signage', status: 'Blocked', lane: 'blocked', step: 'Blocked', waiting_on: 'Landlord approval', stale: true }),
     card({ title: 'Monsoon banner', depends_on_title: 'Diwali hoarding v2', depends_on_done: false }),
+    card({ title: 'Someone else’s', can_edit: false, employee_id: 'e9', assignee_name: 'Priya Nair' }),
   ],
-  completed_today: [card({ title: 'Staff ID cards', status: 'Delivered', outcome: 'Handed over' })],
-  done_this_week: 4, worked_on_today: 2, support_today: 1, support_minutes_today: 20, overdue: 1, ideas_open: 3,
-  ideas: [{ id: 'i1', text: 'Reel on resort mornings', status: 'Open' }],
-  alerts: [{ kind: 'decision', campaign_id: 'c2', title: 'Monsoon stays', text: 'Approve the weekday offer?' }],
-  campaigns: [{ id: 'c1', name: 'Diwali 2026', brand_label: 'Jewels', stage: 'Production', done: 3, total: 7, in_review: 1, blocked: 0, spend: 12000, launch_date: '2026-11-01', days_to_launch: 12 }],
-  key_dates: [{ id: 'k1', name: 'Christmas', date: '2026-12-25', days_away: 66, has_campaign: false }],
-  schedule: [{ id: 'r1', text: 'Call the printer', due_at: '2026-10-20T11:30', repeat: null, overdue: false }],
+  completed_today: [card({ title: 'Staff ID cards', status: 'Done', lane: 'closed', step: 'Done', outcome: 'Handed over' })],
+  done_this_week: 4, worked_on_today: 2, support_today: 1, support_minutes_today: 20, overdue: 1,
+  schedule: [{ id: 'r1', text: 'Call the printer', due_at: '2026-10-20T11:30', repeat: null, overdue: false, task_id: 't1', task_title: 'Diwali hoarding v2' }],
   google: { connected: false, status: 'disconnected' },
 };
-const seeded = { '["work-ledger","bootstrap","me"]': boot, '["work-ledger","home","me"]': home };
+const seeded = { '["work","home"]': home };
 
-test('the ledger opens on Home with seven tabs, the figures and the board', () => {
+test('the Ledger opens on Home with the app header, figures, schedule and my board', () => {
+  auth = employeeAuth;
   const html = render(React.createElement(WorkLedger), { seed: seeded });
   assert.match(html, /class="page-shell[^"]*ledger-page"/, 'the app page shell and header card');
   assert.match(html, /<h1[^>]*>.*Work Ledger<\/h1>/);
-  assert.match(html, /Vivek Menon · Creative Head/);
   assert.match(html, /New task<\/button>/);
+  assert.match(html, /Log help<\/button>/);
   const tabs = [...html.matchAll(/role="tab"[^>]*>(.*?)<\/button>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').trim());
-  assert.deepEqual(tabs, ['Home', 'Campaigns', 'Reports', 'Insights', 'Ideas', 'Library', 'Settings']);
-  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*border-brand text-brand-ink[^>]*>.*?Home<\/button>/);
-  assert.match(html, /1 open task is past the deadline/);
-  assert.match(html, /<dt>Pending<\/dt><dd>7<\/dd>/);
+  assert.deepEqual(tabs, ['Home', 'Routines', 'Reports', 'Insights', 'Deleted', 'Settings'], 'an employee gets no Team or Requests');
+  assert.match(html, /1 open task is past the due date/);
+  assert.match(html, /<dt>Open<\/dt><dd>8<\/dd>/);
   assert.match(html, /<dt>Help today<\/dt><dd>1<small> · 20m<\/small><\/dd>/);
   for (const lane of ['To do', 'In progress', 'In review', 'Approved', 'Blocked']) assert.match(html, new RegExp(`class="ledger-lane-head">${lane} `), lane);
   assert.match(html, /4 in progress — more than 3 at once/, 'WIP warning above three');
   assert.match(html, /Overdue · /);
-  assert.match(html, /aria-pressed="true" aria-label="Unpin"/, "pinned cards offer Unpin");
+  assert.match(html, /Round 2/, 'a task back from changes shows its round');
+  assert.match(html, /aria-pressed="true" aria-label="Unpin"/, 'pinned cards offer Unpin');
   assert.match(html, />Stale</);
   assert.match(html, /Diwali hoarding v2<\/span>/, 'depends-on chip names the task');
-  assert.match(html, /Decision needed<\/span>/);
   assert.match(html, /Call the printer/);
   assert.match(html, /Google Calendar is not connected/);
-  assert.match(html, /Christmas/);
   assert.match(html, /draggable="true"/);
   assert.match(html, /Move Reel one to/);
+  assert.doesNotMatch(html, /Move Someone else’s to/, 'no moves on work you cannot change');
+  assert.match(html, /Priya Nair/, 'work you are helping on names its owner');
 });
 
-test('a team member’s ledger is read-only: no settings, no adding, no dragging, no schedule', () => {
-  const html = render(React.createElement(WorkLedger, { owner: 'u-2', onBack() {} }), { path: '/team-ledgers/u-2',
-    seed: { '["work-ledger","bootstrap","u-2"]': boot, '["work-ledger","home","u-2"]': { ...home, schedule: null, google: null } } });
-  assert.match(html, /Vivek Menon’s ledger/);
-  assert.match(html, /Read only · Creative Head/);
-  assert.doesNotMatch(html, />Settings</);
-  assert.doesNotMatch(html, /New task|Add a task|Log help/);
-  assert.doesNotMatch(html, /draggable="true"/);
-  assert.doesNotMatch(html, /Schedule/);
-  assert.match(html, /Only its owner can change it/);
-  assert.match(html, /Team ledgers/);
+test('a manager also gets Team and Requests, mounted from Task Management', () => {
+  assert.deepEqual(visibleTabs({ canTeam: true, canRequests: true, canDeleted: true }).map((t) => t.id),
+    ['home', 'team', 'requests', 'routines', 'reports', 'insights', 'deleted', 'settings']);
+  assert.deepEqual(visibleTabs({ canTeam: false, canRequests: false, canDeleted: false }).map((t) => t.id),
+    ['home', 'routines', 'reports', 'insights', 'settings']);
+  auth = managerAuth;
+  const html = render(React.createElement(WorkLedger), { path: '/ledger/team', seed: { ...seeded, '["tasks"]': [] } });
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>.*?Team<\/button>/);
+  assert.match(html, /Assign a task<\/button>/, 'Task Management’s own composer button');
+  assert.doesNotMatch(html, /Workspace \/ Tasks/, 'without Task Management’s own header');
+  auth = employeeAuth;
 });
 
-test('the reports tab keeps its period picker and share draft', () => {
+test('the reports tab keeps its period picker, share draft and CSV', () => {
   const html = render(React.createElement(WorkLedger), { path: '/ledger/reports', seed: seeded });
   for (const label of ['Today', 'Pick a week', 'Pick a month', 'Overall to date', 'Custom period']) assert.ok(html.includes(label), label);
   assert.match(html, /role="radio" aria-checked="true"[^>]*>Today/);
   assert.match(html, /Prepare report to share/);
+  assert.match(html, /CSV<\/button>/);
+});
+
+test('next moves follow the step, and only an approver may approve', () => {
+  const labels = (task, approver) => nextMoves(task, { approver }).map((m) => m.label);
+  assert.deepEqual(labels({ status: 'To Do', lane: 'todo' }, false), ['Start', 'Mark done']);
+  assert.deepEqual(labels({ status: 'In Progress', lane: 'progress' }, false), ['Send for review', 'Send for approval', 'Blocked', 'Mark done']);
+  assert.deepEqual(labels({ status: 'In Progress', lane: 'review', review_stage: 'Awaiting Approval' }, false), ['Mark done']);
+  assert.deepEqual(labels({ status: 'In Progress', lane: 'review', review_stage: 'Awaiting Approval' }, true), ['Approve', 'Changes needed', 'Mark done']);
+  assert.deepEqual(labels({ status: 'In Progress', lane: 'review', review_stage: 'Revisions' }, false), ['Send for review again', 'Send for approval', 'Mark done']);
+  assert.deepEqual(labels({ status: 'Done', lane: 'closed' }, true), ['Reopen']);
+  assert.deepEqual(labels({ status: 'Cancelled', lane: 'closed' }, true), []);
+});
+
+test('the report CSV lists notes, deliveries and help', () => {
+  const rows = reportRows({ worked_on: [{ title: 'Reel', status: 'In progress', notes: [{ date: '2026-10-20', note: 'Cut', minutes: 30 }] }, { title: 'Quiet', status: 'To do', event: null }],
+    delivered: [{ title: 'Menu', delivered_on: '2026-10-20', outcome: 'Printed' }], support: [{ title: 'Reviewed', date: '2026-10-20', type: 'Review / Feedback', minutes: 20, for_whom: 'Priya' }] });
+  assert.deepEqual(rows.map((r) => r[0]), ['Worked on', 'Worked on', 'Delivered', 'Help given']);
+  assert.deepEqual(rows[0], ['Worked on', '2026-10-20', 'Reel', 'In progress', 'Cut', 30, '', '']);
+  assert.equal(rows[3][7], 'Priya');
 });
 
 test('shortcuts: keys map to actions, and nothing fires while typing', () => {
@@ -131,7 +150,8 @@ test('shortcuts: keys map to actions, and nothing fires while typing', () => {
   assert.equal(shortcutFor(key('/')), 'command');
   assert.equal(shortcutFor(key('k', { ctrlKey: true })), 'command');
   assert.equal(shortcutFor(key('3')), 'tab:2');
-  assert.equal(shortcutFor(key('8')), null);
+  assert.equal(shortcutFor(key('9')), 'tab:8');
+  assert.equal(shortcutFor(key('0')), null);
   assert.equal(shortcutFor(key('n', { metaKey: true })), null);
   assert.equal(shortcutFor(key('n', { target: { tagName: 'INPUT' } })), null);
   assert.equal(shortcutFor(key('/', { target: { tagName: 'TEXTAREA' } })), null);
@@ -173,24 +193,12 @@ test('team ledgers lists the people a manager may read, by department', () => {
   assert.match(html, /never their reminders or calendar/);
 });
 
-test('the settings tab shows Google Calendar, sound, counts, export, import, the compare check and shortcuts', () => {
+test('the settings tab shows Google Calendar, sound, what Home points out and shortcuts', () => {
   const html = render(React.createElement(WorkLedger), { path: '/ledger/settings', seed: { ...seeded, '["work-ledger","google-status"]': { connected: false, status: 'disconnected' } } });
   assert.match(html, /Connect Google Calendar/);
   assert.match(html, /Play a short chime/);
+  assert.match(html, /What Home points out/);
   assert.match(html, /Keyboard shortcuts/);
-  assert.match(html, /How alerts work/);
-  assert.match(html, /<strong>812<\/strong> tasks/);
-  assert.match(html, /<strong>140<\/strong> help entries/);
-  assert.match(html, /Export everything as CSV/);
-  assert.match(html, /File → Download → Microsoft Excel/);
-  assert.match(html, /accept="\.xlsx,\.csv"/);
-  assert.match(html, /Compare with the old app/);
-});
-
-test('a locked import says so and offers to unlock', () => {
-  const html = render(React.createElement(LedgerSettings, { boot: { ...boot, settings: { ...boot.settings, import_locked_at: '2026-10-21T00:00:00Z' } } }));
-  assert.match(html, /Import is locked for this ledger/);
-  assert.doesNotMatch(html, /type="file"/);
 });
 
 test('the report view lists every section in reading order with brands, events and dated notes', () => {

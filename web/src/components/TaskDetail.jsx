@@ -39,6 +39,7 @@ import { usePermissions } from '../auth/usePermissions';
 import { messageLinkParts } from '../lib/messageLinks';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useReadTaskAssignment } from '../data/notifications';
+import TaskWorkSections from './work/TaskWorkSections';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
@@ -48,7 +49,7 @@ const readableSize = (bytes) =>
   : bytes < 1048576 ? `${Math.round(bytes / 1024)} KB`
   : `${(bytes / 1048576).toFixed(1)} MB`;
 
-export default function TaskDetail({ task, open }) {
+export default function TaskDetail({ task, open, onRemind }) {
   const { user, employee } = useAuth();
   const { canAny } = usePermissions();
   useReadTaskAssignment(task.id, open);
@@ -74,6 +75,7 @@ export default function TaskDetail({ task, open }) {
       {(checklist.error || comments.error || attachments.error) && <p role="alert" className="text-xs text-rose-600 dark:text-rose-400">
         {humanDbError(checklist.error || comments.error || attachments.error)}
       </p>}
+      <TaskWorkSections taskId={task.id} open={open} onRemind={onRemind} />
       <Checklist
         task={task}
         rows={checklist.data ?? []}

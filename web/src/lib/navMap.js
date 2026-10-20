@@ -32,8 +32,8 @@ export const ESS_NAV = [
       { id: 'messages', label: 'Messages', perm: null, needsEmployee: true },
       { id: 'attendance', label: 'My Attendance', perm: 'attendance.read' },
       { id: 'performance', label: 'My Goals', perm: 'goal.read' },
-      // A personal ledger (0169). Retired 2026-10-20: its features are moving into Task Management.
-      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use', retired: true },
+      // The one place for work (0173): runs on Task Management's records.
+      { id: 'ledger', label: 'Work Ledger', perm: 'task.read' },
     ],
   },
   {
@@ -81,8 +81,9 @@ export const OVERSIGHT_NAV = [
     tabs: [
       { id: 'tasks', label: 'Tasks', perm: 'task.read' },
       { id: 'performance', label: 'Goals', perm: 'goal.read' },
-      // Retired 2026-10-20 with the personal ledger: Task Management is getting these features.
-      { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use', retired: true },
+      // The one place for work (0173): runs on Task Management's records. Team ledgers is retired:
+      // managers read their people's work from the Ledger's Team tab and reports.
+      { id: 'ledger', label: 'Work Ledger', perm: 'task.read' },
       { id: 'team-ledgers', label: 'Team ledgers', perm: 'ledger.read_team', retired: true },
     ],
   },
