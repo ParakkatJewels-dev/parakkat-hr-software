@@ -62,11 +62,6 @@ export function brandRank(boot) {
   return (name) => order.get(String(name ?? '').toLowerCase()) ?? 1000;
 }
 
-export function ReadOnlyNote() {
-  const { readOnly, boot } = useLedger();
-  if (!readOnly) return null;
-  return <p className="ledger-note" role="note">You are reading {boot?.owner?.name ? `${boot.owner.name}’s` : 'this'} ledger. Only its owner can change it.</p>;
-}
 
 /** 'YYYY-MM-DDTHH:MM' in India time, `minutes` from now — the format reminder RPCs take. */
 export function istStamp(minutes = 0, now = Date.now()) {

@@ -5,6 +5,7 @@ import { Search } from 'lucide-react';
 import { newId, searchLedger, syncGoogleCalendar, useLedgerAction } from '../../data/workLedger';
 import { describeCapture, parseQuickCapture } from '../../lib/ledger/quickCapture.js';
 import { BrandMark, StatusPill, dateLabel, errorText, useLedger } from './ui';
+import { btnClass } from '../ui/Btn';
 
 const EXAMPLES = ['task: Diwali hoarding @jewels !high by fri', 'help: reviewed reel cuts for Priya 20m', 'idea: monsoon stay offer @munnar #offers',
   'remind: call the printer tomorrow 10am'];
@@ -100,8 +101,8 @@ export default function CommandBar({ initial = '', onClose }) {
               <p className="ledger-capture-title">{parsed.title ?? parsed.text ?? ''}{!call.ready && <span className="ledger-quiet">
                 {parsed.kind === 'remind' && !parsed.dueAt ? 'Add a time, e.g. tomorrow 10am' : 'Keep typing…'}</span>}</p>
               <div className="ledger-actions">
-                <button type="button" className="ledger-button ledger-button-primary" disabled={!call.ready || act.isPending} onClick={submit}>Save · Enter</button>
-                {parsed.kind !== 'idea' && <button type="button" className="ledger-button" onClick={fullForm}>Open the full form</button>}
+                <button type="button" className={btnClass('primary')} disabled={!call.ready || act.isPending} onClick={submit}>Save · Enter</button>
+                {parsed.kind !== 'idea' && <button type="button" className={btnClass('ghost')} onClick={fullForm}>Open the full form</button>}
               </div>
             </div>)}
           {act.error && <p className="ledger-alert" role="alert">{errorText(act.error)}</p>}

@@ -5,6 +5,7 @@ import { AlertTriangle, CheckSquare, Link2, Pencil, Pin, Star } from 'lucide-rea
 import { useLedgerAction } from '../../data/workLedger';
 import { DonePrompt, ProgressForm, TaskEditor } from './TaskForms';
 import { BrandMark, OPEN_STATUSES, PRIORITIES, StatusPill, brandRank, dateLabel, errorText, useLedger } from './ui';
+import { btnClass } from '../ui/Btn';
 
 export const LANES = [
   { id: 'todo', label: 'To do', statuses: ['Brief'], drop: 'Brief' },
@@ -75,9 +76,9 @@ export function TaskCard({ task, pending, onMove, draggable = true }) {
           {task.pinned && <Pin size={13} aria-label="Pinned" />}
           {task.focused && <Star size={13} aria-label="Today’s focus" fill="currentColor" />}
         </span> : <span className="ledger-card-marks">
-          <button type="button" className="ledger-icon-button ledger-icon-small" aria-pressed={task.focused} aria-label={task.focused ? 'Remove from today’s focus' : 'Add to today’s focus'}
+          <button type="button" className={btnClass('subtle', 'sm', true)} aria-pressed={task.focused} aria-label={task.focused ? 'Remove from today’s focus' : 'Add to today’s focus'}
             onClick={() => toggle('ledger_set_focus', { _id: task.id, _on: !task.focused })}><Star size={14} fill={task.focused ? 'currentColor' : 'none'} /></button>
-          <button type="button" className="ledger-icon-button ledger-icon-small" aria-pressed={task.pinned} aria-label={task.pinned ? 'Unpin' : 'Pin to the top'}
+          <button type="button" className={btnClass('subtle', 'sm', true)} aria-pressed={task.pinned} aria-label={task.pinned ? 'Unpin' : 'Pin to the top'}
             onClick={() => toggle('ledger_set_pin', { _id: task.id, _pinned: !task.pinned })}><Pin size={14} fill={task.pinned ? 'currentColor' : 'none'} /></button>
         </span>}
       </header>
@@ -90,8 +91,8 @@ export function TaskCard({ task, pending, onMove, draggable = true }) {
       {mode === 'cancel' && (
         <div className="ledger-inline-form" role="group" aria-label="Cancel task">
           <span>Cancel this task?</span>
-          <button type="button" className="ledger-button" onClick={() => { toggle('ledger_cancel_task', { _id: task.id }); setMode(null); }}>Yes, cancel it</button>
-          <button type="button" className="ledger-button" onClick={() => setMode(null)}>Keep it</button>
+          <button type="button" className={btnClass('ghost')} onClick={() => { toggle('ledger_cancel_task', { _id: task.id }); setMode(null); }}>Yes, cancel it</button>
+          <button type="button" className={btnClass('ghost')} onClick={() => setMode(null)}>Keep it</button>
         </div>
       )}
       {mode === 'edit' && <TaskEditor taskId={task.id} pending={pending} onClose={() => setMode(null)} />}
@@ -206,21 +207,21 @@ export function TaskList({ pending, initialFilters = {} }) {
         <select aria-label="Campaign" value={filters.campaign} onChange={set('campaign')}><option value="">All campaigns</option>{options.campaigns.map((v) => <option key={v}>{v}</option>)}</select>
         <select aria-label="Status" value={filters.status} onChange={set('status')}><option value="">All statuses</option>{OPEN_STATUSES.map((v) => <option key={v}>{v}</option>)}</select>
         {filters.overdue && <button type="button" className="ledger-chip" aria-pressed="true" onClick={() => setFilters({ ...filters, overdue: false })}>Overdue only ×</button>}
-        {!readOnly && <button type="button" className="ledger-button" aria-pressed={selecting} onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
+        {!readOnly && <button type="button" className={btnClass('ghost')} aria-pressed={selecting} onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>
           {selecting ? 'Done selecting' : 'Select'}</button>}
       </div>
       {selecting && (
         <div className="ledger-bulk" role="group" aria-label="Change selected tasks">
           <span>{selected.size} selected</span>
           <button type="button" className="ledger-link" onClick={() => setSelected(new Set(shown.map((t) => t.id)))}>Select all shown</button>
-          <button type="button" className="ledger-button ledger-button-primary" disabled={!selected.size || act.isPending}
+          <button type="button" className={btnClass('primary')} disabled={!selected.size || act.isPending}
             onClick={() => runBulk('ledger_bulk_mark_done', { _ids: [...selected] }, 'Marked done')}>Mark done</button>
           <select aria-label="New status" value={bulk.status} onChange={(e) => setBulk({ ...bulk, status: e.target.value })}><option value="">Status…</option>
             {OPEN_STATUSES.map((v) => <option key={v}>{v}</option>)}</select>
           <select aria-label="New priority" value={bulk.priority} onChange={(e) => setBulk({ ...bulk, priority: e.target.value })}><option value="">Priority…</option>
             {PRIORITIES.map((v) => <option key={v}>{v}</option>)}</select>
           <input type="date" aria-label="New deadline" value={bulk.deadline} onChange={(e) => setBulk({ ...bulk, deadline: e.target.value })} />
-          <button type="button" className="ledger-button" disabled={!selected.size || !Object.keys(updates).length || act.isPending}
+          <button type="button" className={btnClass('ghost')} disabled={!selected.size || !Object.keys(updates).length || act.isPending}
             onClick={() => runBulk('ledger_bulk_update', { _ids: [...selected], _updates: updates }, 'Updated')}>Apply</button>
         </div>
       )}

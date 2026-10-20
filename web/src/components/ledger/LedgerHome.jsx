@@ -6,7 +6,8 @@ import { parseQuickCapture } from '../../lib/ledger/quickCapture.js';
 import { addDays } from '../../lib/ledger/periods.js';
 import { formatMinutes } from '../../lib/ledger/documents.js';
 import { TaskBoard, TaskList } from './Board';
-import { BrandMark, Message, ReadOnlyNote, dateLabel, errorText, istStamp, money, timeOf, useLedger } from './ui';
+import { BrandMark, Message, dateLabel, errorText, istStamp, money, timeOf, useLedger } from './ui';
+import { btnClass } from '../ui/Btn';
 
 const VIEW_KEY = 'parakkat.ledger.view';
 function readView() { try { return globalThis.localStorage?.getItem(VIEW_KEY) === 'list' ? 'list' : 'board'; } catch { return 'board'; } }
@@ -97,7 +98,7 @@ function Schedule({ home }) {
                       <button type="button" className="ledger-text-button" onClick={() => open('reminder', item.reminder.task_id
                         ? { followUp: true, task_id: item.reminder.task_id, task_title: item.reminder.task_title, text: `Follow up: ${item.text}` }
                         : { text: `Follow up: ${item.text}` })}>Follow-up</button>
-                      <button type="button" className="ledger-icon-button ledger-icon-small" aria-label={`Delete reminder ${item.text}`}
+                      <button type="button" className={btnClass('subtle', 'sm', true)} aria-label={`Delete reminder ${item.text}`}
                         onClick={() => run('ledger_delete_reminder', { _id: item.id })}><Trash2 size={13} /></button>
                     </span>)}
                 </li>
@@ -158,7 +159,7 @@ function Ideas({ ideas }) {
       {!readOnly && (
         <form className="ledger-inline-form" onSubmit={add}>
           <input className="ledger-input" aria-label="New idea" placeholder="An idea… use @jewels and #tags" value={text} maxLength={4000} onChange={(e) => setText(e.target.value)} />
-          <button type="submit" className="ledger-button" disabled={!text.trim() || act.isPending}><Plus size={14} /> Add</button>
+          <button type="submit" className={btnClass('ghost')} disabled={!text.trim() || act.isPending}><Plus size={14} /> Add</button>
         </form>)}
       {act.error && <p className="ledger-alert-inline" role="alert">{errorText(act.error)}</p>}
       {ideas.length ? <ul className="ledger-plain-list">{ideas.map((idea) => (
@@ -180,12 +181,11 @@ export default function LedgerHome() {
   const data = home.data;
   return (
     <div className="ledger-home">
-      <ReadOnlyNote />
       {!readOnly && (
         <div className="ledger-big-buttons" aria-label="Quick actions">
-          <button type="button" className="ledger-button ledger-button-primary" onClick={() => open('task')}>Add a task</button>
-          <button type="button" className="ledger-button" onClick={() => open('help')}>Log help</button>
-          <button type="button" className="ledger-button" onClick={() => open('tab', 'reports')}>Today’s report</button>
+          <button type="button" className={btnClass('primary')} onClick={() => open('task')}>Add a task</button>
+          <button type="button" className={btnClass('ghost')} onClick={() => open('help')}>Log help</button>
+          <button type="button" className={btnClass('ghost')} onClick={() => open('tab', 'reports')}>Today’s report</button>
         </div>)}
       {data.overdue > 0 && (
         <p className="ledger-overdue" role="alert"><AlertTriangle size={15} /> {data.overdue} open task{data.overdue === 1 ? ' is' : 's are'} past the deadline.
@@ -208,7 +208,6 @@ export default function LedgerHome() {
             {[['board', 'Board'], ['list', 'List']].map(([id, label]) => (
               <button key={id} type="button" role="radio" aria-checked={view === id} className="ledger-segment" onClick={() => choose(id)}>{label}</button>))}
           </div>
-          {!readOnly && <button type="button" className="ledger-button ledger-button-primary" onClick={() => open('task')}><Plus size={14} /> New task</button>}
         </div>
         {view === 'board' ? <TaskBoard pending={data.pending} />
           : <TaskList key={overdue.round} pending={data.pending} initialFilters={{ overdue: overdue.on }} />}

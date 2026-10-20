@@ -5,9 +5,9 @@ import { useLedgerInsights } from '../../data/workLedger';
 import { formatMinutes } from '../../lib/ledger/documents.js';
 import { Message, dateLabel, money, useLedger } from './ui';
 
-const axis = { stroke: 'var(--ledger-ink-soft)', fontSize: 12, tickLine: false };
-const tooltip = { contentStyle: { background: 'var(--ledger-paper)', border: '1px solid var(--ledger-rule)', borderRadius: 3, fontSize: 13 },
-  cursor: { fill: 'var(--ledger-accent-wash)' } };
+const axis = { stroke: 'var(--surface-text-soft)', fontSize: 12, tickLine: false };
+const tooltip = { contentStyle: { background: 'var(--surface-elevated)', border: '1px solid var(--surface-border)', borderRadius: 4, fontSize: 13 },
+  cursor: { fill: 'var(--accent-soft)' } };
 
 function Chart({ title, note, data, bars, format }) {
   return (
@@ -17,7 +17,7 @@ function Chart({ title, note, data, bars, format }) {
       <div className="ledger-chart">
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke="var(--ledger-rule)" />
+            <CartesianGrid vertical={false} stroke="var(--surface-border)" />
             <XAxis dataKey="label" {...axis} />
             <YAxis allowDecimals={false} {...axis} tickFormatter={format} width={format ? 64 : 40} />
             <Tooltip {...tooltip} formatter={format ? (value) => format(value) : undefined} />
@@ -59,12 +59,12 @@ export default function LedgerInsights() {
       <p className="ledger-quiet">{dateLabel(data.from)} to {dateLabel(data.to)}. On time overall: {withDeadline ? `${Math.round((onTime / withDeadline) * 100)}% of ${withDeadline} tasks with a deadline` : 'no deadlines set'}
         {data.average_revisions != null ? ` · ${data.average_revisions} revisions per delivered task on average` : ''}.</p>
       <div className="ledger-insight-grid">
-        <Chart title="Delivered per month" data={months} bars={[['delivered', 'Delivered', 'var(--ledger-accent)']]} />
+        <Chart title="Delivered per month" data={months} bars={[['delivered', 'Delivered', 'var(--accent)']]} />
         <Chart title="On time" note="Delivered on or before the deadline, among tasks that had one." data={months.map((m) => ({ ...m, on_time_rate: m.on_time_rate ?? 0 }))}
-          bars={[['on_time_rate', 'On time', 'var(--ledger-good)']]} format={(v) => `${v}%`} />
-        <Chart title="Spend: estimate and actual" data={months} bars={[['est', 'Estimate', 'var(--ledger-rule)'], ['actual', 'Actual', 'var(--ledger-accent)']]} format={money} />
+          bars={[['on_time_rate', 'On time', 'var(--tone-blue)']]} format={(v) => `${v}%`} />
+        <Chart title="Spend: estimate and actual" data={months} bars={[['est', 'Estimate', 'var(--surface-border-strong)'], ['actual', 'Actual', 'var(--accent)']]} format={money} />
         <Chart title="Help given per month" note={`${formatMinutes(months.reduce((sum, m) => sum + m.support_minutes, 0))} in total.`} data={months}
-          bars={[['support', 'Help entries', 'var(--ledger-ink-soft)']]} />
+          bars={[['support', 'Help entries', 'var(--tone-violet)']]} />
       </div>
       <div className="ledger-insight-grid">
         <SmallTable title="Delivered by brand" head={['Brand', 'Delivered']} rows={data.by_brand.map((b) => [b.brand, b.delivered])} />

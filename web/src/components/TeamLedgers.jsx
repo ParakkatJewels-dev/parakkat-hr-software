@@ -3,7 +3,9 @@
 // calendars. /team-ledgers lists them; /team-ledgers/<user id> opens one.
 import React, { lazy, Suspense } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Users } from 'lucide-react';
 import { useLedgerTeam } from '../data/workLedger';
+import { SkeletonRows } from './ui/Skeleton';
 import { humanDbError } from '../lib/dbErrors';
 import './ledger/ledger.css';
 
@@ -25,35 +27,45 @@ export default function TeamLedgers() {
   const people = team.data ?? [];
   const departments = [...new Set(people.map((person) => person.department ?? 'No department'))];
   return (
-    <div className="ledger-page">
-      <header className="ledger-masthead">
-        <div>
-          <p className="ledger-kicker">Work Ledger</p>
-          <h1>Team ledgers</h1>
-          <p className="ledger-standfirst">Read the ledgers of the people you manage. You can see their work and reports, never their reminders or calendar, and you cannot change anything.</p>
+    <div className="page-shell space-y-5 animate-fade-in ledger-page">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
+            <Users size={20} className="text-brand-ink" /> Team ledgers
+          </h1>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+            Read the work ledgers of the people you manage. You see their work and reports, never their reminders or calendar, and you cannot change anything.
+          </p>
         </div>
-      </header>
+      </div>
       {selected && <p className="ledger-alert" role="alert">That ledger link is not valid.</p>}
-      {team.isLoading && <p className="ledger-quiet">Finding your team…</p>}
+      {team.isLoading && <SkeletonRows rows={4} label="Finding your team" />}
       {team.error && <p className="ledger-alert" role="alert">{humanDbError(team.error) || 'Your team could not be loaded.'}</p>}
       {!team.isLoading && !team.error && !people.length && (
-        <p className="ledger-empty">No ledgers to show. This lists people whose line manager you are, in your department, branch, zone or company.</p>
+        <div className="premium-card p-8 text-center text-xs text-neutral-500">
+          No ledgers to show. This lists people whose line manager you are, in your department, branch, zone or company.
+        </div>
       )}
-      {departments.map((department) => (
-        <section key={department} className="ledger-section" aria-label={department}>
-          <h3>{department} <span className="ledger-count">{people.filter((p) => (p.department ?? 'No department') === department).length}</span></h3>
-          <ul className="ledger-rows-list">
-            {people.filter((p) => (p.department ?? 'No department') === department).map((person) => (
-              <li key={person.user_id}>
-                <button type="button" className="ledger-idea-row" onClick={() => navigate(`/team-ledgers/${person.user_id}`)}>
-                  <span className="ledger-item-title">{person.name}</span>
-                  <span className="ledger-quiet">{[person.designation, person.code].filter(Boolean).join(' · ')}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      {departments.map((department) => {
+        const members = people.filter((p) => (p.department ?? 'No department') === department);
+        return (
+          <section key={department} className="premium-card" aria-label={department}>
+            <h3 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2 mb-2">{department}
+              <span className="text-xs font-semibold text-neutral-500">{members.length}</span></h3>
+            <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
+              {members.map((person) => (
+                <li key={person.user_id}>
+                  <button type="button" className="w-full flex flex-wrap items-baseline justify-between gap-2 py-2.5 text-left cursor-pointer group"
+                    onClick={() => navigate(`/team-ledgers/${person.user_id}`)}>
+                    <span className="text-sm font-bold text-neutral-900 dark:text-white group-hover:text-brand-ink">{person.name}</span>
+                    <span className="text-xs text-neutral-500">{[person.designation, person.code].filter(Boolean).join(' · ')}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+        );
+      })}
     </div>
   );
 }

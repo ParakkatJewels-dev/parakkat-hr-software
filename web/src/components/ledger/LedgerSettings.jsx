@@ -14,6 +14,7 @@ import { buildShareText } from '../../lib/ledger/shareText.js';
 import { diffReports } from '../../lib/ledger/compare.js';
 import { addDays, periodArgument } from '../../lib/ledger/periods.js';
 import { SHORTCUTS, chime, dateLabel } from './ui';
+import { btnClass } from '../ui/Btn';
 
 const COUNT_LABELS = [['tasks', 'tasks'], ['support', 'help entries'], ['progress', 'progress notes'], ['subtasks', 'subtasks'],
   ['deliverables', 'deliverables'], ['campaigns', 'campaigns'], ['ideas', 'ideas'], ['vendors', 'vendors'], ['templates', 'templates'],
@@ -84,13 +85,13 @@ function GoogleSection() {
         <p className="ledger-alert">Google stopped accepting the connection (the password may have changed, or access was removed). Reconnect to keep reminders in your calendar.</p>
       ) : <p className="ledger-quiet">Not connected. Reminders still work inside the ledger.</p>}
       <div className="ledger-actions">
-        {!google.connected && <button type="button" className="ledger-button ledger-button-primary" disabled={Boolean(busy)}
+        {!google.connected && <button type="button" className={btnClass('primary')} disabled={Boolean(busy)}
           onClick={() => run('connect', connectGoogleCalendar)}>{google.status === 'needs_reconnect' ? 'Reconnect Google Calendar' : 'Connect Google Calendar'}</button>}
         {google.connected && <>
-          <button type="button" className="ledger-button" disabled={Boolean(busy)} onClick={() => run('sync', syncGoogleCalendar,
+          <button type="button" className={btnClass('ghost')} disabled={Boolean(busy)} onClick={() => run('sync', syncGoogleCalendar,
             (outcome) => (outcome?.failed ? `${outcome.failed} change${outcome.failed === 1 ? '' : 's'} could not reach Google; they will be retried.`
               : `Calendar is up to date${outcome?.synced ? ` (${outcome.synced} change${outcome.synced === 1 ? '' : 's'} sent)` : ''}.`))}>Sync now</button>
-          <button type="button" className="ledger-button" disabled={Boolean(busy)} onClick={() => {
+          <button type="button" className={btnClass('ghost')} disabled={Boolean(busy)} onClick={() => {
             if (window.confirm('Disconnect Google Calendar? Events already created stay in your calendar.')) run('disconnect', disconnectGoogleCalendar, () => 'Disconnected.');
           }}>Disconnect</button>
         </>}
@@ -147,7 +148,7 @@ function ExportSection() {
     <section className="ledger-section">
       <h3>Export everything</h3>
       <p>Every task with all 33 original columns, as a CSV file. Keep it as a backup.</p>
-      <button type="button" className="ledger-button" onClick={run}><Download size={15} /> Export everything as CSV</button>
+      <button type="button" className={btnClass('ghost')} onClick={run}><Download size={15} /> Export everything as CSV</button>
       {state && <p className="ledger-quiet" role="status">{state}</p>}
     </section>
   );
@@ -239,8 +240,8 @@ function ImportSection({ locked }) {
             {parsed.problems.length + parsed.warnings.length > 12 && <li>…and {parsed.problems.length + parsed.warnings.length - 12} more.</li>}
           </ul>
           <div className="ledger-actions">
-            <button type="button" className="ledger-button" onClick={check} disabled={Boolean(progress)}>Check against this ledger</button>
-            <button type="button" className="ledger-button ledger-button-primary" onClick={run} disabled={Boolean(progress) || !total}>Import {total} rows</button>
+            <button type="button" className={btnClass('ghost')} onClick={check} disabled={Boolean(progress)}>Check against this ledger</button>
+            <button type="button" className={btnClass('primary')} onClick={run} disabled={Boolean(progress) || !total}>Import {total} rows</button>
           </div>
           {progress && <p className="ledger-quiet" role="status"><progress value={progress.sent} max={progress.total} /> {progress.sent} of {progress.total} rows…</p>}
         </div>
@@ -252,7 +253,7 @@ function ImportSection({ locked }) {
             <li key={kind}>{KIND_LABELS[kind]}: {r.inserted} added, {r.updated} updated{r.skipped.length ? `, ${r.skipped.length} left alone (edited here or incomplete)` : ''}
               {r.unresolved.length ? `, ${r.unresolved.length} pointing at missing tasks` : ''}</li>
           ))}</ul>
-          <button type="button" className="ledger-button" onClick={() => lock.mutate(true)} disabled={lock.isPending}><Lock size={15} /> Lock import after switch-over</button>
+          <button type="button" className={btnClass('ghost')} onClick={() => lock.mutate(true)} disabled={lock.isPending}><Lock size={15} /> Lock import after switch-over</button>
         </div>
       )}
       {!locked && !parsed && <p className="ledger-quiet"><Unlock size={13} /> Import is open.</p>}
@@ -288,7 +289,7 @@ function CompareSection() {
       </div>
       <label className="sr-only" htmlFor="ledger-old-report">Old report text</label>
       <textarea id="ledger-old-report" className="ledger-draft ledger-draft-short" placeholder="*Parakkat Work — Daily Report*…" value={oldText} onChange={(e) => setOldText(e.target.value)} />
-      <button type="button" className="ledger-button" onClick={compare} disabled={!oldText.trim()}>Compare</button>
+      <button type="button" className={btnClass('ghost')} onClick={compare} disabled={!oldText.trim()}>Compare</button>
       {error && <p className="ledger-alert" role="alert">{error}</p>}
       {diff && (differences === 0
         ? <p className="ledger-note" role="status">The reports match line for line.</p>

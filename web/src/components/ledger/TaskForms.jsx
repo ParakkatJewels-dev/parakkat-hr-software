@@ -5,6 +5,7 @@ import { ExternalLink, Paperclip, Plus, Trash2, X } from 'lucide-react';
 import { newId, signedFileUrl, syncGoogleCalendar, uploadLedgerFile, useLedgerAction, useLedgerTask } from '../../data/workLedger';
 import Drawer from './Drawer';
 import { Field, Message, OPEN_STATUSES, PRIORITIES, REPEATS, STATUSES, Suggest, WORK_TYPES, dateLabel, errorText, money, useLedger } from './ui';
+import { btnClass } from '../ui/Btn';
 
 const blankBrief = { objective: '', audience: '', message: '', deliverables: '', references: '' };
 const clean = (value) => (typeof value === 'string' ? value.trim() : value);
@@ -34,7 +35,7 @@ function RowsEditor({ rows, onChange, fields, addLabel }) {
             <input key={key} className="ledger-input" aria-label={label} placeholder={label} value={row[key] ?? ''} style={width ? { flex: width } : undefined}
               onChange={(event) => onChange(rows.map((item, i) => (i === index ? { ...item, [key]: event.target.value } : item)))} />
           ))}
-          <button type="button" className="ledger-icon-button" aria-label={`Remove ${addLabel.toLowerCase()} ${index + 1}`} onClick={() => onChange(rows.filter((_, i) => i !== index))}><X size={15} /></button>
+          <button type="button" className={btnClass('subtle', 'md', true)} aria-label={`Remove ${addLabel.toLowerCase()} ${index + 1}`} onClick={() => onChange(rows.filter((_, i) => i !== index))}><X size={15} /></button>
         </div>
       ))}
       <button type="button" className="ledger-link" onClick={() => onChange([...rows, {}])}><Plus size={13} /> {addLabel}</button>
@@ -92,7 +93,7 @@ export function NewTaskDrawer({ initial = {}, onClose, onSaved }) {
   const onDrop = (event) => { event.preventDefault(); setFiles((current) => [...current, ...event.dataTransfer.files]); };
   return (
     <Drawer title="New task" subtitle="Add to your ledger" onClose={onClose} initialFocus="#ledger-new-title"
-      footer={<><span className="ledger-quiet">{progress}</span><button type="submit" form="ledger-new-task" className="ledger-button ledger-button-primary" disabled={busy}>{busy ? 'Saving…' : 'Add to ledger'}</button></>}>
+      footer={<><span className="ledger-quiet">{progress}</span><button type="submit" form="ledger-new-task" className={btnClass('primary')} disabled={busy}>{busy ? 'Saving…' : 'Add to ledger'}</button></>}>
       <form id="ledger-new-task" className="ledger-form" onSubmit={submit} onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
         <Field label="Brand" wide><BrandPicker value={form.brand} onChange={set('brand')} /></Field>
         {(boot?.templates ?? []).length > 0 && <Field label="Start from a template" wide>
@@ -124,7 +125,7 @@ export function NewTaskDrawer({ initial = {}, onClose, onSaved }) {
         <Field label="Subtasks" wide>
           <div className="ledger-rows">
             {subtasks.map((s, i) => <div key={i} className="ledger-row"><span className="ledger-row-text">{s}</span>
-              <button type="button" className="ledger-icon-button" aria-label={`Remove subtask ${s}`} onClick={() => setSubtasks(subtasks.filter((_, x) => x !== i))}><X size={15} /></button></div>)}
+              <button type="button" className={btnClass('subtle', 'md', true)} aria-label={`Remove subtask ${s}`} onClick={() => setSubtasks(subtasks.filter((_, x) => x !== i))}><X size={15} /></button></div>)}
             <div className="ledger-row"><input className="ledger-input" aria-label="New subtask" placeholder="Add a step and press Enter" value={step}
               onChange={(e) => setStep(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (clean(step)) { setSubtasks([...subtasks, clean(step)]); setStep(''); } } }} /></div>
           </div>
@@ -161,7 +162,7 @@ export function LogHelpDrawer({ initial = {}, onClose }) {
   };
   return (
     <Drawer title="Log help or a review" subtitle="Counts under Support & reviews, never on the board" onClose={onClose} initialFocus="#ledger-help-what"
-      footer={<button type="submit" form="ledger-help" className="ledger-button ledger-button-primary" disabled={act.isPending}>Save</button>}>
+      footer={<button type="submit" form="ledger-help" className={btnClass('primary')} disabled={act.isPending}>Save</button>}>
       <form id="ledger-help" className="ledger-form" onSubmit={submit}>
         <Field label="What you did" wide><input id="ledger-help-what" className="ledger-input" required maxLength={500} value={form.what ?? ''} onChange={(e) => set('what')(e.target.value)} /></Field>
         <Field label="For whom"><Suggest value={form.for_whom} onChange={set('for_whom')} options={boot?.people ?? []} maxLength={120} /></Field>
@@ -198,7 +199,7 @@ export function ReminderDrawer({ initial = {}, onClose }) {
   };
   return (
     <Drawer title={initial.followUp ? 'Follow-up' : 'Reminder'} subtitle={initial.task_title} onClose={onClose} initialFocus="#ledger-reminder-text"
-      footer={<button type="submit" form="ledger-reminder" className="ledger-button ledger-button-primary" disabled={act.isPending}>Save reminder</button>}>
+      footer={<button type="submit" form="ledger-reminder" className={btnClass('primary')} disabled={act.isPending}>Save reminder</button>}>
       <form id="ledger-reminder" className="ledger-form" onSubmit={submit}>
         <Field label="Remind me to" wide><input id="ledger-reminder-text" className="ledger-input" required maxLength={500} value={form.text ?? ''} onChange={(e) => set('text')(e.target.value)} /></Field>
         <Field label="Day"><input type="date" className="ledger-input" required value={form.date} onChange={(e) => set('date')(e.target.value)} /></Field>
@@ -228,8 +229,8 @@ export function ProgressForm({ task, onDone }) {
       <input className="ledger-input" aria-label={`Progress on ${task.title}`} placeholder="What did you do on this?" value={note} maxLength={4000} onChange={(e) => setNote(e.target.value)} autoFocus />
       <input className="ledger-input ledger-input-small" aria-label="Minutes" placeholder="min" inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value.replace(/\D/g, ''))} />
       <input type="date" className="ledger-input ledger-input-date" aria-label="Day" value={day} max={today} onChange={(e) => setDay(e.target.value)} />
-      <button type="submit" className="ledger-button ledger-button-primary" disabled={act.isPending || !note.trim()}>Log</button>
-      <button type="button" className="ledger-button" onClick={onDone}>Cancel</button>
+      <button type="submit" className={btnClass('primary')} disabled={act.isPending || !note.trim()}>Log</button>
+      <button type="button" className={btnClass('ghost')} onClick={onDone}>Cancel</button>
       {act.error && <span className="ledger-alert-inline" role="alert">{errorText(act.error)}</span>}
     </form>
   );
@@ -247,8 +248,8 @@ export function DonePrompt({ task, onDone }) {
   return (
     <form className="ledger-inline-form" onSubmit={submit}>
       <input className="ledger-input" aria-label={`Outcome for ${task.title}`} placeholder="Outcome (optional)" value={outcome} maxLength={1000} onChange={(e) => setOutcome(e.target.value)} autoFocus />
-      <button type="submit" className="ledger-button ledger-button-primary" disabled={act.isPending}>Mark done</button>
-      <button type="button" className="ledger-button" onClick={onDone}>Cancel</button>
+      <button type="submit" className={btnClass('primary')} disabled={act.isPending}>Mark done</button>
+      <button type="button" className={btnClass('ghost')} onClick={onDone}>Cancel</button>
       {act.error && <span className="ledger-alert-inline" role="alert">{errorText(act.error)}</span>}
     </form>
   );
@@ -324,20 +325,20 @@ export function TaskEditor({ taskId, pending = [], onClose }) {
         <h4>Subtasks</h4>
         <ul className="ledger-checklist">{task.subtasks.map((s) => (
           <li key={s.id}><label><input type="checkbox" disabled={disabled} checked={s.done} onChange={(e) => run('ledger_set_subtask', { _id: s.id, _done: e.target.checked })} /> {s.text}</label>
-            {!disabled && <button type="button" className="ledger-icon-button" aria-label={`Remove subtask ${s.text}`} onClick={() => run('ledger_delete_subtask', { _id: s.id })}><Trash2 size={14} /></button>}</li>))}</ul>
+            {!disabled && <button type="button" className={btnClass('subtle', 'md', true)} aria-label={`Remove subtask ${s.text}`} onClick={() => run('ledger_delete_subtask', { _id: s.id })}><Trash2 size={14} /></button>}</li>))}</ul>
         {!disabled && <div className="ledger-row"><input className="ledger-input" aria-label="New subtask" placeholder="Add a step" value={newStep} maxLength={500} onChange={(e) => setNewStep(e.target.value)} />
-          <button type="button" className="ledger-button" disabled={!newStep.trim()} onClick={async () => { await run('ledger_add_subtask', { _id: newId(), _task: task.id, _text: newStep.trim() }); setNewStep(''); }}>Add</button></div>}
+          <button type="button" className={btnClass('ghost')} disabled={!newStep.trim()} onClick={async () => { await run('ledger_add_subtask', { _id: newId(), _task: task.id, _text: newStep.trim() }); setNewStep(''); }}>Add</button></div>}
       </section>
 
       <section className="ledger-editor-part" aria-label="Deliverables">
         <h4>Deliverables</h4>
         <ul className="ledger-plain-list">{task.deliverables.map((d) => (
           <li key={d.id}>{[d.type, d.version, d.used_where].filter(Boolean).join(' · ')} {d.link && <a href={d.link} target="_blank" rel="noopener noreferrer">open <ExternalLink size={12} /></a>}
-            {!disabled && <button type="button" className="ledger-icon-button" aria-label={`Remove deliverable ${d.type ?? ''}`} onClick={() => run('ledger_delete_deliverable', { _id: d.id })}><Trash2 size={14} /></button>}</li>))}</ul>
+            {!disabled && <button type="button" className={btnClass('subtle', 'md', true)} aria-label={`Remove deliverable ${d.type ?? ''}`} onClick={() => run('ledger_delete_deliverable', { _id: d.id })}><Trash2 size={14} /></button>}</li>))}</ul>
         {!disabled && <div className="ledger-row">
           {[['type', 'Type'], ['version', 'Version'], ['link', 'Link'], ['used_where', 'Used where']].map(([k, l]) => (
             <input key={k} className="ledger-input" aria-label={l} placeholder={l} value={deliverable[k] ?? ''} onChange={(e) => setDeliverable({ ...deliverable, [k]: e.target.value })} />))}
-          <button type="button" className="ledger-button" disabled={!clean(deliverable.type) && !clean(deliverable.link)}
+          <button type="button" className={btnClass('ghost')} disabled={!clean(deliverable.type) && !clean(deliverable.link)}
             onClick={async () => { await run('ledger_add_deliverable', { _id: newId(), _task: task.id, _d: deliverable }); setDeliverable({}); }}>Add</button></div>}
       </section>
 
@@ -347,11 +348,11 @@ export function TaskEditor({ taskId, pending = [], onClose }) {
           <li key={a.id}><Paperclip size={13} /> {a.kind === 'link'
             ? <a href={a.url} target="_blank" rel="noopener noreferrer">{a.name}</a>
             : <button type="button" className="ledger-link" onClick={() => openFile(a.storage_path)}>{a.name}</button>}
-            {!disabled && <button type="button" className="ledger-icon-button" aria-label={`Remove ${a.name}`} onClick={() => run('ledger_remove_attachment', { _id: a.id })}><Trash2 size={14} /></button>}</li>))}</ul>
+            {!disabled && <button type="button" className={btnClass('subtle', 'md', true)} aria-label={`Remove ${a.name}`} onClick={() => run('ledger_remove_attachment', { _id: a.id })}><Trash2 size={14} /></button>}</li>))}</ul>
         {!disabled && <>
           <div className="ledger-row"><input className="ledger-input" aria-label="Link label" placeholder="Label" value={link.name ?? ''} onChange={(e) => setLink({ ...link, name: e.target.value })} />
             <input className="ledger-input" aria-label="Link address" placeholder="https://…" value={link.url ?? ''} onChange={(e) => setLink({ ...link, url: e.target.value })} />
-            <button type="button" className="ledger-button" disabled={!/^https?:\/\//i.test(link.url ?? '')} onClick={async () => { await run('ledger_add_link', { _id: newId(), _task: task.id, _name: link.name ?? null, _url: link.url.trim() }); setLink({}); }}>Add link</button></div>
+            <button type="button" className={btnClass('ghost')} disabled={!/^https?:\/\//i.test(link.url ?? '')} onClick={async () => { await run('ledger_add_link', { _id: newId(), _task: task.id, _name: link.name ?? null, _url: link.url.trim() }); setLink({}); }}>Add link</button></div>
           <label className="ledger-file"><Paperclip size={14} /> Attach a file
             <input type="file" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
               setError(null); try { await uploadLedgerFile({ owner: boot?.owner?.user_id, taskId: task.id, file }); await detail.refetch(); setSaved('File attached.'); } catch (failure) { setError(failure); } }} /></label>
@@ -362,7 +363,7 @@ export function TaskEditor({ taskId, pending = [], onClose }) {
         <h4>Progress notes</h4>
         {task.progress.length ? <ul className="ledger-plain-list">{task.progress.map((p) => (
           <li key={p.id}><span className="ledger-date">{dateLabel(p.date)}</span>{p.note}{p.minutes ? <span className="ledger-quiet"> · {p.minutes}m</span> : null}
-            {!disabled && <button type="button" className="ledger-icon-button" aria-label="Remove progress note" onClick={() => run('ledger_delete_progress', { _id: p.id })}><Trash2 size={14} /></button>}</li>))}</ul>
+            {!disabled && <button type="button" className={btnClass('subtle', 'md', true)} aria-label="Remove progress note" onClick={() => run('ledger_delete_progress', { _id: p.id })}><Trash2 size={14} /></button>}</li>))}</ul>
           : <p className="ledger-quiet">No progress notes yet.</p>}
       </section>
 
@@ -371,8 +372,8 @@ export function TaskEditor({ taskId, pending = [], onClose }) {
         <dl className="ledger-dl">{Object.entries(task.brief).filter(([, v]) => v).map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{String(v)}</dd></div>)}</dl></details>}
       <Message error={error}>{saved}</Message>
       <div className="ledger-actions">
-        {!disabled && <button type="submit" className="ledger-button ledger-button-primary" disabled={act.isPending}>Save changes</button>}
-        <button type="button" className="ledger-button" onClick={onClose}>Close</button>
+        {!disabled && <button type="submit" className={btnClass('primary')} disabled={act.isPending}>Save changes</button>}
+        <button type="button" className={btnClass('ghost')} onClick={onClose}>Close</button>
         {task.est_cost != null && <span className="ledger-quiet">Est. {money(task.est_cost)}{task.actual_cost != null ? ` · actual ${money(task.actual_cost)}` : ''}</span>}
       </div>
     </form>

@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BellRing, X } from 'lucide-react';
 import { syncGoogleCalendar, useGoogleEvents, useLedgerAction } from '../../data/workLedger';
 import { chime, istStamp, timeOf } from './ui';
+import { btnClass } from '../ui/Btn';
 
 const SEEN_KEY = 'parakkat.ledger.announced';
 function loadSeen() { try { return new Set(JSON.parse(globalThis.sessionStorage?.getItem(SEEN_KEY) ?? '[]')); } catch { return new Set(); } }
@@ -56,7 +57,7 @@ export default function DueBanner({ home, sound }) {
             dismiss(item.key);
             try { await act.mutateAsync({ name: 'ledger_complete_reminder', args: { _id: item.id } }); if (connected) syncGoogleCalendar().catch(() => {}); } catch { /* stays in Schedule */ }
           }}>Done</button>}
-          <button type="button" className="ledger-icon-button ledger-icon-small" aria-label="Dismiss" onClick={() => dismiss(item.key)}><X size={14} /></button>
+          <button type="button" className={btnClass('subtle', 'sm', true)} aria-label="Dismiss" onClick={() => dismiss(item.key)}><X size={14} /></button>
         </p>
       ))}
     </div>

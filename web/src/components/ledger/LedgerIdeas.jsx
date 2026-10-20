@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { newId, useLedgerAction, useLedgerIdeas } from '../../data/workLedger';
 import { parseQuickCapture } from '../../lib/ledger/quickCapture.js';
 import Drawer from './Drawer';
-import { BrandMark, Field, Message, ReadOnlyNote, Suggest, dateLabel, errorText, useLedger } from './ui';
+import { BrandMark, Field, Message, Suggest, dateLabel, errorText, useLedger } from './ui';
+import { btnClass } from '../ui/Btn';
 
 export const IDEA_TABS = [
   { id: 'Open', label: 'Inbox' }, { id: 'Developing', label: 'Developing' }, { id: 'Parked', label: 'Parked' },
@@ -44,7 +45,7 @@ function IdeaDrawer({ idea, onClose, onCampaign }) {
   const disabled = readOnly;
   return (
     <Drawer title="Idea" subtitle={`${idea.status} · captured ${dateLabel(idea.created_at)}`} onClose={onClose} initialFocus="#ledger-idea-text"
-      footer={!disabled && <button type="submit" form="ledger-idea" className="ledger-button ledger-button-primary" disabled={act.isPending}>Save</button>}>
+      footer={!disabled && <button type="submit" form="ledger-idea" className={btnClass('primary')} disabled={act.isPending}>Save</button>}>
       <form id="ledger-idea" className="ledger-form" onSubmit={save}>
         <Field label="Idea" wide><textarea id="ledger-idea-text" className="ledger-input" rows={3} disabled={disabled} value={form.text} maxLength={4000}
           onChange={(e) => setForm({ ...form, text: e.target.value })} /></Field>
@@ -68,19 +69,19 @@ function IdeaDrawer({ idea, onClose, onCampaign }) {
             <form className="ledger-inline-form" onSubmit={async (e) => { e.preventDefault(); if (await setStatus('Parked', { revisit_date: park.date || null, revisit_when: park.when || null })) setPark(null); }}>
               <input type="date" className="ledger-input ledger-input-date" aria-label="Revisit on" value={park.date} onChange={(e) => setPark({ ...park, date: e.target.value })} />
               <input className="ledger-input" aria-label="Revisit when" placeholder="Revisit when… (e.g. budget frees up)" value={park.when} onChange={(e) => setPark({ ...park, when: e.target.value })} />
-              <button type="submit" className="ledger-button">Park it</button>
-              <button type="button" className="ledger-button" onClick={() => setPark(null)}>Cancel</button>
+              <button type="submit" className={btnClass('ghost')}>Park it</button>
+              <button type="button" className={btnClass('ghost')} onClick={() => setPark(null)}>Cancel</button>
             </form>
           ) : (
             <div className="ledger-actions">
               {idea.status !== 'Promoted' && <>
-                <button type="button" className="ledger-button" onClick={() => { onClose(); open('task', { task: idea.text, brand: idea.brand ?? 'General', idea_id: idea.id,
+                <button type="button" className={btnClass('ghost')} onClick={() => { onClose(); open('task', { task: idea.text, brand: idea.brand ?? 'General', idea_id: idea.id,
                   brief: { objective: concept.objective ?? '' } }); }}>To task</button>
-                <button type="button" className="ledger-button" onClick={toCampaign}>To campaign</button>
+                <button type="button" className={btnClass('ghost')} onClick={toCampaign}>To campaign</button>
               </>}
-              {idea.status !== 'Parked' && <button type="button" className="ledger-button" onClick={() => setPark({ date: '', when: '' })}>Park</button>}
-              {['Parked', 'Archived'].includes(idea.status) && <button type="button" className="ledger-button" onClick={() => setStatus('Open')}>Back to inbox</button>}
-              {idea.status !== 'Archived' && <button type="button" className="ledger-button" onClick={() => setStatus('Archived')}>Archive</button>}
+              {idea.status !== 'Parked' && <button type="button" className={btnClass('ghost')} onClick={() => setPark({ date: '', when: '' })}>Park</button>}
+              {['Parked', 'Archived'].includes(idea.status) && <button type="button" className={btnClass('ghost')} onClick={() => setStatus('Open')}>Back to inbox</button>}
+              {idea.status !== 'Archived' && <button type="button" className={btnClass('ghost')} onClick={() => setStatus('Archived')}>Archive</button>}
               <button type="button" className="ledger-text-button ledger-quiet-action" onClick={async () => {
                 if (window.confirm('Delete this idea?') && await run('ledger_delete_idea', { _id: idea.id })) onClose();
               }}>Delete</button>
@@ -109,7 +110,6 @@ export default function LedgerIdeas({ selected, onSelect, onCampaign }) {
   };
   return (
     <div className="ledger-ideas">
-      <ReadOnlyNote />
       <div className="ledger-segmented" role="radiogroup" aria-label="Ideas">
         {IDEA_TABS.map((item) => (
           <button key={item.id} type="button" role="radio" aria-checked={tab === item.id} className="ledger-segment" onClick={() => setTab(item.id)}>
@@ -118,7 +118,7 @@ export default function LedgerIdeas({ selected, onSelect, onCampaign }) {
       {!readOnly && (
         <form className="ledger-inline-form ledger-idea-add" onSubmit={add}>
           <input className="ledger-input" aria-label="New idea" placeholder="Capture an idea… @jewels #festive" value={text} maxLength={4000} onChange={(e) => setText(e.target.value)} />
-          <button type="submit" className="ledger-button ledger-button-primary" disabled={!text.trim() || act.isPending}>Add idea</button>
+          <button type="submit" className={btnClass('primary')} disabled={!text.trim() || act.isPending}>Add idea</button>
         </form>)}
       {act.error && <p className="ledger-alert" role="alert">{errorText(act.error)}</p>}
       {ideas.isLoading && <p className="ledger-quiet">Loading ideas…</p>}

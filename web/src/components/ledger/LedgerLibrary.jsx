@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { newId, useLedgerAction, useLedgerLibrary } from '../../data/workLedger';
-import { Message, ReadOnlyNote, Suggest, dateLabel, useLedger } from './ui';
+import { Message, Suggest, dateLabel, useLedger } from './ui';
+import { btnClass } from '../ui/Btn';
 
 const LIBRARY_TABS = [{ id: 'vendors', label: 'Vendors' }, { id: 'templates', label: 'Templates' }, { id: 'key_dates', label: 'Key dates' }, { id: 'brands', label: 'Brand notes' }];
 const TABLES = {
@@ -52,8 +53,8 @@ function RowEditor({ table, row, onDone }) {
         </label>))}
       <Message error={act.error} />
       <div className="ledger-actions ledger-form-wide">
-        <button type="submit" className="ledger-button ledger-button-primary" disabled={act.isPending}>{row ? 'Save' : `Add ${table.noun}`}</button>
-        <button type="button" className="ledger-button" onClick={onDone}>Cancel</button>
+        <button type="submit" className={btnClass('primary')} disabled={act.isPending}>{row ? 'Save' : `Add ${table.noun}`}</button>
+        <button type="button" className={btnClass('ghost')} onClick={onDone}>Cancel</button>
       </div>
     </form>
   );
@@ -70,8 +71,8 @@ function LibraryTable({ tab, rows }) {
     <section className="ledger-section" aria-label={LIBRARY_TABS.find((t) => t.id === tab).label}>
       {!readOnly && (
         <div className="ledger-actions">
-          {editing !== 'new' && <button type="button" className="ledger-button" onClick={() => setEditing('new')}><Plus size={14} /> Add {table.noun}</button>}
-          {tab === 'key_dates' && <button type="button" className="ledger-button" onClick={async () => {
+          {editing !== 'new' && <button type="button" className={btnClass('ghost')} onClick={() => setEditing('new')}><Plus size={14} /> Add {table.noun}</button>}
+          {tab === 'key_dates' && <button type="button" className={btnClass('ghost')} onClick={async () => {
             setMessage('');
             try { await act.mutateAsync({ name: 'ledger_refresh_key_dates', args: {} }); setMessage('Festival dates refreshed.'); } catch { /* shown below */ }
           }}>Refresh festival dates</button>}
@@ -90,8 +91,8 @@ function LibraryTable({ tab, rows }) {
                   {column[0] === 'name' && row.notes && <div className="ledger-quiet">{row.notes}</div>}</td>)}
                 {tab === 'vendors' && <td>{row.tasks}</td>}
                 {!readOnly && <td className="ledger-row-actions">
-                  <button type="button" className="ledger-icon-button ledger-icon-small" aria-label={`Edit ${row.name}`} onClick={() => setEditing(row.id)}><Pencil size={13} /></button>
-                  <button type="button" className="ledger-icon-button ledger-icon-small" aria-label={`Remove ${row.name}`} onClick={() => {
+                  <button type="button" className={btnClass('subtle', 'sm', true)} aria-label={`Edit ${row.name}`} onClick={() => setEditing(row.id)}><Pencil size={13} /></button>
+                  <button type="button" className={btnClass('subtle', 'sm', true)} aria-label={`Remove ${row.name}`} onClick={() => {
                     if (window.confirm(`Remove “${row.name}”?`)) act.mutate({ name: 'ledger_delete_library_item', args: { _kind: table.kind, _id: row.id } });
                   }}><Trash2 size={13} /></button></td>}
               </tr>))}</tbody>
@@ -125,8 +126,8 @@ function BrandNotes({ brands }) {
                     {key === 'label' ? <input className="ledger-input" maxLength={40} value={values[key] ?? ''} onChange={(e) => setValues({ ...values, [key]: e.target.value })} />
                       : <textarea className="ledger-input" rows={2} value={values[key] ?? ''} onChange={(e) => setValues({ ...values, [key]: e.target.value })} />}</label>))}
                 <Message error={act.error} />
-                <div className="ledger-actions ledger-form-wide"><button type="submit" className="ledger-button ledger-button-primary" disabled={act.isPending}>Save notes</button>
-                  <button type="button" className="ledger-button" onClick={() => setEditing(null)}>Cancel</button></div>
+                <div className="ledger-actions ledger-form-wide"><button type="submit" className={btnClass('primary')} disabled={act.isPending}>Save notes</button>
+                  <button type="button" className={btnClass('ghost')} onClick={() => setEditing(null)}>Cancel</button></div>
               </form>
             ) : (
               <dl className="ledger-dl">{FOUNDATION.slice(1).filter(([key]) => foundation[key]).map(([key, label]) => <div key={key}><dt>{label}</dt><dd>{foundation[key]}</dd></div>)}
@@ -143,7 +144,6 @@ export default function LedgerLibrary() {
   const [tab, setTab] = useState('vendors');
   return (
     <div className="ledger-library">
-      <ReadOnlyNote />
       <div className="ledger-segmented" role="radiogroup" aria-label="Library">
         {LIBRARY_TABS.map((item) => (
           <button key={item.id} type="button" role="radio" aria-checked={tab === item.id} className="ledger-segment" onClick={() => setTab(item.id)}>{item.label}</button>))}

@@ -5,7 +5,8 @@ import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { fetchCampaignDetails, newId, useLedgerAction, useLedgerCampaign, useLedgerCampaigns } from '../../data/workLedger';
 import { campaignBrief, groupReview } from '../../lib/ledger/documents.js';
 import DocumentDrawer from './DocumentDrawer';
-import { BrandMark, Field, Message, PRIORITIES, ReadOnlyNote, STAGES, StatusPill, Suggest, dateLabel, errorText, money, useLedger } from './ui';
+import { BrandMark, Field, Message, PRIORITIES, STAGES, StatusPill, Suggest, dateLabel, errorText, money, useLedger } from './ui';
+import { btnClass } from '../ui/Btn';
 
 const OFF = ['Parked', 'Cancelled'];
 const SECTIONS = [
@@ -43,8 +44,8 @@ export function CampaignForm({ initial = {}, onSaved, onCancel }) {
       <Field label="Notes" wide><textarea className="ledger-input" rows={2} value={form.notes ?? ''} onChange={(e) => set('notes')(e.target.value)} /></Field>
       <Message error={act.error} />
       <div className="ledger-actions ledger-form-wide">
-        <button type="submit" className="ledger-button ledger-button-primary" disabled={act.isPending}>Create campaign</button>
-        <button type="button" className="ledger-button" onClick={onCancel}>Cancel</button>
+        <button type="submit" className={btnClass('primary')} disabled={act.isPending}>Create campaign</button>
+        <button type="button" className={btnClass('ghost')} onClick={onCancel}>Cancel</button>
       </div>
     </form>
   );
@@ -93,7 +94,7 @@ function JsonSection({ section, campaign, onSave }) {
             <Field key={key} label={label} wide={type !== 'date'}>{type === 'date'
               ? <input type="date" className="ledger-input" value={values[key] ?? ''} onChange={(e) => setDraft({ ...values, [key]: e.target.value })} />
               : <textarea className="ledger-input" rows={2} value={values[key] ?? ''} onChange={(e) => setDraft({ ...values, [key]: e.target.value })} />}</Field>))}
-          <div className="ledger-actions ledger-form-wide"><button type="submit" className="ledger-button" disabled={!draft}>Save {section.label.toLowerCase()}</button></div>
+          <div className="ledger-actions ledger-form-wide"><button type="submit" className={btnClass('ghost')} disabled={!draft}>Save {section.label.toLowerCase()}</button></div>
         </form>)}
     </details>
   );
@@ -133,10 +134,10 @@ export function CampaignDetail({ id, onBack }) {
       </ol>
       {!readOnly && (
         <div className="ledger-actions">
-          {off ? <button type="button" className="ledger-button ledger-button-primary" onClick={() => save({ stage: 'Developing', log_text: 'Reactivated' })}>Reactivate</button> : <>
-            {c.stage !== 'Reviewed' && <button type="button" className="ledger-button ledger-button-primary" onClick={advance}>Advance to {STAGES[stageIndex + 1]} <ArrowRight size={14} /></button>}
-            <button type="button" className="ledger-button" onClick={() => save({ stage: 'Parked' })}>Park</button>
-            <button type="button" className="ledger-button" onClick={() => save({ stage: 'Cancelled' })}>Cancel campaign</button>
+          {off ? <button type="button" className={btnClass('primary')} onClick={() => save({ stage: 'Developing', log_text: 'Reactivated' })}>Reactivate</button> : <>
+            {c.stage !== 'Reviewed' && <button type="button" className={btnClass('primary')} onClick={advance}>Advance to {STAGES[stageIndex + 1]} <ArrowRight size={14} /></button>}
+            <button type="button" className={btnClass('ghost')} onClick={() => save({ stage: 'Parked' })}>Park</button>
+            <button type="button" className={btnClass('ghost')} onClick={() => save({ stage: 'Cancelled' })}>Cancel campaign</button>
           </>}
           {off && <StatusPill status={c.stage} />}
         </div>)}
@@ -146,10 +147,10 @@ export function CampaignDetail({ id, onBack }) {
           {readOnly ? <p>{c.decision || 'Not written yet.'}</p> : <>
             <textarea className="ledger-input" rows={3} aria-label="Decision needed" value={decision ?? c.decision ?? ''} onChange={(e) => setDecision(e.target.value)} />
             <div className="ledger-actions">
-              <button type="button" className="ledger-button" disabled={decision === null} onClick={async () => { if (await save({ decision: decision.trim() || null })) setDecision(null); }}>Save decision</button>
-              <button type="button" className="ledger-button ledger-button-primary" onClick={() => save({ stage: 'Approved', ...(decision !== null ? { decision: decision.trim() || null } : {}) })}>Approve</button>
-              <button type="button" className="ledger-button" onClick={() => save({ stage: 'Parked' })}>Park</button>
-              <button type="button" className="ledger-button" onClick={() => save({ stage: 'Cancelled' })}>Cancel</button>
+              <button type="button" className={btnClass('ghost')} disabled={decision === null} onClick={async () => { if (await save({ decision: decision.trim() || null })) setDecision(null); }}>Save decision</button>
+              <button type="button" className={btnClass('primary')} onClick={() => save({ stage: 'Approved', ...(decision !== null ? { decision: decision.trim() || null } : {}) })}>Approve</button>
+              <button type="button" className={btnClass('ghost')} onClick={() => save({ stage: 'Parked' })}>Park</button>
+              <button type="button" className={btnClass('ghost')} onClick={() => save({ stage: 'Cancelled' })}>Cancel</button>
             </div></>}
         </section>)}
       <Message error={act.error} />
@@ -172,9 +173,9 @@ export function CampaignDetail({ id, onBack }) {
       </dl>
       {SECTIONS.map((section) => <JsonSection key={section.key} section={section} campaign={c} onSave={save} />)}
       <div className="ledger-actions">
-        <button type="button" className="ledger-button" onClick={() => setDoc('brief')}>Campaign brief</button>
-        <button type="button" className="ledger-button" onClick={() => setDoc('team')}>Team brief</button>
-        {!readOnly && <button type="button" className="ledger-button" onClick={() => open('task', { campaign: c.name, brand: c.brand ?? 'General' })}>Add a task to this campaign</button>}
+        <button type="button" className={btnClass('ghost')} onClick={() => setDoc('brief')}>Campaign brief</button>
+        <button type="button" className={btnClass('ghost')} onClick={() => setDoc('team')}>Team brief</button>
+        {!readOnly && <button type="button" className={btnClass('ghost')} onClick={() => open('task', { campaign: c.name, brand: c.brand ?? 'General' })}>Add a task to this campaign</button>}
       </div>
       <section className="ledger-section" aria-label="Linked tasks">
         <h3>Tasks <span className="ledger-count">{c.tasks.length}</span></h3>
@@ -193,7 +194,7 @@ export function CampaignDetail({ id, onBack }) {
         {!readOnly && (
           <form className="ledger-inline-form" onSubmit={async (e) => { e.preventDefault(); if (note.trim() && await save({ log_text: note.trim() })) setNote(''); }}>
             <input className="ledger-input" aria-label="Add a note to the log" placeholder="Add a note" value={note} maxLength={2000} onChange={(e) => setNote(e.target.value)} />
-            <button type="submit" className="ledger-button" disabled={!note.trim()}>Add</button>
+            <button type="submit" className={btnClass('ghost')} disabled={!note.trim()}>Add</button>
           </form>)}
         <ul className="ledger-plain-list">{c.log.map((line, index) => <li key={index}><span className="ledger-date">{dateLabel(line.at)}</span>{line.text}</li>)}</ul>
       </section>
@@ -221,11 +222,10 @@ export default function LedgerCampaigns({ selected, onSelect }) {
   const groups = [...STAGES, ...OFF].map((stage) => ({ stage, items: campaigns.filter((c) => c.stage === stage) })).filter((g) => g.items.length);
   return (
     <div className="ledger-campaigns">
-      <ReadOnlyNote />
       <div className="ledger-toolbar">
         <p className="ledger-quiet">{campaigns.length} campaign{campaigns.length === 1 ? '' : 's'}, by stage then launch date.</p>
-        <button type="button" className="ledger-button" onClick={openReview}>Monthly group review</button>
-        {!readOnly && !creating && <button type="button" className="ledger-button ledger-button-primary" onClick={() => onSelect('new')}>New campaign</button>}
+        <button type="button" className={btnClass('ghost')} onClick={openReview}>Monthly group review</button>
+        {!readOnly && !creating && <button type="button" className={btnClass('primary')} onClick={() => onSelect('new')}>New campaign</button>}
       </div>
       {reviewError && <p className="ledger-alert" role="alert">{errorText(reviewError)}</p>}
       {creating && !readOnly && (

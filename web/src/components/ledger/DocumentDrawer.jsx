@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Copy, Printer, Share2 } from 'lucide-react';
 import { copyText, shareText } from '../../lib/ledger/share.js';
 import Drawer from './Drawer';
+import { btnClass } from '../ui/Btn';
 
 const RESULT_TEXT = { shared: 'Shared.', copied: 'Copied — paste it into WhatsApp, Slack or a document.', cancelled: '',
   failed: 'Copy is blocked in this browser. Select the text and copy it by hand.' };
@@ -25,9 +26,9 @@ export default function DocumentDrawer({ title, subtitle, text, onClose, childre
   return (
     <Drawer title={title} subtitle={subtitle} onClose={onClose} initialFocus="textarea"
       footer={<>
-        {printable && <button type="button" className="ledger-button" onClick={print}><Printer size={15} /> Print</button>}
-        <button type="button" className="ledger-button" onClick={() => act('copy')}><Copy size={15} /> Copy</button>
-        <button type="button" className="ledger-button ledger-button-primary" onClick={() => act('share')}><Share2 size={15} /> Share</button>
+        {printable && <button type="button" className={btnClass('ghost')} onClick={print}><Printer size={15} /> Print</button>}
+        <button type="button" className={btnClass('ghost')} onClick={() => act('copy')}><Copy size={15} /> Copy</button>
+        <button type="button" className={btnClass('primary')} onClick={() => act('share')}><Share2 size={15} /> Share</button>
       </>}>
       {children}
       <label className="sr-only" htmlFor="ledger-document">{title}</label>

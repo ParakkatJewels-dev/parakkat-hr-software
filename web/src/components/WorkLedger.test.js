@@ -79,11 +79,13 @@ const seeded = { '["work-ledger","bootstrap","me"]': boot, '["work-ledger","home
 
 test('the ledger opens on Home with seven tabs, the figures and the board', () => {
   const html = render(React.createElement(WorkLedger), { seed: seeded });
-  assert.match(html, /Vivek’s ledger/);
-  assert.match(html, /Creative Head/);
-  const tabs = [...html.matchAll(/role="tab"[^>]*>([^<]+)</g)].map((match) => match[1]);
+  assert.match(html, /class="page-shell[^"]*ledger-page"/, 'the app page shell and header card');
+  assert.match(html, /<h1[^>]*>.*Work Ledger<\/h1>/);
+  assert.match(html, /Vivek Menon · Creative Head/);
+  assert.match(html, /New task<\/button>/);
+  const tabs = [...html.matchAll(/role="tab"[^>]*>(.*?)<\/button>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').trim());
   assert.deepEqual(tabs, ['Home', 'Campaigns', 'Reports', 'Insights', 'Ideas', 'Library', 'Settings']);
-  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*>Home</);
+  assert.match(html, /role="tab"[^>]*aria-selected="true"[^>]*border-brand text-brand-ink[^>]*>.*?Home<\/button>/);
   assert.match(html, /1 open task is past the deadline/);
   assert.match(html, /<dt>Pending<\/dt><dd>7<\/dd>/);
   assert.match(html, /<dt>Help today<\/dt><dd>1<small> · 20m<\/small><\/dd>/);
@@ -105,7 +107,7 @@ test('a team member’s ledger is read-only: no settings, no adding, no dragging
   const html = render(React.createElement(WorkLedger, { owner: 'u-2', onBack() {} }), { path: '/team-ledgers/u-2',
     seed: { '["work-ledger","bootstrap","u-2"]': boot, '["work-ledger","home","u-2"]': { ...home, schedule: null, google: null } } });
   assert.match(html, /Vivek Menon’s ledger/);
-  assert.match(html, /read only/);
+  assert.match(html, /Read only · Creative Head/);
   assert.doesNotMatch(html, />Settings</);
   assert.doesNotMatch(html, /New task|Add a task|Log help/);
   assert.doesNotMatch(html, /draggable="true"/);
@@ -165,7 +167,7 @@ test('a campaign at Decision shows the stage bar and the decision panel', () => 
 test('team ledgers lists the people a manager may read, by department', () => {
   const people = [{ user_id: '7d4f9a52-3c1b-4e8a-9f60-2b7d1c5e8a31', name: 'Vivek Menon', code: 'PJ-1', department: 'Marketing', designation: 'Creative Head' }];
   const html = render(React.createElement(TeamLedgers), { path: '/team-ledgers', seed: { '["work-ledger","team"]': people } });
-  assert.match(html, /<h1>Team ledgers<\/h1>/);
+  assert.match(html, /<h1[^>]*>.*Team ledgers<\/h1>/);
   assert.match(html, /Marketing/);
   assert.match(html, /Vivek Menon/);
   assert.match(html, /never their reminders or calendar/);

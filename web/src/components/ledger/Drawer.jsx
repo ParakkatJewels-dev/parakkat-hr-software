@@ -3,6 +3,7 @@
 // it came from — the same contract as ui/ConfirmDialog.jsx.
 import React, { useEffect, useId, useRef } from 'react';
 import { X } from 'lucide-react';
+import { btnClass } from '../ui/Btn';
 
 const FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -39,7 +40,7 @@ export default function Drawer({ title, subtitle, onClose, children, footer, ini
         onClick={(event) => event.stopPropagation()}>
         <header className="ledger-drawer-head">
           <div><h2 id={titleId}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div>
-          <button type="button" className="ledger-icon-button" onClick={() => onCloseRef.current?.()} aria-label={`Close ${title}`}><X size={18} /></button>
+          <button type="button" className={btnClass('subtle', 'md', true)} onClick={() => onCloseRef.current?.()} aria-label={`Close ${title}`}><X size={18} /></button>
         </header>
         <div className="ledger-drawer-body">{children}</div>
         {footer && <footer className="ledger-drawer-foot">{footer}</footer>}

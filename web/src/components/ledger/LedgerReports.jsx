@@ -10,6 +10,7 @@ import { copyText, shareText } from '../../lib/ledger/share.js';
 import { monthlyDocument, weeklyReview } from '../../lib/ledger/documents.js';
 import DocumentDrawer from './DocumentDrawer';
 import Drawer from './Drawer';
+import { btnClass } from '../ui/Btn';
 
 const PERIOD_CHOICES = [
   { id: 'day', label: 'Today' }, { id: 'week', label: 'Pick a week' }, { id: 'month', label: 'Pick a month' },
@@ -73,9 +74,9 @@ export default function LedgerReports({ owner = null }) {
             <label>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
           </>}
         </div>
-        {period === 'week' && <button type="button" className="ledger-button" disabled={!data} onClick={() => setExtra({ kind: 'weekly' })}>Weekly review</button>}
-        {period === 'month' && <button type="button" className="ledger-button" disabled={!data} onClick={openMonthly}>Management page for this month</button>}
-        <button type="button" className="ledger-button ledger-button-primary" disabled={!data} onClick={openDraft}>Prepare report to share</button>
+        {period === 'week' && <button type="button" className={btnClass('ghost')} disabled={!data} onClick={() => setExtra({ kind: 'weekly' })}>Weekly review</button>}
+        {period === 'month' && <button type="button" className={btnClass('ghost')} disabled={!data} onClick={openMonthly}>Management page for this month</button>}
+        <button type="button" className={btnClass('primary')} disabled={!data} onClick={openDraft}>Prepare report to share</button>
       </div>
       {extraError && <p className="ledger-alert" role="alert">{extraError}</p>}
       {rangeInvalid && <p className="ledger-alert" role="alert">Choose a start date on or before the end date.</p>}
@@ -89,9 +90,9 @@ export default function LedgerReports({ owner = null }) {
         <Drawer title="Report draft" subtitle={`${PERIOD_TITLES[data.period]} · ${periodLabel(data)}`} onClose={() => setDrawer(false)}
           initialFocus="textarea"
           footer={<>
-            <button type="button" className="ledger-button" onClick={regenerate}><RotateCcw size={15} /> Regenerate</button>
-            <button type="button" className="ledger-button" onClick={() => act('copy')}><Copy size={15} /> Copy</button>
-            <button type="button" className="ledger-button ledger-button-primary" onClick={() => act('share')}><Share2 size={15} /> Share</button>
+            <button type="button" className={btnClass('ghost')} onClick={regenerate}><RotateCcw size={15} /> Regenerate</button>
+            <button type="button" className={btnClass('ghost')} onClick={() => act('copy')}><Copy size={15} /> Copy</button>
+            <button type="button" className={btnClass('primary')} onClick={() => act('share')}><Share2 size={15} /> Share</button>
           </>}>
           <label className="sr-only" htmlFor="ledger-draft">Report text</label>
           <textarea id="ledger-draft" className="ledger-draft" value={draft.text} spellCheck="true"
@@ -117,9 +118,9 @@ function WeeklyReviewDrawer({ report, onClose }) {
   return (
     <Drawer title="Weekly review" subtitle={periodLabel(report)} onClose={onClose} initialFocus="#ledger-slipped"
       footer={<>
-        {edited !== null && <button type="button" className="ledger-button" onClick={() => setEdited(null)}><RotateCcw size={15} /> Rebuild</button>}
-        <button type="button" className="ledger-button" onClick={() => act('copy')}><Copy size={15} /> Copy</button>
-        <button type="button" className="ledger-button ledger-button-primary" onClick={() => act('share')}><Share2 size={15} /> Share</button>
+        {edited !== null && <button type="button" className={btnClass('ghost')} onClick={() => setEdited(null)}><RotateCcw size={15} /> Rebuild</button>}
+        <button type="button" className={btnClass('ghost')} onClick={() => act('copy')}><Copy size={15} /> Copy</button>
+        <button type="button" className={btnClass('primary')} onClick={() => act('share')}><Share2 size={15} /> Share</button>
       </>}>
       <p className="ledger-quiet">What shipped, what you worked on, blockers and overdue work come from the week. Add the rest, one point per line.</p>
       <label className="ledger-field" data-wide><span>What slipped, and why</span>
