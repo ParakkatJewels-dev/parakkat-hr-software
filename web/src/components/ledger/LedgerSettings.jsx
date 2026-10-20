@@ -1,8 +1,10 @@
 // Settings: what is in this ledger, export everything, bring the old Google Sheet across, and the
 // switch-over check that compares our report text with the old app's.
 import React, { useState } from 'react';
-import { Download, FileUp, Lock, Unlock } from 'lucide-react';
-import { fetchLedgerExport, fetchLedgerReport, previewLedgerImport, runLedgerImport, useLedgerImportLock, useRefreshLedger } from '../../data/workLedger';
+import { useLocation } from 'react-router-dom';
+import { CalendarCheck, Download, FileUp, Lock, Unlock } from 'lucide-react';
+import { connectGoogleCalendar, disconnectGoogleCalendar, fetchLedgerExport, fetchLedgerReport, previewLedgerImport, runLedgerImport, syncGoogleCalendar,
+  useGoogleStatus, useLedgerAction, useLedgerImportLock, useRefreshLedger } from '../../data/workLedger';
 import { downloadCsv } from '../../lib/csv';
 import { istToday } from '../../lib/dates';
 import { humanDbError } from '../../lib/dbErrors';
@@ -11,6 +13,7 @@ import { IMPORT_ORDER, parseLedgerSheets, sheetsFromWorkbook } from '../../lib/l
 import { buildShareText } from '../../lib/ledger/shareText.js';
 import { diffReports } from '../../lib/ledger/compare.js';
 import { addDays, periodArgument } from '../../lib/ledger/periods.js';
+import { SHORTCUTS, chime, dateLabel } from './ui';
 
 const COUNT_LABELS = [['tasks', 'tasks'], ['support', 'help entries'], ['progress', 'progress notes'], ['subtasks', 'subtasks'],
   ['deliverables', 'deliverables'], ['campaigns', 'campaigns'], ['ideas', 'ideas'], ['vendors', 'vendors'], ['templates', 'templates'],
@@ -23,6 +26,13 @@ export default function LedgerSettings({ boot, loading }) {
   return (
     <div className="ledger-settings">
       <section className="ledger-section">
+        <h3>Owner</h3>
+        <p>{boot?.owner?.name ?? '—'}{boot?.owner?.designation ? ` · ${boot.owner.designation}` : ''}</p>
+        <p className="ledger-quiet">From your employee record. Only you can change this ledger; your line manager can read it, but never your reminders or calendar.</p>
+      </section>
+      <GoogleSection />
+      <SoundSection on={Boolean(boot?.settings?.sound)} />
+      <section className="ledger-section">
         <h3>In this ledger</h3>
         {loading ? <p className="ledger-quiet">Opening…</p> : (
           <p className="ledger-counts">{COUNT_LABELS.filter(([key]) => counts[key] != null).map(([key, label]) => (
@@ -32,7 +42,94 @@ export default function LedgerSettings({ boot, loading }) {
       <ExportSection />
       <ImportSection locked={Boolean(boot?.settings?.import_locked_at)} />
       <CompareSection />
+      <AlertsSection />
+      <section className="ledger-section">
+        <h3>Keyboard shortcuts</h3>
+        <p className="ledger-quiet">Shortcuts are ignored while you are typing in a field.</p>
+        <table className="ledger-table ledger-shortcuts"><tbody>{SHORTCUTS.map(([keys, what]) => <tr key={keys}><td><kbd>{keys}</kbd></td><td>{what}</td></tr>)}</tbody></table>
+      </section>
     </div>
+  );
+}
+
+const GOOGLE_RESULTS = {
+  connected: 'Google Calendar is connected. New reminders will appear there with pop-up alerts.',
+  cancelled: 'Google sign-in was cancelled. Nothing was changed.',
+  expired: 'That sign-in took too long or came from another window. Try Connect again.',
+  unavailable: 'Google Calendar is not set up on this server yet. Ask the administrator to add the Google settings.',
+  scope: 'Google did not give access to your calendar. Try again and leave the calendar permission ticked.',
+};
+
+function GoogleSection() {
+  const { search } = useLocation();
+  const result = new URLSearchParams(search).get('google');
+  const status = useGoogleStatus();
+  const refresh = useRefreshLedger();
+  const [busy, setBusy] = useState('');
+  const [message, setMessage] = useState(result ? GOOGLE_RESULTS[result] ?? 'Google Calendar could not be connected. Try again.' : '');
+  const google = status.data ?? { connected: false, status: 'disconnected' };
+  const run = async (label, work, done) => {
+    setBusy(label); setMessage('');
+    try { const outcome = await work(); if (outcome?.reconnect) setMessage('Google asked to be connected again.'); else if (done) setMessage(done(outcome)); refresh(); }
+    catch (error) { setMessage(humanDbError(error) || error.message || 'That did not work. Try again.'); }
+    finally { setBusy(''); }
+  };
+  return (
+    <section className="ledger-section" aria-labelledby="ledger-google-title">
+      <h3 id="ledger-google-title"><CalendarCheck size={17} /> Google Calendar</h3>
+      <p>Reminders become real calendar events with pop-ups at the time and 10 minutes before, and your meetings show in today’s schedule.</p>
+      {status.isLoading ? <p className="ledger-quiet">Checking…</p> : google.connected ? (
+        <p className="ledger-note">Connected{google.email ? ` as ${google.email}` : ''}{google.connected_at ? ` since ${dateLabel(google.connected_at)}` : ''}.</p>
+      ) : google.status === 'needs_reconnect' ? (
+        <p className="ledger-alert">Google stopped accepting the connection (the password may have changed, or access was removed). Reconnect to keep reminders in your calendar.</p>
+      ) : <p className="ledger-quiet">Not connected. Reminders still work inside the ledger.</p>}
+      <div className="ledger-actions">
+        {!google.connected && <button type="button" className="ledger-button ledger-button-primary" disabled={Boolean(busy)}
+          onClick={() => run('connect', connectGoogleCalendar)}>{google.status === 'needs_reconnect' ? 'Reconnect Google Calendar' : 'Connect Google Calendar'}</button>}
+        {google.connected && <>
+          <button type="button" className="ledger-button" disabled={Boolean(busy)} onClick={() => run('sync', syncGoogleCalendar,
+            (outcome) => (outcome?.failed ? `${outcome.failed} change${outcome.failed === 1 ? '' : 's'} could not reach Google; they will be retried.`
+              : `Calendar is up to date${outcome?.synced ? ` (${outcome.synced} change${outcome.synced === 1 ? '' : 's'} sent)` : ''}.`))}>Sync now</button>
+          <button type="button" className="ledger-button" disabled={Boolean(busy)} onClick={() => {
+            if (window.confirm('Disconnect Google Calendar? Events already created stay in your calendar.')) run('disconnect', disconnectGoogleCalendar, () => 'Disconnected.');
+          }}>Disconnect</button>
+        </>}
+      </div>
+      {busy && <p className="ledger-quiet" role="status">Working…</p>}
+      {message && <p className="ledger-quiet" role="status">{message}</p>}
+      <p className="ledger-quiet">On a company Google Workspace account this works straight away. A personal Gmail account works too, but until Google finishes reviewing the app it may ask you to reconnect every week.</p>
+    </section>
+  );
+}
+
+function SoundSection({ on }) {
+  const act = useLedgerAction();
+  return (
+    <section className="ledger-section">
+      <h3>Sound</h3>
+      <label className="ledger-check"><input type="checkbox" checked={on} disabled={act.isPending}
+        onChange={(event) => { act.mutate({ name: 'ledger_set_sound', args: { _on: event.target.checked } }); if (event.target.checked) chime(); }} />
+        Play a short chime when a reminder is due or a meeting is 10 minutes away</label>
+      {act.error && <p className="ledger-alert" role="alert">{humanDbError(act.error) || 'That did not save.'}</p>}
+    </section>
+  );
+}
+
+function AlertsSection() {
+  return (
+    <section className="ledger-section">
+      <h3>How alerts work</h3>
+      <p className="ledger-quiet">Home lists what needs attention, worked out each time it opens. Parked and cancelled campaigns never raise alerts.</p>
+      <ul className="ledger-list ledger-list-compact">
+        <li><strong>Decision needed</strong> — a campaign is at the Decision stage.</li>
+        <li><strong>Blocked</strong> — a campaign has a blocker written down.</li>
+        <li><strong>Launch</strong> — a campaign launches within 14 days (or its date has passed) and is not live yet.</li>
+        <li><strong>Review</strong> — a live campaign has no review date, or its review is due within 7 days.</li>
+        <li><strong>Milestone</strong> — a milestone falls within 14 days, or is overdue.</li>
+        <li><strong>Revisit idea</strong> — a parked idea’s revisit date is within 7 days.</li>
+        <li>Board cards are marked <strong>Stale</strong> after 7 days in the same status, and In progress warns above 3 cards.</li>
+      </ul>
+    </section>
   );
 }
 

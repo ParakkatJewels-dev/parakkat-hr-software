@@ -138,8 +138,14 @@
     { "source": "/tasks/routine", "destination": "/index.html" },
     { "source": "/tasks/deleted", "destination": "/index.html" },
     { "source": "/ledger", "destination": "/index.html" },
+    { "source": "/ledger/home", "destination": "/index.html" },
+    { "source": "/ledger/campaigns", "destination": "/index.html" },
     { "source": "/ledger/reports", "destination": "/index.html" },
+    { "source": "/ledger/insights", "destination": "/index.html" },
+    { "source": "/ledger/ideas", "destination": "/index.html" },
+    { "source": "/ledger/library", "destination": "/index.html" },
     { "source": "/ledger/settings", "destination": "/index.html" },
+    { "source": "/team-ledgers", "destination": "/index.html" },
     { "source": "/reports/attendance", "destination": "/index.html" },
     { "source": "/reports/leave", "destination": "/index.html" },
     { "source": "/reports/expenses", "destination": "/index.html" },
@@ -147,6 +153,7 @@
     { "source": "/tasks/flow", "destination": "/index.html" },
     { "source": "/tasks/people", "destination": "/index.html" },
     { "source": "/directory/:id([A-Za-z0-9_-]+)", "destination": "/index.html" },
+    { "source": "/team-ledgers/:id([A-Za-z0-9_-]+)", "destination": "/index.html" },
     { "source": "/assets/:id([A-Za-z0-9_-]+)", "destination": "/index.html" }
   ]
 }

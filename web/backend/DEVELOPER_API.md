@@ -160,6 +160,7 @@ plain sentence so the assistant can correct itself.
 | Leave approvals | `list_leave_requests`, `decide_leave` |
 | Assets | `list_assets`, `add_asset`, `update_asset`, `assign_asset`, `return_asset` |
 | Goals | `list_goals`, `create_goal`, `update_goal` |
+| Work Ledger (0172) | `ledger_home`, `ledger_list_tasks`, `ledger_get_task`, `ledger_report`, `ledger_list_ideas`, `ledger_list_reminders`, `ledger_list_campaigns`, `ledger_add_task`, `ledger_update_task`, `ledger_mark_done`, `ledger_log_progress`, `ledger_log_help`, `ledger_add_idea`, `ledger_add_reminder` — only the key owner's own ledger; see [WORK_LEDGER.md](WORK_LEDGER.md) |
 
 Deliberately left out: changing a task's main person (the app does that by removing the old person),
 removing helpers, subtasks or routine jobs, the task trash, unticking a routine job, reopening decided

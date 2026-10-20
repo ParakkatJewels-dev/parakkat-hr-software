@@ -12,6 +12,7 @@ export const AGENT_KEY_SCOPES = [
   { key: 'leave:manage', label: 'Leave approvals', description: 'See leave waiting for you and approve, reject, hold or cancel it.' },
   { key: 'assets:manage', label: 'Assets', description: 'Add and update assets, give them out and take them back.' },
   { key: 'goals:manage', label: 'Goals', description: 'Set goals and update their progress or status.' },
+  { key: 'ledger:manage', label: 'Work Ledger', description: 'Read your own Work Ledger and reports; add tasks, progress, help entries, ideas and reminders.' },
 ];
 export const AGENT_KEY_EXPIRY_DAYS = [7, 30, 90];
 export const developerSettingsKey = (userId) => ['developer-settings', userId ?? null];

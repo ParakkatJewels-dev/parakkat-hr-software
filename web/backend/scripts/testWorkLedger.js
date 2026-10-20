@@ -20,6 +20,8 @@ module.exports = function testWorkLedger({ run, connection, directory }) {
       ...(Number(file.slice(0, 4)) >= 169 ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     `\\i ${quote(join(backend, 'tests', 'work_ledger.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'work_ledger_writes.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'work_ledger_planning.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-q', '-f', bootstrap]);

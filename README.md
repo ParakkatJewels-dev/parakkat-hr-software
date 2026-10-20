@@ -74,6 +74,12 @@ Existing company policies remain unchanged until HR selects the method. Apply mi
 `0165` with the attendance worker paused, deploy its matching client and worker, then restart the worker. See the [monthly payroll operating guide](docs/payroll-operating-guide.md)
 for preparation, review, publication, advance recovery and salary holds.
 
+## Work Ledger
+
+A personal work ledger for anyone who wants one (Work → Work Ledger), with a read-only Team ledgers view
+for line managers and optional Google Calendar reminders. Setup, privacy rules and the Google Cloud steps
+are in [web/backend/WORK_LEDGER.md](web/backend/WORK_LEDGER.md).
+
 ## Access model
 
 Every user gets a **role** (super_admin, entity_admin, hr_manager, zonal_manager, branch_manager, dept_head, employee) granted at a **scope** (global / entity / zone / branch / department / self). The same `hr_manager` role granted at different scopes gives you per-branch or per-department HR. The org hierarchy (Entity → Zone → Branch → Department → Designation) is admin-editable at runtime. RLS is the real gate; the client-side permission checks only shape the UI.

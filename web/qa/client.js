@@ -336,7 +336,7 @@ export const supabase = {
         return new Query([{ ...developerFixture.settings }]).single();
       }
       if (name === 'create_my_api_key' && typeof args._name === 'string' && args._name.trim() && args._name.length <= 80
-          && Array.isArray(args._scopes) && args._scopes.length && args._scopes.every(scope => ['tasks:manage', 'leave:manage', 'assets:manage', 'goals:manage'].includes(scope))
+          && Array.isArray(args._scopes) && args._scopes.length && args._scopes.every(scope => ['tasks:manage', 'leave:manage', 'assets:manage', 'goals:manage', 'ledger:manage'].includes(scope))
           && [7, 30, 90].includes(args._expires_in_days)) {
         const key = { id: `qa-agent-key-created-${developerFixture.agentKeys.length}`, name: args._name.trim(), key_prefix: 'qa_nonfunctional_agent_',
           scopes: [...args._scopes], created_at: new Date().toISOString(),

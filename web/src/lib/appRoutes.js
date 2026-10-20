@@ -9,13 +9,13 @@ export const APP_TAB_PATHS = {
   documents: ['employee', 'company'],
   performance: ['mine', 'team'],
   tasks: ['board', 'todo', 'requests', 'routine', 'deleted'],
-  ledger: ['reports', 'settings'],
+  ledger: ['home', 'campaigns', 'reports', 'insights', 'ideas', 'library', 'settings'],
   reports: ['attendance', 'leave', 'expenses', 'headcount'],
 };
 
 // Keep existing bookmarks for views folded into the current workflows.
 export const LEGACY_TAB_PATHS = { tasks: ['flow', 'people'], payroll: ['worksheet'] };
-export const DETAIL_SCREENS = ['directory', 'assets'];
+export const DETAIL_SCREENS = ['directory', 'assets', 'team-ledgers'];
 export const DETAIL_ID_PATTERN = '[A-Za-z0-9_-]+';
 const DETAIL_ID = new RegExp(`^${DETAIL_ID_PATTERN}$`);
 const SCREENS = new Set(allScreenIds());

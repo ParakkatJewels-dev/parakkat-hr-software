@@ -82,6 +82,8 @@ export const OVERSIGHT_NAV = [
       { id: 'tasks', label: 'Tasks', perm: 'task.read' },
       { id: 'performance', label: 'Goals', perm: 'goal.read' },
       { id: 'ledger', label: 'Work Ledger', perm: 'ledger.use' },
+      // Read-only view of the ledgers of people the reader manages (0169 app.ledger_can_read).
+      { id: 'team-ledgers', label: 'Team ledgers', perm: 'ledger.read_team' },
     ],
   },
   {

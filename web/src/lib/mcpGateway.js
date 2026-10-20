@@ -8,6 +8,9 @@ import {
   DEVELOPER_API_TIMEOUT_MS, bearerKey, createDeveloperApiLimiter, developerApiEnvironment, header,
 } from './developerApiGateway.js';
 import { HERMES_TOOL_MAP, checkArguments, mcpTool, toolsForAreas } from './hermesTools.js';
+import { buildShareText } from './ledger/shareText.js';
+import { googleEnvironment } from './googleOAuth.js';
+import { syncReminders } from './googleCalendarSync.js';
 
 export const MCP_PROTOCOL_VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 export const MCP_MAX_BODY_BYTES = 64 * 1024;
@@ -96,6 +99,25 @@ async function callDatabase(context, key, tool, args) {
   finally { clearTimeout(timer); }
 }
 
+/** Push the owner's pending reminders to Google Calendar using their sealed token. Never throws. */
+async function mirrorToCalendar(context, key, environment) {
+  const google = googleEnvironment(environment);
+  if (!google) return 'pending';
+  const tool = async (name, args = {}) => {
+    const result = await callDatabase(context, key, name, args);
+    if (!result.ok) throw new Error('database');
+    return result.data;
+  };
+  try {
+    const outcome = await syncReminders({ google, fetchImpl: context.fetchImpl,
+      getSecret: () => tool('ledger_google_secret'), getOutbox: async () => (await tool('ledger_calendar_outbox'))?.items ?? [],
+      ack: (results) => tool('ledger_calendar_ack', { results }) });
+    if (outcome.reconnect) return 'needs_reconnect';
+    if (outcome.connected === false) return 'not_connected';
+    return outcome.failed ? 'partly_synced' : 'synced';
+  } catch { return 'pending'; }
+}
+
 function instructions(me) {
   const name = me?.employee?.name ? `${me.employee.name}` : 'the key owner';
   return `You act in Parakkat HR as ${name}. Everything you do is recorded under their name and limited to what their role allows. `
@@ -166,7 +188,15 @@ export async function handleMcpRequest(request, { environment = {}, fetchImpl = 
         if (result.status === 401 || result.status === 503) return httpFailure(result.status, undefined, { id });
         if (result.status === 429) return reply(id, toolError('Too many requests. Try again in one minute.'));
         if (result.status) return httpFailure(503, undefined, { id });
-        return reply(id, result.ok ? toolText(result.data) : toolError(result.toolError));
+        if (!result.ok) return reply(id, toolError(result.toolError));
+        let data = result.data;
+        // The report comes with the text people paste into WhatsApp, exactly as the ledger builds it.
+        if (tool.name === 'ledger_report' && data && typeof data === 'object') data = { ...data, share_text: buildShareText(data) };
+        // A reminder set by the assistant reaches Google Calendar straight away when it is connected.
+        if (tool.name === 'ledger_add_reminder' && data?.calendar) {
+          data = { ...data, calendar_sync: await mirrorToCalendar(context, key, environment) };
+        }
+        return reply(id, toolText(data));
       }
       default:
         return rpcError(id, -32601, 'Method not found.');

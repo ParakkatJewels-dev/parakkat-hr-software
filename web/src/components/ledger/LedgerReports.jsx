@@ -1,12 +1,14 @@
 // Reports: pick a period, read the report, then prepare the share text — edit it, copy it or share it.
 import React, { useState } from 'react';
 import { Copy, RotateCcw, Share2 } from 'lucide-react';
-import { useLedgerReport } from '../../data/workLedger';
+import { fetchCampaignDetails, useLedgerReport } from '../../data/workLedger';
 import { istToday } from '../../lib/dates';
 import { humanDbError } from '../../lib/dbErrors';
 import { addDays, longDate, monthDay, periodArgument, periodLabel, PERIOD_TITLES } from '../../lib/ledger/periods.js';
 import { buildShareText } from '../../lib/ledger/shareText.js';
 import { copyText, shareText } from '../../lib/ledger/share.js';
+import { monthlyDocument, weeklyReview } from '../../lib/ledger/documents.js';
+import DocumentDrawer from './DocumentDrawer';
 import Drawer from './Drawer';
 
 const PERIOD_CHOICES = [
@@ -30,7 +32,16 @@ export default function LedgerReports({ owner = null }) {
   const [draft, setDraft] = useState(null);
   const [drawer, setDrawer] = useState(false);
   const [status, setStatus] = useState('');
+  const [extra, setExtra] = useState(null);
+  const [extraError, setExtraError] = useState('');
   const data = report.data;
+  const openMonthly = async () => {
+    setExtraError('');
+    try {
+      const doc = monthlyDocument(data, { campaigns: await fetchCampaignDetails(owner), today });
+      setExtra({ kind: 'monthly', title: doc.title, text: doc.text });
+    } catch (failure) { setExtraError(humanDbError(failure) || 'The campaigns could not be loaded.'); }
+  };
 
   const openDraft = () => {
     if (!data) return;
@@ -62,13 +73,18 @@ export default function LedgerReports({ owner = null }) {
             <label>To <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
           </>}
         </div>
+        {period === 'week' && <button type="button" className="ledger-button" disabled={!data} onClick={() => setExtra({ kind: 'weekly' })}>Weekly review</button>}
+        {period === 'month' && <button type="button" className="ledger-button" disabled={!data} onClick={openMonthly}>Management page for this month</button>}
         <button type="button" className="ledger-button ledger-button-primary" disabled={!data} onClick={openDraft}>Prepare report to share</button>
       </div>
+      {extraError && <p className="ledger-alert" role="alert">{extraError}</p>}
       {rangeInvalid && <p className="ledger-alert" role="alert">Choose a start date on or before the end date.</p>}
       {report.error && <p className="ledger-alert" role="alert">{humanDbError(report.error) || 'The report could not be loaded.'}</p>}
       {report.isLoading && !rangeInvalid && <p className="ledger-quiet" aria-live="polite">Gathering the report…</p>}
       {data && <ReportView report={data} />}
 
+      {extra?.kind === 'weekly' && data && <WeeklyReviewDrawer report={data} onClose={() => setExtra(null)} />}
+      {extra?.kind === 'monthly' && <DocumentDrawer title="Management page" subtitle={extra.title} text={extra.text} onClose={() => setExtra(null)} printable />}
       {drawer && draft && (
         <Drawer title="Report draft" subtitle={`${PERIOD_TITLES[data.period]} · ${periodLabel(data)}`} onClose={() => setDrawer(false)}
           initialFocus="textarea"
@@ -84,6 +100,36 @@ export default function LedgerReports({ owner = null }) {
         </Drawer>
       )}
     </div>
+  );
+}
+
+/** Guided weekly review: what shipped, worked on, blockers and overdue come from the week; you add what slipped and next week. */
+function WeeklyReviewDrawer({ report, onClose }) {
+  const [slipped, setSlipped] = useState('');
+  const [nextWeek, setNextWeek] = useState('');
+  const [edited, setEdited] = useState(null);
+  const [status, setStatus] = useState('');
+  const text = edited ?? weeklyReview(report, { slipped, nextWeek });
+  const act = async (how) => {
+    const result = how === 'share' ? await shareText(text, { title: 'Weekly review' }) : await copyText(text);
+    setStatus({ shared: 'Shared.', copied: 'Copied.', cancelled: '', failed: 'Copy is blocked in this browser. Select the text and copy it by hand.' }[result]);
+  };
+  return (
+    <Drawer title="Weekly review" subtitle={periodLabel(report)} onClose={onClose} initialFocus="#ledger-slipped"
+      footer={<>
+        {edited !== null && <button type="button" className="ledger-button" onClick={() => setEdited(null)}><RotateCcw size={15} /> Rebuild</button>}
+        <button type="button" className="ledger-button" onClick={() => act('copy')}><Copy size={15} /> Copy</button>
+        <button type="button" className="ledger-button ledger-button-primary" onClick={() => act('share')}><Share2 size={15} /> Share</button>
+      </>}>
+      <p className="ledger-quiet">What shipped, what you worked on, blockers and overdue work come from the week. Add the rest, one point per line.</p>
+      <label className="ledger-field" data-wide><span>What slipped, and why</span>
+        <textarea id="ledger-slipped" className="ledger-input" rows={3} value={slipped} disabled={edited !== null} onChange={(e) => setSlipped(e.target.value)} /></label>
+      <label className="ledger-field" data-wide><span>Next week</span>
+        <textarea className="ledger-input" rows={3} value={nextWeek} disabled={edited !== null} onChange={(e) => setNextWeek(e.target.value)} /></label>
+      <label className="ledger-field" data-wide><span>The review{edited !== null ? ' (edited by hand)' : ''}</span>
+        <textarea className="ledger-draft ledger-draft-short" value={text} onChange={(e) => setEdited(e.target.value)} /></label>
+      <p className="ledger-quiet" role="status">{status}</p>
+    </Drawer>
   );
 }
 

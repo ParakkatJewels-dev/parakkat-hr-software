@@ -214,3 +214,42 @@ test('the actual Node handler answers JSON-RPC over HTTP and sends an empty 202 
     if (previous.key !== undefined) process.env.SUPABASE_ANON_KEY = previous.key;
   }
 });
+
+test('a ledger report comes back with its WhatsApp-ready share text', async () => {
+  const report = { period: 'day', from: '2026-10-07', to: '2026-10-07', single_day: true,
+    worked_on: [{ title: 'Diwali hoarding v2', brand_label: 'Jewels', event: 'Sent for internal review', notes: [] }] };
+  const { result } = await invoke(request(call('ledger_report', { period: 'day' })), {
+    upstream: (body) => response({ ok: true, data: body._tool === 'whoami' ? ME : report }) });
+  assert.match(result.body.result.structuredContent.share_text, /^\*Parakkat Work — Daily Report\*\n7 October 2026\n\n\*Worked on:\*\n• Diwali hoarding v2 \(Jewels\) → Sent for internal review/);
+});
+
+test('a reminder set through the assistant is mirrored to Google Calendar when connected', async () => {
+  const { randomBytes } = await import('node:crypto');
+  const { seal } = await import('./googleOAuth.js');
+  const key = randomBytes(32);
+  const owner = '60000000-0000-0000-0000-000000000001';
+  const environment = { ...ENVIRONMENT, GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret', GOOGLE_TOKEN_KEY: key.toString('base64'),
+    GOOGLE_REDIRECT_URI: 'https://hr.example.com/api/google/callback' };
+  const tools = [];
+  let acked;
+  const fetchImpl = async (url, options) => {
+    if (url.includes('oauth2.googleapis.com/token')) return response({ access_token: 'access' });
+    if (url.includes('googleapis.com/calendar')) return response({ id: JSON.parse(options.body).id });
+    const body = JSON.parse(options.body);
+    tools.push(body._tool);
+    if (body._tool === 'ledger_add_reminder') return response({ ok: true, data: { reminder: { id: 'r1', text: 'Call printer' }, calendar: true } });
+    if (body._tool === 'ledger_google_secret') return response({ ok: true, data: { owner, ciphertext: seal(key, 'refresh', owner), status: 'connected' } });
+    if (body._tool === 'ledger_calendar_outbox') return response({ ok: true, data: { items: [{ id: '11111111-1111-1111-1111-111111111111', op: 'insert', text: 'Call printer', due_at: '2026-10-08T10:00' }] } });
+    if (body._tool === 'ledger_calendar_ack') { acked = body._args.results; return response({ ok: true, data: { acknowledged: 1 } }); }
+    return response({ ok: true, data: ME });
+  };
+  const result = await handleMcpRequest(request(call('ledger_add_reminder', { text: 'Call printer', due_at: '2026-10-08T10:00' })),
+    { environment, fetchImpl, limiter: createDeveloperApiLimiter() });
+  assert.equal(result.body.result.structuredContent.calendar_sync, 'synced');
+  assert.deepEqual(tools, ['ledger_add_reminder', 'ledger_google_secret', 'ledger_calendar_outbox', 'ledger_calendar_ack']);
+  assert.equal(acked[0].ok, true);
+  assert.ok(!JSON.stringify(result.body).includes('refresh'), 'the token never reaches the assistant');
+  const unconfigured = await handleMcpRequest(request(call('ledger_add_reminder', { text: 'x', due_at: '2026-10-08T10:00' })),
+    { environment: ENVIRONMENT, fetchImpl, limiter: createDeveloperApiLimiter() });
+  assert.equal(unconfigured.body.result.structuredContent.calendar_sync, 'pending', 'without server keys it syncs when the owner next opens the ledger');
+});

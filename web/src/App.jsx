@@ -34,6 +34,7 @@ const Administration = lazy(() => import('./components/Administration'));
 const DeveloperSettings = lazy(() => import('./components/DeveloperSettings'));
 const TaskManagement = lazy(() => import('./components/TaskManagement'));
 const WorkLedger = lazy(() => import('./components/WorkLedger'));
+const TeamLedgers = lazy(() => import('./components/TeamLedgers'));
 const Messages = lazy(() => import('./components/Messages'));
 const ChatMonitor = lazy(() => import('./components/ChatMonitor'));
 const Team = lazy(() => import('./components/Team'));
@@ -354,7 +355,7 @@ export default function App() {
   activeTabRef.current = activeTab;
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k' && activeTabRef.current !== 'ledger') {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k' && !['ledger', 'team-ledgers'].includes(activeTabRef.current)) {
         e.preventDefault();
         setShowCommandPalette(prev => !prev);
       }
@@ -1096,6 +1097,8 @@ export default function App() {
                 return <TaskManagement />;
               case 'ledger':
                 return <WorkLedger />;
+              case 'team-ledgers':
+                return <TeamLedgers />;
               case 'messages':
                 return <Messages />;
               case 'admin-chats':

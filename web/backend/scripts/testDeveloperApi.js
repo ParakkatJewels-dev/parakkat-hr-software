@@ -16,10 +16,11 @@ module.exports = function testDeveloperApi({ run, connection, directory }) {
       ] : []),
       `\\i ${quote(join(migrations, file))}`,
       // Both developer API migrations promise safe reruns.
-      ...(/^(0135|0168)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
+      ...(/^(0135|0168|0172)_/.test(file) ? [`\\i ${quote(join(migrations, file))}`] : []),
     ]),
     `\\i ${quote(join(backend, 'tests', 'developer_api.sql'))}`,
     `\\i ${quote(join(backend, 'tests', 'developer_api_write.sql'))}`,
+    `\\i ${quote(join(backend, 'tests', 'developer_api_ledger.sql'))}`,
   ].join('\n'));
   run('createdb', [...connection, database]);
   const output = run('psql', [...connection, '-d', database, '-q', '-f', bootstrap]);

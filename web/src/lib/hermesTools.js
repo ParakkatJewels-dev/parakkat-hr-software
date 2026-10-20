@@ -3,7 +3,7 @@
 // schemas exist so the assistant can call tools correctly first time. hermesTools.test.js keeps the
 // names and areas here identical to the database dispatcher.
 
-export const AGENT_AREAS = ['tasks:manage', 'leave:manage', 'assets:manage', 'goals:manage'];
+export const AGENT_AREAS = ['tasks:manage', 'leave:manage', 'assets:manage', 'goals:manage', 'ledger:manage'];
 
 const id = (description) => ({ type: 'string', format: 'uuid', description });
 const date = (description) => ({ type: 'string', format: 'date', description: `${description} (YYYY-MM-DD).` });
@@ -200,6 +200,77 @@ export const HERMES_TOOLS = [
       status: choice(['Active', 'Completed', 'Dropped'], 'New status.'), title: text('Goal.', 200), description: text('Details.', 4000),
       target_date: date('Target date'), weight: { type: 'integer', minimum: 0, maximum: 100, description: 'Weight 0–100.' } }, ['goal_id']) },
 ];
+
+// Work Ledger (0172): the key owner's own ledger. Same rules as the Work Ledger screens.
+const LEDGER_STATUSES = ['Brief', 'In Progress', 'Internal Review', 'Awaiting Approval', 'Revisions', 'Approved', 'Delivered', 'Blocked', 'Cancelled'];
+const LEDGER_TASK_FIELDS = {
+  title: text('Task title.', 500),
+  brand: text('Brand, e.g. Parakkat Jewels, Parakkat Munnar Resort, Parakkat Riverscape, Parakkat Adimali Retreat or General (any other name is added).', 80),
+  priority: choice(['High', 'Medium', 'Low'], 'Default Medium.'),
+  deadline: date('Deadline'), start_date: date('Start'), end_date: date('End'),
+  status: choice(LEDGER_STATUSES, 'Workflow status.'),
+  campaign: text('Campaign name; a new name creates the campaign.', 160),
+  type: text('Work type, e.g. Print, Reel, Social, Photography.', 120),
+  vendor: text('Vendor name; a new name is added to the vendor list.', 160),
+  waiting_on: text('Who or what it is waiting on (for Blocked or Awaiting Approval).', 200),
+  tags: { type: 'array', items: { type: 'string', maxLength: 40 }, maxItems: 20, description: 'Tags.' },
+  repeat: choice(['daily', 'weekly', 'weekdays', 'monthly'], 'Repeat after it is done.'),
+  est_cost: { type: 'number', description: 'Estimated cost in rupees.' },
+};
+HERMES_TOOLS.push(
+  { name: 'ledger_home', area: 'ledger:manage', title: 'Work Ledger today', readOnly: true,
+    description: 'The Work Ledger at a glance: open work on the board, delivered today, help given today, overdue count, campaign alerts and today\'s reminders.',
+    inputSchema: schema() },
+  { name: 'ledger_list_tasks', area: 'ledger:manage', title: 'List ledger tasks', readOnly: true,
+    description: 'Ledger tasks, newest first. Open ones unless a status is given or include_closed is true.',
+    inputSchema: schema({ status: choice(LEDGER_STATUSES, 'Only this status.'), query: text('Words in the title.', 100),
+      include_closed: flag('Also Delivered and Cancelled.'), limit: { type: 'integer', minimum: 1, maximum: 50, description: 'Default 20.' } }) },
+  { name: 'ledger_get_task', area: 'ledger:manage', title: 'Open a ledger task', readOnly: true,
+    description: 'One ledger task with its notes history, subtasks, deliverables, progress notes and attachments.',
+    inputSchema: schema({ task_id: id('Ledger task id.') }, ['task_id']) },
+  { name: 'ledger_report', area: 'ledger:manage', title: 'Work report', readOnly: true,
+    description: 'The work report for a period, including share_text formatted for WhatsApp. period: day (date YYYY-MM-DD), week (any day in it), month (YYYY-MM), all, or range (date "YYYY-MM-DD|YYYY-MM-DD").',
+    inputSchema: schema({ period: choice(['day', 'week', 'month', 'all', 'range'], 'Default day (today).'), date: text('See description.', 21) }) },
+  { name: 'ledger_list_ideas', area: 'ledger:manage', title: 'List ideas', readOnly: true,
+    description: 'Ideas in the ledger, optionally by status.',
+    inputSchema: schema({ status: choice(['Open', 'Developing', 'Parked', 'Promoted', 'Archived'], 'Only this status.') }) },
+  { name: 'ledger_list_reminders', area: 'ledger:manage', title: 'List reminders', readOnly: true,
+    description: 'Upcoming reminders (and finished ones if asked).',
+    inputSchema: schema({ include_done: flag('Include finished reminders.') }) },
+  { name: 'ledger_list_campaigns', area: 'ledger:manage', title: 'List campaigns', readOnly: true,
+    description: 'Campaigns with stage, launch date, next action, blocker and task progress.',
+    inputSchema: schema() },
+  { name: 'ledger_add_task', area: 'ledger:manage', title: 'Add a ledger task', readOnly: false,
+    description: 'Add a task to the Work Ledger. Starts at Brief unless a status is given.',
+    inputSchema: schema({ ...LEDGER_TASK_FIELDS, notes: text('A first note.', 4000),
+      subtasks: { type: 'array', items: { type: 'string', maxLength: 500 }, maxItems: 50, description: 'Checklist steps.' } }, ['title']) },
+  { name: 'ledger_update_task', area: 'ledger:manage', title: 'Update a ledger task', readOnly: false,
+    description: 'Change a ledger task. Only the fields you send change. Moving to Revisions counts a revision; Approved records the latest deliverable version; every change is added to the task\'s history. To close without finishing, set status Cancelled.',
+    inputSchema: schema({ task_id: id('Ledger task id.'), ...LEDGER_TASK_FIELDS, outcome: text('Result line.', 1000), note: text('A note for the history.', 4000),
+      actual_cost: { type: 'number', description: 'Actual cost in rupees.' } }, ['task_id']) },
+  { name: 'ledger_mark_done', area: 'ledger:manage', title: 'Mark a ledger task done', readOnly: false,
+    description: 'Deliver a task, with an optional outcome. A repeating task gets its next occurrence automatically.',
+    inputSchema: schema({ task_id: id('Ledger task id.'), outcome: text('What came of it.', 1000) }, ['task_id']) },
+  { name: 'ledger_log_progress', area: 'ledger:manage', title: 'Log progress', readOnly: false,
+    description: 'Add a "what I did on this today" note to a multi-day task. The first note moves a Brief task to In Progress.',
+    inputSchema: schema({ task_id: id('Ledger task id.'), note: text('What was done.', 4000),
+      minutes: { type: 'integer', minimum: 0, maximum: 1440, description: 'Optional minutes spent.' }, date: date('Day, default today') }, ['task_id', 'note']) },
+  { name: 'ledger_log_help', area: 'ledger:manage', title: 'Log help or a review', readOnly: false,
+    description: 'Record help or a review given to someone. It shows only under Support & reviews in reports, never on the board.',
+    inputSchema: schema({ what: text('What you did.', 500), for_whom: text('Who was helped.', 120),
+      minutes: { type: 'integer', minimum: 0, maximum: 1440, description: 'Optional minutes.' }, brand: text('Brand.', 80),
+      type: choice(['Review / Feedback', 'Team support'], 'Default Review / Feedback.'), note: text('Note.', 4000), date: date('Day, default today') }, ['what']) },
+  { name: 'ledger_add_idea', area: 'ledger:manage', title: 'Capture an idea', readOnly: false,
+    description: 'Keep an idea in the ledger until it is acted on.',
+    inputSchema: schema({ text: text('The idea.', 4000), brand: text('Brand.', 80),
+      tags: { type: 'array', items: { type: 'string', maxLength: 40 }, maxItems: 20, description: 'Tags.' } }, ['text']) },
+  { name: 'ledger_add_reminder', area: 'ledger:manage', title: 'Set a reminder', readOnly: false,
+    description: 'Set a reminder. If Google Calendar is connected it also becomes a calendar event with pop-ups. due_at is local Asia/Kolkata time like 2026-10-08T10:00.',
+    inputSchema: schema({ text: text('What to be reminded of.', 500), due_at: { type: 'string', maxLength: 16, description: 'YYYY-MM-DDTHH:mm, Asia/Kolkata.' },
+      repeat: choice(['daily', 'weekly', 'weekdays', 'monthly'], 'Repeat.'), task_id: id('Related ledger task.') }, ['text', 'due_at']) },
+);
+// Called by the gateway itself (calendar mirroring), never offered to the assistant.
+export const LEDGER_INTERNAL_TOOLS = ['ledger_calendar_outbox', 'ledger_calendar_ack', 'ledger_google_secret'];
 
 export const HERMES_TOOL_MAP = new Map(HERMES_TOOLS.map((tool) => [tool.name, tool]));
 
