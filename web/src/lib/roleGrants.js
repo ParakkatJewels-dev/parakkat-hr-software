@@ -123,8 +123,47 @@ export function maxGrantableRank(myRank, myRoles = []) {
   return Math.max(...ceilings);
 }
 
-/** The presets the signed-in user is actually allowed to hand out. */
-export function grantableRoles(myRank, myRoles = []) {
+// A custom role carrying user or organisation administration is only for admins (rank 80+), as in
+// Administration's own role picker; app.can_grant applies the same rule in the database.
+const ADMIN_PERMISSION_KEYS = new Set(['rbac.manage', 'org.manage']);
+export const carriesAdminAuthority = (role) =>
+  (role?.permissionKeys ?? []).some((key) => ADMIN_PERMISSION_KEYS.has(key));
+
+/**
+ * Where a custom role applies, read off the employee's own record like the presets' `from`. A
+ * custom role has no natural level, so the person granting it chooses; the narrowest comes first
+ * and is the default. "Only their own records" is the super admin's alone, as in Administration.
+ */
+export const CUSTOM_ROLE_LEVELS = [
+  { scopeType: 'department', from: 'department_id', label: 'Their department' },
+  { scopeType: 'branch', from: 'branch_id', label: 'Their branch' },
+  { scopeType: 'zone', from: 'zone_id', label: 'Their zone' },
+  { scopeType: 'entity', from: 'entity_id', label: 'Their company' },
+  { scopeType: 'self', from: null, label: 'Only their own records', superAdminOnly: true },
+];
+export const customRoleLevel = (scopeType) => CUSTOM_ROLE_LEVELS.find((l) => l.scopeType === scopeType) ?? CUSTOM_ROLE_LEVELS[0];
+
+/**
+ * The roles the signed-in user is actually allowed to hand out: the built-in presets, then the
+ * custom roles made in Administration → Roles (pass the catalogue from useRoles()). Custom roles
+ * obey the same ceiling, and ones carrying admin authority need an admin. Without a catalogue only
+ * the presets come back, as before.
+ */
+export function grantableRoles(myRank, myRoles = [], catalogue = []) {
   const ceiling = maxGrantableRank(myRank, myRoles);
-  return ROLE_PRESETS.filter((r) => r.rank <= ceiling);
+  const builtIn = new Set([...ROLE_PRESETS.map((r) => r.key), 'super_admin']);
+  const custom = (catalogue ?? [])
+    .filter((role) => role?.key && !role.is_system && !builtIn.has(role.key)
+      && (Number(role.rank) || 20) <= ceiling && (!carriesAdminAuthority(role) || myRank >= 80))
+    .map((role) => ({
+      key: role.key,
+      rank: Number(role.rank) || 20,
+      label: role.name || role.key,
+      blurb: role.description || 'A custom role made in Administration → Roles.',
+      custom: true,
+      scopeType: CUSTOM_ROLE_LEVELS[0].scopeType,
+      from: CUSTOM_ROLE_LEVELS[0].from,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  return [...ROLE_PRESETS.filter((r) => r.rank <= ceiling), ...custom];
 }

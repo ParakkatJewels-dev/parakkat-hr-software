@@ -70,3 +70,32 @@ test('a super admin holding only the auto-granted employee@self role keeps their
     ['employee', 'dept_head', 'branch_manager', 'zonal_manager', 'hr_manager', 'entity_admin']
   );
 });
+
+test('custom roles from the catalogue are offered under the same ceilings as built-in ones', () => {
+  const catalogue = [
+    { key: 'employee', name: 'Employee', rank: 10, is_system: true, permissionKeys: [] },
+    { key: 'super_admin', name: 'Super Admin', rank: 100, is_system: true, permissionKeys: ['rbac.manage'] },
+    { key: 'store_supervisor', name: 'Store Supervisor', rank: 20, is_system: false, description: 'Opens and closes the store', permissionKeys: ['attendance.read'] },
+    { key: 'it_admin', name: 'IT Admin', rank: 20, is_system: false, permissionKeys: ['rbac.manage'] },
+    { key: 'regional_lead', name: 'Regional Lead', rank: 70, is_system: false, permissionKeys: ['leave.approve'] },
+  ];
+  const offered = (myRank, myRoles) => grantableRoles(myRank, myRoles, catalogue).map((r) => r.key);
+  // A super admin sees every custom role, after the built-in ones.
+  const admin = grantableRoles(1000, [{ role: 'employee' }], catalogue);
+  assert.deepEqual(admin.filter((r) => r.custom).map((r) => r.key), ['it_admin', 'regional_lead', 'store_supervisor']);
+  const supervisor = admin.find((r) => r.key === 'store_supervisor');
+  assert.equal(supervisor.label, 'Store Supervisor');
+  assert.equal(supervisor.blurb, 'Opens and closes the store');
+  assert.equal(supervisor.scopeType, 'department', 'a custom role starts at the narrowest area on the record');
+  // Seniority still applies: a department head (rank 30) may hand out a rank-20 custom role, not a rank-70 one,
+  // and never one that carries user or organisation administration.
+  assert.ok(offered(30, [{ role: 'dept_head' }]).includes('store_supervisor'));
+  assert.ok(!offered(30, [{ role: 'dept_head' }]).includes('regional_lead'));
+  assert.ok(!offered(30, [{ role: 'dept_head' }]).includes('it_admin'));
+  assert.ok(offered(80, [{ role: 'entity_admin' }]).includes('it_admin'), 'an entity admin may');
+  // Built-ins come from the presets, never twice; super admin is never offered.
+  assert.equal(offered(1000, []).filter((key) => key === 'employee').length, 1);
+  assert.ok(!offered(1000, []).includes('super_admin'));
+  // Without a catalogue (older callers) only the built-in roles, as before.
+  assert.ok(grantableRoles(1000, []).every((r) => !r.custom));
+});

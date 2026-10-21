@@ -28,7 +28,8 @@ const stubs = {
     export const useEmployeeDocuments = () => ({data:[]}), useDocumentLink = () => ({}), useEmployeeAvatars = () => ({data:{}});
     export const ACCEPTED_FILES = "", MAX_FILE_BYTES = 1000000, PHOTO_CATEGORY = "Photo", fileSize = value => String(value);`,
   '../data/org': 'export const useVisibleOrg = () => ({data:globalThis.directoryAccessTest.org});',
-  '../data/admin': 'export const useGrantAppAccess = () => globalThis.directoryAccessTest.grant;',
+  '../data/admin': `export const useGrantAppAccess = () => globalThis.directoryAccessTest.grant;
+    export const useRoles = () => ({ data: globalThis.directoryAccessTest.roles ?? [] });`,
   './GrantAccessPanel': `export { grantableRoles } from ${JSON.stringify(new URL('../lib/roleGrants.js', import.meta.url).href)};
     export const randomPassword = () => "Temporary123"; export default "grant-access";`,
   './EmployeeOrgFields': 'export const EmployeeOrgFields = "employee-org-fields";',
@@ -148,6 +149,24 @@ for (const [role, rank, superAdmin] of [['hr_manager', 60, false], ['entity_admi
     assert.equal(form.accessWrites[0].role_key, 'employee');
   });
 }
+
+test('a custom role made in Administration can be given with a new login, at the area chosen for it', async () => {
+  const form = mount('entity_admin', 80, [grant('employee.create'), grant('rbac.manage')]);
+  form.harness.roles = [{ key: 'store_supervisor', name: 'Store Supervisor', rank: 20, is_system: false, permissionKeys: ['attendance.read'] }];
+  const options = () => React.Children.toArray(form.input('emp-role').props.children).map((option) => option.props.value);
+  assert.ok(options().includes('store_supervisor'), 'the custom role is offered');
+  form.input('emp-role').props.onChange({ target: { value: 'store_supervisor' } });
+  const level = form.input('emp-role-level');
+  assert.ok(level, 'a custom role asks where it applies');
+  assert.ok(!React.Children.toArray(level.props.children).some((option) => option.props.value === 'self'), 'own-records-only is for super admins');
+  level.props.onChange({ target: { value: 'branch' } });
+  form.input('emp-email').props.onChange({ target: { value: 'supervisor@example.test' } });
+  await form.submit();
+  assert.equal(form.accessWrites.length, 1);
+  assert.equal(form.accessWrites[0].role_key, 'store_supervisor');
+  assert.equal(form.accessWrites[0].scope_type, 'branch');
+  assert.equal(form.accessWrites[0].scope_id, 'branch', 'read off their branch');
+});
 
 test('an administrator can create staff outside their separate login-management scope without provisioning access', async () => {
   const form = mount('hr_manager', 60, [grant('employee.create'), grant('rbac.manage', 'entity', 'other-company')]);

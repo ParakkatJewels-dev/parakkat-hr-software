@@ -22,7 +22,8 @@ import { EmployeeOrgFields } from './EmployeeOrgFields';
 import ProfileDrawer from './EmployeeProfile';
 import GrantAccessPanel, { grantableRoles, randomPassword } from './GrantAccessPanel';
 import { useAuth } from '../auth/AuthContext';
-import { useGrantAppAccess } from '../data/admin';
+import { useGrantAppAccess, useRoles } from '../data/admin';
+import { CUSTOM_ROLE_LEVELS, customRoleLevel } from '../lib/roleGrants';
 import { loginHandover } from '../lib/login';
 import LoginHandoverNotice from './LoginHandoverNotice';
 import { SkeletonForm, SkeletonRows } from './ui/Skeleton';
@@ -1096,8 +1097,11 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
 
   // App access, folded into this form so adding a person is one job rather than two screens.
   const { rank: myRank, permissions, assignments } = useAuth();
-  const { can, canAny } = usePermissions();
-  const roleOptions = useMemo(() => grantableRoles(myRank, assignments), [myRank, assignments]);
+  const { can, canAny, isSuperAdmin: superAdmin } = usePermissions();
+  // Custom roles made in Administration → Roles are offered too, under the same ceiling.
+  const { data: roleCatalogue = [] } = useRoles();
+  const roleOptions = useMemo(() => grantableRoles(myRank, assignments, roleCatalogue), [myRank, assignments, roleCatalogue]);
+  const customLevels = CUSTOM_ROLE_LEVELS.filter((level) => superAdmin || !level.superAdminOnly);
   const savePermission = isEdit ? 'employee.update' : 'employee.create';
 
   /**
@@ -1181,6 +1185,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
     // Authorized administrators can include a login. Employee (self-service) is the default:
     // it exposes only the new person's own attendance, leave and payslips.
     roleKey: 'employee',
+    // Where a custom role applies; built-in roles have their own level.
+    customLevel: CUSTOM_ROLE_LEVELS[0].scopeType,
     email: '',
     touched: false,
     password: randomPassword(),
@@ -1191,7 +1197,8 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
 
   // Which placement field this role's area comes from, and whether it has been filled in.
   const accessScope = useMemo(() => {
-    const preset = roleOptions.find((r) => r.key === access.roleKey);
+    const option = roleOptions.find((r) => r.key === access.roleKey);
+    const preset = option?.custom ? { ...option, ...customRoleLevel(access.customLevel) } : option;
     if (!preset || !preset.from) return { type: 'self', id: null, noun: null, missing: false };
     const noun = { department_id: 'department', branch_id: 'branch', zone_id: 'zone', entity_id: 'company' }[preset.from];
     // zone_id is not on this form — it is derived from the branch when the employee is saved.
@@ -1199,7 +1206,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
       ? (org?.branches ?? []).find((b) => b.id === form.branch_id)?.zone_id ?? null
       : form[preset.from] || null;
     return { type: preset.scopeType, id, noun, missing: !id };
-  }, [access.roleKey, roleOptions, form, org]);
+  }, [access.roleKey, access.customLevel, roleOptions, form, org]);
 
   // Will the database accept this placement from THIS user?
   //
@@ -1782,7 +1789,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                       id="emp-role"
                       className={FORM_INPUT}
                       value={access.roleKey}
-                      onChange={(e) => setAccess((a) => ({ ...a, roleKey: e.target.value }))}
+                      onChange={(e) => setAccess((a) => ({ ...a, roleKey: e.target.value, customLevel: CUSTOM_ROLE_LEVELS[0].scopeType }))}
                     >
                       {roleOptions.map((r) => (
                         <option key={r.key} value={r.key}>{r.label}</option>
@@ -1794,6 +1801,15 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">{rolePreset.blurb}</p>
                     )}
                   </div>
+                  {rolePreset?.custom && (
+                    <div>
+                      <label className={L} htmlFor="emp-role-level">Applies to</label>
+                      <select id="emp-role-level" className={FORM_INPUT} value={access.customLevel}
+                        onChange={(e) => setAccess((a) => ({ ...a, customLevel: e.target.value }))}>
+                        {customLevels.map((level) => <option key={level.scopeType} value={level.scopeType}>{level.label}</option>)}
+                      </select>
+                    </div>
+                  )}
 
                   {/* The area is read off the placement fields above — no second scope picker. */}
                   <p

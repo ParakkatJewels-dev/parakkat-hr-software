@@ -13,10 +13,10 @@ import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { useVisibleOrg } from '../data/org';
-import { useGrantAppAccess, useManagedUsers } from '../data/admin';
+import { useGrantAppAccess, useManagedUsers, useRoles } from '../data/admin';
 // Presets and the grant ceiling live in lib/ so they can be tested without pulling Supabase in
 // through useAuth. Re-exported here because call sites have always imported them from this file.
-import { ROLE_PRESETS, grantableRoles } from '../lib/roleGrants';
+import { CUSTOM_ROLE_LEVELS, ROLE_PRESETS, customRoleLevel, grantableRoles } from '../lib/roleGrants';
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
 
@@ -39,11 +39,16 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   const { data: org } = useVisibleOrg();
   const { data: managedUsers = [] } = useManagedUsers();
   const grantAccess = useGrantAppAccess();
-  const { rank: myRank, assignments } = useAuth();
+  const { rank: myRank, assignments, isSuperAdmin } = useAuth();
   const { can } = usePermissions();
+  // The roles as the database holds them, so custom roles made in Administration → Roles are offered too.
+  const { data: catalogue = [] } = useRoles();
 
   // Only offer what this admin may actually grant (see grantableRoles / migrations 0044 and 0091).
-  const roleOptions = useMemo(() => grantableRoles(myRank, assignments), [myRank, assignments]);
+  const roleOptions = useMemo(() => grantableRoles(myRank, assignments, catalogue), [myRank, assignments, catalogue]);
+  // A custom role has no natural level, so the area it applies to is chosen here.
+  const levelOptions = CUSTOM_ROLE_LEVELS.filter((level) => isSuperAdmin || !level.superAdminOnly);
+  const [customLevel, setCustomLevel] = useState(CUSTOM_ROLE_LEVELS[0].scopeType);
 
   const [employeeId, setEmployeeId] = useState(fixedEmployee?.id ?? '');
   const [roleKey, setRoleKey] = useState('employee');
@@ -64,7 +69,10 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   const employeePager = usePagination(matchingEmployees, 8, null, employeeSearch);
 
   const employee = employees.find((e) => e.id === employeeId) ?? null;
-  const preset = roleOptions.find((r) => r.key === roleKey) ?? roleOptions[0] ?? ROLE_PRESETS[0];
+  const preset = useMemo(() => {
+    const option = roleOptions.find((r) => r.key === roleKey) ?? roleOptions[0] ?? ROLE_PRESETS[0];
+    return option.custom ? { ...option, ...customRoleLevel(customLevel) } : option;
+  }, [roleOptions, roleKey, customLevel]);
 
   // Follow the employee's email unless the admin has typed their own.
   const pickEmployee = (id) => {
@@ -323,11 +331,12 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                         type="radio"
                         name="grant-role"
                         checked={roleKey === r.key}
-                        onChange={() => { setRoleKey(r.key); setOverrideScopeId(''); setShowOverride(false); }}
+                        onChange={() => { setRoleKey(r.key); setCustomLevel(CUSTOM_ROLE_LEVELS[0].scopeType); setOverrideScopeId(''); setShowOverride(false); }}
                         className="mt-0.5 accent-brand shrink-0"
                       />
                       <span className="min-w-0">
-                        <span className="block text-sm font-bold text-neutral-800 dark:text-neutral-100">{r.label}</span>
+                        <span className="block text-sm font-bold text-neutral-800 dark:text-neutral-100">{r.label}
+                          {r.custom && <span className="ml-1.5 align-middle text-2xs font-semibold uppercase tracking-wide text-neutral-400">Custom</span>}</span>
                         <span className="block text-2xs text-neutral-500 dark:text-neutral-400 mt-0.5">{r.blurb}</span>
                       </span>
                     </label>
@@ -338,6 +347,15 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
 
             {/* ---- right: area + login ---------------------------------------- */}
             <div className="space-y-4 min-w-0">
+              {preset.custom && (
+                <div>
+                  <label className={labelCls} htmlFor="grant-custom-level">Applies to</label>
+                  <select id="grant-custom-level" value={customLevel} className={inputCls + ' cursor-pointer'}
+                    onChange={(e) => { setCustomLevel(e.target.value); setOverrideScopeId(''); setShowOverride(false); }}>
+                    {levelOptions.map((level) => <option key={level.scopeType} value={level.scopeType}>{level.label}</option>)}
+                  </select>
+                </div>
+              )}
               <div>
                 <label className={labelCls}>Access area</label>
                 <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-2.5">

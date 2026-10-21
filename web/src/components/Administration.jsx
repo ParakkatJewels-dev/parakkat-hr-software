@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import GrantAccessPanel from './GrantAccessPanel';
-import { maxGrantableRank } from '../lib/roleGrants';
+import { carriesAdminAuthority, maxGrantableRank } from '../lib/roleGrants';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
 import UserAccessPanel from './UserAccessPanel';
@@ -50,9 +50,6 @@ const ROLE_SCOPES = {
   employee: ['self'],
 };
 
-const ADMIN_PERMISSION_KEYS = new Set(['rbac.manage', 'org.manage']);
-const carriesAdminAuthority = (role) =>
-  (role?.permissionKeys ?? []).some((key) => ADMIN_PERMISSION_KEYS.has(key));
 
 function canOfferRole(role, { includeSuperAdmin = false, isSuperAdmin = false, myRank = 0, myRoles = [] } = {}) {
   if (!role) return false;
