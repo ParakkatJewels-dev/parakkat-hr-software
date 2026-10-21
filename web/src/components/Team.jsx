@@ -11,9 +11,11 @@
 // correction made here changes nothing on any biometric reader.
 import { SkeletonPage, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useDeferredValue, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
-  Users, UserPlus, UserMinus, Search, AlertTriangle, History, X, Building2,
+  Users, UserPlus, UserMinus, Search, AlertTriangle, History, X, Building2, ChevronRight,
 } from 'lucide-react';
+import { usePermissions } from '../auth/usePermissions';
 import {
   useMyDepartments, useDepartmentMembers, useAssignableEmployees,
   useDepartmentMoves, useMoveEmployeeDepartment,
@@ -37,6 +39,11 @@ export default function Team() {
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState(null);
   const [showHistory, setShowHistory] = useState(false);
+  const navigate = useNavigate();
+  // A team member's name opens their profile, as names do elsewhere (EmployeeLink). The People
+  // screen needs employee.read beyond your own record, so without it the row stays plain text.
+  const { canBeyondSelf } = usePermissions();
+  const canOpenProfile = canBeyondSelf('employee.read');
 
   // Whichever department they picked, else the first one they run.
   const department = departments.find((d) => d.id === selectedId) ?? departments[0] ?? null;
@@ -190,17 +197,28 @@ export default function Team() {
           <div className="premium-card p-0 overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-900/60">
             {memberPager.slice.map((m) => (
               <div key={m.id} className="mobile-list-row flex items-center justify-between gap-3 px-4 py-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <Avatar name={m.full_name} />
-                  <div className="min-w-0">
-                    <span className="block text-md font-bold text-neutral-900 dark:text-white truncate">{m.full_name}</span>
-                    <span className="block text-2xs font-mono text-neutral-500">
-                      {m.employee_code}
-                      {m.designation?.title ? ` · ${m.designation.title}` : ''}
-                      {m.branch?.code ? ` · ${m.branch.code}` : ''}
-                    </span>
-                  </div>
-                </div>
+                {(() => {
+                  const person = (
+                    <>
+                      <Avatar name={m.full_name} />
+                      <div className="min-w-0">
+                        <span className="block text-md font-bold text-neutral-900 dark:text-white truncate">{m.full_name}</span>
+                        <span className="block text-2xs font-mono text-neutral-500">
+                          {m.employee_code}
+                          {m.designation?.title ? ` · ${m.designation.title}` : ''}
+                          {m.branch?.code ? ` · ${m.branch.code}` : ''}
+                        </span>
+                      </div>
+                    </>
+                  );
+                  return canOpenProfile ? (
+                    <button type="button" onClick={() => navigate(`/directory/${m.id}`)} title={`Open ${m.full_name}'s profile`}
+                      className="group flex flex-1 items-center gap-2.5 min-w-0 text-left cursor-pointer rounded-lg -m-1 p-1 hover:bg-neutral-50 dark:hover:bg-neutral-900/60 focus-visible:outline-2 focus-visible:outline-brand">
+                      {person}
+                      <ChevronRight size={14} aria-hidden="true" className="ml-auto shrink-0 text-neutral-300 group-hover:text-brand-ink" />
+                    </button>
+                  ) : <div className="flex items-center gap-2.5 min-w-0">{person}</div>;
+                })()}
                 <button
                   onClick={() => setRemoving(m)}
                   title={`Remove ${m.full_name} from ${department?.name}`}

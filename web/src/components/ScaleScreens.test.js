@@ -193,6 +193,17 @@ test('team roster renders 25 out of 675 members with name and code search', () =
   assert.match(html, /Page 1 of 27/);
 });
 
+test('a team member opens their profile; without directory access the name stays plain text', () => {
+  const seeds = [[['my-departments'], [{ id: 'dept-1', name: 'Sales', headcount: 1 }]],
+    [['department-members', 'dept-1'], [{ id: 'emp-7', full_name: 'Asha Nair', employee_code: 'PJ-7' }]]];
+  const html = render(Team, seeds);
+  assert.match(html, /<button type="button" title="Open Asha Nair(&#x27;|')s profile"/);
+  const head = render(Team, seeds, {}, '/', { isSuperAdmin: false,
+    permissions: [{ permission: 'employee.assign', scope_type: 'department', scope_id: 'dept-1' }] });
+  assert.doesNotMatch(head, /Open Asha Nair(&#x27;|')s profile/);
+  assert.match(head, /Asha Nair/);
+});
+
 test('shared pagers offer first and last page controls without submitting an enclosing form', () => {
   const html = render(Pagination, [], { page: 1, totalPages: 27, pageSize: 25, count: 675,
     from: 1, to: 25, setPage() {}, setPageSize() {} });
