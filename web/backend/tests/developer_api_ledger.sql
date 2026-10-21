@@ -92,7 +92,6 @@ begin
   assert (select employee_id = audit_developer.id(7,14) and assigned_by = audit_developer.id(7,14) from public.tasks where id = _id), 'the key owner''s own task';
   assert exists (select 1 from public.task_events where task_id = _id and kind = 'step' and to_value = 'In review'
     and actor_employee = audit_developer.id(7,14)), 'history recorded under the owner';
-  assert not exists (select 1 from public.ledger_tasks where owner_user = audit_developer.id(6,14) and title = 'Onam reel'), 'nothing in the old personal ledger';
   assert (select count(*) from public.audit_log where action = 'API_CALL' and table_name like 'api:ledger_%' and actor = audit_developer.id(6,14)) >= 10, 'assistant calls audited';
 end $$;
 select 'PASS: a Work Ledger key works on the owner''s real tasks and the creative team''s shared ideas with the same rules as the screens; other keys cannot' as result;

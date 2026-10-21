@@ -16,7 +16,10 @@ import { focusIdFrom, stripFocus } from '../lib/focusRow';
 import { istToday } from '../lib/dates';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { useSectionCounts } from '../data/sectionCounts';
-import { syncGoogleCalendar } from '../data/workLedger';
+import { useHelpRequests } from '../data/helpRequests';
+import { useMyDepartments } from '../data/team';
+import { pendingCount } from '../lib/helpRequests';
+import { syncGoogleCalendar } from '../data/googleCalendar';
 import { readSound, useWorkHome } from '../data/work';
 import { useCreativeSettings } from '../data/creative';
 import CommandBar from './ledger/CommandBar';
@@ -79,11 +82,25 @@ export default function WorkLedger() {
   const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
   const canTeam = canBeyondSelf('task.read');
   const creative = Boolean(useCreativeSettings().data?.member);
-  const tabs = visibleTabs({ canTeam, canRequests: canAny('task.request'), canDeleted: canAny('task.manage') || Boolean(employee?.id), creative });
+  const canRequests = canAny('task.request');
+  const tabs = visibleTabs({ canTeam, canRequests, canDeleted: canAny('task.manage') || Boolean(employee?.id), creative });
   const [urlTab, setTab] = useUrlTab('home', LEDGER_TABS.map((item) => item.id));
   const tab = tabs.some((item) => item.id === urlTab) ? urlTab : 'home';
   const home = useWorkHome();
   const counts = useSectionCounts({ selfOnly: viewingAsEmployee });
+  // Only requests waiting on you. During a staged backend rollout the old summary has no request
+  // field; fall back only to fully loaded lists — a missing or failed query is not an empty queue.
+  const departmentsQuery = useMyDepartments({ enabled: canRequests });
+  const helpRequestsQuery = useHelpRequests({ enabled: canRequests });
+  const badgeFor = (item) => {
+    if (!item.count) return null;
+    const badge = navigationScreenCount(item.count, counts.data);
+    if (badge && item.id === 'requests' && !Object.hasOwn(counts.data ?? {}, 'task_requests')
+        && departmentsQuery.data !== undefined && helpRequestsQuery.data !== undefined) {
+      badge.count = pendingCount(helpRequestsQuery.data, departmentsQuery.data.map((d) => d.id));
+    }
+    return badge;
+  };
   const [drawer, setDrawer] = useState(null);
   const [command, setCommand] = useState(null);
   // null, or the new-task form's starting values (a campaign, an idea, a template).
@@ -149,10 +166,10 @@ export default function WorkLedger() {
   const close = () => setDrawer(null);
   const panel = () => {
     switch (tab) {
-    case 'team': return <TaskManagement embedded embeddedView="board" />;
-    case 'requests': return <TaskManagement embedded embeddedView="requests" />;
-    case 'routines': return <TaskManagement embedded embeddedView="routine" />;
-    case 'deleted': return <TaskManagement embedded embeddedView="deleted" />;
+    case 'team': return <TaskManagement view="board" />;
+    case 'requests': return <TaskManagement view="requests" />;
+    case 'routines': return <TaskManagement view="routine" />;
+    case 'deleted': return <TaskManagement view="deleted" />;
     case 'reports': return <LedgerReports />;
     case 'insights': return <Suspense fallback={<p className="ledger-quiet">Loading charts…</p>}><LedgerInsights /></Suspense>;
     case 'campaigns': return <LedgerCampaigns selected={picked.campaigns} onSelect={(id) => setPicked((current) => ({ ...current, campaigns: id }))} />;
@@ -186,7 +203,7 @@ export default function WorkLedger() {
         <nav role="tablist" aria-label="Work Ledger sections"
           className="mobile-segmented mobile-segmented-dense tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
           {tabs.map((item, index) => {
-            const badge = item.count ? navigationScreenCount(item.count, counts.data) : null;
+            const badge = badgeFor(item);
             return (
               <button key={item.id} type="button" role="tab" id={`ledger-tab-${item.id}`} aria-controls={`ledger-panel-${item.id}`}
                 aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} aria-keyshortcuts={String(index + 1)}

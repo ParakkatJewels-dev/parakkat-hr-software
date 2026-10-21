@@ -271,7 +271,7 @@ for (const key of KEYS) {
     const html = render(Performance, actor(key), [[['goals'], goals]], '/performance/team');
     assert.equal(count(html, /aria-label="Remove goal"/g), key === 'super_admin' ? 2 : key === 'employee' ? 0 : 1);
     if (key === 'employee') { assert.match(html, /Self Worker goal/); assert.doesNotMatch(html, /Inside Worker goal|Outside Worker goal/); assert.match(html, /> Done<\/button>/); }
-    const ownTasks = render(TaskManagement, actor(key), [], '/tasks/todo');
+    const ownTasks = render(TaskManagement, actor(key), [], '/ledger/home', { view: 'todo' });
     assert.match(ownTasks, /Add a task for yourself/);
   });
   test(`${key}: directory create and export actions match company versus department authority`, () => {
@@ -349,7 +349,7 @@ test('unlinked system login cannot open messaging or file personal leave/expense
   assert.match(await renderApp(auth, '/messages'), /Access restricted/);
   assert.doesNotMatch(render(Leave, auth), />Apply for Leave<|>Apply Leave</);
   assert.doesNotMatch(render(Expense, auth), />New Claim</);
-  const todo = render(TaskManagement, auth, [], '/tasks/todo');
+  const todo = render(TaskManagement, auth, [], '/ledger/home', { view: 'todo' });
   assert.match(todo, /Your login is not linked to an employee record/);
   assert.doesNotMatch(todo, /Add a task for yourself/);
 });

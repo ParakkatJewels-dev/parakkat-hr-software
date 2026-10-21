@@ -9,7 +9,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { usePermissions } from '../../auth/usePermissions';
 import { useEmployees } from '../../data/employees';
 import { useAddAssignee, useCreateTask, useRemoveAssignee, useTasks, useUpdateTask } from '../../data/tasks';
-import { newId, syncGoogleCalendar } from '../../data/workLedger';
+import { newId, syncGoogleCalendar } from '../../data/googleCalendar';
 import { useWorkRpc, useWorkTask, useWorkUpdate, useWorkWrite } from '../../data/work';
 import { useCreativeLibrary, useCreativeWrite } from '../../data/creative';
 import { humanDbError } from '../../lib/dbErrors';

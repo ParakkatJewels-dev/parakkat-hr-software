@@ -2,7 +2,7 @@
 // ten minutes before a Calendar meeting. Checked every 30 seconds from the data already loaded.
 import React, { useEffect, useRef, useState } from 'react';
 import { BellRing, X } from 'lucide-react';
-import { syncGoogleCalendar, useGoogleEvents } from '../../data/workLedger';
+import { syncGoogleCalendar, useGoogleEvents } from '../../data/googleCalendar';
 import { useWorkRpc } from '../../data/work';
 import { chime, istStamp, timeOf } from './ui';
 import { btnClass } from '../ui/Btn';

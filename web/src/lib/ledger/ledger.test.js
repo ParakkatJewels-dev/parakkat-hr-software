@@ -3,9 +3,7 @@ import assert from 'node:assert/strict';
 import * as XLSX from 'xlsx';
 import { periodLabel, periodArgument, weekStart, longDate } from './periods.js';
 import { buildShareText } from './shareText.js';
-import { parseLedgerSheets, sheetsFromWorkbook, normaliseStatus, toDay, toDateTime, attachmentsFromNotes, tabKind, importBatches, IMPORT_ORDER } from './importWorkbook.js';
-import { EXPORT_COLUMNS, exportTable } from './exportCsv.js';
-import { diffReports, reportsMatch } from './compare.js';
+import { LEDGER_TABS, parseLedgerSheets, sheetsFromWorkbook, normaliseStatus, toDay, toDateTime, attachmentsFromNotes, tabKind, importBatches, IMPORT_ORDER } from './importWorkbook.js';
 import { shareText, copyText } from './share.js';
 
 test('period labels match the original report headings', () => {
@@ -203,26 +201,6 @@ test('tab names, attachment lines and batching', () => {
   assert.equal(IMPORT_ORDER.at(-1), 'links');
 });
 
-test('CSV export has the 33 original columns in order and empty legacy delegation columns', () => {
-  assert.equal(EXPORT_COLUMNS.length, 33);
-  const table = exportTable([{ task: 'Hoarding', pinned: true, brief: { objective: 'Footfall' }, notes: 'a\nb', revision: 0 }]);
-  assert.equal(table.headers[3], 'Task');
-  assert.equal(table.headers[12], 'Notes / Links');
-  assert.equal(table.headers[32], 'Approved Version');
-  const row = table.rows[0];
-  assert.equal(row[3], 'Hoarding');
-  assert.equal(row[15], 'TRUE');
-  assert.equal(row[27], '{"objective":"Footfall"}');
-  assert.equal(row[19], '0');
-  assert.deepEqual([row[9], row[10], row[11]], ['', '', '']);
-});
-
-test('the compare tool ignores spacing and shows real differences', () => {
-  assert.ok(reportsMatch('*A*\nline  \n\n\nnext', '*A*\nline\n\nnext\n'));
-  const diff = diffReports('*A*\n• one\n• two', '*A*\n• one\n• three');
-  assert.deepEqual(diff, [{ type: 'same', line: '*A*' }, { type: 'same', line: '• one' }, { type: 'old', line: '• two' }, { type: 'new', line: '• three' }]);
-});
-
 test('share uses the share sheet when present and falls back to the clipboard', async () => {
   const copied = [];
   const clipboard = { writeText: async (value) => { copied.push(value); } };
@@ -233,22 +211,23 @@ test('share uses the share sheet when present and falls back to the clipboard', 
   assert.equal(await copyText('hi', { nav: { clipboard: { writeText: async () => { throw new Error('denied'); } } } }), 'failed');
 });
 
-test('every field the importer sends is a column the database import reads', async () => {
+test('every Sheet field the database import reads is one the importer sends', async () => {
   const { readFile } = await import('node:fs/promises');
-  const sql = await readFile(new URL('../../../backend/supabase/migrations/0169_work_ledger.sql', import.meta.url), 'utf8');
-  const columns = {};
-  for (const match of sql.matchAll(/_kind = '(\w+)' then/g)) {
-    const rest = sql.slice(match.index);
-    const body = /jsonb_to_recordset\(_rows\) as x\(([^)]*)\)/.exec(rest);
-    if (body && !(match[1] in columns)) columns[match[1]] = body[1];
-  }
-  const declared = (kind) => new Set([...(columns[kind] ?? '').matchAll(/(\w+) (?:integer|text|date|boolean|numeric|jsonb|text\[\])/g)].map((m) => m[1]));
-  const extras = { tasks: ['attachments'], campaigns: ['log'] };
-  const parsed = parseLedgerSheets(sheetsFromWorkbook(XLSX, workbook()));
-  for (const kind of ['tasks', 'campaigns', 'ideas', 'subtasks', 'progress']) {
-    const known = declared(kind);
-    for (const row of parsed.kinds[kind]) {
-      for (const key of Object.keys(row)) assert.ok(known.has(key) || extras[kind]?.includes(key), `${kind}.${key} is read by the import`);
-    }
-  }
+  const sql = await readFile(new URL('../../../backend/supabase/migrations/0175_work_import.sql', import.meta.url), 'utf8');
+  const worker = sql.slice(sql.indexOf('function app.work_import_rows'), sql.indexOf('function public.work_import_batch'));
+  // One row in every tab, under every header the importer knows: each kind's rows then carry every field it sends.
+  const parsed = parseLedgerSheets(Object.fromEntries(Object.values(LEDGER_TABS).map((spec) => [spec.names[0], [
+    Object.values(spec.fields).map((aliases) => aliases[0]), Object.keys(spec.fields).map((field) => (field === spec.key ? '2' : null))]])));
+  const sections = [...worker.matchAll(/if _kind (?:= '(\w+)'|in \(([^)]*)\)) then/g)];
+  assert.ok(sections.length >= 10, 'every kind has a branch');
+  sections.forEach((match, index) => {
+    let kinds = match[1] ? [match[1]] : [...match[2].matchAll(/'(\w+)'/g)].map((m) => m[1]);
+    // Subtasks, deliverables and progress share one branch (with an else for progress).
+    const children = ['subtasks', 'deliverables', 'progress'];
+    if (kinds.every((kind) => children.includes(kind))) kinds = children;
+    const body = worker.slice(match.index, sections[index + 1]?.index ?? worker.length);
+    const sent = new Set(kinds.flatMap((kind) => (parsed.kinds[kind] ?? []).flatMap((row) => Object.keys(row))));
+    if (!sent.size || kinds.includes('links')) return;
+    for (const [, field] of body.matchAll(/_r->>?'(\w+)'/g)) assert.ok(sent.has(field), `${kinds.join('/')}.${field} is sent by the importer`);
+  });
 });

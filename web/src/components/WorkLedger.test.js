@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { createServer } from 'vite';
 
-let server, AuthContext, WorkLedger, shortcutFor, visibleTabs, ReportView, reportRows, LedgerSettings, Drawer, CampaignDetail, LedgerContext, dueItems, TeamLedgers, nextMoves;
+let server, AuthContext, WorkLedger, shortcutFor, visibleTabs, ReportView, reportRows, LedgerSettings, Drawer, CampaignDetail, LedgerContext, dueItems, nextMoves;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
@@ -15,14 +15,12 @@ before(async () => {
   ({ CampaignDetail } = await server.ssrLoadModule('/src/components/ledger/LedgerCampaigns.jsx'));
   ({ LedgerContext } = await server.ssrLoadModule('/src/components/ledger/ui.jsx'));
   ({ dueItems } = await server.ssrLoadModule('/src/components/ledger/DueBanner.jsx'));
-  ({ default: TeamLedgers } = await server.ssrLoadModule('/src/components/TeamLedgers.jsx'));
   ({ ReportView, reportRows } = await server.ssrLoadModule('/src/components/ledger/LedgerReports.jsx'));
   ({ default: LedgerSettings } = await server.ssrLoadModule('/src/components/ledger/LedgerSettings.jsx'));
   ({ default: Drawer } = await server.ssrLoadModule('/src/components/ledger/Drawer.jsx'));
 });
 after(async () => { await server?.close(); });
 
-const boot = { owner: { user_id: 'viewer', name: 'Vivek Menon', designation: 'Creative Head' }, brands: [] };
 const employeeAuth = { user: { id: 'viewer', email: 'viewer@example.test' }, isSuperAdmin: false, employee: { id: 'e1', full_name: 'Vivek Menon' }, assignments: [],
   permissions: ['task.read', 'task.update'].map((permission) => ({ permission, scope_type: 'self' })) };
 const managerAuth = { ...employeeAuth, permissions: [...employeeAuth.permissions,
@@ -233,17 +231,8 @@ test('a super admin chooses the creative departments in Settings; members only s
   assert.doesNotMatch(html, /Creative team|old Google Sheet/, 'others see neither');
 });
 
-test('team ledgers lists the people a manager may read, by department', () => {
-  const people = [{ user_id: '7d4f9a52-3c1b-4e8a-9f60-2b7d1c5e8a31', name: 'Vivek Menon', code: 'PJ-1', department: 'Marketing', designation: 'Creative Head' }];
-  const html = render(React.createElement(TeamLedgers), { path: '/team-ledgers', seed: { '["work-ledger","team"]': people } });
-  assert.match(html, /<h1[^>]*>.*Team ledgers<\/h1>/);
-  assert.match(html, /Marketing/);
-  assert.match(html, /Vivek Menon/);
-  assert.match(html, /never their reminders or calendar/);
-});
-
 test('the settings tab shows Google Calendar, sound, what Home points out and shortcuts', () => {
-  const html = render(React.createElement(WorkLedger), { path: '/ledger/settings', seed: { ...seeded, '["work-ledger","google-status"]': { connected: false, status: 'disconnected' } } });
+  const html = render(React.createElement(WorkLedger), { path: '/ledger/settings', seed: { ...seeded, '["calendar","status"]': { connected: false, status: 'disconnected' } } });
   assert.match(html, /Connect Google Calendar/);
   assert.match(html, /Play a short chime/);
   assert.match(html, /What Home points out/);

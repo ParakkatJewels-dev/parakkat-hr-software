@@ -26,11 +26,12 @@ creative tables is ever hard-deleted.
 
 | File | What it adds |
 | --- | --- |
-| `0169`–`0172` | The original personal ledger (now hidden; its tables are removed in the clean-up stage) |
+| `0169`–`0172` | The original personal ledger; only its reminders, Google Calendar link, date helpers and festival calendar are still used |
 | `0173_work_ledger_tasks.sql` | Ledger fields and rules on `tasks`; history, progress notes, deliverables, marks, help log; Home / report / insights / search reads; reminders linked to tasks |
 | `0174_work_creative.sql` | The creative team setting; shared campaigns (+ log), ideas, vendors, templates, key dates, brands; `tasks.campaign_id` / `vendor_id`; creative report and insight parts |
 | `0175_work_import.sql` | The old Google Sheet import onto tasks and the shared tables |
 | `0176_work_assistant.sql` | Hermes's Work Ledger tools on task records; review step and more in the Tasks tools |
+| `0177_work_ledger_cleanup.sql` | Removes the personal-ledger tables and functions and the `ledger-files` storage rules (the bucket too, if empty) |
 
 Apply them in order with the normal migration runner, then deploy `web`.
 
@@ -96,8 +97,9 @@ step, waiting on, depends on, outcome, progress notes, deliverables and history.
 
 ## Verification
 
-- `LC_ALL=C npm --prefix web/backend test` includes `tests/work_tasks.sql`, `work_creative.sql` and
-  `work_import.sql` (after the original ledger tests), and `developer_api_ledger.sql` for Hermes: review steps and notifications, the checklist
+- `LC_ALL=C npm --prefix web/backend test` includes `tests/work_ledger_base.sql` (people, dates,
+  reminders and Google Calendar), `work_tasks.sql`, `work_creative.sql`, `work_import.sql`, and
+  `developer_api_ledger.sql` for Hermes: review steps and notifications, the checklist
   rollup, focus, visibility for every role, the creative team's access, campaign / idea rules, report and
   insight parts, and import re-runs.
 - `npm --prefix web test` covers the screens (`WorkLedger.test.js`), routes and redirects from `/tasks`,

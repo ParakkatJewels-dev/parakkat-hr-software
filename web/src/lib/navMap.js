@@ -84,7 +84,6 @@ export const OVERSIGHT_NAV = [
       { id: 'ledger', label: 'Work Ledger', perm: 'task.read' },
       { id: 'tasks', label: 'Tasks', perm: 'task.read', retired: true },
       { id: 'performance', label: 'Goals', perm: 'goal.read' },
-      { id: 'team-ledgers', label: 'Team ledgers', perm: 'ledger.read_team', retired: true },
     ],
   },
   {

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { CalendarCheck, FileUp } from 'lucide-react';
-import { connectGoogleCalendar, disconnectGoogleCalendar, syncGoogleCalendar, useGoogleStatus, useRefreshLedger } from '../../data/workLedger';
+import { connectGoogleCalendar, disconnectGoogleCalendar, syncGoogleCalendar, useGoogleStatus, useRefreshCalendar } from '../../data/googleCalendar';
 import { readSound, saveSound } from '../../data/work';
 import { previewWorkImport, runWorkImport, useCreativeSettings, useCreativeWrite, useRefreshAfterImport } from '../../data/creative';
 import { IMPORT_ORDER, parseLedgerSheets, sheetsFromWorkbook } from '../../lib/ledger/importWorkbook.js';
@@ -49,7 +49,7 @@ function GoogleSection() {
   const { search } = useLocation();
   const result = new URLSearchParams(search).get('google');
   const status = useGoogleStatus();
-  const refresh = useRefreshLedger();
+  const refresh = useRefreshCalendar();
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState(result ? GOOGLE_RESULTS[result] ?? 'Google Calendar could not be connected. Try again.' : '');
   const google = status.data ?? { connected: false, status: 'disconnected' };

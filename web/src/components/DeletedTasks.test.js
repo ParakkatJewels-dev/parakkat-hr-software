@@ -33,7 +33,7 @@ function render(Component, { rows = [], props = {}, auth = {} } = {}) {
   try {
     return renderToStaticMarkup(React.createElement(QueryClientProvider, { client },
       React.createElement(AuthContext.Provider, { value: context },
-        React.createElement(MemoryRouter, { initialEntries: ['/tasks/deleted'] }, React.createElement(Component, props)))));
+        React.createElement(MemoryRouter, { initialEntries: ['/ledger/deleted'] }, React.createElement(Component, props)))));
   } finally { client.clear(); }
 }
 
@@ -74,15 +74,14 @@ test('restore controls require explicit server permission as well as the selecte
 });
 
 test('employees reach Deleted tasks and recover only their self-created root tasks', () => {
-  const html = render(TaskManagement, { rows: [task(1), task(2, { assigned_by: 'manager' }),
+  const html = render(TaskManagement, { props: { view: 'deleted' }, rows: [task(1), task(2, { assigned_by: 'manager' }),
     task(3, { employee_id: 'other' }), task(4, { parent_task_id: 'parent' })] });
-  assert.match(html, /aria-current="page"[^>]*>.*?Deleted tasks/s);
   assert.match(html, /aria-label="Restore Deleted task 1"/);
   assert.doesNotMatch(html, /aria-label="Restore Deleted task [234]"/);
 });
 
 test('team restore access is limited to the task management scope', () => {
-  const html = render(TaskManagement, {
+  const html = render(TaskManagement, { props: { view: 'deleted' },
     auth: { employee: null, permissions: [
       { permission: 'task.read', scope_type: 'branch', scope_id: 'managed-branch' },
       { permission: 'task.manage', scope_type: 'branch', scope_id: 'managed-branch' },
@@ -90,7 +89,7 @@ test('team restore access is limited to the task management scope', () => {
   });
   assert.match(html, /aria-label="Restore Deleted task 1"/);
   assert.doesNotMatch(html, /aria-label="Restore Deleted task 2"/);
-  const readOnly = render(TaskManagement, { auth: { employee: null,
+  const readOnly = render(TaskManagement, { props: { view: 'deleted' }, auth: { employee: null,
     permissions: [{ permission: 'task.read', scope_type: 'global' }] }, rows: [task(1)] });
   assert.doesNotMatch(readOnly, /Deleted tasks|Restore task/);
 });

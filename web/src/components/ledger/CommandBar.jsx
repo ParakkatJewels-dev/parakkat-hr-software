@@ -5,7 +5,7 @@ import React, { useEffect, useId, useRef, useState } from 'react';
 import { Search } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useCreateTask } from '../../data/tasks';
-import { newId, syncGoogleCalendar } from '../../data/workLedger';
+import { newId, syncGoogleCalendar } from '../../data/googleCalendar';
 import { searchWork, useWorkRpc, useWorkWrite } from '../../data/work';
 import { useCreativeWrite } from '../../data/creative';
 import { describeCapture, parseQuickCapture } from '../../lib/ledger/quickCapture.js';

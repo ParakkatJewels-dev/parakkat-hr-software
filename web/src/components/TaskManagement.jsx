@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect, useDeferredValue, useRef, useId } from 'react';
 import {
-  ListChecks, Plus, X, AlertTriangle, Flag,
-  CalendarClock, User, Search, PenLine, ShieldAlert, HandHelping,
-  CheckSquare, Square, ArrowDownWideNarrow, ArrowLeft, Trash2,
+  Plus, X, AlertTriangle, Flag,
+  CalendarClock, User, Search, PenLine, ShieldAlert,
+  Square, ArrowDownWideNarrow, ArrowLeft,
 } from 'lucide-react';
 import {
   useTasks, useCreateTask, useUpdateTask, useDeleteTask, useAddAssignee, useRemoveAssignee,
@@ -13,13 +13,12 @@ import { useAuth } from '../auth/AuthContext';
 import FormSection from './ui/FormSection';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { usePermissions } from '../auth/usePermissions';
-import { useUrlTab } from '../lib/useUrlTab';
 // A help request is a request for a TASK, so it lives here rather than beside the team roster:
 // this is the screen people already open when they are thinking about work.
 import TeamRequests from './TeamRequests';
 import { useMyDepartments } from '../data/team';
 import { useHelpRequests, useUpdateRequestedTask } from '../data/helpRequests';
-import { pendingCount, outgoingRequests } from '../lib/helpRequests';
+import { outgoingRequests } from '../lib/helpRequests';
 // The board's reasoning — filtering, counting, nesting, grouping — lives in lib so it can be
 // tested. This file imports Supabase through its data hooks, which the test runner cannot load.
 import {
@@ -42,9 +41,6 @@ import { useTaskCommentCounts } from '../data/taskComments';
 import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
 import TaskAttachmentDraft from './TaskAttachmentDraft';
-import { useSectionCounts } from '../data/sectionCounts';
-import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
-import { NavigationCountBadge } from './ui/CountBadge';
 
 const INPUT =
   'w-full min-h-11 text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
@@ -68,19 +64,16 @@ const TASKS_PER_PAGE = 10;
 const EMPTY_ROWS = [];
 
 /**
- * `embedded` mounts one view inside the Work Ledger, which supplies its own header and tabs. The
- * view, its filters, the composer and every rule are the same as on this screen.
+ * Task Management's views, mounted inside the Work Ledger (which supplies the page header and tabs):
+ * the team board, my tasks, requests, routines and deleted tasks. `view` picks one; old /tasks links
+ * open the matching Ledger tab (appRoutes.tasksToLedger).
  */
-export default function TaskManagement({ embedded = false, embeddedView = 'board' } = {}) {
+export default function TaskManagement({ view = 'board' } = {}) {
   const { data: tasks = [], isLoading, error } = useTasks();
   const employeesQuery = useEmployees();
   const { data: employees = [] } = employeesQuery;
   const { employee } = useAuth();
-  const { canAny, can, canBeyondSelf, viewingAsEmployee } = usePermissions();
-  const sectionCounts = useSectionCounts({ selfOnly: viewingAsEmployee });
-  // Each submenu shows its own part of the shared Work count, independent of board filters.
-  const myTasksBadge = navigationScreenCount('tasks/todo', sectionCounts.data);
-  const routineBadge = navigationScreenCount('tasks/routine', sectionCounts.data);
+  const { canAny, can, canBeyondSelf } = usePermissions();
 
   const create = useCreateTask();
   const update = useUpdateTask();   // the status dropdown
@@ -123,14 +116,6 @@ export default function TaskManagement({ embedded = false, embeddedView = 'board
     create: (t) => can('task.create', scopeOf(t)),
   };
 
-  // In the URL, so a refresh comes back to the view you were reading.
-  //
-  // 'flow' and 'people' were retired in 0114. tabFromPath falls back to the default for an id it
-  // does not recognise, so an old link or a bookmarked ?tab=flow lands on the board rather than
-  // rendering nothing — which is the whole reason that fallback exists.
-  const [urlView, setUrlView] = useUrlTab('board', ['board', 'todo', 'requests', 'routine', 'deleted']);
-  const view = embedded ? embeddedView : urlView;
-  const setView = embedded ? () => {} : setUrlView;
   const [statusFilter, setStatusFilter] = useState('Active'); // Active | All | Overdue | <status>
   const [mineOnly, setMineOnly] = useState(false);
   // What the By Person view used to answer — "who is carrying what" — as a narrowing of the one
@@ -141,7 +126,6 @@ export default function TaskManagement({ embedded = false, embeddedView = 'board
   const composerTrigger = useRef(null);
   const composerScroll = useRef(null);
   const newTaskButton = useRef(null);
-  const browseHeading = useRef(null);
   const composerSubmitting = useRef(false);
   const composerWasOpen = useRef(false);
   const [toDelete, setToDelete] = useState(null); // the task awaiting confirmation
@@ -190,7 +174,7 @@ export default function TaskManagement({ embedded = false, embeddedView = 'board
       // Saving a title, due date or assignee can remove its row from the current filter.
       // Return to a stable board control when that original Edit button no longer exists.
       const target = available(trigger) ? trigger
-        : available(newTaskButton.current) ? newTaskButton.current : browseHeading.current;
+        : available(newTaskButton.current) ? newTaskButton.current : null;
       target?.focus({ preventScroll: true });
       const position = composerScroll.current;
       if (position?.container.isConnected) {
@@ -208,13 +192,6 @@ export default function TaskManagement({ embedded = false, embeddedView = 'board
   const helpRequestsQuery = useHelpRequests({ enabled: canUseRequests });
   const myDepartments = departmentsQuery.data ?? EMPTY_ROWS;
   const helpRequests = helpRequestsQuery.data ?? EMPTY_ROWS;
-  const requestsBadge = navigationScreenCount('tasks/requests', sectionCounts.data);
-  // During a staged backend rollout the old summary has no request field. Fall back only to
-  // fully loaded lists; a missing or failed query is not evidence that the queue is empty.
-  if (!Object.hasOwn(sectionCounts.data ?? {}, 'task_requests')
-      && departmentsQuery.data !== undefined && helpRequestsQuery.data !== undefined) {
-    requestsBadge.count = pendingCount(helpRequests, myDepartments.map((d) => d.id));
-  }
 
   /**
    * Tasks that exist because THIS person asked another department for them.
@@ -446,30 +423,12 @@ export default function TaskManagement({ embedded = false, embeddedView = 'board
       )}
 
       <div className="work-browse" hidden={composerOpen}>
-      {!embedded && <header className="work-page-header">
-        <div>
-          <div className="work-eyebrow">Workspace / Tasks</div>
-          <h1 ref={browseHeading} tabIndex={-1}>{canViewTeamTasks ? 'Tasks' : 'My tasks'}</h1>
-          <p>Everything to do. One place to move it forward.</p>
-        </div>
-        {canCreate && isBoard && (
-          <button ref={newTaskButton} type="button" onClick={(event) => openComposer({ defaultAssignee: employee?.id }, event.currentTarget)} className="work-button work-button-primary"><Plus size={16} /> New task</button>
-        )}
-      </header>}
-      {embedded && canCreate && isBoard && (
+      {canCreate && isBoard && (
         <div className="flex justify-end">
           <button ref={newTaskButton} type="button" onClick={(event) => openComposer({ defaultAssignee: employee?.id }, event.currentTarget)}
             className="work-button work-button-primary"><Plus size={16} /> Assign a task</button>
         </div>
       )}
-      {!embedded && <nav className="work-view-tabs" aria-label="Task views">
-        {canViewTeamTasks && <ViewBtn active={isBoard} onClick={() => setView('board')} icon={ListChecks} label="Team tasks" />}
-        <ViewBtn active={effectiveView === 'todo'} onClick={() => setView('todo')} icon={User} label="My tasks" badge={myTasksBadge} />
-        {canUseRequests && <ViewBtn active={effectiveView === 'requests'} onClick={() => setView('requests')} icon={HandHelping} label="Requests"
-          badge={requestsBadge} />}
-        <ViewBtn active={effectiveView === 'routine'} onClick={() => setView('routine')} icon={CheckSquare} label="Routine" badge={routineBadge} />
-        {canUseDeletedTasks && <ViewBtn active={effectiveView === 'deleted'} onClick={() => setView('deleted')} icon={Trash2} label="Deleted tasks" />}
-      </nav>}
       {isBoard && <>
         <div className="work-overview" aria-label="Task summary">
           <Stat label="All tasks" value={stats.total} active={statusFilter === 'All'} onClick={() => { setStatusFilter('All'); pager.setPage(1); }} />
@@ -976,16 +935,6 @@ export function TaskComposer({
 
         </fieldset>
     </FormSection>
-  );
-}
-
-function ViewBtn({ active, onClick, icon: Icon, label, badge = null }) {
-  return (
-    <button type="button" onClick={onClick} aria-current={active ? 'page' : undefined}
-      aria-label={navigationCountLabel(label, badge)} className="work-view-tab">
-      <Icon size={15} /> {label}
-      <NavigationCountBadge badge={badge} />
-    </button>
   );
 }
 

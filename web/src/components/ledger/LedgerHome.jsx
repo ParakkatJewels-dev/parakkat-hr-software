@@ -4,7 +4,7 @@
 // across their shared campaigns, the coming festival dates and the latest ideas.
 import React, { useState } from 'react';
 import { AlertTriangle, CalendarClock, Check, Lightbulb, Megaphone, Trash2 } from 'lucide-react';
-import { connectGoogleCalendar, syncGoogleCalendar, useGoogleEvents } from '../../data/workLedger';
+import { connectGoogleCalendar, syncGoogleCalendar, useGoogleEvents } from '../../data/googleCalendar';
 import { useWorkHome, useWorkRpc } from '../../data/work';
 import { useCreativeHome, useCreativeWrite } from '../../data/creative';
 import { addDays } from '../../lib/ledger/periods.js';
@@ -195,7 +195,7 @@ export default function LedgerHome() {
         {view === 'board'
           ? (data.pending.length ? <TaskBoard tasks={data.pending} onOpen={(id) => open('task', id)} />
             : <p className="ledger-empty">Nothing open. Press N to add a task.</p>)
-          : <TaskManagement embedded embeddedView="todo" />}
+          : <TaskManagement view="todo" />}
         {data.completed_today.length > 0 && (
           <div className="ledger-section">
             <h3>Done today <span className="ledger-count">{data.completed_today.length}</span></h3>

@@ -67,7 +67,8 @@ test('route tab catalog stays aligned with the page definitions that use useUrlT
     assert.ok(definition, `${filename} tab definition`);
     assert.deepEqual([...definition.matchAll(/id: '([^']+)'/g)].map(match => match[1]), APP_TAB_PATHS[screen]);
   }
-  for (const [screen, filename] of [['tasks', 'TaskManagement'], ['performance', 'Performance']]) {
+  // (Task Management's views now live in the Ledger's tabs; /tasks links forward there.)
+  for (const [screen, filename] of [['performance', 'Performance']]) {
     const source = readFileSync(new URL(`../components/${filename}.jsx`, import.meta.url), 'utf8');
     const hook = source.match(/useUrlTab\([^;]+;/)?.[0];
     assert.ok(hook, `${filename} route tabs`);
