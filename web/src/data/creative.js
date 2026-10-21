@@ -4,6 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { importBatches, IMPORT_ORDER } from '../lib/ledger/importWorkbook.js';
 
 export const creativeKeys = {
   root: ['creative'],
@@ -109,4 +110,38 @@ export function useCreativeWrite() {
     },
     onSettled: () => Promise.all(AFFECTED.map((queryKey) => client.invalidateQueries({ queryKey }))),
   });
+}
+
+/** Before importing the old Sheet: how many of these rows are already here, and which were changed here since. */
+export const previewWorkImport = (kind, legacyRows) => rpc('work_import_preview', { _kind: kind, _legacy_rows: legacyRows });
+
+/**
+ * Sends the parsed Sheet in dependency order and small batches (0175), calling onProgress after each.
+ * Stops on the first server error; running it again continues safely, because every row is matched
+ * on its Sheet row and rows changed here since are left alone.
+ */
+export async function runWorkImport(kinds, { onProgress } = {}) {
+  const plan = IMPORT_ORDER.flatMap((kind) => importBatches(kinds[kind] ?? []).map((rows) => ({ kind, rows })));
+  const total = plan.reduce((sum, step) => sum + step.rows.length, 0);
+  const totals = {};
+  let sent = 0;
+  for (const step of plan) {
+    const result = await rpc('work_import_batch', { _kind: step.kind, _rows: step.rows });
+    const current = totals[step.kind] ?? { received: 0, inserted: 0, updated: 0, kept: [], unresolved: [] };
+    current.received += result?.received ?? step.rows.length;
+    current.inserted += result?.inserted ?? 0;
+    current.updated += result?.updated ?? 0;
+    current.kept.push(...(result?.kept_rows ?? []));
+    current.unresolved.push(...(result?.unresolved_rows ?? []));
+    totals[step.kind] = current;
+    sent += step.rows.length;
+    onProgress?.({ sent, total, kind: step.kind });
+  }
+  return totals;
+}
+
+/** After an import everything may have changed: tasks, counts, Home, the creative screens. */
+export function useRefreshAfterImport() {
+  const client = useQueryClient();
+  return () => Promise.all([['work'], ['creative'], ['tasks'], ['section-counts']].map((queryKey) => client.invalidateQueries({ queryKey })));
 }

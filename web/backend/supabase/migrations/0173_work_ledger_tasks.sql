@@ -161,10 +161,23 @@ create index if not exists idx_task_help_log_employee on public.task_help_log(em
 -- ---------------------------------------------------------------------------------------------
 -- 4. Rules (triggers, so the Ledger, Hermes and any older screen behave the same)
 -- ---------------------------------------------------------------------------------------------
+-- True only inside public.work_import_batch (0175), which sets this for its own transaction: the old
+-- Google Sheet brings each task's own dates, rounds of changes and approved version.
+create or replace function app.work_importing()
+returns boolean language sql stable set search_path = pg_catalog as $$
+  select coalesce(current_setting('app.work_import', true), '') = 'on';
+$$;
+
 create or replace function app.tg_task_workflow()
 returns trigger language plpgsql security definer set search_path = pg_catalog, public, app as $$
 declare _today date := app.ledger_today(); _version text;
 begin
+  if app.work_importing() then
+    if new.status is distinct from 'In Progress' then new.review_stage := null; end if;
+    new.revision := coalesce(new.revision, 0);
+    new.status_since := coalesce(new.status_since, _today);
+    return new;
+  end if;
   if tg_op = 'INSERT' then
     if new.status is distinct from 'In Progress' then new.review_stage := null; end if;
     new.revision := 0;
@@ -204,6 +217,8 @@ create or replace function app.tg_task_events()
 returns trigger language plpgsql security definer set search_path = pg_catalog, public, app as $$
 declare _me uuid := app.current_employee_id(); _user uuid := auth.uid(); _target uuid;
 begin
+  -- An imported task's history is the Sheet's, not today's import.
+  if app.work_importing() then return new; end if;
   if tg_op = 'INSERT' then
     insert into public.task_events(task_id, actor_user, actor_employee, kind, to_value)
       values (new.id, _user, _me, 'created', app.work_step(new.status, new.review_stage));
@@ -248,6 +263,8 @@ declare
   _task uuid; _total int; _done int; _status text; _review text;
 begin
   _task := coalesce(new.task_id, old.task_id);
+  -- Imported subtasks arrive with their tasks' own status; the import does not finish or reopen work.
+  if app.work_importing() then return coalesce(new, old); end if;
 
   select count(*), count(completed_at) into _total, _done
     from public.task_checklist_items where task_id = _task;
@@ -277,7 +294,7 @@ begin
     new.author_user := auth.uid();
     new.employee_id := app.current_employee_id();
     new.on_date := coalesce(new.on_date, app.ledger_today());
-    new.created_at := clock_timestamp();
+    new.created_at := case when app.work_importing() then coalesce(new.created_at, clock_timestamp()) else clock_timestamp() end;
   else
     new.task_id := old.task_id; new.author_user := old.author_user; new.employee_id := old.employee_id; new.created_at := old.created_at;
     new.updated_at := now();
@@ -295,6 +312,7 @@ create trigger trg_task_progress_stamp before insert or update on public.task_pr
 create or replace function app.tg_task_progress_start()
 returns trigger language plpgsql security definer set search_path = pg_catalog, public, app as $$
 begin
+  if app.work_importing() then return new; end if;
   update public.tasks set status = 'In Progress', completed_at = null
     where id = new.task_id and status = 'To Do' and deleted_at is null;
   return new;
@@ -307,7 +325,8 @@ create or replace function app.tg_task_deliverable()
 returns trigger language plpgsql security definer set search_path = pg_catalog, public, app as $$
 begin
   if tg_op = 'INSERT' then
-    new.added_by := auth.uid(); new.added_at := clock_timestamp();
+    new.added_by := auth.uid();
+    new.added_at := case when app.work_importing() then coalesce(new.added_at, clock_timestamp()) else clock_timestamp() end;
   else
     new.task_id := old.task_id; new.added_by := old.added_by; new.added_at := old.added_at;
   end if;
@@ -349,7 +368,7 @@ begin
     select e.entity_id, e.zone_id, e.branch_id, e.department_id into new.entity_id, new.zone_id, new.branch_id, new.department_id
       from public.employees e where e.id = new.employee_id;
     new.on_date := coalesce(new.on_date, app.ledger_today());
-    new.created_at := clock_timestamp();
+    new.created_at := case when app.work_importing() then coalesce(new.created_at, clock_timestamp()) else clock_timestamp() end;
   else
     new.user_id := old.user_id; new.employee_id := old.employee_id; new.created_at := old.created_at;
     new.entity_id := old.entity_id; new.zone_id := old.zone_id; new.branch_id := old.branch_id; new.department_id := old.department_id;

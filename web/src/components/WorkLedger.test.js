@@ -227,6 +227,10 @@ test('a super admin chooses the creative departments in Settings; members only s
     { seed: { '["creative","settings"]': creativeSettings } });
   assert.match(html, /Departments: Marketing\./);
   assert.doesNotMatch(html, /Save creative team/);
+  assert.match(html, /Bring over the old Google Sheet/, 'members can bring over the old Sheet');
+  html = render(React.createElement(LedgerContext.Provider, { value: { ...value, creative: false } }, React.createElement(LedgerSettings)),
+    { seed: { '["creative","settings"]': { ...creativeSettings, member: false } } });
+  assert.doesNotMatch(html, /Creative team|old Google Sheet/, 'others see neither');
 });
 
 test('team ledgers lists the people a manager may read, by department', () => {

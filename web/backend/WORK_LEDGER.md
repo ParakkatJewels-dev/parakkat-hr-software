@@ -1,34 +1,37 @@
 # Work Ledger
 
-A personal work ledger inside the HR app, rebuilt from the Creative Head's Google Sheet + Apps Script
-"Work Ledger": tasks through a review workflow, daily progress notes, help given to the team, ideas,
-campaigns, reminders, and the daily / weekly / monthly report that is edited and shared with
-management. Anyone with `ledger.use` (every standard role) gets their own ledger on first open.
+The one place for work in the HR app. It started as a personal ledger rebuilt from the Creative Head's
+Google Sheet; since `0173` it runs on Task Management's own records (`public.tasks`), so every task,
+subtask, comment, file, help request and routine is the same row everywhere. Task Management's Team,
+Requests, Routines and Deleted views are mounted inside the Ledger; the Ledger adds review steps, rounds
+of changes, progress notes, deliverables, history, focus / pin, the help log, reports, insights, quick
+add, reminders and Google Calendar. The menu shows **Work Ledger** where Tasks used to be.
 
 ## Who can see what
 
-| | Owner | Their line manager | HR, super admins, peers |
+| | The person | Managers in scope, HR, super admins | The creative team |
 | --- | --- | --- | --- |
-| Tasks, progress, help, ideas, campaigns, library, reports, insights | read and change | **read only** (Team ledgers) | nothing |
-| Reminders and Google Calendar | yes | never | never |
+| Tasks and everything on them | as Task Management today | as Task Management today (`app.can_read_task` / `can_write_task`) | — |
+| Help log, reports, insights | yes | read (`task.read` covering the person) | — |
+| Pin and today's focus | own only | never | — |
+| Reminders and Google Calendar | yes | never | — |
+| Campaigns, ideas, library (vendors, templates, key dates, brand notes) | — | managers whose `task.read` covers a creative department | read and change, shared |
 
-"Line manager" is anyone holding `ledger.read_team` (entity admin, zonal manager, branch manager,
-department head) through a role assignment that covers the owner's company, zone, branch or
-department **and** ranks above the owner. Super admins are deliberately excluded (`app.ledger_can_read`
-does not use `app.has_perm`, which has a super-admin bypass). Every write is an owner-only RPC; the
-tables have no client write grants. Deletes are soft.
+The creative team is the departments a super admin ticks in **Work Ledger → Settings → Creative team**
+(`org_settings.creative_departments`, `app.is_creative_member()`). Members also see brand, work type,
+campaign, vendor and costs on tasks, the creative block on Home, and the Sheet import. Nothing on the
+creative tables is ever hard-deleted.
 
 ## Migrations
 
 | File | What it adds |
 | --- | --- |
-| `0169_work_ledger.sql` | Tables, privacy, starter data, reports, CSV export, the importer |
-| `0170_work_ledger_writes.sql` | Task / child / reminder writes, the `ledger-files` bucket (50 MB), Google Calendar storage, Home, search |
-| `0171_work_ledger_planning.sql` | Campaigns, ideas, library, festival dates 2026–28, insights |
-| `0172_work_ledger_assistant.sql` | The "Work Ledger" area for Hermes keys (`ledger:manage`) — needs `0168_hermes_agent_api.sql` first |
+| `0169`–`0172` | The original personal ledger (now hidden; its tables are removed in the clean-up stage) |
+| `0173_work_ledger_tasks.sql` | Ledger fields and rules on `tasks`; history, progress notes, deliverables, marks, help log; Home / report / insights / search reads; reminders linked to tasks |
+| `0174_work_creative.sql` | The creative team setting; shared campaigns (+ log), ideas, vendors, templates, key dates, brands; `tasks.campaign_id` / `vendor_id`; creative report and insight parts |
+| `0175_work_import.sql` | The old Google Sheet import onto tasks and the shared tables |
 
-Apply them in order with the normal migration runner, then deploy `web` (it adds `api/google/[action].js`).
-In Supabase, **Storage → Settings**, the upload limit must be at least 50 MB for attachments.
+Apply them in order with the normal migration runner, then deploy `web`.
 
 ## Google Calendar
 
@@ -71,14 +74,17 @@ in the system browser and returns to the web app; connecting from a desktop brow
 
 ## Importing the old Google Sheet
 
-**Settings → Import** reads the whole workbook as one `.xlsx` (Google Sheets: File → Download →
-Microsoft Excel), shows a dry run (counts, broken references, rows already edited here), then imports in
-batches. Re-running updates by original sheet row and never duplicates. After the final import at
-switch-over, lock the import. **Compare with the old app** shows a line-by-line diff between a pasted old
-report and ours.
+For creative team members: **Settings → Bring over the old Google Sheet** reads the workbook as one
+`.xlsx` (Google Sheets: File → Download → Microsoft Excel), shows the counts and any broken references,
+**Check what is already here** lists rows changed here since, then imports in batches. WorkLog rows
+become the importer's own tasks (support rows go to their help log) with the Sheet's own dates, rounds
+of changes and approved versions — no history or notifications are invented. Campaigns, vendors and
+brands that already exist by name are linked, never overwritten. Re-running updates only rows that still
+hold exactly what was imported; anything changed or removed here is left alone (`app.work_import_map`).
 
 ## Hermes
 
+Still the personal-ledger tools from 0172; moving them onto task records is part of the clean-up stage.
 With migration 0172, a personal assistant key can include the **Work Ledger** area. Tools:
 `ledger_home`, `ledger_list_tasks`, `ledger_get_task`, `ledger_report` (with ready-to-share text),
 `ledger_list_ideas`, `ledger_list_reminders`, `ledger_list_campaigns`, `ledger_add_task`,
@@ -88,11 +94,11 @@ owner, so it only ever reaches the owner's own ledger.
 
 ## Verification
 
-- `npm --prefix web/backend test` (run with `LC_ALL=C`) runs `tests/work_ledger.sql`,
-  `work_ledger_writes.sql`, `work_ledger_planning.sql` and `developer_api_ledger.sql`: the privacy
-  matrix, every task / campaign / idea rule with pinned dates, reminders and the calendar outbox, import
-  re-runs, and the assistant tools.
-- `npm --prefix web test` covers the quick-capture grammar, share text, documents, importer parsing,
-  Google OAuth and sync, the MCP tools, and the screens (`WorkLedger.test.js`).
-- `?qa-ledger` opens the screens with in-memory demo data (add `&qa-role=dept_head` and go to
-  `#/team-ledgers` for the manager's view).
+- `LC_ALL=C npm --prefix web/backend test` includes `tests/work_tasks.sql`, `work_creative.sql` and
+  `work_import.sql` (after the original ledger tests): review steps and notifications, the checklist
+  rollup, focus, visibility for every role, the creative team's access, campaign / idea rules, report and
+  insight parts, and import re-runs.
+- `npm --prefix web test` covers the screens (`WorkLedger.test.js`), routes and redirects from `/tasks`,
+  quick capture, share text and the importer's parsing.
+- `npm run qa:browser` then `?qa-ledger` opens the Ledger with in-memory demo data; add `&qa-creative`
+  (or `&qa-creative=admin` to also choose the creative departments) for the creative tabs.

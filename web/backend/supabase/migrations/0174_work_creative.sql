@@ -251,7 +251,7 @@ returns trigger language plpgsql security definer set search_path = pg_catalog, 
 begin
   if tg_op = 'INSERT' then
     new.created_by := coalesce(auth.uid(), new.created_by);
-    new.created_at := now();
+    new.created_at := case when app.work_importing() then coalesce(new.created_at, now()) else now() end;
   else
     new.created_by := old.created_by; new.created_at := old.created_at;
   end if;
@@ -270,7 +270,8 @@ returns trigger language plpgsql security definer set search_path = pg_catalog, 
 begin
   new.name := btrim(new.name);
   if tg_op = 'INSERT' then
-    new.created_by := coalesce(auth.uid(), new.created_by); new.created_at := now();
+    new.created_by := coalesce(auth.uid(), new.created_by);
+    new.created_at := case when app.work_importing() then coalesce(new.created_at, now()) else now() end;
   else
     new.created_by := old.created_by; new.created_at := old.created_at;
   end if;
@@ -281,6 +282,8 @@ end $$;
 create or replace function app.tg_creative_campaign_log()
 returns trigger language plpgsql security definer set search_path = pg_catalog, public, app as $$
 begin
+  -- An imported campaign brings the Sheet's own log.
+  if app.work_importing() then return new; end if;
   if tg_op = 'INSERT' then
     insert into public.creative_campaign_log(campaign_id, actor_name, text) values (new.id, app.creative_actor_name(), 'Created at ' || new.stage);
     return new;
@@ -300,7 +303,13 @@ returns trigger language plpgsql security definer set search_path = pg_catalog, 
 begin
   new.text := btrim(new.text);
   new.tags := coalesce((select array_agg(distinct lower(btrim(t))) from unnest(new.tags) t where btrim(t) <> ''), '{}');
-  if tg_op = 'INSERT' then
+  if tg_op = 'INSERT' and app.work_importing() then
+    -- The Sheet's own first wording, date and status.
+    new.original := coalesce(nullif(btrim(new.original), ''), new.text);
+    new.created_by := coalesce(auth.uid(), new.created_by); new.created_at := coalesce(new.created_at, now());
+    new.author_employee := coalesce(app.current_employee_id(), new.author_employee);
+    new.author_name := coalesce(app.creative_actor_name(), new.author_name);
+  elsif tg_op = 'INSERT' then
     new.original := new.text;
     new.created_by := coalesce(auth.uid(), new.created_by); new.created_at := now();
     new.author_employee := coalesce(app.current_employee_id(), new.author_employee);

@@ -2,10 +2,11 @@
 // which departments are the creative team.
 import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { CalendarCheck } from 'lucide-react';
+import { CalendarCheck, FileUp } from 'lucide-react';
 import { connectGoogleCalendar, disconnectGoogleCalendar, syncGoogleCalendar, useGoogleStatus, useRefreshLedger } from '../../data/workLedger';
 import { readSound, saveSound } from '../../data/work';
-import { useCreativeSettings, useCreativeWrite } from '../../data/creative';
+import { previewWorkImport, runWorkImport, useCreativeSettings, useCreativeWrite, useRefreshAfterImport } from '../../data/creative';
+import { IMPORT_ORDER, parseLedgerSheets, sheetsFromWorkbook } from '../../lib/ledger/importWorkbook.js';
 import { useDepartments } from '../../data/helpRequests';
 import { humanDbError } from '../../lib/dbErrors';
 import { SHORTCUTS, chime, dateLabel } from './ui';
@@ -17,6 +18,7 @@ export default function LedgerSettings() {
       <GoogleSection />
       <SoundSection />
       <CreativeTeamSection />
+      <SheetImportSection />
       <section className="ledger-section">
         <h3>What Home points out</h3>
         <ul className="ledger-list ledger-list-compact">
@@ -127,6 +129,112 @@ function CreativeDepartmentsPicker({ chosen }) {
       {write.error ? <p className="ledger-alert" role="alert">{humanDbError(write.error) || 'That did not save. Try again.'}</p>
         : saved && <p className="ledger-quiet" role="status">{saved}</p>}
     </>
+  );
+}
+
+const KIND_LABELS = { brands: 'Brand notes', vendors: 'Vendors', templates: 'Templates', key_dates: 'Key dates', campaigns: 'Campaigns',
+  tasks: 'WorkLog (tasks and help)', subtasks: 'Subtasks', deliverables: 'Deliverables', progress: 'Progress notes', ideas: 'Ideas', reminders: 'Reminders' };
+
+/** The creative team's old Google Sheet → tasks, help, notes, campaigns, ideas, library and reminders (0175). */
+function SheetImportSection() {
+  const settings = useCreativeSettings();
+  const refresh = useRefreshAfterImport();
+  const [dateOrder, setDateOrder] = useState('DMY');
+  const [files, setFiles] = useState([]);
+  const [parsed, setParsed] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [progress, setProgress] = useState(null);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  if (!settings.data?.member) return null;
+  const hasCsv = files.some((file) => /\.csv$/i.test(file.name));
+
+  const read = async (chosen = files, order = dateOrder) => {
+    setError(''); setParsed(null); setPreview(null); setResult(null);
+    if (!chosen.length) return;
+    try {
+      const XLSX = await import('xlsx');
+      const sheets = {};
+      for (const file of chosen) {
+        const buffer = await file.arrayBuffer();
+        if (/\.csv$/i.test(file.name)) {
+          // A CSV is one tab; its file name says which ("Work Ledger - Subtasks.csv").
+          const book = XLSX.read(new TextDecoder().decode(buffer), { type: 'string', raw: true });
+          sheets[file.name] = sheetsFromWorkbook(XLSX, book)[book.SheetNames[0]];
+        } else {
+          Object.assign(sheets, sheetsFromWorkbook(XLSX, XLSX.read(buffer, { type: 'array' })));
+        }
+      }
+      setParsed(parseLedgerSheets(sheets, { dateOrder: order }));
+    } catch { setError('That file could not be read. Download the Sheet again as Microsoft Excel (.xlsx) and choose it here.'); }
+  };
+  const check = async () => {
+    setError('');
+    try {
+      const entries = await Promise.all(IMPORT_ORDER.filter((kind) => kind !== 'links' && parsed.kinds[kind]?.length).map(async (kind) =>
+        [kind, await previewWorkImport(kind, parsed.kinds[kind].map((row) => row.legacy_row))]));
+      setPreview(Object.fromEntries(entries));
+    } catch (failure) { setError(humanDbError(failure) || 'The check failed. Try again.'); }
+  };
+  const run = async () => {
+    setError(''); setResult(null); setProgress({ sent: 0, total: 1 });
+    try {
+      setResult(await runWorkImport(parsed.kinds, { onProgress: setProgress }));
+      refresh();
+    } catch (failure) {
+      setError(`${humanDbError(failure) || 'The import stopped.'} Rows already saved stay saved; run the import again to continue.`);
+    } finally { setProgress(null); }
+  };
+  const total = parsed ? IMPORT_ORDER.filter((kind) => kind !== 'links').reduce((sum, kind) => sum + (parsed.kinds[kind]?.length ?? 0), 0) : 0;
+
+  return (
+    <section className="ledger-section" aria-labelledby="ledger-import-title">
+      <h3 id="ledger-import-title"><FileUp size={17} /> Bring over the old Google Sheet</h3>
+      <p>In Google Sheets choose <em>File → Download → Microsoft Excel (.xlsx)</em> and pick that file (CSV files of single tabs work too).
+        WorkLog rows become your tasks, help rows go to your help log, and campaigns, ideas and the library are shared with the creative team.
+        Importing again later updates the same rows; anything changed here since is left alone.</p>
+      <div className="ledger-actions">
+        <label className={btnClass('ghost')}><FileUp size={15} /> Choose file
+          <input type="file" className="sr-only" accept=".xlsx,.csv" multiple onChange={(e) => { const chosen = [...e.target.files]; setFiles(chosen); read(chosen); }} /></label>
+        {hasCsv && <label className="ledger-field"><span>Dates in the CSV are</span>
+          <select className="ledger-input" value={dateOrder} onChange={(e) => { setDateOrder(e.target.value); read(files, e.target.value); }}>
+            <option value="DMY">day first (07/10/2026)</option><option value="MDY">month first (10/07/2026)</option>
+          </select></label>}
+      </div>
+      {files.length > 0 && <p className="ledger-quiet">{files.map((file) => file.name).join(', ')}</p>}
+      {error && <p className="ledger-alert" role="alert">{error}</p>}
+      {parsed && (
+        <div className="ledger-import-summary">
+          <table className="ledger-table">
+            <thead><tr><th scope="col">Tab</th><th scope="col">Rows</th><th scope="col">Skipped (deleted)</th>{preview && <th scope="col">Already here</th>}</tr></thead>
+            <tbody>{IMPORT_ORDER.filter((kind) => parsed.stats[kind]).map((kind) => (
+              <tr key={kind}><td>{KIND_LABELS[kind]}</td><td>{parsed.stats[kind].rows}</td><td>{parsed.stats[kind].skipped}</td>
+                {preview && <td>{preview[kind]?.existing ?? 0}{preview[kind]?.edited_rows?.length ? ` · ${preview[kind].edited_rows.length} changed here` : ''}</td>}</tr>
+            ))}</tbody>
+          </table>
+          <ul className="ledger-list ledger-list-compact">
+            {parsed.legacy_statuses > 0 && <li>{parsed.legacy_statuses} old status values (Done, Completed, Pending…) will be read as Delivered or Brief.</li>}
+            {parsed.campaigns_created_from_tasks > 0 && <li>{parsed.campaigns_created_from_tasks} campaigns named only on tasks will be created at Captured.</li>}
+            {[...parsed.problems, ...parsed.warnings].slice(0, 12).map((line, index) => <li key={index}>{line}</li>)}
+            {parsed.problems.length + parsed.warnings.length > 12 && <li>…and {parsed.problems.length + parsed.warnings.length - 12} more.</li>}
+          </ul>
+          <div className="ledger-actions">
+            <button type="button" className={btnClass('ghost')} onClick={check} disabled={Boolean(progress)}>Check what is already here</button>
+            <button type="button" className={btnClass('primary')} onClick={run} disabled={Boolean(progress) || !total}>Import {total} rows</button>
+          </div>
+          {progress && <p className="ledger-quiet" role="status"><progress value={progress.sent} max={progress.total} /> {progress.sent} of {progress.total} rows…</p>}
+        </div>
+      )}
+      {result && (
+        <div role="status">
+          <p><strong>Import finished.</strong></p>
+          <ul className="ledger-list ledger-list-compact">{Object.entries(result).filter(([kind]) => kind !== 'links').map(([kind, r]) => (
+            <li key={kind}>{KIND_LABELS[kind]}: {r.inserted} added, {r.updated} updated{r.kept.length ? `, ${r.kept.length} left alone (changed here, removed here, or already in the team’s list)` : ''}
+              {r.unresolved.length ? `, ${r.unresolved.length} pointing at tasks that are not in the WorkLog` : ''}</li>
+          ))}</ul>
+        </div>
+      )}
+    </section>
   );
 }
 
