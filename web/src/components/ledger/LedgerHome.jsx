@@ -1,16 +1,19 @@
 // Home: today's numbers, the overdue line, my schedule (reminders + Google Calendar) and my open work
 // as a drag-and-drop board or as Task Management's own list. Everything here is my tasks — the ones
-// I am on — from the same records the team sees.
+// I am on — from the same records the team sees. The creative team also gets what needs attention
+// across their shared campaigns, the coming festival dates and the latest ideas.
 import React, { useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, Trash2 } from 'lucide-react';
+import { AlertTriangle, CalendarClock, Check, Lightbulb, Megaphone, Trash2 } from 'lucide-react';
 import { connectGoogleCalendar, syncGoogleCalendar, useGoogleEvents } from '../../data/workLedger';
 import { useWorkHome, useWorkRpc } from '../../data/work';
+import { useCreativeHome, useCreativeWrite } from '../../data/creative';
 import { addDays } from '../../lib/ledger/periods.js';
 import { formatMinutes } from '../../lib/ledger/documents.js';
 import TaskManagement from '../TaskManagement';
 import { btnClass } from '../ui/Btn';
 import { TaskBoard } from './Board';
-import { Message, istStamp, timeOf, useLedger } from './ui';
+import { ideaFromText } from './LedgerIdeas';
+import { BrandMark, Message, dateLabel, istStamp, timeOf, useLedger } from './ui';
 
 const VIEW_KEY = 'parakkat.work.view';
 function readView() { try { return globalThis.localStorage?.getItem(VIEW_KEY) === 'list' ? 'list' : 'board'; } catch { return 'board'; } }
@@ -95,8 +98,71 @@ function Schedule({ home }) {
   );
 }
 
+/** The creative team's shared picture: what needs attention, running campaigns, festival dates, new ideas. */
+function CreativeHome() {
+  const { open, today } = useLedger();
+  const creative = useCreativeHome();
+  const write = useCreativeWrite();
+  const [idea, setIdea] = useState('');
+  if (creative.isLoading || !creative.data) return creative.error ? <Message error={creative.error} /> : null;
+  const { alerts, campaigns, key_dates: keyDates, ideas, ideas_open: ideasOpen } = creative.data;
+  const soon = keyDates.slice(0, 6);
+  const add = async (event) => {
+    event.preventDefault();
+    const parsed = ideaFromText(idea, today);
+    if (!parsed) return;
+    try { await write.mutateAsync({ op: 'add-idea', ...parsed }); setIdea(''); } catch { /* shown below */ }
+  };
+  return (
+    <section className="ledger-home-block ledger-creative-home" aria-labelledby="ledger-creative-title">
+      <h3 id="ledger-creative-title"><Megaphone size={16} /> Creative team
+        <button type="button" className="ledger-link" onClick={() => open('tab', 'campaigns')}>All campaigns</button></h3>
+      {alerts.length > 0 && (
+        <ul className="ledger-plain-list ledger-creative-alerts" aria-label="Needs attention">
+          {alerts.map((alert, index) => (
+            <li key={`${alert.kind}-${alert.campaign_id ?? alert.idea_id}-${index}`} data-kind={alert.kind}>
+              <button type="button" className="ledger-text-button ledger-item-title"
+                onClick={() => (alert.idea_id ? open('idea', alert.idea_id) : open('campaign', alert.campaign_id))}>{alert.title}</button>
+              <span className="ledger-quiet">{alert.text}{alert.date ? ` · ${dateLabel(alert.date)}` : ''}</span>
+            </li>))}
+        </ul>)}
+      <div className="ledger-creative-columns">
+        <div>
+          <h4>Running <span className="ledger-count">{campaigns.length}</span></h4>
+          {!campaigns.length ? <p className="ledger-quiet">No campaigns running.</p> : (
+            <ul className="ledger-plain-list">{campaigns.slice(0, 6).map((c) => (
+              <li key={c.id}><button type="button" className="ledger-text-button" onClick={() => open('campaign', c.id)}>{c.name}</button>
+                <BrandMark label={c.brand_label} /><span className="ledger-quiet">{c.stage} · {c.done}/{c.total} done{c.launch_date ? ` · launch ${dateLabel(c.launch_date)}` : ''}</span></li>))}
+            </ul>)}
+        </div>
+        <div>
+          <h4>Coming dates</h4>
+          {!soon.length ? <p className="ledger-quiet">No festival dates in the next five months.</p> : (
+            <ul className="ledger-plain-list">{soon.map((k) => (
+              <li key={k.id}><span className="ledger-date">{dateLabel(k.date)}</span>{k.name}<BrandMark label={k.brand_label ?? k.brand} />
+                {!k.has_campaign && k.days_away <= Math.max(k.lead_days ?? 30, 30) && <span className="ledger-tag">no campaign yet</span>}</li>))}
+            </ul>)}
+        </div>
+        <div>
+          <h4><Lightbulb size={13} /> Ideas <span className="ledger-count">{ideasOpen} in the inbox</span></h4>
+          <form className="ledger-inline-form" onSubmit={add}>
+            <input className="ledger-input" aria-label="Capture an idea" placeholder="Capture an idea… @jewels #festive" value={idea} maxLength={4000}
+              onChange={(e) => setIdea(e.target.value)} />
+            <button type="submit" className={btnClass('ghost')} disabled={!idea.trim() || write.isPending}>Add</button>
+          </form>
+          <ul className="ledger-plain-list">{ideas.map((i) => (
+            <li key={i.id}><button type="button" className="ledger-text-button" onClick={() => open('idea', i.id)}>{i.text}</button>
+              {i.by && <span className="ledger-quiet">{i.by}</span>}</li>))}
+          </ul>
+        </div>
+      </div>
+      <Message error={write.error} />
+    </section>
+  );
+}
+
 export default function LedgerHome() {
-  const { open } = useLedger();
+  const { open, creative } = useLedger();
   const home = useWorkHome();
   const [view, setView] = useState(readView);
   const choose = (next) => { setView(next); saveView(next); };
@@ -117,6 +183,7 @@ export default function LedgerHome() {
         <p className="ledger-overdue" role="alert"><AlertTriangle size={15} /> {data.overdue} open task{data.overdue === 1 ? ' is' : 's are'} past the due date.</p>)}
       <Figures home={data} />
       <Schedule home={data} />
+      {creative && <CreativeHome />}
       <section className="ledger-home-tasks" aria-labelledby="ledger-tasks-title">
         <div className="ledger-tasks-head">
           <h3 id="ledger-tasks-title">My open work <span className="ledger-count">{data.pending.length}</span></h3>

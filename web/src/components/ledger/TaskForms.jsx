@@ -10,7 +10,8 @@ import { usePermissions } from '../../auth/usePermissions';
 import { useEmployees } from '../../data/employees';
 import { useAddAssignee, useCreateTask, useRemoveAssignee, useTasks, useUpdateTask } from '../../data/tasks';
 import { newId, syncGoogleCalendar } from '../../data/workLedger';
-import { useWorkRpc, useWorkTask, useWorkWrite } from '../../data/work';
+import { useWorkRpc, useWorkTask, useWorkUpdate, useWorkWrite } from '../../data/work';
+import { useCreativeLibrary, useCreativeWrite } from '../../data/creative';
 import { humanDbError } from '../../lib/dbErrors';
 import { istToday } from '../../lib/dates';
 import { assigneeIds } from '../../lib/taskBoard';
@@ -23,16 +24,47 @@ import { Field, Message, StatusPill, Suggest, dateLabel, useLedger } from './ui'
 const REPEATS = [['', 'None'], ['daily', 'Daily'], ['weekly', 'Weekly'], ['weekdays', 'Mon–Fri'], ['monthly', 'Monthly']];
 const scopeOf = (e) => ({ entityId: e.entity_id, zoneId: e.zone_id, branchId: e.branch_id, deptId: e.department_id, employeeId: e.id });
 
-/** N — a new task, for yourself or (if your role allows) for others, with subtasks and files. */
-export function NewTaskPanel({ onClose, onCreated }) {
+/**
+ * N — a new task, for yourself or (if your role allows) for others, with subtasks and files.
+ * `preset` starts it from somewhere: { title, description, steps, patch (brand, campaign…), ideaId, note }.
+ * The creative team can also start from one of their templates (its subtasks and work type).
+ */
+export function NewTaskPanel({ preset = {}, onClose, onCreated }) {
   const { employee } = useAuth();
   const { can } = usePermissions();
+  const { creative } = useLedger();
   const { data: employees = [] } = useEmployees();
+  const library = useCreativeLibrary({ enabled: creative });
   const create = useCreateTask();
+  const update = useWorkUpdate();
+  const creativeWrite = useCreativeWrite();
   const [saving, setSaving] = useState(false);
+  const [templateId, setTemplateId] = useState('');
+  const templates = creative ? library.data?.templates ?? [] : [];
+  const template = templates.find((t) => t.id === templateId);
+  const initial = { title: preset.title, description: preset.description, steps: template?.subtasks ?? preset.steps };
+  // Fields Task Management's composer does not have, set on the new task straight after it is made.
+  const finish = async (taskId) => {
+    const patch = { ...(preset.patch ?? {}), ...(template?.type ? { work_type: template.type } : {}) };
+    const clean = Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== null && value !== undefined && value !== ''));
+    if (Object.keys(clean).length) await update.mutateAsync({ id: taskId, patch: clean }).catch(() => {});
+    if (preset.ideaId) await creativeWrite.mutateAsync({ op: 'idea', id: preset.ideaId, task_id: taskId, status: 'Promoted' }).catch(() => {});
+  };
   return (
     <section className="ledger-new-task" aria-label="New task">
+      {(preset.note || templates.length > 0) && (
+        <div className="ledger-new-task-start">
+          {preset.note && <p className="ledger-quiet">{preset.note}</p>}
+          {templates.length > 0 && (
+            <label className="ledger-field ledger-template-pick"><span>Start from a template</span>
+              <select className="ledger-input" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+                <option value="">No template</option>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.subtasks?.length ? ` · ${t.subtasks.length} subtasks` : ''}</option>)}
+              </select></label>)}
+        </div>)}
       <TaskComposer
+        key={templateId || 'blank'}
+        initial={initial}
         employees={employees}
         canAssignTo={(e) => e.id === employee?.id || can('task.create', scopeOf(e))}
         currentEmployeeId={employee?.id}
@@ -44,7 +76,7 @@ export function NewTaskPanel({ onClose, onCreated }) {
         onClose={() => { if (!saving) { create.reset(); onClose(); } }}
         onSubmit={async (payload) => {
           setSaving(true);
-          try { const created = await create.mutateAsync(payload); onCreated?.(created.id); onClose(); }
+          try { const created = await create.mutateAsync(payload); await finish(created.id); onCreated?.(created.id); onClose(); }
           catch { /* shown in the composer */ }
           finally { setSaving(false); }
         }}

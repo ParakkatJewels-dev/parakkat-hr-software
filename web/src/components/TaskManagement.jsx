@@ -647,14 +647,16 @@ function StaleWarning({ error }) {
 
 export function TaskComposer({
   employees, canAssignTo, currentEmployeeId, task, canReassign = true,
-  defaultAssignee, busy, error, onClose, onSubmit, createdTaskId,
+  defaultAssignee, busy, error, onClose, onSubmit, createdTaskId, initial = null,
 }) {
   const id = useId();
   const editing = Boolean(task);
-  const [title, setTitle] = useState(task?.title ?? '');
-  const [description, setDescription] = useState(task?.description ?? '');
-  const [priority, setPriority] = useState(task?.priority ?? 'Medium');
-  const [dueDate, setDueDate] = useState(task?.due_date ?? '');
+  // `initial` pre-fills a NEW task (the Work Ledger starts one from an idea or a template).
+  const start = editing ? {} : initial ?? {};
+  const [title, setTitle] = useState(task?.title ?? start.title ?? '');
+  const [description, setDescription] = useState(task?.description ?? start.description ?? '');
+  const [priority, setPriority] = useState(task?.priority ?? start.priority ?? 'Medium');
+  const [dueDate, setDueDate] = useState(task?.due_date ?? start.due_date ?? '');
   const [q, setQ] = useState('');
   const [attachments, setAttachments] = useState({ files: [], links: [] });
 
@@ -669,7 +671,7 @@ export function TaskComposer({
    * task itself, where ticking happens: two places to edit one list would be two places for it to
    * disagree with itself.
    */
-  const [steps, setSteps] = useState([]);
+  const [steps, setSteps] = useState(() => (start.steps ?? []).map((step) => String(step).slice(0, 200)).slice(0, 50));
   const [stepDraft, setStepDraft] = useState('');
 
   const addStep = () => {

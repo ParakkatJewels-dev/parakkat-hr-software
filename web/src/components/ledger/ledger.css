@@ -409,3 +409,19 @@ textarea.ledger-input { resize: vertical; }
 @media print {
   .ledger-page nav[role="tablist"], .ledger-due, .ledger-actions, .ledger-toolbar { display: none !important; }
 }
+
+/* Creative team on Home and in the new-task form */
+.ledger-creative-alerts { margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--surface-border); }
+.ledger-creative-alerts > li[data-kind="decision"] .ledger-item-title,
+.ledger-creative-alerts > li[data-kind="blocked"] .ledger-item-title { color: var(--accent-ink); }
+.ledger-creative-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.ledger-creative-columns > div { min-width: 0; display: grid; gap: 8px; align-content: start; }
+.ledger-creative-columns h4 { display: flex; align-items: center; gap: 6px; }
+@media (max-width: 900px) { .ledger-creative-columns { grid-template-columns: minmax(0, 1fr); } }
+.ledger-new-task-start { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 16px; margin-bottom: 12px; }
+.ledger-template-pick { min-width: 220px; }
+.ledger-check-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; margin: 8px 0 12px; padding: 0; border: 0; }
+.ledger-check-list legend { margin-bottom: 6px; }
+/* With the creative tabs the row can be wider than the page on a desktop too: it scrolls sideways. */
+.ledger-page > nav[role="tablist"] { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.ledger-page > nav[role="tablist"]::-webkit-scrollbar { display: none; }

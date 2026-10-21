@@ -6,6 +6,7 @@ import { Copy, Download, RotateCcw, Share2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useEmployees } from '../../data/employees';
 import { useWorkReport } from '../../data/work';
+import { fetchCampaigns } from '../../data/creative';
 import { downloadCsv } from '../../lib/csv';
 import { istToday } from '../../lib/dates';
 import { humanDbError } from '../../lib/dbErrors';
@@ -40,7 +41,7 @@ const money = (value) => `₹${Math.round(Number(value) || 0).toLocaleString('en
 
 export default function LedgerReports() {
   const today = istToday();
-  const { canTeam } = useLedger();
+  const { canTeam, creative } = useLedger();
   const { employee } = useAuth();
   const employeesQuery = useEmployees();
   const [person, setPerson] = useState('');
@@ -63,9 +64,11 @@ export default function LedgerReports() {
   const [extraError, setExtraError] = useState('');
   // Someone else's report says whose it is.
   const data = report.data && person ? { ...report.data, subject: report.data.employee_name } : report.data;
-  const openMonthly = () => {
+  const openMonthly = async () => {
     setExtraError('');
-    const doc = monthlyDocument(data, { campaigns: [] });
+    // The creative team's monthly page also lists the campaigns running now.
+    const campaigns = creative ? await fetchCampaigns().catch(() => []) : [];
+    const doc = monthlyDocument(data, { campaigns });
     setExtra({ kind: 'monthly', title: doc.title, text: doc.text });
   };
   const exportCsv = () => {

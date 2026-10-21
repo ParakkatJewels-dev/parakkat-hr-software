@@ -4,6 +4,7 @@
 import { addDays, weekStart } from '../src/lib/ledger/periods.js';
 import { fixture, tables, today } from './fixtures';
 import { fixtureAllows } from './roles.js';
+import { brandLabel, campaignName, creativeRpc, creativeTableWrite, seedCreativeTasks, vendorName } from './creativeFixtures';
 
 export const ledgerFixtures = new URL(window.location.href).searchParams.has('qa-ledger');
 
@@ -66,6 +67,7 @@ if (ledgerFixtures) {
   tables.task_events.push({ task_id: 'qa-work-1', at: new Date().toISOString(), actor_employee: me.id, kind: 'step', from_value: 'In progress', to_value: 'In review' });
   reminders.push({ id: 'qa-rem-1', text: 'Call the printer about Diwali proofs', due_at: `${today}T11:30`, repeat: null, done: false, task_id: 'qa-work-1' },
     { id: 'qa-rem-2', text: 'Post the weekly reel', due_at: `${addDays(today, 1)}T10:00`, repeat: 'weekly', done: false, task_id: null });
+  seedCreativeTasks();
 }
 
 const live = () => tables.tasks.filter((t) => !t.deleted_at);
@@ -90,6 +92,8 @@ function card(t) {
     deliverables_count: tables.task_deliverables.filter((d) => d.task_id === t.id && !d.deleted_at).length, attachments_count: 0, comments_count: 0,
     last_progress: lastNote ? { date: lastNote.on_date, note: lastNote.note, minutes: lastNote.minutes } : null,
     pinned: Boolean(mark(t.id)?.pinned), focused: mark(t.id)?.focus_date === today, can_edit: isMine(t) || fixtureAllows('task.update', t),
+    brand: t.brand ?? null, brand_label: brandLabel(t.brand), work_type: t.work_type ?? null, est_cost: t.est_cost ?? null, actual_cost: t.actual_cost ?? null,
+    campaign_id: t.campaign_id ?? null, campaign: campaignName(t.campaign_id), vendor_id: t.vendor_id ?? null, vendor: vendorName(t.vendor_id),
   };
 }
 const reminderJson = (r) => ({ ...r, task_title: tables.tasks.find((t) => t.id === r.task_id)?.title ?? null,
@@ -169,7 +173,13 @@ function insights() {
   const open = live().filter((t) => isMine(t) && !CLOSED.includes(t.status));
   return { from: `${months[0].month}-01`, to: today, months, by_brand: [], turnaround_by_type: [{ type: 'All tasks', days: 4.5, count: 21 }],
     average_revisions: 0.8, open_by_status: Object.values(open.reduce((acc, t) => { const s = stepOf(t.status, t.review_stage); acc[s] ??= { status: s, count: 0 }; acc[s].count += 1; return acc; }, {})),
-    ageing: { week: open.length - 1, month: 1, quarter: 0, older: 0 }, vendors: [] };
+    ageing: { week: open.length - 1, month: 1, quarter: 0, older: 0 },
+    vendors: Object.values(visible().filter((t) => t.vendor_id).reduce((acc, t) => {
+      const name = vendorName(t.vendor_id);
+      acc[name] ??= { vendor: name, tasks: 0, spend: 0, last: today };
+      acc[name].tasks += 1; acc[name].spend += Number(t.actual_cost) || 0;
+      return acc;
+    }, {})) };
 }
 
 function read(name, args) {
@@ -211,7 +221,10 @@ function remind(name, args) {
 }
 
 export function ledgerRpc(name, args, { canWrite }) {
-  if (!ledgerFixtures || !(name.startsWith('work_') || name.startsWith('ledger_'))) return undefined;
+  if (!ledgerFixtures) return undefined;
+  const creative = creativeRpc(name, args, { canWrite });
+  if (creative) return creative;
+  if (!(name.startsWith('work_') || name.startsWith('ledger_'))) return undefined;
   const value = read(name, args ?? {});
   if (value !== undefined) return value?.error ? value : { rows: [clone(value)], one: true };
   if (!canWrite) return { error: { code: '42501', message: 'Writes are blocked in this demo.' } };
@@ -224,7 +237,8 @@ export function ledgerRpc(name, args, { canWrite }) {
 // The task rules this demo copies from 0173.
 function applyTaskUpdate(task, patch) {
   const before = { status: task.status, review: task.review_stage, waiting: task.waiting_on };
-  const allowed = ['status', 'review_stage', 'waiting_on', 'outcome', 'depends_on_task_id', 'tags', 'completed_at', 'title', 'description', 'priority', 'due_date', 'employee_id'];
+  const allowed = ['status', 'review_stage', 'waiting_on', 'outcome', 'depends_on_task_id', 'tags', 'completed_at', 'title', 'description', 'priority', 'due_date', 'employee_id',
+    'brand', 'work_type', 'est_cost', 'actual_cost', 'campaign_id', 'vendor_id'];
   for (const [key, value] of Object.entries(patch)) if (allowed.includes(key)) task[key] = value;
   if (task.status !== 'In Progress') task.review_stage = null;
   if (task.status !== before.status || task.review_stage !== before.review) {
@@ -244,6 +258,8 @@ function applyTaskUpdate(task, patch) {
 export function ledgerWrite(query) {
   if (!ledgerFixtures || !query.write) return undefined;
   const { table, operation, payload } = query;
+  const creative = creativeTableWrite(query);
+  if (creative) return creative;
   const matching = () => (tables[table] ?? []).filter((row) => query.filters.every((f) => f(row)));
   const result = (rows) => ({ data: clone(query.one ? rows[0] ?? null : rows), error: null });
   if (table === 'tasks' && operation === 'update') {

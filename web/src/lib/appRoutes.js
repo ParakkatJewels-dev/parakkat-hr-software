@@ -9,7 +9,7 @@ export const APP_TAB_PATHS = {
   documents: ['employee', 'company'],
   performance: ['mine', 'team'],
   tasks: ['board', 'todo', 'requests', 'routine', 'deleted'],
-  ledger: ['home', 'team', 'requests', 'routines', 'reports', 'insights', 'deleted', 'settings'],
+  ledger: ['home', 'team', 'requests', 'routines', 'reports', 'insights', 'campaigns', 'ideas', 'library', 'deleted', 'settings'],
   reports: ['attendance', 'leave', 'expenses', 'headcount'],
 };
 

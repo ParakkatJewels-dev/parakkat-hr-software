@@ -15,7 +15,7 @@ const PAYROLL_ATTENDANCE_KEYS = [['payroll-attendance-summary'], ['payroll-runs'
 const PAYROLL_TRANSACTION_KEYS = [['payroll-adjustments'], ['payroll-advances'], ['payroll-advance-recoveries'], ['payroll-payments']];
 const ROUTINE_KEYS = [['routine-items'], ['routine-ticks'], ['routine-sets'], ['routine-day'], ['routine-stats'], ['routine-notes'], ['section-counts']];
 const TASK_KEYS = [['tasks'], ['deleted-tasks'], ['section-counts'], ['notifications'], ['notification-ref-statuses'],
-  ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist'], ['work']];
+  ['task-comments'], ['task-comment-counts'], ['task-attachments'], ['task-attachment-counts'], ['task-checklist'], ['work'], ['creative']];
 // These responses include server-computed reviewer/routing permissions. A head leaving a role,
 // a staff transfer or a permission change can alter the queue without changing its request rows.
 const WORKFLOW_ACCESS_KEYS = [['section-counts'], ['leaves'], ['leaves-period'], ['leaves-period-days'], ['leave-balances'], ['ticket-access'],
@@ -32,6 +32,9 @@ const TABLE_KEYS = {
   task_deliverables: [['work']],
   task_marks: [['work']],
   task_help_log: [['work']],
+  // Shared by the creative team (0174): one person's change shows on everyone's Campaigns, Ideas and Home.
+  creative_campaigns: [['creative'], ['work']],
+  creative_ideas: [['creative']],
   goals: [['goals'], ['section-counts']],
   // A help request is answered by somebody else, on another screen, and the person who raised it is
   // sitting looking at it. Without this the answer only arrives on the 5-minute safety poll.

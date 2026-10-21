@@ -483,7 +483,7 @@ begin
     'campaigns', coalesce((select jsonb_agg(app.creative_campaign_json(c, _today) order by c.launch_date nulls last, lower(c.name))
       from public.creative_campaigns c where c.deleted_at is null and c.stage not in ('Parked','Cancelled','Reviewed')), '[]'),
     'key_dates', coalesce((select jsonb_agg(jsonb_build_object('id', k.id, 'name', k.name, 'date', k.on_date, 'brand', k.brand,
-        'lead_days', k.lead_days, 'days_away', k.on_date - _today,
+        'brand_label', app.creative_brand_label(k.brand), 'lead_days', k.lead_days, 'days_away', k.on_date - _today,
         'has_campaign', exists (select 1 from public.creative_campaigns c where c.deleted_at is null and c.stage not in ('Parked','Cancelled')
           and c.launch_date between k.on_date - greatest(coalesce(k.lead_days, 30), 30) and k.on_date)) order by k.on_date)
       from public.creative_key_dates k where k.deleted_at is null and k.on_date between _today and _today + 150), '[]'),
@@ -601,7 +601,7 @@ returns jsonb language sql stable set search_path = pg_catalog, public, app as $
     'waiting_on', _t.waiting_on, 'revision', _t.revision, 'approved_version', _t.approved_version, 'outcome', _t.outcome,
     'tags', to_jsonb(_t.tags), 'brand', _t.brand, 'brand_label', app.creative_brand_label(_t.brand), 'work_type', _t.work_type,
     'est_cost', _t.est_cost, 'actual_cost', _t.actual_cost,
-    'campaign_id', _t.campaign_id, 'campaign', (select c.name from public.creative_campaigns c where c.id = _t.campaign_id),
+    'campaign_id', _t.campaign_id, 'campaign', (select c.name from public.creative_campaigns c where c.id = _t.campaign_id and c.deleted_at is null),
     'vendor_id', _t.vendor_id, 'vendor', (select v.name from public.creative_vendors v where v.id = _t.vendor_id),
     'employee_id', _t.employee_id, 'assignee_name', (select e.full_name from public.employees e where e.id = _t.employee_id),
     'assigned_by', _t.assigned_by, 'assigner_name', (select e.full_name from public.employees e where e.id = _t.assigned_by),
@@ -628,7 +628,7 @@ declare _body text;
 begin
   select pg_get_functiondef('app.work_report_data(uuid,text,date,date,date,boolean)'::regprocedure) into _body;
   _body := replace(_body, $r$coalesce(nullif(btrim(t.brand), ''), '') as brand_label$r$,
-    $r$coalesce(app.creative_brand_label(t.brand), '') as brand_label, (select c.name from public.creative_campaigns c where c.id = t.campaign_id) as campaign_name$r$);
+    $r$coalesce(app.creative_brand_label(t.brand), '') as brand_label, (select c.name from public.creative_campaigns c where c.id = t.campaign_id and c.deleted_at is null) as campaign_name$r$);
   _body := replace(_body, $r$select t.id, t.title, t.status, t.review_stage, t.brand,$r$, $r$select t.id, t.title, t.status, t.review_stage, t.brand, t.campaign_id,$r$);
   _body := replace(_body, $r$'by_campaign', '[]'::jsonb,$r$,
     $r$'by_campaign', coalesce((select jsonb_agg(jsonb_build_object('campaign', x.name, 'done', x.done, 'total', x.total, 'spend', x.spend)

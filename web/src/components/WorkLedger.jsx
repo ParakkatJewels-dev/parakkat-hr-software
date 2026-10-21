@@ -2,10 +2,11 @@
 // task, subtask, comment, file, request and routine is here as it is there. Home and the board are
 // the ledger's; Team, Requests, Routines and Deleted are Task Management's own views, mounted inside;
 // Reports, Insights, quick add, reminders and the help log are the ledger's tools on those records.
-// Who sees what follows Task Management's rules; reminders and the calendar stay private.
+// Who sees what follows Task Management's rules; reminders and the calendar stay private. The
+// creative team (departments a super admin chooses) also gets shared Campaigns, Ideas and Library.
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BarChart3, CheckSquare, FileText, HandHelping, Home, NotebookPen, Plus, Search, Settings, Trash2, Users,
+  BarChart3, BookOpen, CheckSquare, FileText, HandHelping, Home, Lightbulb, Megaphone, NotebookPen, Plus, Search, Settings, Trash2, Users,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -17,9 +18,13 @@ import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCo
 import { useSectionCounts } from '../data/sectionCounts';
 import { syncGoogleCalendar } from '../data/workLedger';
 import { readSound, useWorkHome } from '../data/work';
+import { useCreativeSettings } from '../data/creative';
 import CommandBar from './ledger/CommandBar';
 import DueBanner from './ledger/DueBanner';
+import LedgerCampaigns from './ledger/LedgerCampaigns';
 import LedgerHome from './ledger/LedgerHome';
+import LedgerIdeas from './ledger/LedgerIdeas';
+import LedgerLibrary from './ledger/LedgerLibrary';
 import LedgerReports from './ledger/LedgerReports';
 import LedgerSettings from './ledger/LedgerSettings';
 import { LogHelpDrawer, NewTaskPanel, ReminderDrawer, TaskDrawer } from './ledger/TaskForms';
@@ -39,6 +44,9 @@ export const LEDGER_TABS = [
   { id: 'routines', label: 'Routines', icon: CheckSquare, count: 'tasks/routine' },
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'insights', label: 'Insights', icon: BarChart3 },
+  { id: 'campaigns', label: 'Campaigns', icon: Megaphone, need: 'creative' },
+  { id: 'ideas', label: 'Ideas', icon: Lightbulb, need: 'creative' },
+  { id: 'library', label: 'Library', icon: BookOpen, need: 'creative' },
   { id: 'deleted', label: 'Deleted', icon: Trash2, need: 'deleted' },
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
@@ -61,23 +69,26 @@ export function shortcutFor(event) {
 }
 
 /** The tabs this person gets. */
-export function visibleTabs({ canTeam, canRequests, canDeleted }) {
-  return LEDGER_TABS.filter((item) => !item.need
-    || (item.need === 'team' && canTeam) || (item.need === 'requests' && canRequests) || (item.need === 'deleted' && canDeleted));
+export function visibleTabs({ canTeam, canRequests, canDeleted, creative = false }) {
+  const allowed = { team: canTeam, requests: canRequests, deleted: canDeleted, creative };
+  return LEDGER_TABS.filter((item) => !item.need || allowed[item.need]);
 }
 
 export default function WorkLedger() {
   const { employee } = useAuth();
   const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
   const canTeam = canBeyondSelf('task.read');
-  const tabs = visibleTabs({ canTeam, canRequests: canAny('task.request'), canDeleted: canAny('task.manage') || Boolean(employee?.id) });
+  const creative = Boolean(useCreativeSettings().data?.member);
+  const tabs = visibleTabs({ canTeam, canRequests: canAny('task.request'), canDeleted: canAny('task.manage') || Boolean(employee?.id), creative });
   const [urlTab, setTab] = useUrlTab('home', LEDGER_TABS.map((item) => item.id));
   const tab = tabs.some((item) => item.id === urlTab) ? urlTab : 'home';
   const home = useWorkHome();
   const counts = useSectionCounts({ selfOnly: viewingAsEmployee });
   const [drawer, setDrawer] = useState(null);
   const [command, setCommand] = useState(null);
-  const [newTask, setNewTask] = useState(false);
+  // null, or the new-task form's starting values (a campaign, an idea, a template).
+  const [newTask, setNewTask] = useState(null);
+  const [picked, setPicked] = useState({ campaigns: null, ideas: null });
   const lastSync = useRef(0);
   const connected = Boolean(home.data?.google?.connected);
   const { pathname, search } = useLocation();
@@ -95,28 +106,32 @@ export default function WorkLedger() {
   const open = useCallback((kind, payload) => {
     if (kind === 'command') setCommand(payload ?? '');
     else if (kind === 'tab') setTab(payload);
-    else if (kind === 'new-task') setNewTask(true);
-    else setDrawer({ kind, payload });
+    else if (kind === 'new-task') setNewTask(payload ?? {});
+    else if (kind === 'campaign' || kind === 'idea') {
+      const list = `${kind}s`;
+      setPicked((current) => ({ ...current, [list]: payload ?? null }));
+      setTab(list);
+    } else setDrawer({ kind, payload });
   }, [setTab]);
 
-  const context = useMemo(() => ({ employeeId: employee?.id ?? null, today: home.data?.today ?? istToday(), canTeam, creative: false, open }),
-    [employee?.id, home.data?.today, canTeam, open]);
+  const context = useMemo(() => ({ employeeId: employee?.id ?? null, today: home.data?.today ?? istToday(), canTeam, creative, open }),
+    [employee?.id, home.data?.today, canTeam, creative, open]);
 
   useEffect(() => {
     const onKey = (event) => {
-      if (drawer || command !== null || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (drawer || command !== null || newTask || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
       const action = shortcutFor(event);
       if (!action) return;
       event.preventDefault();
       if (action === 'command') setCommand('');
       else if (action === 'remind') setCommand('remind: ');
-      else if (action === 'task') setNewTask(true);
+      else if (action === 'task') setNewTask({});
       else if (action.startsWith('tab:')) { const next = tabs[Number(action.slice(4))]; if (next) setTab(next.id); }
       else setDrawer({ kind: action });
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [drawer, command, tabs, setTab]);
+  }, [drawer, command, newTask, tabs, setTab]);
 
   // The calendar catches up when the Ledger opens and whenever the window comes back into focus.
   useEffect(() => {
@@ -140,6 +155,10 @@ export default function WorkLedger() {
     case 'deleted': return <TaskManagement embedded embeddedView="deleted" />;
     case 'reports': return <LedgerReports />;
     case 'insights': return <Suspense fallback={<p className="ledger-quiet">Loading charts…</p>}><LedgerInsights /></Suspense>;
+    case 'campaigns': return <LedgerCampaigns selected={picked.campaigns} onSelect={(id) => setPicked((current) => ({ ...current, campaigns: id }))} />;
+    case 'ideas': return <LedgerIdeas selected={picked.ideas} onSelect={(id) => setPicked((current) => ({ ...current, ideas: id }))}
+      onCampaign={(id) => open('campaign', id)} />;
+    case 'library': return <LedgerLibrary />;
     case 'settings': return <LedgerSettings />;
     default: return <LedgerHome />;
     }
@@ -161,7 +180,7 @@ export default function WorkLedger() {
             <button type="button" className={btnClass('ghost')} onClick={() => setCommand('')} aria-keyshortcuts="/">
               <Search size={14} /> Search or add <kbd className="ledger-kbd">/</kbd></button>
             <button type="button" className={btnClass('ghost')} onClick={() => setDrawer({ kind: 'help' })} aria-keyshortcuts="H">Log help</button>
-            <button type="button" className={btnClass('primary')} onClick={() => setNewTask(true)} aria-keyshortcuts="N"><Plus size={16} /> New task</button>
+            <button type="button" className={btnClass('primary')} onClick={() => setNewTask({})} aria-keyshortcuts="N"><Plus size={16} /> New task</button>
           </div>
         </div>
         <nav role="tablist" aria-label="Work Ledger sections"
@@ -186,8 +205,8 @@ export default function WorkLedger() {
             );
           })}
         </nav>
-        {newTask && <NewTaskPanel onClose={() => setNewTask(false)} onCreated={(id) => setDrawer({ kind: 'task', payload: id })} />}
-        <section className="ledger-panel" role="tabpanel" id={`ledger-panel-${tab}`} aria-labelledby={`ledger-tab-${tab}`} hidden={newTask}>
+        {newTask && <NewTaskPanel preset={newTask} onClose={() => setNewTask(null)} onCreated={(id) => setDrawer({ kind: 'task', payload: id })} />}
+        <section className="ledger-panel" role="tabpanel" id={`ledger-panel-${tab}`} aria-labelledby={`ledger-tab-${tab}`} hidden={Boolean(newTask)}>
           {panel()}
         </section>
       </div>

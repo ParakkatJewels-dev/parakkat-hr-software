@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { useCreateTask } from '../../data/tasks';
 import { newId, syncGoogleCalendar } from '../../data/workLedger';
 import { searchWork, useWorkRpc, useWorkWrite } from '../../data/work';
+import { useCreativeWrite } from '../../data/creative';
 import { describeCapture, parseQuickCapture } from '../../lib/ledger/quickCapture.js';
 import { StatusPill, dateLabel, errorText, useLedger } from './ui';
 import { btnClass } from '../ui/Btn';
@@ -20,8 +21,9 @@ export default function CommandBar({ initial = '', onClose }) {
   const createTask = useCreateTask();
   const write = useWorkWrite();
   const call = useWorkRpc();
-  const pending = createTask.isPending || write.isPending || call.isPending;
-  const failure = createTask.error || write.error || call.error;
+  const creativeWrite = useCreativeWrite();
+  const pending = createTask.isPending || write.isPending || call.isPending || creativeWrite.isPending;
+  const failure = createTask.error || write.error || call.error || creativeWrite.error;
   const [text, setText] = useState(initial);
   const [results, setResults] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -73,8 +75,8 @@ export default function CommandBar({ initial = '', onClose }) {
         if (result?.calendar) syncGoogleCalendar().catch(() => {});
         setSaved('Reminder set.');
       } else if (parsed.kind === 'idea') {
-        open('idea-capture', parsed);
-        setSaved('Idea saved.');
+        await creativeWrite.mutateAsync({ op: 'add-idea', text: parsed.text, brand: parsed.brand ?? null, tags: parsed.tags ?? [] });
+        setSaved('Idea saved to the team’s inbox.');
       }
       setText('');
     } catch { /* shown below */ }

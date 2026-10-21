@@ -172,9 +172,9 @@ test('due banner: reminders at or past their time, meetings within ten minutes',
 test('a campaign at Decision shows the stage bar and the decision panel', () => {
   const campaign = { id: 'c2', name: 'Monsoon stays', brand: 'Parakkat Munnar Resort', brand_label: 'Munnar', stage: 'Decision', status: 'Active', priority: 'Medium',
     decision: 'Approve a 20% weekday offer?', done: 0, total: 0, in_review: 0, blocked: 0, spend: 0, brief: {}, measure: {}, results: {}, tasks: [], ideas: [], log: [{ at: '2026-10-19', text: 'Created at Captured' }] };
-  const value = { owner: null, readOnly: false, boot, today: '2026-10-20', open() {} };
+  const value = { employeeId: 'e1', today: '2026-10-20', canTeam: false, creative: true, open() {} };
   const html = render(React.createElement(LedgerContext.Provider, { value }, React.createElement(CampaignDetail, { id: 'c2', onBack() {} })),
-    { seed: { '["work-ledger","campaign","me","c2"]': campaign } });
+    { seed: { '["creative","campaign","c2"]': campaign } });
   const stages = [...html.matchAll(/<li data-state="([a-z]+)"><button[^>]*>([A-Za-z]+)</g)].map((match) => `${match[2]}:${match[1]}`);
   assert.deepEqual(stages, ['Captured:done', 'Developing:done', 'Decision:current', 'Approved:next', 'Production:next', 'Live:next', 'Reviewed:next']);
   assert.match(html, /Decision needed<\/h3>/);
@@ -182,6 +182,51 @@ test('a campaign at Decision shows the stage bar and the decision panel', () => 
   assert.match(html, /Advance to Approved/);
   assert.match(html, /Campaign brief/);
   assert.match(html, /Created at Captured/);
+  assert.match(html, /Add a task to this campaign/);
+});
+
+const creativeSettings = { member: true, can_configure: false, departments: [{ id: 'd1', name: 'Marketing' }] };
+const creativeHome = {
+  alerts: [{ kind: 'decision', campaign_id: 'c1', title: 'Diwali gold festival', text: 'Temple collection or lightweight range?' }],
+  campaigns: [{ id: 'c1', name: 'Diwali gold festival', brand_label: 'Jewels', stage: 'Decision', done: 1, total: 3, launch_date: '2026-10-28' }],
+  key_dates: [{ id: 'k1', name: 'Diwali', date: '2026-10-30', brand: 'Parakkat Jewels', brand_label: 'Jewels', lead_days: 30, days_away: 10, has_campaign: true },
+    { id: 'k2', name: 'Christmas', date: '2026-12-25', brand: 'General', brand_label: 'General', lead_days: 30, days_away: 25, has_campaign: false }],
+  ideas: [{ id: 'i1', text: 'Heirloom reel', by: 'Priya Nair' }], ideas_open: 4 };
+
+test('the creative team gets Campaigns, Ideas and Library, and a creative block on Home', () => {
+  assert.deepEqual(visibleTabs({ canTeam: false, canRequests: false, canDeleted: true, creative: true }).map((t) => t.id),
+    ['home', 'routines', 'reports', 'insights', 'campaigns', 'ideas', 'library', 'deleted', 'settings']);
+  auth = employeeAuth;
+  const html = render(React.createElement(WorkLedger), { seed: { ...seeded, '["creative","settings"]': creativeSettings, '["creative","home"]': creativeHome } });
+  const tabs = [...html.matchAll(/role="tab"[^>]*>(.*?)<\/button>/g)].map((match) => match[1].replace(/<[^>]+>/g, '').trim());
+  assert.deepEqual(tabs, ['Home', 'Routines', 'Reports', 'Insights', 'Campaigns', 'Ideas', 'Library', 'Deleted', 'Settings']);
+  assert.match(html, /Creative team/);
+  assert.match(html, /Temple collection or lightweight range\?/, 'a decision waiting is pointed out');
+  assert.match(html, /Decision · 1\/3 done/);
+  assert.match(html, /Christmas.*?no campaign yet/s, 'a coming date with no campaign is flagged');
+  assert.doesNotMatch(html, /Diwali<span[^>]*>Jewels<\/span><span class="ledger-tag">/, 'a date with a campaign is not flagged');
+  assert.match(html, /4 in the inbox/);
+});
+
+test('someone outside the creative team gets no creative tabs or Home block', () => {
+  auth = employeeAuth;
+  const html = render(React.createElement(WorkLedger), { seed: { ...seeded, '["creative","settings"]': { ...creativeSettings, member: false } } });
+  assert.doesNotMatch(html, /Campaigns<\/button>|Ideas<\/button>|Library<\/button>/);
+  assert.doesNotMatch(html, /Creative team/);
+});
+
+test('a super admin chooses the creative departments in Settings; members only see them', () => {
+  const value = { employeeId: 'e1', today: '2026-10-20', canTeam: false, creative: true, open() {} };
+  const departments = [{ id: 'd1', name: 'Marketing', code: 'MKT' }, { id: 'd2', name: 'Sales', code: 'SAL' }];
+  let html = render(React.createElement(LedgerContext.Provider, { value }, React.createElement(LedgerSettings)),
+    { seed: { '["creative","settings"]': { ...creativeSettings, can_configure: true }, '["org","departments"]': departments } });
+  assert.match(html, /Save creative team/);
+  assert.match(html, /<input type="checkbox" checked=""\/>Marketing/);
+  assert.match(html, /<input type="checkbox"\/>Sales/);
+  html = render(React.createElement(LedgerContext.Provider, { value }, React.createElement(LedgerSettings)),
+    { seed: { '["creative","settings"]': creativeSettings } });
+  assert.match(html, /Departments: Marketing\./);
+  assert.doesNotMatch(html, /Save creative team/);
 });
 
 test('team ledgers lists the people a manager may read, by department', () => {

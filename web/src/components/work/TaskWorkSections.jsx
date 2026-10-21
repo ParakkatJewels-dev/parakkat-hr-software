@@ -2,11 +2,13 @@
 // and lists, and Task Management's rows): the step it is at and the next moves, waiting on / depends
 // on / outcome, today's progress notes, deliverables with versions, and its history. Loaded only
 // when the task is open. The rules (rounds of changes, approved version, history, notifications) are
-// the database's (0173); this only offers the moves.
-import React, { useState } from 'react';
-import { CheckCircle2, ChevronDown, ExternalLink, History, Layers, NotebookPen, Pin, Star, Trash2 } from 'lucide-react';
+// the database's (0173); this only offers the moves. The creative team also sees brand, work type,
+// campaign, vendor and costs (0174).
+import React, { useId, useState } from 'react';
+import { CheckCircle2, ChevronDown, ExternalLink, History, Layers, Megaphone, NotebookPen, Pin, Star, Trash2 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { useWorkHome, useWorkTask, useWorkUpdate, useWorkWrite } from '../../data/work';
+import { OFF_STAGES, useCreativeLibrary, useCreativeSettings } from '../../data/creative';
 import { humanDbError } from '../../lib/dbErrors';
 import { istToday } from '../../lib/dates';
 import { btnClass } from '../ui/Btn';
@@ -55,10 +57,80 @@ function TextSetting({ label, value, placeholder, onSave, disabled, maxLength = 
   );
 }
 
+const WORK_TYPES = ['Print', 'Social', 'Reel', 'Photography', 'Video', 'Ads', 'Website', 'Packaging', 'Event'];
+
+/** A text field with suggestions that saves when you leave it. */
+function SuggestSetting({ label, value, options, onSave, disabled, maxLength = 120 }) {
+  const listId = useId();
+  const [draft, setDraft] = useState(null);
+  return (
+    <label className="block space-y-1">
+      <span className={HEADING}>{label}</span>
+      <input className={FIELD} list={listId} value={draft ?? value ?? ''} maxLength={maxLength} disabled={disabled}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => { if (draft !== null && draft.trim() !== (value ?? '')) onSave(draft.trim() || null); setDraft(null); }}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+      <datalist id={listId}>{[...new Set(options.filter(Boolean))].map((option) => <option key={option} value={option} />)}</datalist>
+    </label>
+  );
+}
+
+function CostSetting({ label, value, onSave, disabled }) {
+  const [draft, setDraft] = useState(null);
+  const shown = draft ?? (value == null ? '' : String(Number(value)));
+  return (
+    <label className="block space-y-1">
+      <span className={HEADING}>{label}</span>
+      <input className={FIELD} inputMode="decimal" placeholder="₹" value={shown} disabled={disabled}
+        onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ''))}
+        onBlur={() => {
+          if (draft !== null) { const next = draft === '' ? null : Number(draft); if (next !== (value == null ? null : Number(value)) && !Number.isNaN(next)) onSave(next); }
+          setDraft(null);
+        }}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }} />
+    </label>
+  );
+}
+
+/** Brand, work type, campaign, vendor and costs — for the creative team. */
+function CreativeFields({ task, canEdit, save }) {
+  const library = useCreativeLibrary();
+  const data = library.data ?? { brands: [], campaigns: [], vendors: [] };
+  const campaigns = data.campaigns.filter((c) => !OFF_STAGES.includes(c.stage) || c.id === task.campaign_id);
+  return (
+    <div className="space-y-2">
+      <p className={HEADING}><Megaphone size={11} /> Creative</p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <SuggestSetting label="Brand" value={task.brand} options={data.brands.map((b) => b.name)} disabled={!canEdit} maxLength={80} onSave={(v) => save({ brand: v })} />
+        <SuggestSetting label="Work type" value={task.work_type} options={WORK_TYPES} disabled={!canEdit} onSave={(v) => save({ work_type: v })} />
+        <label className="block space-y-1">
+          <span className={HEADING}>Campaign</span>
+          <select className={FIELD} disabled={!canEdit} value={task.campaign_id ?? ''} onChange={(e) => save({ campaign_id: e.target.value || null })}>
+            <option value="">None</option>
+            {task.campaign_id && !campaigns.some((c) => c.id === task.campaign_id) && <option value={task.campaign_id}>{task.campaign ?? 'A removed campaign'}</option>}
+            {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <label className="block space-y-1">
+          <span className={HEADING}>Vendor</span>
+          <select className={FIELD} disabled={!canEdit} value={task.vendor_id ?? ''} onChange={(e) => save({ vendor_id: e.target.value || null })}>
+            <option value="">None</option>
+            {task.vendor_id && !data.vendors.some((v) => v.id === task.vendor_id) && <option value={task.vendor_id}>{task.vendor ?? 'A removed vendor'}</option>}
+            {data.vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.role ? ` · ${v.role}` : ''}</option>)}
+          </select>
+        </label>
+        <CostSetting label="Estimated cost" value={task.est_cost} disabled={!canEdit} onSave={(v) => save({ est_cost: v })} />
+        <CostSetting label="Actual cost" value={task.actual_cost} disabled={!canEdit} onSave={(v) => save({ actual_cost: v })} />
+      </div>
+    </div>
+  );
+}
+
 export default function TaskWorkSections({ taskId, open = true, onRemind }) {
   const { employee } = useAuth();
   const detail = useWorkTask(taskId, { enabled: open });
   const home = useWorkHome();
+  const creative = Boolean(useCreativeSettings().data?.member);
   const update = useWorkUpdate();
   const write = useWorkWrite();
   const [finishing, setFinishing] = useState(false);
@@ -143,6 +215,8 @@ export default function TaskWorkSections({ taskId, open = true, onRemind }) {
         <TextSetting label="Tags" value={(task.tags ?? []).join(', ')} placeholder="comma separated" disabled={!canEdit}
           onSave={(v) => save({ tags: String(v ?? '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 20) })} />
       </div>
+
+      {creative && <CreativeFields task={task} canEdit={canEdit} save={save} />}
 
       {/* What I did today */}
       <div className="space-y-2">
