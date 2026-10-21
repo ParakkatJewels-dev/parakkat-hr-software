@@ -62,10 +62,10 @@ test('five active keys disable creating another; revoked keys have no revoke act
 
 test('the form offers only assistant areas with tasks ticked and 30 days by default', () => {
   const html = render({ Component: AgentKeyForm, props: { onClose() {}, onCreated() {} } });
-  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 4);
+  assert.equal((html.match(/type="checkbox"/g) ?? []).length, 5);
   assert.equal((html.match(/type="checkbox" checked=""/g) ?? []).length, 1);
-  for (const label of ['Tasks &amp; requests', 'Leave approvals', 'Assets', 'Goals']) assert.ok(html.includes(label), label);
-  assert.doesNotMatch(html, /Employee directory|Attendance|Payroll|Work Ledger/, 'the retired personal ledger is not offered');
+  for (const label of ['Tasks &amp; requests', 'Leave approvals', 'Assets', 'Goals', 'Work Ledger']) assert.ok(html.includes(label), label);
+  assert.doesNotMatch(html, /Employee directory|Attendance|Payroll/, 'read-only data areas are not offered to assistants');
   assert.match(html, /<option value="30" selected="">30 days/);
   assert.match(html, /maxLength="80"/);
 });

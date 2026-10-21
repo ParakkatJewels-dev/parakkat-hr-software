@@ -4,8 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { AGENT_AREAS, HERMES_TOOLS, LEDGER_INTERNAL_TOOLS, checkArguments, toolsForAreas } from './hermesTools.js';
 
 const migration = await readFile(new URL('../../backend/supabase/migrations/0168_hermes_agent_api.sql', import.meta.url), 'utf8');
-// 0172 is the latest definition of the area map and adds the Work Ledger dispatcher.
-const ledgerMigration = await readFile(new URL('../../backend/supabase/migrations/0172_work_ledger_assistant.sql', import.meta.url), 'utf8');
+// 0176 is the latest definition of the area map and the Work Ledger dispatcher (on task records).
+const ledgerMigration = await readFile(new URL('../../backend/supabase/migrations/0176_work_assistant.sql', import.meta.url), 'utf8');
 
 test('the catalogue and the database dispatchers name exactly the same tools', () => {
   const core = [...migration.matchAll(/when '([a-z_]+)' then _result :=/g)].map((match) => match[1]);

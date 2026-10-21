@@ -30,6 +30,7 @@ creative tables is ever hard-deleted.
 | `0173_work_ledger_tasks.sql` | Ledger fields and rules on `tasks`; history, progress notes, deliverables, marks, help log; Home / report / insights / search reads; reminders linked to tasks |
 | `0174_work_creative.sql` | The creative team setting; shared campaigns (+ log), ideas, vendors, templates, key dates, brands; `tasks.campaign_id` / `vendor_id`; creative report and insight parts |
 | `0175_work_import.sql` | The old Google Sheet import onto tasks and the shared tables |
+| `0176_work_assistant.sql` | Hermes's Work Ledger tools on task records; review step and more in the Tasks tools |
 
 Apply them in order with the normal migration runner, then deploy `web`.
 
@@ -84,18 +85,19 @@ hold exactly what was imported; anything changed or removed here is left alone (
 
 ## Hermes
 
-Still the personal-ledger tools from 0172; moving them onto task records is part of the clean-up stage.
-With migration 0172, a personal assistant key can include the **Work Ledger** area. Tools:
-`ledger_home`, `ledger_list_tasks`, `ledger_get_task`, `ledger_report` (with ready-to-share text),
-`ledger_list_ideas`, `ledger_list_reminders`, `ledger_list_campaigns`, `ledger_add_task`,
-`ledger_update_task`, `ledger_mark_done`, `ledger_log_progress`, `ledger_log_help`, `ledger_add_idea`,
-`ledger_add_reminder` (mirrored to Google Calendar straight away). Nothing deletes. The key acts as its
-owner, so it only ever reaches the owner's own ledger.
+An assistant key with the **Work Ledger** area (0172, on task records since `0176_work_assistant.sql`)
+acts as its owner on the same tasks every screen shows: `ledger_home`, `ledger_list_tasks` (my tasks, by
+step), `ledger_get_task`, `ledger_report` (with ready-to-share text; a manager may name someone they
+manage), `ledger_list_reminders`, `ledger_add_task` (for myself), `ledger_update_task`, `ledger_mark_done`,
+`ledger_log_progress`, `ledger_add_deliverable`, `ledger_log_help`, `ledger_add_reminder`; and for the
+creative team `ledger_list_ideas`, `ledger_list_campaigns`, `ledger_add_idea`. The old step names (Brief,
+Internal Review, Delivered…) still work. The Tasks area's `update_task` / `get_task` also know the review
+step, waiting on, depends on, outcome, progress notes, deliverables and history. Nothing deletes.
 
 ## Verification
 
 - `LC_ALL=C npm --prefix web/backend test` includes `tests/work_tasks.sql`, `work_creative.sql` and
-  `work_import.sql` (after the original ledger tests): review steps and notifications, the checklist
+  `work_import.sql` (after the original ledger tests), and `developer_api_ledger.sql` for Hermes: review steps and notifications, the checklist
   rollup, focus, visibility for every role, the creative team's access, campaign / idea rules, report and
   insight parts, and import re-runs.
 - `npm --prefix web test` covers the screens (`WorkLedger.test.js`), routes and redirects from `/tasks`,
