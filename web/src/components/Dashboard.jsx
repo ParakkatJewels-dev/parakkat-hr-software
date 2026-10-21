@@ -488,6 +488,8 @@ export default function Dashboard({ onNavigate, viewRole }) {
 
   return (
     <div className="page-shell dashboard-shell space-y-5 animate-slide-up py-3" data-dashboard-role={role}>
+      {/* Every other screen opens with its own title; Home's is for screen readers and the outline. */}
+      <h1 className="sr-only">Home</h1>
       <ActionCenter onNavigate={onNavigate} />
       {role !== 'employee' && <MyRoutineToday onNavigate={onNavigate} />}
       <RoutineOverview onNavigate={onNavigate} />

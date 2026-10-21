@@ -249,6 +249,7 @@ export default function ReportsAnalytics() {
           value={period}
           max={today.slice(0, 7)}
           onChange={(e) => e.target.value && setPeriod(e.target.value)}
+          aria-label="Report month"
           className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/50"
         />
         {branchId !== 'all' && (
@@ -281,6 +282,7 @@ export default function ReportsAnalytics() {
               setBranchId(e.target.value);
               if (e.target.value !== 'all') setFiltersOpen(false);
             }}
+            aria-label="Branch"
             className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/50 cursor-pointer"
           >
             <option value="all">All branches (in your scope)</option>

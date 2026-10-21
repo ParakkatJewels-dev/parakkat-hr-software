@@ -78,6 +78,7 @@ const MOBILE_NAV_LABELS = {
   leave: 'Leave',
   payroll: 'Pay',
   tasks: 'Tasks',
+  ledger: 'Work',
   messages: 'Chat',
   team: 'My Team',
   performance: 'Goals',

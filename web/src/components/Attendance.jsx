@@ -448,13 +448,15 @@ function TodayView({ workDate, setWorkDate }) {
             type="date"
             value={workDate}
             onChange={(e) => setWorkDate(e.target.value || todayIso())}
+            aria-label="Attendance date"
             className="bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs"
           />
           <div className="relative flex-1 min-w-0 sm:min-w-45">
-            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" aria-hidden="true" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search employees"
               placeholder="Search name, code or branch…"
               className="w-full bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 pl-8 pr-3 py-1.5 rounded-xl text-xs"
             />
@@ -661,12 +663,12 @@ function CalendarView({ employeeId, employeeName }) {
     <div className="space-y-4">
       <div className="mobile-list-row premium-card flex flex-wrap items-center justify-between gap-3">
         <div className="mobile-list-actions flex items-center gap-2">
-          <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
-            <ChevronLeft size={14} />
+          <button type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month" title="Previous month" className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
+            <ChevronLeft size={16} />
           </button>
-          <span className="text-sm font-bold min-w-37.5 text-center">{MONTHS[month - 1]} {year}</span>
-          <button onClick={() => shiftMonth(1)} className="p-1.5 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
-            <ChevronRight size={14} />
+          <span className="text-sm font-bold min-w-37.5 text-center" aria-live="polite">{MONTHS[month - 1]} {year}</span>
+          <button type="button" onClick={() => shiftMonth(1)} aria-label="Next month" title="Next month" className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
+            <ChevronRight size={16} />
           </button>
         </div>
         <div className="mobile-list-actions flex flex-wrap gap-4 text-xs">

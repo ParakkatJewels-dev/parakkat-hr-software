@@ -148,6 +148,8 @@ function UsersAccess() {
   const [passwordFor, setPasswordFor] = useState(null);
   const [passwordNotice, setPasswordNotice] = useState('');
   const [confirmSuper, setConfirmSuper] = useState(null);
+  // A role chip's ✕ used to revoke on the first click — easy to hit by accident on a 19px target.
+  const [confirmRevoke, setConfirmRevoke] = useState(null); // { role, user }
   // "What can this person actually reach?" — the question this screen could not answer, because it
   // is organised by role and the question is about a person. See UserAccessPanel.
   const [inspecting, setInspecting] = useState(null);
@@ -289,13 +291,14 @@ function UsersAccess() {
                       <span className="text-neutral-400 dark:text-neutral-500">· {scopeLabel(r.scope_type, r.scope_id)}</span>
                       {mayRevoke(r, u) && (
                       <button
-                        onClick={() => revoke.mutate(r.assignment_id)}
+                        type="button"
+                        onClick={() => { revoke.reset(); setConfirmRevoke({ role: r, user: u }); }}
                         disabled={revoke.isPending}
-                        className="ml-0.5 p-1 rounded-md text-neutral-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40 focus:outline-none focus:ring-2 focus:ring-red-500/40 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="ml-0.5 inline-flex h-6 w-6 items-center justify-center rounded-md text-neutral-400 hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-950/40 focus:outline-none focus:ring-2 focus:ring-red-500/40 cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         title={`Revoke ${prettyRole(r.role_key)}`}
                         aria-label={`Revoke ${prettyRole(r.role_key)}`}
                       >
-                        <X size={11} />
+                        <X size={12} />
                       </button>
                       )}
                     </span>
@@ -435,6 +438,30 @@ function UsersAccess() {
           <p>{confirmSuper.is_super_admin
             ? 'Their separately assigned roles will remain. The last Super Admin cannot be removed.'
             : 'This gives unrestricted access across every company, including payroll and user administration.'}</p>
+        </ConfirmDialog>
+      )}
+
+      {confirmRevoke && (
+        <ConfirmDialog
+          title="Remove this role?"
+          confirmLabel="Remove role"
+          busy={revoke.isPending}
+          error={revoke.error?.message}
+          onCancel={() => { revoke.reset(); setConfirmRevoke(null); }}
+          onConfirm={async () => {
+            try {
+              await revoke.mutateAsync(confirmRevoke.role.assignment_id);
+              setConfirmRevoke(null);
+            } catch { /* shown in the dialog */ }
+          }}
+        >
+          <p>
+            <span className="font-semibold break-all">{confirmRevoke.user.employee_name || confirmRevoke.user.email}</span> will lose{' '}
+            <span className="font-semibold">
+              {roleByKey.get(confirmRevoke.role.role_key)?.name ?? prettyRole(confirmRevoke.role.role_key)} · {scopeLabel(confirmRevoke.role.scope_type, confirmRevoke.role.scope_id)}
+            </span>.
+          </p>
+          <p className="text-neutral-500 dark:text-neutral-400">Their records are kept. You can give it back with Give access.</p>
         </ConfirmDialog>
       )}
 

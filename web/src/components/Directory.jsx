@@ -2181,7 +2181,7 @@ function SortHeader({ label, active, dir, onClick }) {
       type="button"
       onClick={onClick}
       aria-sort={active ? (dir === 'desc' ? 'descending' : 'ascending') : 'none'}
-      className={`inline-flex items-center gap-1 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded ${
+      className={`inline-flex min-h-7 -my-1.5 items-center gap-1 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded ${
         active ? 'text-brand-ink dark:text-brand-ink' : 'hover:text-neutral-900 dark:hover:text-white'
       }`}
     >

@@ -94,7 +94,7 @@ export function EmployeeTodayHero({ onNavigate }) {
             <span className="sr-only">Loading today’s attendance…</span>
           </div>
         ) : <>
-          <h1>{punchState.title}</h1>
+          <h2>{punchState.title}</h2>
           <p>{punchState.detail}</p>
         </>}
       </div>
@@ -475,8 +475,10 @@ export function EssSection({ onNavigate }) {
   return (
     <section className="space-y-4">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 text-2xs font-bold uppercase tracking-[0.12em] text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-pointer"
+        aria-expanded={open}
+        className="flex min-h-9 items-center gap-2 text-2xs font-bold uppercase tracking-[0.12em] text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-pointer"
       >
         {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         <UserRound size={12} />
