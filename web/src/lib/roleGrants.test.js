@@ -99,3 +99,42 @@ test('custom roles from the catalogue are offered under the same ceilings as bui
   // Without a catalogue (older callers) only the built-in roles, as before.
   assert.ok(grantableRoles(1000, []).every((r) => !r.custom));
 });
+
+test('each role offers the areas the database allows, the usual one first', async () => {
+  const { areaLevelsFor } = await import('./roleGrants.js');
+  const levels = (role, options) => areaLevelsFor(role, options).map((level) => level.scopeType);
+  assert.deepEqual(levels('employee'), ['self']);
+  assert.deepEqual(levels('dept_head'), ['department']);
+  assert.deepEqual(levels('branch_manager'), ['branch']);
+  assert.deepEqual(levels('zonal_manager'), ['zone']);
+  assert.deepEqual(levels('hr_manager'), ['entity', 'zone', 'branch', 'department']);
+  assert.deepEqual(levels('entity_admin'), ['entity']);
+  assert.deepEqual(levels('super_admin'), [], 'the whole group only for a super admin');
+  assert.deepEqual(levels('super_admin', { isSuperAdmin: true }), ['global']);
+  assert.deepEqual(levels('store_supervisor'), ['department', 'branch', 'zone', 'entity'], 'a custom role: any area');
+  assert.deepEqual(levels('store_supervisor', { isSuperAdmin: true }), ['department', 'branch', 'zone', 'entity', 'self', 'global']);
+});
+
+test('roles you cannot give are listed with the reason in plain words', async () => {
+  const { lockedRoles } = await import('./roleGrants.js');
+  const reasons = (rank, roles, catalogue = []) => Object.fromEntries(lockedRoles(rank, roles, catalogue).map((r) => [r.key, r.reason]));
+  const hr = reasons(60, [{ role: 'hr_manager' }]);
+  assert.deepEqual(Object.keys(hr), ['branch_manager', 'zonal_manager', 'hr_manager', 'entity_admin']);
+  assert.ok(Object.values(hr).every((reason) => reason === 'HR can give roles up to Department Head.'));
+  const head = reasons(30, [{ role: 'dept_head' }], [{ key: 'it_admin', name: 'IT Admin', rank: 20, is_system: false, permissionKeys: ['rbac.manage'] }]);
+  assert.equal(head.dept_head, 'Only someone more senior than you can give this.');
+  assert.equal(head.it_admin, 'It can manage users, so only a company admin can give it.');
+  assert.deepEqual(lockedRoles(1000, [], []), [], 'a super admin can give everything');
+});
+
+test('places read the way people say them', async () => {
+  const { placeName } = await import('./roleGrants.js');
+  const org = { branches: [{ id: 'b', name: 'Kochi' }, { id: 'b2', code: 'TVM', name: null }], departments: [{ id: 'd', name: 'Sales Department' }],
+    zones: [{ id: 'z', name: 'South' }], entities: [{ id: 'e', name: 'Parakkat Jewels' }] };
+  assert.equal(placeName('branch', 'b', org), 'Kochi branch');
+  assert.equal(placeName('branch', 'b2', org), 'TVM branch');
+  assert.equal(placeName('department', 'd', org), 'Sales Department', 'no doubled noun');
+  assert.equal(placeName('zone', 'z', org), 'South zone');
+  assert.equal(placeName('entity', 'e', org), 'Parakkat Jewels');
+  assert.equal(placeName('self', null, org), null);
+});

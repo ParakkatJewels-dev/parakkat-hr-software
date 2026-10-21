@@ -10,7 +10,7 @@ import { istToday } from '../lib/dates.js';
 import { rangeFor } from '../lib/dateRange.js';
 
 let server, AuthContext, Administration, Onboarding, Recruitment, ReportTable, Pagination, Payroll,
-  RegularizationsView, ExceptionsView, Team, PeopleOverview, Performance, NewConversation, GroupPanel, ConversationSettings, Thread, ChatMonitor, AttendanceAdmin;
+  RegularizationsView, ExceptionsView, Team, GrantAccessPanel, PeopleOverview, Performance, NewConversation, GroupPanel, ConversationSettings, Thread, ChatMonitor, AttendanceAdmin;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
@@ -22,6 +22,7 @@ before(async () => {
   ({ default: Payroll } = await server.ssrLoadModule('/src/components/Payroll.jsx'));
   ({ RegularizationsView, ExceptionsView } = await server.ssrLoadModule('/src/components/Attendance.jsx'));
   ({ default: Team } = await server.ssrLoadModule('/src/components/Team.jsx'));
+  ({ default: GrantAccessPanel } = await server.ssrLoadModule('/src/components/GrantAccessPanel.jsx'));
   ({ PeopleOverview } = await server.ssrLoadModule('/src/components/Directory.jsx'));
   ({ default: Performance } = await server.ssrLoadModule('/src/components/Performance.jsx'));
   ({ NewConversation, GroupPanel, ConversationSettings, Thread } = await server.ssrLoadModule('/src/components/Messages.jsx'));
@@ -191,6 +192,25 @@ test('team roster renders 25 out of 675 members with name and code search', () =
   assert.match(html, /Search team members/);
   assert.match(html, /of 675 people/);
   assert.match(html, /Page 1 of 27/);
+});
+
+test('give access reads as four steps and ends in one sentence of what will happen', () => {
+  const fixture = accountFixtures(3);
+  const person = fixture.employees[1];
+  const catalogue = [...fixture.roles, { id: 'role-custom', key: 'store_supervisor', name: 'Store Supervisor', rank: 20, is_system: false,
+    description: 'Opens and closes the store', permissionKeys: ['attendance.read'] }];
+  const seeds = [[['roles'], catalogue], [['employees'], fixture.employees], [['managed-users'], fixture.users]];
+  const html = render(GrantAccessPanel, seeds, { employee: person, onClose() {} });
+  for (const step of ['1 · Who', '2 · What will they do?', '3 · For which area?', '4 · Login']) assert.ok(html.includes(step), step);
+  assert.match(html, /Store Supervisor<span[^>]*>Custom/);
+  assert.match(html, /Already has a login \(<b>employee2@example.test<\/b>\)/);
+  assert.match(html, /Sample Employee 0002 gets Employee \(self-service\) · Their own records/);
+  assert.doesNotMatch(html, /scope/i, 'the screen says area, never scope');
+  const hr = render(GrantAccessPanel, seeds, { employee: person, onClose() {} }, '/', { isSuperAdmin: false, rank: 60,
+    assignments: [{ role: 'hr_manager', scope_type: 'entity', scope_id: person.entity_id }],
+    permissions: [{ permission: 'rbac.manage', scope_type: 'entity', scope_id: person.entity_id }] });
+  assert.match(hr, /aria-label="Branch Manager \(Shop-in-charge\): HR can give roles up to Department Head\."/);
+  assert.match(hr, /Department Head/);
 });
 
 test('a team member opens their profile; without directory access the name stays plain text', () => {

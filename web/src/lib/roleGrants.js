@@ -167,3 +167,75 @@ export function grantableRoles(myRank, myRoles = [], catalogue = []) {
     .sort((a, b) => a.label.localeCompare(b.label));
   return [...ROLE_PRESETS.filter((r) => r.rank <= ceiling), ...custom];
 }
+
+/**
+ * Every area a role can apply to, in plain words, narrowest first. "Area" is what the database
+ * calls scope: the role says what someone can do, the area says where.
+ */
+export const AREA_LEVELS = [
+  { scopeType: 'self', label: 'Their own records', noun: null, from: null },
+  { scopeType: 'department', label: 'A department', noun: 'department', from: 'department_id' },
+  { scopeType: 'branch', label: 'A branch', noun: 'branch', from: 'branch_id' },
+  { scopeType: 'zone', label: 'A zone', noun: 'zone', from: 'zone_id' },
+  { scopeType: 'entity', label: 'A whole company', noun: 'company', from: 'entity_id' },
+  { scopeType: 'global', label: 'The whole group', noun: null, from: null },
+];
+export const areaLevel = (scopeType) => AREA_LEVELS.find((level) => level.scopeType === scopeType) ?? null;
+
+/** Where each built-in role may apply — the database guard (migration 0019). The first is the usual one. */
+export const ROLE_AREAS = {
+  super_admin: ['global'],
+  entity_admin: ['entity'],
+  hr_manager: ['entity', 'zone', 'branch', 'department'],
+  zonal_manager: ['zone'],
+  branch_manager: ['branch'],
+  dept_head: ['department'],
+  employee: ['self'],
+};
+
+/**
+ * The areas this role may be given at, usual one first. A custom role may use any area; "their own
+ * records" and "the whole group" only for a super admin, as in the database (app.can_grant).
+ */
+export function areaLevelsFor(role, { isSuperAdmin = false } = {}) {
+  const key = roleKeyOf(role);
+  const keys = ROLE_AREAS[key] ?? ['department', 'branch', 'zone', 'entity', 'self', 'global'];
+  return keys
+    .filter((scopeType) => scopeType !== 'global' || isSuperAdmin)
+    .filter((scopeType) => scopeType !== 'self' || key === 'employee' || isSuperAdmin)
+    .map(areaLevel);
+}
+
+/**
+ * Roles that exist but this person may not hand out, each with the reason in plain words — shown
+ * greyed rather than silently missing. Super admin is never listed (it has its own switch).
+ */
+export function lockedRoles(myRank, myRoles = [], catalogue = []) {
+  const ceiling = maxGrantableRank(myRank, myRoles);
+  const hrCapped = ceiling === GRANT_CEILING.hr_manager && (myRoles ?? []).some((role) => roleKeyOf(role) === 'hr_manager');
+  const offered = new Set(grantableRoles(myRank, myRoles, catalogue).map((role) => role.key));
+  const builtIn = ROLE_PRESETS.map((preset) => ({ ...preset, catalogue: null }));
+  const custom = (catalogue ?? [])
+    .filter((role) => role?.key && !role.is_system && !RANK_BY_ROLE[role.key] && role.key !== 'super_admin')
+    .map((role) => ({ key: role.key, rank: Number(role.rank) || 20, label: role.name || role.key, custom: true, catalogue: role }));
+  return [...builtIn, ...custom]
+    .filter((role) => !offered.has(role.key))
+    .map((role) => {
+      let reason = 'Only someone more senior than you can give this.';
+      if (hrCapped) reason = 'HR can give roles up to Department Head.';
+      if (role.custom && carriesAdminAuthority(role.catalogue) && myRank < 80) reason = 'It can manage users, so only a company admin can give it.';
+      return { key: role.key, label: role.label, custom: Boolean(role.custom), reason };
+    });
+}
+
+/** A place's name, the way people say it ("Kochi branch", "Sales department"). */
+export function placeName(scopeType, id, org) {
+  const level = areaLevel(scopeType);
+  if (!level?.noun || !id) return null;
+  const list = { department: org?.departments, branch: org?.branches, zone: org?.zones, entity: org?.entities }[scopeType] ?? [];
+  const row = list.find((x) => x.id === id);
+  if (!row) return null;
+  const name = (scopeType === 'branch' ? row.name || row.code : row.name) ?? '';
+  if (scopeType === 'entity') return name;
+  return name.toLowerCase().includes(level.noun) ? name : `${name} ${level.noun}`;
+}

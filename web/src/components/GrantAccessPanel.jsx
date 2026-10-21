@@ -1,22 +1,23 @@
-// One-step "give app access" — an inline SECTION, not a modal.
-//
-// Replaces the four-step dance (create login -> link employee -> pick scope type -> pick scope id)
-// with a single form: choose the employee, choose the role, done. The access area is DERIVED from
-// the employee's own record — a Branch Manager manages the branch they work in — so the admin
-// never sees the words "scope type" or a list of UUIDs. Advanced users can still override it.
-//
-// Layout: one column on phones, two from `lg` up. It lives in the page flow so long content
-// scrolls the page normally instead of trapping the form inside an overlay.
+// "Give access" — one panel, four plain steps, opened from Users & Access, from a person's row and
+// from the Directory:
+//   1 Who          — the employee (fixed when opened from their row)
+//   2 What         — the role: what they will be able to do. Roles you may not hand out are shown
+//                    greyed with the reason, instead of quietly missing.
+//   3 Where        — the area the role covers, read off the employee's own record (their branch for
+//                    a Branch Manager…). "Change" picks another level or place you may grant at.
+//   4 Login        — only when they have no login yet: email and a temporary password.
+// It ends in one sentence saying exactly what will happen. The database checks every rule again
+// (grant_app_access / app.can_grant); nothing here is a security boundary.
 import React, { useMemo, useState } from 'react';
-import { UserPlus, Loader2, Check, Copy, AlertTriangle, ShieldCheck, X } from 'lucide-react';
+import { UserPlus, Loader2, Check, Copy, AlertTriangle, ShieldCheck, X, Lock, MapPin } from 'lucide-react';
 import { useEmployees } from '../data/employees';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import { useVisibleOrg } from '../data/org';
 import { useGrantAppAccess, useManagedUsers, useRoles } from '../data/admin';
-// Presets and the grant ceiling live in lib/ so they can be tested without pulling Supabase in
+// Presets and the grant rules live in lib/ so they can be tested without pulling Supabase in
 // through useAuth. Re-exported here because call sites have always imported them from this file.
-import { CUSTOM_ROLE_LEVELS, ROLE_PRESETS, customRoleLevel, grantableRoles } from '../lib/roleGrants';
+import { ROLE_PRESETS, areaLevel, areaLevelsFor, grantableRoles, lockedRoles, placeName } from '../lib/roleGrants';
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
 
@@ -25,7 +26,7 @@ export { ROLE_PRESETS, grantableRoles };
 const inputCls =
   'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-xl px-3 py-2 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60';
 
-const labelCls = 'block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5';
+const stepCls = 'block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5';
 
 export const randomPassword = () => {
   // Ambiguous characters (O/0, l/1) left out — this gets read aloud or written on paper.
@@ -38,25 +39,22 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   const { data: employees = [] } = useEmployees();
   const { data: org } = useVisibleOrg();
   const { data: managedUsers = [] } = useManagedUsers();
+  const { data: catalogue = [] } = useRoles();
   const grantAccess = useGrantAppAccess();
   const { rank: myRank, assignments, isSuperAdmin } = useAuth();
   const { can } = usePermissions();
-  // The roles as the database holds them, so custom roles made in Administration → Roles are offered too.
-  const { data: catalogue = [] } = useRoles();
 
-  // Only offer what this admin may actually grant (see grantableRoles / migrations 0044 and 0091).
   const roleOptions = useMemo(() => grantableRoles(myRank, assignments, catalogue), [myRank, assignments, catalogue]);
-  // A custom role has no natural level, so the area it applies to is chosen here.
-  const levelOptions = CUSTOM_ROLE_LEVELS.filter((level) => isSuperAdmin || !level.superAdminOnly);
-  const [customLevel, setCustomLevel] = useState(CUSTOM_ROLE_LEVELS[0].scopeType);
+  const locked = useMemo(() => lockedRoles(myRank, assignments, catalogue), [myRank, assignments, catalogue]);
 
   const [employeeId, setEmployeeId] = useState(fixedEmployee?.id ?? '');
   const [roleKey, setRoleKey] = useState('employee');
+  const [areaScope, setAreaScope] = useState(null); // null = the role's usual level
+  const [placeId, setPlaceId] = useState('');       // '' = the place on their own record
+  const [changingArea, setChangingArea] = useState(false);
   const [email, setEmail] = useState(fixedEmployee?.email ?? '');
   const [touchedEmail, setTouchedEmail] = useState(Boolean(fixedEmployee?.email));
   const [password, setPassword] = useState(randomPassword);
-  const [overrideScopeId, setOverrideScopeId] = useState('');
-  const [showOverride, setShowOverride] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -68,20 +66,21 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   }, [employees, employeeSearch]);
   const employeePager = usePagination(matchingEmployees, 8, null, employeeSearch);
 
-  const employee = employees.find((e) => e.id === employeeId) ?? null;
-  const preset = useMemo(() => {
-    const option = roleOptions.find((r) => r.key === roleKey) ?? roleOptions[0] ?? ROLE_PRESETS[0];
-    return option.custom ? { ...option, ...customRoleLevel(customLevel) } : option;
-  }, [roleOptions, roleKey, customLevel]);
+  const employee = employees.find((e) => e.id === employeeId) ?? fixedEmployee ?? null;
+  const role = roleOptions.find((r) => r.key === roleKey) ?? roleOptions[0] ?? ROLE_PRESETS[0];
+  const levels = areaLevelsFor(role.key, { isSuperAdmin });
+  const level = levels.find((l) => l.scopeType === areaScope) ?? levels[0] ?? areaLevel('self');
+  const needsPlace = Boolean(level.from);
 
-  // Follow the employee's email unless the admin has typed their own.
   const pickEmployee = (id) => {
     setEmployeeId(id);
     const emp = employees.find((e) => e.id === id);
     if (!touchedEmail) setEmail(emp?.email ?? '');
-    setOverrideScopeId('');
+    setPlaceId('');
   };
+  const pickRole = (key) => { setRoleKey(key); setAreaScope(null); setPlaceId(''); setChangingArea(false); };
 
+  // May THIS admin grant at that place? Mirrors app.can_grant's has_perm('rbac.manage', ancestry).
   const canGrantAt = useMemo(() => {
     const branchById = new Map((org?.branches ?? []).map((b) => [b.id, b]));
     return (scopeType, id) => {
@@ -93,19 +92,13 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
       }
       if (scopeType === 'branch') {
         const branch = branchById.get(id);
-        return can('rbac.manage', {
-          entityId: branch?.entity_id ?? null,
-          zoneId: branch?.zone_id ?? null,
-          branchId: id,
-        });
+        return can('rbac.manage', { entityId: branch?.entity_id ?? null, zoneId: branch?.zone_id ?? null, branchId: id });
       }
       if (scopeType === 'department') {
         const dept = (org?.departments ?? []).find((d) => d.id === id);
         return can('rbac.manage', {
-          entityId: dept?.entity_id ?? null,
-          zoneId: branchById.get(dept?.branch_id)?.zone_id ?? null,
-          branchId: dept?.branch_id ?? null,
-          deptId: id,
+          entityId: dept?.entity_id ?? null, zoneId: branchById.get(dept?.branch_id)?.zone_id ?? null,
+          branchId: dept?.branch_id ?? null, deptId: id,
         });
       }
       return false;
@@ -113,79 +106,40 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
   }, [org, can]);
 
   const employeeGrantAllowed = !employee || can('rbac.manage', {
-    entityId: employee.entity_id,
-    zoneId: employee.zone_id,
-    branchId: employee.branch_id,
-    deptId: employee.department_id,
-    employeeId: employee.id,
+    entityId: employee.entity_id, zoneId: employee.zone_id, branchId: employee.branch_id,
+    deptId: employee.department_id, employeeId: employee.id,
   });
 
-  // The area this role will apply to, read straight off the employee record.
-  const derived = useMemo(() => {
-    if (!employee || !preset.from) {
-      return { id: null, label: null, noun: null };
-    }
-    const id = employee[preset.from] ?? null;
-    const [list, fmt, noun] = {
-      department_id: [org?.departments, (d) => d.name, 'department'],
-      branch_id: [org?.branches, (b) => `${b.code} — ${b.name}`, 'branch'],
-      zone_id: [org?.zones, (z) => z.name, 'zone'],
-      entity_id: [org?.entities, (e) => e.name, 'company'],
-    }[preset.from];
-    if (!id) return { id: null, label: null, noun };
-    const row = (list ?? []).find((x) => x.id === id);
-    return { id, label: row ? `${noun}: ${fmt(row)}` : null, noun };
-  }, [employee, preset, org]);
+  // The area: their own place for this level, unless the admin chose another one.
+  const theirPlaceId = needsPlace ? employee?.[level.from] ?? null : null;
+  const theirPlaceAllowed = !theirPlaceId || canGrantAt(level.scopeType, theirPlaceId);
+  const scopeId = needsPlace ? placeId || (theirPlaceAllowed ? theirPlaceId : null) : null;
+  const missingArea = needsPlace && !scopeId;
+  const places = useMemo(() => {
+    if (!needsPlace) return [];
+    const list = { department: org?.departments, branch: org?.branches, zone: org?.zones, entity: org?.entities }[level.scopeType] ?? [];
+    return list.filter((x) => canGrantAt(level.scopeType, x.id))
+      .map((x) => ({ id: x.id, label: placeName(level.scopeType, x.id, org) }))
+      .sort((a, b) => String(a.label).localeCompare(String(b.label)));
+  }, [needsPlace, level.scopeType, org, canGrantAt]);
+  const areaText = level.scopeType === 'self' ? 'Their own records'
+    : level.scopeType === 'global' ? 'The whole group'
+    : scopeId ? placeName(level.scopeType, scopeId, org) : null;
+  const canChangeArea = levels.length > 1 || places.length > 1 || (needsPlace && !theirPlaceAllowed);
 
-  const derivedAllowed =
-    preset.scopeType === 'self' || !derived.id || canGrantAt(preset.scopeType, derived.id);
-  const scopeId =
-    preset.scopeType === 'self' ? null : overrideScopeId || (derivedAllowed ? derived.id : null);
-  const missingArea = preset.scopeType !== 'self' && !scopeId;
-
-  // Options for the manual override, matching the role's level.
-  const overrideOptions = useMemo(() => {
-    const map = {
-      department: (org?.departments ?? [])
-        .filter((d) => canGrantAt('department', d.id))
-        .map((d) => ({ id: d.id, label: d.name })),
-      branch: (org?.branches ?? [])
-        .filter((b) => canGrantAt('branch', b.id))
-        .map((b) => ({ id: b.id, label: `${b.code} — ${b.name}` })),
-      zone: (org?.zones ?? [])
-        .filter((z) => canGrantAt('zone', z.id))
-        .map((z) => ({ id: z.id, label: z.name })),
-      entity: (org?.entities ?? [])
-        .filter((e) => canGrantAt('entity', e.id))
-        .map((e) => ({ id: e.id, label: e.name })),
-    };
-    return map[preset.scopeType] ?? [];
-  }, [org, preset.scopeType, canGrantAt]);
-
-  // Does this person already have a login? Then we are ADDING a role, not creating an account —
-  // the wording, the password field and the result screen all change accordingly.
+  // Does this person already have a login? Then we are ADDING a role, not creating an account.
   const existingUser = useMemo(() => {
     if (!employee) return null;
     return managedUsers.find((u) => u.employee_id === employee.id) ?? null;
   }, [employee, managedUsers]);
   const hasLogin = Boolean(existingUser || employee?.user_id);
-
-  // Follow the existing login's email when the employee already has one — you cannot give the
-  // same person a second account, and typing a different address would be silently ignored.
-  // Lock the field whenever the employee already has a login, even when list_managed_users did
-  // not return it (it only lists logins inside the caller's rbac.manage scope). Leaving it
-  // editable let an edited address create a SECOND login and re-point the employee at it,
-  // orphaning the original.
-  const emailLocked = hasLogin;
+  // Locked whenever the employee already has a login, even when list_managed_users did not return
+  // it (it only lists logins inside the caller's rbac.manage scope): an edited address would create
+  // a SECOND login and re-point the employee at it.
   const effectiveEmail = existingUser?.email ?? (hasLogin ? employee?.email ?? email : email);
   const busy = grantAccess.isPending;
-  const canSubmit =
-    employeeId
-    && employeeGrantAllowed
-    && String(effectiveEmail || '').trim()
-    && (hasLogin || password.length >= 6)
-    && !missingArea
-    && !busy;
+  const canSubmit = employeeId && employeeGrantAllowed && String(effectiveEmail || '').trim()
+    && (hasLogin || password.length >= 6) && !missingArea && !busy;
 
   const submit = async () => {
     setError(null);
@@ -196,8 +150,8 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
         employee_id: employeeId,
         email: String(effectiveEmail || '').trim().toLowerCase(),
         password,
-        role_key: roleKey,
-        scope_type: preset.scopeType,
+        role_key: role.key,
+        scope_type: level.scopeType,
         scope_id: scopeId,
       });
       setResult({ ...res, password });
@@ -213,42 +167,35 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const summary = employee && !missingArea
+    ? `${employee.full_name} ${hasLogin ? 'gets' : 'gets a login as'} ${role.label}${areaText ? ` · ${areaText}` : ''}`
+    : null;
+
   return (
-    <section className="premium-card space-y-4 animate-fade-in">
+    <section className="premium-card space-y-4 animate-fade-in" aria-label="Give access">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <UserPlus size={15} className="text-brand-ink shrink-0" />
-          <h3 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white truncate">
-            Give app access
-            {fixedEmployee && (
-              <span className="ml-2 font-normal text-xs text-neutral-500">{fixedEmployee.full_name}</span>
-            )}
-          </h3>
+          <h3 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white truncate">Give access</h3>
         </div>
-        <button
-          onClick={onClose}
-          className="p-1 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer shrink-0"
-          title="Close" aria-label="Close"
-        >
+        <button onClick={onClose} className="p-1 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white cursor-pointer shrink-0"
+          title="Close" aria-label="Close">
           <X size={16} />
         </button>
       </div>
 
       {result ? (
-        // ---- success --------------------------------------------------------
         <div className="space-y-3 max-w-xl">
           <div className="flex items-start gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3">
             <Check size={14} className="text-emerald-500 shrink-0 mt-0.5" />
             <p className="text-xs text-emerald-700 dark:text-emerald-300">
               {result.created ? (
-                <>
-                  Access granted. Give these details to {employee?.full_name || 'the employee'} — they can sign
-                  in right away and should change the password from Settings.
-                </>
+                <>Access given. Pass these details to {employee?.full_name || 'the employee'} — they can sign in right away
+                  and should change the password from Settings.</>
               ) : result.role_added ? (
-                <>Role added to the existing login <b>{result.email}</b>. Their password is unchanged.</>
+                <>{summary ?? 'Role added'}. Their password is unchanged.</>
               ) : (
-                <>{employee?.full_name || 'This employee'} already had this exact access — nothing changed.</>
+                <>{employee?.full_name || 'This employee'} already had exactly this access — nothing changed.</>
               )}
             </p>
           </div>
@@ -260,240 +207,197 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
           )}
           <div className="flex flex-wrap gap-2">
             {result.created && (
-              <button
-                onClick={copy}
-                className="flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 text-base font-bold text-neutral-700 dark:text-neutral-300 hover:border-brand/40 cursor-pointer"
-              >
+              <button onClick={copy}
+                className="flex items-center gap-1.5 rounded-lg border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 text-base font-bold text-neutral-700 dark:text-neutral-300 hover:border-brand/40 cursor-pointer">
                 {copied ? <Check size={11} /> : <Copy size={11} />} {copied ? 'Copied' : 'Copy details'}
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="rounded-lg bg-brand-action hover:bg-brand-action-hover px-4 py-1.5 text-base font-bold text-brand-on cursor-pointer"
-            >
+            <button onClick={onClose}
+              className="rounded-lg bg-brand-action hover:bg-brand-action-hover px-4 py-1.5 text-base font-bold text-brand-on cursor-pointer">
               Done
             </button>
           </div>
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
-            {/* ---- left: who + which role ------------------------------------- */}
-            <div className="space-y-4 min-w-0">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-neutral-500 mb-1.5">
-                  Employee
-                </label>
-                {fixedEmployee ? (
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2 text-xs font-semibold text-neutral-800 dark:text-neutral-200 truncate">
-                    {fixedEmployee.full_name}
-                    <span className="ml-2 font-mono text-2xs text-neutral-400">{fixedEmployee.employee_code}</span>
-                  </div>
-                ) : (
-                  <div className="space-y-2 paged-collection">
-                    {employee ? <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2">
-                      <div className="min-w-0 text-sm"><strong className="block truncate">{employee.full_name}</strong><span className="text-xs text-neutral-500">{employee.employee_code} · {employee.entity?.code}</span></div>
-                      <button type="button" disabled={grantAccess.isPending} className="text-xs font-semibold text-brand-ink" onClick={() => { pickEmployee(''); setEmployeeSearch(''); }}>Change</button>
-                    </div> : <>
-                      <ListSearch value={employeeSearch} onChange={setEmployeeSearch} label="Find employee for app access" placeholder="Search name, code, company or branch…" />
-                      {!employeeSearch.trim() && <p className="text-xs text-neutral-500">Search {employees.length.toLocaleString()} employees within your access.</p>}
-                      {employeeSearch.trim() && !matchingEmployees.length && <p className="text-xs text-neutral-500">No matching employees.</p>}
-                      <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
-                        {employeePager.slice.map((e) => <button type="button" key={e.id} disabled={grantAccess.isPending}
-                          onClick={() => pickEmployee(e.id)} className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900">
-                          <span className="text-sm font-semibold truncate">{e.full_name}</span><span className="text-xs text-neutral-500 shrink-0">{e.employee_code} · {e.entity?.code}</span>
-                        </button>)}
-                      </div>
-                      <Pagination {...employeePager} noun="matching employees" sizes={[8, 25, 50]} disabled={grantAccess.isPending} />
-                    </>}
-                  </div>
-                )}
-                {employee && !employeeGrantAllowed && (
-                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1.5">
-                    You do not have user-access authority for this employee's placement.
-                  </p>
+        <div className="space-y-5 max-w-2xl">
+          {/* 1 · Who */}
+          <div>
+            <p className={stepCls}>1 · Who</p>
+            {employee ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-neutral-200 dark:border-neutral-800 px-3 py-2">
+                <div className="min-w-0 text-sm">
+                  <strong className="block truncate">{employee.full_name}</strong>
+                  <span className="text-xs text-neutral-500">
+                    {[employee.employee_code, placeName('branch', employee.branch_id, org), placeName('department', employee.department_id, org)].filter(Boolean).join(' · ')}
+                  </span>
+                </div>
+                {!fixedEmployee && (
+                  <button type="button" disabled={busy} className="text-xs font-semibold text-brand-ink"
+                    onClick={() => { pickEmployee(''); setEmployeeSearch(''); }}>Change</button>
                 )}
               </div>
-
-              <div>
-                <label className={labelCls}>Role</label>
-                <div className="space-y-1.5">
-                  {roleOptions.map((r) => (
-                    <label
-                      key={r.key}
-                      className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition-colors ${
-                        roleKey === r.key
-                          ? 'border-brand/50 bg-brand/5'
-                          : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="grant-role"
-                        checked={roleKey === r.key}
-                        onChange={() => { setRoleKey(r.key); setCustomLevel(CUSTOM_ROLE_LEVELS[0].scopeType); setOverrideScopeId(''); setShowOverride(false); }}
-                        className="mt-0.5 accent-brand shrink-0"
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-bold text-neutral-800 dark:text-neutral-100">{r.label}
-                          {r.custom && <span className="ml-1.5 align-middle text-2xs font-semibold uppercase tracking-wide text-neutral-400">Custom</span>}</span>
-                        <span className="block text-2xs text-neutral-500 dark:text-neutral-400 mt-0.5">{r.blurb}</span>
-                      </span>
-                    </label>
+            ) : (
+              <div className="space-y-2 paged-collection">
+                <ListSearch value={employeeSearch} onChange={setEmployeeSearch} label="Find the employee to give access to" placeholder="Search name, code, company or branch…" />
+                {!employeeSearch.trim() && <p className="text-xs text-neutral-500">Search {employees.length.toLocaleString()} employees within your access.</p>}
+                {employeeSearch.trim() && !matchingEmployees.length && <p className="text-xs text-neutral-500">No matching employees.</p>}
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-800">
+                  {employeePager.slice.map((e) => (
+                    <button type="button" key={e.id} disabled={busy} onClick={() => pickEmployee(e.id)}
+                      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 text-left rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-900">
+                      <span className="text-sm font-semibold truncate">{e.full_name}</span>
+                      <span className="text-xs text-neutral-500 shrink-0">{e.employee_code} · {e.entity?.code}</span>
+                    </button>
                   ))}
                 </div>
+                <Pagination {...employeePager} noun="matching employees" sizes={[8, 25, 50]} disabled={busy} />
               </div>
-            </div>
+            )}
+            {employee && !employeeGrantAllowed && (
+              <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1.5">You can't give access to people in this employee's part of the company.</p>
+            )}
+          </div>
 
-            {/* ---- right: area + login ---------------------------------------- */}
-            <div className="space-y-4 min-w-0">
-              {preset.custom && (
-                <div>
-                  <label className={labelCls} htmlFor="grant-custom-level">Applies to</label>
-                  <select id="grant-custom-level" value={customLevel} className={inputCls + ' cursor-pointer'}
-                    onChange={(e) => { setCustomLevel(e.target.value); setOverrideScopeId(''); setShowOverride(false); }}>
-                    {levelOptions.map((level) => <option key={level.scopeType} value={level.scopeType}>{level.label}</option>)}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label className={labelCls}>Access area</label>
-                <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="flex items-start gap-1.5 text-xs text-neutral-600 dark:text-neutral-300 min-w-0">
-                      <ShieldCheck size={12} className="text-brand-ink shrink-0 mt-0.5" />
-                      {!employeeId ? (
-                        <span className="text-neutral-400">Pick an employee to see the access area.</span>
-                      ) : preset.scopeType === 'self' ? (
-                        <span>Access: <b>their own records only</b></span>
-                      ) : overrideScopeId ? (
-                        <span className="break-words">Manages: <b>{overrideOptions.find((o) => o.id === overrideScopeId)?.label}</b></span>
-                      ) : derived.id && !derivedAllowed ? (
-                        <span className="text-amber-600 dark:text-amber-400">
-                          You cannot grant access for this employee's {derived.noun || preset.scopeType}; choose another area below.
-                        </span>
-                      ) : derived.label ? (
-                        <span className="break-words">Manages: <b>{derived.label}</b></span>
-                      ) : (
-                        <span className="text-amber-600 dark:text-amber-400">
-                          This employee has no {derived.noun || preset.scopeType} set — choose one below.
-                        </span>
-                      )}
+          {/* 2 · What will they do? */}
+          <div>
+            <p className={stepCls}>2 · What will they do?</p>
+            <div className="space-y-1.5" role="radiogroup" aria-label="Role">
+              {roleOptions.map((r) => (
+                <label key={r.key}
+                  className={`flex items-start gap-2.5 rounded-xl border p-2.5 cursor-pointer transition-colors ${
+                    role.key === r.key ? 'border-brand/50 bg-brand/5' : 'border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'}`}>
+                  <input type="radio" name="grant-role" checked={role.key === r.key} onChange={() => pickRole(r.key)} className="mt-0.5 accent-brand shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-neutral-800 dark:text-neutral-100">
+                      {r.label}
+                      {r.custom && <span className="ml-1.5 align-middle text-2xs font-semibold uppercase tracking-wide text-neutral-400">Custom</span>}
+                      {r.key === 'employee' && <span className="ml-1.5 align-middle text-2xs font-semibold text-emerald-600 dark:text-emerald-400">Everyone with a login has this</span>}
                     </span>
-                    {preset.scopeType !== 'self' && employeeId && derived.id && (
-                      <button
-                        onClick={() => setShowOverride((v) => !v)}
-                        className="text-2xs font-bold text-neutral-400 hover:text-neutral-800 dark:hover:text-white shrink-0 cursor-pointer"
-                      >
-                        {showOverride ? 'Use theirs' : 'Change'}
-                      </button>
-                    )}
-                  </div>
-                  {(showOverride || (missingArea && employeeId)) && (
-                    <select
-                      value={overrideScopeId}
-                      onChange={(e) => setOverrideScopeId(e.target.value)}
-                      className={inputCls + ' cursor-pointer mt-2'}
-                    >
-                      <option value="">
-                        {derived.id && derivedAllowed ? "Use the employee's own" : 'Choose…'}
-                      </option>
-                      {overrideOptions.map((o) => (
-                        <option key={o.id} value={o.id}>{o.label}</option>
-                      ))}
-                    </select>
+                    <span className="block text-2xs text-neutral-500 dark:text-neutral-400 mt-0.5">{r.blurb}</span>
+                  </span>
+                </label>
+              ))}
+              {locked.map((r) => (
+                <div key={r.key} className="flex items-start gap-2.5 rounded-xl border border-dashed border-neutral-200 dark:border-neutral-800 p-2.5 text-neutral-400"
+                  aria-label={`${r.label}: ${r.reason}`}>
+                  <Lock size={13} className="mt-0.5 shrink-0" />
+                  <span className="min-w-0 text-2xs"><span className="font-bold">{r.label}</span> · {r.reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* 3 · For which area? */}
+          <div>
+            <p className={stepCls}>3 · For which area?</p>
+            <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 p-2.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <span className="flex items-start gap-1.5 text-xs text-neutral-700 dark:text-neutral-200 min-w-0">
+                  <MapPin size={12} className="text-brand-ink shrink-0 mt-0.5" />
+                  {!employee ? (
+                    <span className="text-neutral-400">Pick the employee first.</span>
+                  ) : areaText ? (
+                    <span className="break-words"><b>{areaText}</b>
+                      {needsPlace && scopeId === theirPlaceId && <span className="text-neutral-500"> · where they work</span>}</span>
+                  ) : theirPlaceId && !theirPlaceAllowed ? (
+                    <span className="text-amber-600 dark:text-amber-400">You can't give access for their {level.noun}. Choose another below.</span>
+                  ) : (
+                    <span className="text-amber-600 dark:text-amber-400">Their record has no {level.noun} yet. Choose one below.</span>
                   )}
-                </div>
+                </span>
+                {employee && canChangeArea && (
+                  <button type="button" onClick={() => setChangingArea((v) => !v)}
+                    className="text-2xs font-bold text-brand-ink shrink-0 cursor-pointer">{changingArea ? 'Done' : 'Change'}</button>
+                )}
               </div>
-
-              <div>
-                <label className={labelCls}>Login email</label>
-                <input
-                  type="email"
-                  value={effectiveEmail}
-                  disabled={emailLocked}
-                  onChange={(e) => { setEmail(e.target.value); setTouchedEmail(true); }}
-                  placeholder="name@parakkatjewels.com"
-                  className={inputCls + (emailLocked ? ' opacity-70 cursor-not-allowed' : '')}
-                />
-              </div>
-
-              {/* The dead-end, named. A login can exist while its address is visible nowhere this
-                  panel looks — list_managed_users only returns logins inside the caller's
-                  rbac.manage scope, and the employee record's email field can simply be empty.
-                  The field is locked (editing it here could mint a second account), so without
-                  this note the submit button just never enabled and nothing said why. */}
-              {hasLogin && !String(effectiveEmail || '').trim() && (
-                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5" role="alert">
-                  <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700 dark:text-amber-300">
-                    This person already has a login, but its email address is not visible from here
-                    and their employee record has none, so the role cannot be added from this panel.
-                    Record their office email on the employee first (Directory → Edit), then return.
-                  </p>
-                </div>
-              )}
-
-              {hasLogin ? (
-                <div className="flex items-start gap-2 rounded-xl border border-blue-500/25 bg-blue-500/5 p-2.5">
-                  <ShieldCheck size={12} className="text-blue-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-700 dark:text-blue-300">
-                    This employee already has a login, so no new account is created and their password
-                    stays as it is — the role above is simply added to it.
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <label className={labelCls}>Temporary password</label>
-                  <div className="flex gap-1.5">
-                    <input
-                      type="text"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className={inputCls + ' font-mono'}
-                    />
-                    <button
-                      onClick={() => setPassword(randomPassword())}
-                      className="shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 px-2.5 text-2xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
-                      title="Generate a new password" aria-label="Generate a new password"
-                    >
-                      New
-                    </button>
-                  </div>
-                  <p className="text-2xs text-neutral-400 mt-1.5">
-                    No email is sent — you'll get these details to pass on. Managers automatically also get
-                    self-service access to their own records. If this email already exists as an unused
-                    login, it is reused instead of creating a duplicate.
-                  </p>
+              {employee && (changingArea || missingArea) && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {levels.length > 1 && (
+                    <label className="block">
+                      <span className="sr-only">Area level</span>
+                      <select value={level.scopeType} className={inputCls + ' cursor-pointer'} aria-label="Area level"
+                        onChange={(e) => { setAreaScope(e.target.value); setPlaceId(''); }}>
+                        {levels.map((l) => <option key={l.scopeType} value={l.scopeType}>{l.label}</option>)}
+                      </select>
+                    </label>
+                  )}
+                  {needsPlace && (
+                    <label className="block">
+                      <span className="sr-only">Which {level.noun}</span>
+                      <select value={placeId} className={inputCls + ' cursor-pointer'} aria-label={`Which ${level.noun}`}
+                        onChange={(e) => setPlaceId(e.target.value)}>
+                        <option value="">{theirPlaceId && theirPlaceAllowed ? 'Where they work' : `Choose a ${level.noun}…`}</option>
+                        {places.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                      </select>
+                    </label>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
+          {/* 4 · Login */}
+          <div>
+            <p className={stepCls}>4 · Login</p>
+            {hasLogin ? (
+              String(effectiveEmail || '').trim() ? (
+                <p className="flex items-start gap-1.5 text-xs text-neutral-600 dark:text-neutral-300">
+                  <ShieldCheck size={12} className="text-emerald-500 shrink-0 mt-0.5" />
+                  <span>Already has a login (<b>{effectiveEmail}</b>). Nothing to set — their password stays as it is.</span>
+                </p>
+              ) : (
+                // A login can exist while its address is visible nowhere this panel looks.
+                <div className="flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5" role="alert">
+                  <AlertTriangle size={12} className="text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    This person already has a login, but its email is not visible from here and their employee record has none.
+                    Add their office email in the Directory first, then come back.
+                  </p>
+                </div>
+              )
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-2xs text-neutral-500">Login email</span>
+                  <input type="email" value={effectiveEmail} placeholder="name@parakkatjewels.com" className={inputCls}
+                    onChange={(e) => { setEmail(e.target.value); setTouchedEmail(true); }} />
+                </label>
+                <label className="block">
+                  <span className="text-2xs text-neutral-500">Temporary password</span>
+                  <span className="flex gap-1.5">
+                    <input type="text" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls + ' font-mono'} />
+                    <button type="button" onClick={() => setPassword(randomPassword())}
+                      className="shrink-0 rounded-xl border border-neutral-200 dark:border-neutral-800 px-2.5 text-2xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white cursor-pointer"
+                      title="Generate a new password" aria-label="Generate a new password">New</button>
+                  </span>
+                </label>
+                <p className="sm:col-span-2 text-2xs text-neutral-400">No email is sent — you'll get these details to pass on.</p>
+              </div>
+            )}
+          </div>
+
           {error && (
-            <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5">
+            <div className="flex items-start gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5" role="alert">
               <AlertTriangle size={13} className="text-rose-500 shrink-0 mt-0.5" />
               <p className="text-xs text-rose-600 dark:text-rose-300 break-words">{error}</p>
             </div>
           )}
 
-          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1 border-t border-neutral-200/70 dark:border-neutral-850">
-            <button
-              onClick={onClose}
-              className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-2 text-base font-bold text-neutral-600 dark:text-neutral-300 cursor-pointer mt-2 sm:mt-2"
-            >
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-3 border-t border-neutral-200/70 dark:border-neutral-850">
+            <p className="flex-1 text-xs text-neutral-600 dark:text-neutral-300" role="status">
+              {summary ?? 'Pick who and the area to see what will happen.'}
+            </p>
+            <button onClick={onClose}
+              className="rounded-lg border border-neutral-200 dark:border-neutral-800 px-4 py-2 text-base font-bold text-neutral-600 dark:text-neutral-300 cursor-pointer">
               Cancel
             </button>
-            <button
-              onClick={submit}
-              disabled={!canSubmit}
-              className="flex-1 sm:flex-none sm:min-w-56 flex items-center justify-center gap-1.5 rounded-lg bg-brand-action hover:bg-brand-action-hover px-4 py-2 text-base font-bold text-brand-on cursor-pointer disabled:opacity-50 disabled:cursor-default mt-2"
-            >
+            <button onClick={submit} disabled={!canSubmit}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-brand-action hover:bg-brand-action-hover px-4 py-2 text-base font-bold text-brand-on cursor-pointer disabled:opacity-50 disabled:cursor-default">
               {busy ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
-              {hasLogin ? 'Add this role' : 'Create login & grant access'}
+              Give access
             </button>
           </div>
-        </>
+        </div>
       )}
     </section>
   );

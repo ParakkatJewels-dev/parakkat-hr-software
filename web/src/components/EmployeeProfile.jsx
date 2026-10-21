@@ -631,7 +631,7 @@ export default function ProfileDrawer({ emp: initialEmp, onClose, onEdit, onGran
               </a>
             )}
             {onGrantAccess && (
-              <button type="button" onClick={onGrantAccess} title="Give app access" aria-label="Give app access">
+              <button type="button" onClick={onGrantAccess} title="Give access" aria-label="Give access">
                 <KeyRound size={14} />
               </button>
             )}
@@ -746,7 +746,7 @@ export default function ProfileDrawer({ emp: initialEmp, onClose, onEdit, onGran
               )}
               {onGrantAccess && (
                 <button type="button" onClick={onGrantAccess}>
-                  <KeyRound size={13} /> Give app access
+                  <KeyRound size={13} /> Give access
                 </button>
               )}
             </div>

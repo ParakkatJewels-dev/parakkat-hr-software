@@ -12,7 +12,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
 import GrantAccessPanel from './GrantAccessPanel';
-import { carriesAdminAuthority, maxGrantableRank } from '../lib/roleGrants';
+import { ROLE_AREAS, carriesAdminAuthority, maxGrantableRank } from '../lib/roleGrants';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { btnClass } from './ui/Btn';
 import UserAccessPanel from './UserAccessPanel';
@@ -28,27 +28,18 @@ const BTN_GHOST = btnClass('ghost');
 const ICON_BTN = btnClass('subtle', 'md', true);
 const INPUT = 'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
+// Areas, in the words the screens use ("scope" is the database's word for the same thing).
 const SCOPE_TYPES = [
-  { key: 'global', label: 'Global — all entities', needsId: false },
-  { key: 'entity', label: 'Entity', needsId: true, from: 'entities' },
-  { key: 'zone', label: 'Zone', needsId: true, from: 'zones' },
-  { key: 'branch', label: 'Branch', needsId: true, from: 'branches' },
-  { key: 'department', label: 'Department', needsId: true, from: 'departments' },
-  { key: 'self', label: 'Self — own records only', needsId: false },
+  { key: 'global', label: 'The whole group', needsId: false },
+  { key: 'entity', label: 'A whole company', needsId: true, from: 'entities' },
+  { key: 'zone', label: 'A zone', needsId: true, from: 'zones' },
+  { key: 'branch', label: 'A branch', needsId: true, from: 'branches' },
+  { key: 'department', label: 'A department', needsId: true, from: 'departments' },
+  { key: 'self', label: 'Their own records', needsId: false },
 ];
 
-// Which scope levels each built-in role may be granted at — mirrors the DB guard (0019). A role not
-// listed here (i.e. a custom role) may be granted at any scope. Global is additionally gated to
-// super admins in the UI below.
-const ROLE_SCOPES = {
-  super_admin: ['global'],
-  entity_admin: ['entity'],
-  hr_manager: ['entity', 'zone', 'branch', 'department'],
-  zonal_manager: ['zone'],
-  branch_manager: ['branch'],
-  dept_head: ['department'],
-  employee: ['self'],
-};
+// Where each built-in role may apply (the database guard, 0019); custom roles may use any area.
+const ROLE_SCOPES = ROLE_AREAS;
 
 
 function canOfferRole(role, { includeSuperAdmin = false, isSuperAdmin = false, myRank = 0, myRoles = [] } = {}) {
@@ -179,21 +170,23 @@ function UsersAccess() {
     } catch { /* surfaced inside the dropdown */ }
   };
 
+  // The area of a role, the way people say it: "own records", "Kochi branch", "Parakkat Jewels".
   const scopeLabel = (t, id) => {
-    if (t === 'global') return 'Global';
-    if (t === 'self') return 'Self';
-    if (t === 'entity') return entities.find((e) => e.id === id)?.name ?? 'entity';
+    const named = (name, noun) => (String(name ?? '').toLowerCase().includes(noun) ? name : `${name} ${noun}`);
+    if (t === 'global') return 'whole group';
+    if (t === 'self') return 'own records';
+    if (t === 'entity') return entities.find((e) => e.id === id)?.name ?? 'a company';
     if (t === 'zone') {
       const z = orgList.zones.find((x) => x.id === id);
-      return z ? `${ecode(z.entity_id)} · ${z.name}` : 'zone';
+      return z ? `${ecode(z.entity_id)} · ${named(z.name, 'zone')}` : 'a zone';
     }
     if (t === 'branch') {
       const b = orgList.branches.find((x) => x.id === id);
-      return b ? `${ecode(b.entity_id)} · ${b.code}` : 'branch';
+      return b ? `${ecode(b.entity_id)} · ${named(b.name || b.code, 'branch')}` : 'a branch';
     }
     if (t === 'department') {
       const d = orgList.departments.find((x) => x.id === id);
-      return d ? `${ecode(d.entity_id)} · ${d.name}` : 'department';
+      return d ? `${ecode(d.entity_id)} · ${named(d.name, 'department')}` : 'a department';
     }
     return t;
   };
@@ -243,7 +236,7 @@ function UsersAccess() {
         )}
         actions={<>
           {isSuperAdmin && <button onClick={() => setShowInvite(true)} className={BTN_GHOST} title="Create a standalone login"><Plus size={13} /> Create login</button>}
-          <button onClick={() => setShowGrant(true)} className={BTN}><UserPlus size={14} /> Give app access</button>
+          <button onClick={() => setShowGrant(true)} className={BTN}><UserPlus size={14} /> Give access</button>
         </>}>
       {(u) => {
         const displayName = u.employee_name || u.email;
@@ -292,8 +285,8 @@ function UsersAccess() {
                       key={r.assignment_id}
                       className="inline-flex items-center gap-1.5 text-xs pl-2.5 pr-1 py-1 rounded-lg bg-neutral-50 dark:bg-charcoal-800/60 border border-neutral-200 dark:border-neutral-800"
                     >
-                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">{prettyRole(r.role_key)}</span>
-                      <span className="text-neutral-400 dark:text-neutral-500">{scopeLabel(r.scope_type, r.scope_id)}</span>
+                      <span className="font-semibold text-neutral-700 dark:text-neutral-200">{roleByKey.get(r.role_key)?.name ?? prettyRole(r.role_key)}</span>
+                      <span className="text-neutral-400 dark:text-neutral-500">· {scopeLabel(r.scope_type, r.scope_id)}</span>
                       {mayRevoke(r, u) && (
                       <button
                         onClick={() => revoke.mutate(r.assignment_id)}
@@ -331,7 +324,7 @@ function UsersAccess() {
               ) : (
                 <AssignRoleDropdown
                   user={u}
-                  triggerLabel={<><Plus size={12} /> Assign role</>}
+                  triggerLabel={<><Plus size={12} /> Add role</>}
                   triggerClass={BTN}
                   open={assignFor?.user_id === u.user_id}
                   onToggle={() => { assign.reset(); setAssignFor(assignFor?.user_id === u.user_id ? null : u); }}
@@ -349,23 +342,6 @@ function UsersAccess() {
                 <button onClick={() => setLinkFor(u)} className={BTN_GHOST}>
                   <Link2 size={13} /> Link employee
                 </button>
-              )}
-              {u.employee_id && (
-                <AssignRoleDropdown
-                  user={u}
-                  triggerLabel="Advanced"
-                  triggerClass={BTN_GHOST}
-                  triggerTitle="Custom roles and unusual scopes"
-                  open={assignFor?.user_id === u.user_id}
-                  onToggle={() => { assign.reset(); setAssignFor(assignFor?.user_id === u.user_id ? null : u); }}
-                  roles={roles}
-                  orgList={orgList}
-                  ecode={ecode}
-                  isSuperAdmin={isSuperAdmin}
-                  busy={assign.isPending}
-                  error={assign.error?.message}
-                  onSubmit={submitAssign}
-                />
               )}
 
               <div className="mobile-list-actions ml-auto flex items-center gap-2">
@@ -535,8 +511,8 @@ function CreateUserPanel({ employees, busy, error, result, onClose, onSubmit }) 
             email and password you set. No email was sent.
           </p>
           <p className="text-neutral-500 dark:text-neutral-400">
-            Next: grant them a role at a scope (and link an employee, if you didn’t above), or they’ll sign in
-            but see nothing.
+            Next: give them a role and the area it covers (and link an employee, if you didn’t above), or they’ll
+            sign in but see nothing.
           </p>
           <div className="flex justify-end"><button onClick={onClose} className={BTN}>Done</button></div>
         </div>
@@ -808,7 +784,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
         </Field>
 
         {role && (allowedScopes.length > 1 ? (
-          <Field label="Scope">
+          <Field label="Area">
             <select value={scopeType} onChange={(e) => { setScopeType(e.target.value); setScopeId(''); }} className={INPUT}>
               {allowedScopes.map((k) => {
                 const def = SCOPE_TYPES.find((s) => s.key === k);
@@ -818,7 +794,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
           </Field>
         ) : (
           <p className="text-xs text-neutral-500 dark:text-neutral-400 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-2.5 py-1.5">
-            Scope <span className="font-semibold text-neutral-700 dark:text-neutral-300">{scopeDef?.label ?? scopeType}</span> — fixed for this role.
+            Area: <span className="font-semibold text-neutral-700 dark:text-neutral-300">{scopeDef?.label ?? scopeType}</span> (always, for this role).
           </p>
         ))}
 
@@ -849,7 +825,7 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
           </Field>
         )}
 
-        {duplicate && <p className="text-xs text-amber-700 dark:text-amber-300">This user already holds this role at this scope.</p>}
+        {duplicate && <p className="text-xs text-amber-700 dark:text-amber-300">They already have this role for this area.</p>}
         {error && <ErrorLine msg={error} />}
 
         <div className="flex justify-end gap-2 pt-1">
@@ -915,6 +891,23 @@ function LinkEmployeePanel({ user, employees, busy, error, onClose, onSubmit }) 
 }
 
 // ---------------------------------------------------------------- Roles manager
+/** Two ideas, said once: a role is what someone can do; the area is where. */
+function HowAccessWorks() {
+  return (
+    <details className="premium-card text-sm text-neutral-600 dark:text-neutral-300" open>
+      <summary className="cursor-pointer font-semibold text-neutral-800 dark:text-neutral-100">How access works</summary>
+      <ul className="mt-2 space-y-1.5 list-disc pl-5">
+        <li><b>The role</b> says what someone can do — approve leave, run payroll, manage assets. Each role below lists its permissions.</li>
+        <li><b>The area</b> says where: their own records, a department, a branch, a zone, a whole company, or the whole group.
+          You choose it when you give the role (Users &amp; Access → Give access); it usually comes from where the person works.</li>
+        <li>Built-in roles have a fixed area (a Branch Manager covers a branch). An HR Manager and custom roles can cover any area you pick.</li>
+        <li>You can only give roles below your own level, and HR can give roles up to Department Head. A role that can manage users needs a company admin.</li>
+        <li>Everyone with a login also has <b>Employee</b> for their own records.</li>
+      </ul>
+    </details>
+  );
+}
+
 function RolesMatrix() {
   const { data: roles = [], isLoading, error } = useRolesWithPermissions();
   const { data: catalog = [] } = usePermissionCatalog();
@@ -954,6 +947,7 @@ function RolesMatrix() {
 
   return (
     <div className="space-y-3">
+      <HowAccessWorks />
       {isSuperAdmin ? (
         <div className="flex justify-end">
           <button onClick={() => setEditing({})} className={BTN}>
