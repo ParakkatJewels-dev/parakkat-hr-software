@@ -180,8 +180,9 @@ select audit_test.grant_none(format('All %s outcomes match the independent expec
    where g.allowed is distinct from audit_test.expected_grant(g.granter,g.role,g.level,g.place))) as result
   from audit_test.grant_results;
 
--- Recorded, not asserted: which grantee a delegated administrator may give a role to. Target 5 is
--- an employee of company 2; the area granted is inside the granter's own company 1.
+-- Who receives the role (0178): target 5 is an employee of company 2; the area is inside the giver's
+-- own company 1. A delegated administrator may not give it to them. A login with no employee record
+-- (target 9) keeps the place-only rule, so "Create login, then give a role" still works.
 create table audit_test.grant_grantee_notes(granter text, role text, level text, allowed boolean, outcome text);
 grant select,insert on audit_test.grant_grantee_notes to authenticated;
 set role authenticated;
@@ -191,7 +192,7 @@ begin
   for a in select * from audit_test.actors where key in ('entity_admin','hr_manager') order by ordinal loop
     perform set_config('request.jwt.claim.sub',a.user_id::text,true);
     for r in select g.key,g.role_id,p.level,p.scope_id from audit_test.grant_roles g join audit_test.grant_places p
-        on (g.key='employee' and p.level='self') or (g.key='dept_head' and p.level='department' and p.place='inside') loop
+        on (g.key='employee' and p.level='self') or (g.key in ('dept_head','audit_custom_basic') and p.level='department' and p.place='inside') loop
       begin
         insert into public.role_assignments(user_id,role_id,scope_type,scope_id) values (audit_test.id(7,5),r.role_id,r.level,r.scope_id);
         raise exception using errcode='PZ003',message='Rollback successful grant';
@@ -207,9 +208,30 @@ begin
   end loop;
 end $$;
 reset role;
-select 'NOTE: grantee in another company (target 5, company 2), area inside granter''s company: '||
-  string_agg(granter||' '||role||'@'||level||'='||case when allowed then 'granted' else 'refused' end,', ' order by granter,role)
-  as result from audit_test.grant_grantee_notes;
+do $$ begin
+  assert (select count(*) from audit_test.grant_grantee_notes) = 6, 'six attempts on the other company''s employee';
+  assert not exists (select 1 from audit_test.grant_grantee_notes where allowed),
+    'nobody but a super admin gives a role to an employee of another company';
+end $$;
+select 'PASS: a delegated administrator cannot give any role to an employee of another company, even for a place in their own' as result;
+
+-- A login with no employee record: the place decides, as before.
+insert into auth.users(id,email) values (audit_test.id(9,1),'unlinked-login@audit.invalid');
+set role authenticated;
+do $$
+declare _admin uuid := (select user_id from audit_test.actors where key='entity_admin');
+  _head uuid := (select role_id from audit_test.grant_roles where key='dept_head');
+begin
+  perform set_config('request.jwt.claim.sub',_admin::text,true);
+  begin
+    insert into public.role_assignments(user_id,role_id,scope_type,scope_id) values (audit_test.id(9,1),_head,'department',audit_test.id(4,1));
+    raise exception using errcode='PZ004',message='Rollback successful grant';
+  exception when sqlstate 'PZ004' then null;
+  end;
+end $$;
+reset role;
+delete from auth.users where id=audit_test.id(9,1);
+select 'PASS: a login without an employee record can still be given a role for a place the giver manages' as result;
 
 -- Leave the shared fixture as it was for the suites that follow.
 insert into public.role_assignments select * from audit_test.grant_target_stash;

@@ -1,6 +1,6 @@
 {
   "source": "Actual rolled-back INSERTs into public.role_assignments as each authenticated actor in an isolated PostgreSQL replay of every migration",
-  "migrationCount": 179,
+  "migrationCount": 180,
   "ranks": {
     "employee": 10,
     "dept_head": 30,
