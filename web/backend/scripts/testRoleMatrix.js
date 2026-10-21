@@ -61,6 +61,28 @@ module.exports = function testRoleMatrix({ run, connection, directory }) {
   console.log(output.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
   const administrationOutput = run('psql', [...connection, '-d', database, '-q', '-f', join(backend, 'tests', 'administration_access.sql')]);
   console.log(administrationOutput.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
+  const grantOutput = run('psql', [...connection, '-d', database, '-q', '-f', join(backend, 'tests', 'role_grant_matrix.sql')]);
+  console.log(grantOutput.split('\n').filter(line => line.includes('PASS:') || line.includes('NOTE:')).join('\n').trim());
+  const grantMatrix = JSON.parse(run('psql', [...connection, '-d', database, '-XqAt', '-c', `
+    select jsonb_build_object(
+      'target', jsonb_build_object('userId', audit_test.id(7,1), 'employeeId', audit_test.id(5,1)),
+      'ranks', (select jsonb_object_agg(key, rank) from audit_test.grant_roles),
+      'granters', (select jsonb_agg(jsonb_build_object('key',key,'rank',rank,'scopeType',scope_type,'scopeId',scope_id)
+        order by ordinal) from audit_test.grant_granters),
+      'places', (select jsonb_agg(jsonb_build_object('level',level,'place',place,'scopeId',scope_id) order by ordinal)
+        from audit_test.grant_places),
+      'results', (select jsonb_agg(jsonb_build_object('granter',g.granter,'role',g.role,'level',g.level,
+        'place',g.place,'allowed',g.allowed) order by gr.ordinal, ro.ordinal, p.ordinal)
+        from audit_test.grant_results g
+        join audit_test.grant_granters gr on gr.key=g.granter
+        join audit_test.grant_roles ro on ro.key=g.role
+        join audit_test.grant_places p on p.level::text=g.level and p.place=g.place)
+    )
+  `]));
+  writeFileSync(join(fixtureDirectory, 'role-grant-matrix.json'), JSON.stringify({
+    source: 'Actual rolled-back INSERTs into public.role_assignments as each authenticated actor in an isolated PostgreSQL replay of every migration',
+    migrationCount: files.length, ...grantMatrix,
+  }, null, 2) + '\n');
   const syncHistoryOutput = run('psql', [...connection, '-d', database, '-q', '-f', join(backend, 'tests', 'sync_run_history.sql')]);
   console.log(syncHistoryOutput.split('\n').filter(line => line.includes('PASS:')).join('\n').trim());
   const leaveOutput = run('psql', [...connection, '-d', database, '-q', '-f', join(backend, 'tests', 'leave_workflow.sql')]);

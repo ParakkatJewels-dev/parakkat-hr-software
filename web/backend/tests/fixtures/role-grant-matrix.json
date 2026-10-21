@@ -1,0 +1,5163 @@
+{
+  "source": "Actual rolled-back INSERTs into public.role_assignments as each authenticated actor in an isolated PostgreSQL replay of every migration",
+  "migrationCount": 179,
+  "ranks": {
+    "employee": 10,
+    "dept_head": 30,
+    "hr_manager": 60,
+    "super_admin": 100,
+    "entity_admin": 80,
+    "zonal_manager": 50,
+    "branch_manager": 40,
+    "audit_custom_admin": 20,
+    "audit_custom_basic": 20
+  },
+  "places": [
+    {
+      "level": "self",
+      "place": "n/a",
+      "scopeId": null
+    },
+    {
+      "level": "department",
+      "place": "inside",
+      "scopeId": "40000000-0000-0000-0000-000000000001"
+    },
+    {
+      "level": "department",
+      "place": "other_company",
+      "scopeId": "40000000-0000-0000-0000-000000000005"
+    },
+    {
+      "level": "branch",
+      "place": "inside",
+      "scopeId": "30000000-0000-0000-0000-000000000001"
+    },
+    {
+      "level": "branch",
+      "place": "other_company",
+      "scopeId": "30000000-0000-0000-0000-000000000004"
+    },
+    {
+      "level": "zone",
+      "place": "inside",
+      "scopeId": "20000000-0000-0000-0000-000000000001"
+    },
+    {
+      "level": "zone",
+      "place": "other_company",
+      "scopeId": "20000000-0000-0000-0000-000000000003"
+    },
+    {
+      "level": "entity",
+      "place": "inside",
+      "scopeId": "10000000-0000-0000-0000-000000000001"
+    },
+    {
+      "level": "entity",
+      "place": "other_company",
+      "scopeId": "10000000-0000-0000-0000-000000000002"
+    },
+    {
+      "level": "global",
+      "place": "n/a",
+      "scopeId": null
+    }
+  ],
+  "target": {
+    "userId": "70000000-0000-0000-0000-000000000001",
+    "employeeId": "50000000-0000-0000-0000-000000000001"
+  },
+  "results": [
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "super_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "super_admin"
+    },
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "entity_admin"
+    },
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": true,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": true,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": true,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": true,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": true,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "hr_manager"
+    },
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "zonal_manager"
+    },
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "branch_manager"
+    },
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "dept_head"
+    },
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "employee"
+    },
+    {
+      "role": "employee",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "employee",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "dept_head",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "branch_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "zonal_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "hr_manager",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "entity_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "super_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_basic",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "self",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "department",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "branch",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "zone",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "inside",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "entity",
+      "place": "other_company",
+      "allowed": false,
+      "granter": "unassigned"
+    },
+    {
+      "role": "audit_custom_admin",
+      "level": "global",
+      "place": "n/a",
+      "allowed": false,
+      "granter": "unassigned"
+    }
+  ],
+  "granters": [
+    {
+      "key": "super_admin",
+      "rank": 100,
+      "scopeId": null,
+      "scopeType": "global"
+    },
+    {
+      "key": "entity_admin",
+      "rank": 80,
+      "scopeId": "10000000-0000-0000-0000-000000000001",
+      "scopeType": "entity"
+    },
+    {
+      "key": "hr_manager",
+      "rank": 60,
+      "scopeId": "10000000-0000-0000-0000-000000000001",
+      "scopeType": "entity"
+    },
+    {
+      "key": "zonal_manager",
+      "rank": 50,
+      "scopeId": "20000000-0000-0000-0000-000000000001",
+      "scopeType": "zone"
+    },
+    {
+      "key": "branch_manager",
+      "rank": 40,
+      "scopeId": "30000000-0000-0000-0000-000000000001",
+      "scopeType": "branch"
+    },
+    {
+      "key": "dept_head",
+      "rank": 30,
+      "scopeId": "40000000-0000-0000-0000-000000000001",
+      "scopeType": "department"
+    },
+    {
+      "key": "employee",
+      "rank": 10,
+      "scopeId": null,
+      "scopeType": "self"
+    },
+    {
+      "key": "unassigned",
+      "rank": 0,
+      "scopeId": null,
+      "scopeType": null
+    }
+  ]
+}
