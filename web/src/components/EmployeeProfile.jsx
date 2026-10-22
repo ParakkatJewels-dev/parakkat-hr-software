@@ -24,6 +24,7 @@ import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
 import PagedCollection from './ui/PagedCollection';
 import { btnClass } from './ui/Btn';
+import { profileCompleteness } from '../lib/employeeFormat';
 
 const initials = (name) =>
   (name || '')
@@ -300,21 +301,7 @@ export default function ProfileDrawer({ emp: initialEmp, onClose, onEdit, onGran
   const branchName = emp.branch?.name || emp.branch?.code || 'Entity-wide';
   const designation = emp.designation?.title || 'No designation';
 
-  const completeness = [
-    emp.full_name,
-    emp.employee_code,
-    emp.email,
-    emp.phone,
-    emp.join_date,
-    emp.entity?.name,
-    emp.branch?.name || emp.branch?.code,
-    emp.department?.name,
-    emp.designation?.title,
-    emp.date_of_birth,
-    emp.pan,
-    emp.bank_account,
-  ].filter(Boolean).length;
-  const completenessPct = Math.round((completeness / 12) * 100);
+  const { filled: completeness, pct: completenessPct } = profileCompleteness(emp);
 
   /**
    * Compensation — the salary row payroll will actually pay against.

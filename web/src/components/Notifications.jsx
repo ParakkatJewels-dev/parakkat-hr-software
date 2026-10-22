@@ -56,16 +56,19 @@ export default function Notifications({ onNavigate }) {
   }, [history.data, history.isPlaceholderData, page, pager.page]);
   const { open: openItem, error: markError } = useOpenNotification(onNavigate);
   const markAllRead = useMarkAllNotificationsRead();
+  // All or Unread (2026 redesign). Pages come from the server, so Unread narrows the page on show.
+  const [onlyUnread, setOnlyUnread] = useState(false);
+  const shown = useMemo(() => (onlyUnread ? notifications.filter((n) => !n.read_at) : notifications), [notifications, onlyUnread]);
 
   const groups = useMemo(() => {
     const m = new Map();
-    for (const n of notifications) {
+    for (const n of shown) {
       const b = bucketOf(n.created_at);
       if (!m.has(b)) m.set(b, []);
       m.get(b).push(n);
     }
     return ORDER.filter((b) => m.has(b)).map((b) => [b, m.get(b)]);
-  }, [notifications]);
+  }, [shown]);
 
   return (
     <div className="page-shell space-y-4 animate-fade-in">
@@ -88,13 +91,24 @@ export default function Notifications({ onNavigate }) {
         </div>
       )}
 
+      <nav aria-label="Which notifications" className="mobile-segmented flex gap-1.5">
+        {[[false, 'All'], [true, 'Unread']].map(([value, label]) => (
+          <button key={label} type="button" aria-current={onlyUnread === value ? 'page' : undefined}
+            className={`drawer-tab ${onlyUnread === value ? 'drawer-tab-active' : ''}`} onClick={() => setOnlyUnread(value)}>
+            {label}{value && unreadCount > 0 ? ` (${unreadCount})` : ''}
+          </button>
+        ))}
+      </nav>
+
       {isLoading ? <SkeletonRows rows={6} trailing={false} label="Loading notifications" /> : history.error ? null : notifications.length === 0 ? (
         <div className="premium-card"><EmptyState /></div>
+      ) : shown.length === 0 ? (
+        <p className="premium-card p-8 text-center text-sm text-neutral-500">Nothing unread on this page.</p>
       ) : (
         groups.map(([label, items]) => (
           <section key={label} className="space-y-1.5">
             {/* Sticky, so the bucket you are reading stays named while you scroll a long list. */}
-            <h2 className="sticky top-0 z-10 text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 bg-[var(--surface)] py-1.5">
+            <h2 className="sticky top-0 z-10 text-sm font-semibold text-neutral-500 dark:text-neutral-400 bg-[var(--surface-bg)] py-1.5">
               {label}
             </h2>
             <div className="premium-card p-0 overflow-hidden">

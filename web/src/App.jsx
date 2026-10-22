@@ -282,7 +282,19 @@ export default function App() {
   );
 
   // Theme state: dark or light
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  // 'light', 'dark' or 'system' (follow the device). `theme` is what is actually shown.
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('theme') || 'light');
+  const [systemDark, setSystemDark] = useState(() => typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => {
+    if (themeMode !== 'system' || typeof window.matchMedia !== 'function') return undefined;
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    const onChange = () => setSystemDark(query.matches);
+    onChange();
+    query.addEventListener?.('change', onChange);
+    return () => query.removeEventListener?.('change', onChange);
+  }, [themeMode]);
+  const theme = themeMode === 'system' ? (systemDark ? 'dark' : 'light') : themeMode;
 
   // Command Palette trigger
   const [showCommandPalette, setShowCommandPalette] = useState(false);
@@ -350,9 +362,9 @@ export default function App() {
     } else {
       document.documentElement.classList.remove('dark');
     }
-    localStorage.setItem('theme', theme);
+    localStorage.setItem('theme', themeMode);
     syncNativeTheme(theme);
-  }, [theme]);
+  }, [theme, themeMode]);
 
   // Command Palette global key listener (Ctrl + K). The Work Ledger has its own command bar on the
   // same shortcut, so the app palette stands aside there.
@@ -374,7 +386,7 @@ export default function App() {
   }, []);
 
   const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    setThemeMode(theme === 'dark' ? 'light' : 'dark');
   };
 
   const installPwa = async () => {
@@ -979,6 +991,8 @@ export default function App() {
                   <SettingsPage
                     appName={installIdentity.name}
                     theme={theme}
+                    themeMode={themeMode}
+                    onThemeMode={setThemeMode}
                     onToggleTheme={toggleTheme}
                     installAvailable={Boolean(installPrompt)}
                     installed={isPwaInstalled}

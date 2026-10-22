@@ -24,6 +24,7 @@ import { useUpdateMyProfile } from '../data/settings';
 import PagedCollection from './ui/PagedCollection';
 import './profileMenu.css';
 import PageHeader from './ui/PageHeader';
+import { profileCompleteness } from '../lib/employeeFormat';
 
 const initials = (name) =>
   (name || '')
@@ -269,6 +270,21 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings, on
           </dl>
         )}
       </header>
+
+      {record && (() => {
+        const { filled, total, pct } = profileCompleteness(record);
+        return (
+          <section className="premium-card profile-completeness" aria-label="Profile completeness">
+            <div className="profile-completeness-copy">
+              <strong>Your profile is {pct}% complete</strong>
+              <span>{filled} of {total} key details recorded{pct < 100 ? '. HR can fill in anything missing.' : '.'}</span>
+            </div>
+            <div className="profile-completeness-bar" role="progressbar" aria-label="Profile completeness" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+              <span style={{ width: `${pct}%` }} />
+            </div>
+          </section>
+        );
+      })()}
 
       {employeeQuery.error && (
         <div className="profile-alert" role="alert">

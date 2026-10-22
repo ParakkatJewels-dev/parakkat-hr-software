@@ -94,3 +94,18 @@ export function validateEmployeeFields(form, today = new Date()) {
 
   return errors;
 }
+
+
+/**
+ * How complete a person's record is: twelve key details, counted when present. Shared by the
+ * employee profile and My profile so both say the same thing (2026 redesign).
+ */
+export function profileCompleteness(emp) {
+  const fields = emp ? [
+    emp.full_name, emp.employee_code, emp.email, emp.phone, emp.join_date, emp.entity?.name,
+    emp.branch?.name || emp.branch?.code, emp.department?.name, emp.designation?.title,
+    emp.date_of_birth, emp.pan, emp.bank_account,
+  ] : [];
+  const filled = fields.filter(Boolean).length;
+  return { filled, total: 12, pct: Math.round((filled / 12) * 100) };
+}

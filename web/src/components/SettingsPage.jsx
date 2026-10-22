@@ -22,6 +22,7 @@ import {
   Palette,
   ChevronRight,
   Bot,
+  Monitor,
 } from 'lucide-react';
 import ChangePassword from './ChangePassword';
 import AgentAccessSettings from './AgentAccessSettings';
@@ -236,6 +237,8 @@ function PreferencesCard({
   appName = PRODUCT_NAME,
   theme = 'light',
   onToggleTheme,
+  themeMode,
+  onThemeMode,
   installAvailable = false,
   installed = false,
   updateAvailable = false,
@@ -278,6 +281,21 @@ function PreferencesCard({
             />
           </div>
         </SettingRow>
+
+        {onThemeMode && (
+          <SettingRow
+            icon={Monitor}
+            className="settings-theme-row"
+            title="Follow this device"
+            detail="Switch between light and dark with the phone or computer's own setting."
+          >
+            <label className="settings-follow-device">
+              <input type="checkbox" checked={themeMode === 'system'}
+                onChange={(event) => onThemeMode(event.target.checked ? 'system' : theme)} />
+              <span>{themeMode === 'system' ? 'On' : 'Off'}</span>
+            </label>
+          </SettingRow>
+        )}
 
         <SettingRow
           icon={Clock}
@@ -438,7 +456,7 @@ const SETTINGS_SECTIONS = [
 const ASSISTANT_SECTION = { id: 'assistant', label: 'AI assistant', description: 'Connect Hermes', icon: Bot };
 
 export default function SettingsPage({
-  theme, onToggleTheme, installAvailable, installed, updateAvailable, online, onInstall, onUpdate,
+  theme, onToggleTheme, themeMode, onThemeMode, installAvailable, installed, updateAvailable, online, onInstall, onUpdate,
   appName = PRODUCT_NAME,
 }) {
   const { canAny } = usePermissions();
@@ -491,7 +509,7 @@ export default function SettingsPage({
         <div className="settings-panels">
           {/* Keep panels mounted so switching sections preserves unsaved form drafts. */}
           <section className="settings-panel" role="tabpanel" id="settings-panel-general" aria-labelledby="settings-tab-general" hidden={section !== 'general'} tabIndex={0}>
-            <PreferencesCard appName={appName} theme={theme} onToggleTheme={onToggleTheme} installAvailable={installAvailable}
+            <PreferencesCard appName={appName} theme={theme} onToggleTheme={onToggleTheme} themeMode={themeMode} onThemeMode={onThemeMode} installAvailable={installAvailable}
               installed={installed} updateAvailable={updateAvailable} online={online} onInstall={onInstall} onUpdate={onUpdate} />
           </section>
           <section className="settings-panel" role="tabpanel" id="settings-panel-account" aria-labelledby="settings-tab-account" hidden={section !== 'account'} tabIndex={0}>
