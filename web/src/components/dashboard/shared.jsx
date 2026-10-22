@@ -2,7 +2,7 @@
 // Every widget is permission-gated where it renders; these primitives are purely presentational
 // plus the shared holidays & anniversaries widget.
 import React from 'react';
-import { ArrowRight, CalendarHeart, PartyPopper } from 'lucide-react';
+import { ArrowRight, CalendarDays, PartyPopper } from 'lucide-react';
 import { useHolidays } from '../../data/holidays';
 import { StatCard, StatRow } from '../ui/StatCard';
 import StatusPill from '../ui/StatusPill';
@@ -204,34 +204,25 @@ export function HolidaysCard({ showAnniversaries, onNavigate }) {
 
   if (upcoming.length === 0 && anniversaries.length === 0) return null;
 
+  const longDay = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   return (
-    <Widget title="Holidays & Celebrations" icon={CalendarHeart} action={onNavigate ? "Calendar" : null} onAction={() => onNavigate?.('leave')}>
-      <div className="space-y-1.5">
+    <Widget title={showAnniversaries ? 'Holidays & celebrations' : 'Upcoming holidays'} action={onNavigate ? 'View all' : null} onAction={() => onNavigate?.('leave')}>
+      <div className="home-mini-list">
         {upcoming.map((h) => (
-          <div
-            key={h.id}
-            className="mobile-list-row flex items-center justify-between rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5"
-          >
-            <span className="text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
-              {h.name}
-              {h.is_optional && <span className="ml-1.5 text-2xs text-neutral-400">(optional)</span>}
-            </span>
-            <span className="text-2xs font-mono font-bold text-neutral-500 dark:text-neutral-400 shrink-0">
-              {fmtDay(h.holiday_date)}
+          <div key={h.id} className="home-mini-row">
+            <span className="home-mini-icon" aria-hidden="true"><CalendarDays size={17} /></span>
+            <span className="home-mini-copy">
+              <strong>{h.name}{h.is_optional && <em> · optional</em>}</strong>
+              <span>{longDay(h.holiday_date)}</span>
             </span>
           </div>
         ))}
         {anniversaries.slice(0, 4).map((e) => (
-          <div
-            key={e.id}
-            className="mobile-list-row flex items-center justify-between rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5"
-          >
-            <span className="flex items-center gap-1.5 text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
-              <PartyPopper size={11} className="text-brand-ink shrink-0" />
-              <span className="truncate">{e.full_name}</span>
-            </span>
-            <span className="text-2xs font-bold text-neutral-500 dark:text-neutral-400 shrink-0">
-              {e.years} yr{e.years > 1 ? 's' : ''} · {e.inDays === 0 ? 'today' : `in ${e.inDays}d`}
+          <div key={e.id} className="home-mini-row">
+            <span className="home-mini-icon" data-tone="coral" aria-hidden="true"><PartyPopper size={17} /></span>
+            <span className="home-mini-copy">
+              <strong>{e.full_name}</strong>
+              <span>{e.years} year{e.years > 1 ? 's' : ''} at work · {e.inDays === 0 ? 'today' : `in ${e.inDays} day${e.inDays > 1 ? 's' : ''}`}</span>
             </span>
           </div>
         ))}

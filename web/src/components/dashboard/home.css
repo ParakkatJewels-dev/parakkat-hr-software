@@ -334,3 +334,74 @@
 @media (max-width: 640px) {
   .home-page > .page-header .page-header-actions { display: none; }
 }
+
+/* ---- Phone Home (round 2, after the reference phone kit) ----------------------------- */
+.home-page .home-phone-only { display: none; }
+.home-mini-list { display: grid; gap: .1rem; }
+.home-mini-row { display: flex; align-items: center; gap: .75rem; min-width: 0; padding: .45rem 0; }
+.home-mini-row + .home-mini-row { border-top: 1px solid var(--surface-border); }
+.home-mini-icon {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; border-radius: .7rem; background: var(--surface-muted); color: var(--surface-text-soft);
+}
+.home-mini-icon[data-tone="coral"] { background: var(--tone-coral-bg); color: var(--tone-coral-fg); }
+.home-mini-copy { display: flex; min-width: 0; flex-direction: column; gap: .1rem; }
+.home-mini-copy strong { overflow: hidden; color: var(--surface-text); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.home-mini-copy strong em { color: var(--surface-text-soft); font-style: normal; font-weight: 500; }
+.home-mini-copy > span { color: var(--surface-text-soft); font-size: .75rem; }
+
+@media (max-width: 640px) {
+  .home-page .home-phone-only { display: grid; }
+  .home-page .home-phone-hide,
+  .home-page[data-dashboard-role="employee"] .today-at-work,
+  .home-page[data-dashboard-role="employee"] .dashboard-quick-actions { display: none; }
+
+  /* Lists inside Home cards read as one list, rows split by hairlines, as in the reference. */
+  .home-page .home-actions-header { margin-bottom: .35rem; }
+  .home-page .home-actions-header p { display: none; }
+  .home-page .home-actions-grid { gap: 0; }
+  .home-page .home-action,
+  .home-page .home-list-row {
+    min-height: 3.25rem; padding: .55rem 0; border: 0; border-radius: 0; background: none;
+  }
+  .home-page .home-action + .home-action,
+  .home-page .home-list-row + .home-list-row { margin-top: 0; border-top: 1px solid var(--surface-border); }
+  .home-page .home-action-icon,
+  .home-page .home-list-icon { width: 2.25rem; height: 2.25rem; border-radius: .7rem; }
+  .home-page .home-action-copy strong { font-size: .875rem; }
+  .leave-tiles { gap: .5rem; }
+  .leave-tile { padding: .65rem .6rem; }
+  .leave-tile svg { width: 19px; height: 19px; margin-bottom: .2rem; }
+  .leave-tile strong { font-size: 1.3rem; }
+  .leave-apply { min-height: 2.5rem; margin-top: .6rem; }
+
+  .today-strip { gap: .625rem; }
+  .today-status-card {
+    display: flex; align-items: center; gap: .7rem; padding: .75rem .85rem;
+    border: 1px solid var(--surface-border); border-radius: var(--radius-card);
+    background: var(--surface-elevated); box-shadow: var(--shadow-card);
+  }
+  .today-status-icon {
+    display: inline-flex; flex: none; align-items: center; justify-content: center;
+    width: 2.25rem; height: 2.25rem; border-radius: .7rem; background: var(--surface-muted); color: var(--surface-text-soft);
+  }
+  .today-status-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: .1rem; }
+  .today-status-copy strong { color: var(--surface-text); font-size: .8125rem; font-weight: 650; }
+  .today-status-copy span { overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+
+  .today-check-card {
+    display: flex; align-items: center; gap: .85rem; width: 100%; min-height: 4.25rem; padding: .8rem 1rem;
+    border-radius: var(--radius-card); background: linear-gradient(120deg, #ff6a33 0%, #ff5a27 50%, #f24a17 100%);
+    color: #fff; text-align: left; box-shadow: 0 10px 22px rgba(255, 90, 39, .22);
+  }
+  .today-check-card:active { filter: brightness(.96); }
+  .today-check-card:focus-visible { outline: 2px solid var(--coral-ink); outline-offset: 2px; }
+  .today-check-icon {
+    display: inline-flex; flex: none; align-items: center; justify-content: center;
+    width: 2.75rem; height: 2.75rem; border-radius: 999px; background: #fff; color: var(--coral);
+    box-shadow: 0 0 0 5px rgba(255, 255, 255, .22);
+  }
+  .today-check-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: .15rem; }
+  .today-check-copy strong { font-size: 1rem; font-weight: 700; }
+  .today-check-copy span { overflow: hidden; color: rgba(255, 255, 255, .92); font-size: .8125rem; text-overflow: ellipsis; white-space: nowrap; }
+}

@@ -29,6 +29,8 @@ import { checklistProgress } from '../../lib/checklist';
 import { humanDbError } from '../../lib/dbErrors';
 import { isAssignedTo } from '../../lib/taskBoard';
 import { Widget, EmptyNote, StatPill, StatusBadge, fmtDay, inr } from './shared';
+import { StatCard, StatRow } from '../ui/StatCard';
+import StatusPill from '../ui/StatusPill';
 import './selfWidgets.css';
 
 /** Is this row (with an `employee` join) the signed-in person's own record? */
@@ -81,6 +83,73 @@ export function TodayAtWork({ onNavigate }) {
   );
 }
 
+/** What today's card says, from the employee's own attendance row (or none yet). */
+export function todayState(row) {
+  if (!row) return { title: 'Not checked in yet', detail: 'No punch from the face machine yet', status: 'Not checked in', tab: 'attendance' };
+  if (row.is_missing_punch) return { title: 'Check your punches', detail: `In at ${fmtTime(row.check_in)} · a punch looks incomplete`, status: 'Missing punch', tab: 'attendance/regularizations' };
+  if (row.check_out) return { title: 'Day recorded', detail: `${fmtTime(row.check_in)} – ${fmtTime(row.check_out)} · ${fmtMinutes(row.worked_minutes)}`, status: row.status || 'Present', tab: 'attendance' };
+  if (row.check_in) return { title: 'Checked in', detail: fmtTime(row.check_in), status: row.is_late ? 'Late' : row.status || 'Present', tab: 'attendance' };
+  if (row.status === 'On Leave' || row.status === 'Holiday' || row.status === 'Week Off') return { title: row.status, detail: 'No punch needed today', status: row.status, tab: 'attendance' };
+  return { title: 'Not checked in yet', detail: 'No punch from the face machine yet', status: row.status || 'Pending', tab: 'attendance' };
+}
+
+/**
+ * Today on a phone (round 2, after the reference phone kit): the date and where you stand on a
+ * white card, then the coral card with your check-in time. Phones cannot check in — the face
+ * machines record that — so the coral card opens your attendance instead.
+ */
+export function TodayStrip({ onNavigate }) {
+  const { employee } = useAuth();
+  const { data: rows = [], isLoading } = useDayAttendance(todayIso());
+  const row = rows.find((r) => r.employee?.id === employee?.id);
+  const state = todayState(row);
+  const part = (options) => new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', ...options });
+  const date = `${part({ weekday: 'short' })}, ${part({ day: 'numeric' })} ${part({ month: 'short' })} ${part({ year: 'numeric' })}`;
+  return (
+    <div className="home-phone-only today-strip">
+      <div className="today-status-card">
+        <span className="today-status-icon" aria-hidden="true"><CalendarDays size={18} /></span>
+        <span className="today-status-copy">
+          <strong>{date}</strong>
+          <span>{row?.shift?.name || 'Your shift today'}</span>
+        </span>
+        {!isLoading && <StatusPill status={state.status} />}
+      </div>
+      <button type="button" className="today-check-card" onClick={() => onNavigate?.(state.tab)}>
+        <span className="today-check-icon" aria-hidden="true"><Clock size={22} strokeWidth={2.2} /></span>
+        <span className="today-check-copy">
+          <strong>{state.title}</strong>
+          {isLoading ? <Skeleton className="h-4 w-24 bg-white/30" /> : <span>{state.detail}</span>}
+        </span>
+        <ChevronRight size={20} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+/** Four figures for a phone's Home: this month's present days and late marks, leave left, and
+ *  requests still waiting. */
+export function MyPhoneStats({ onNavigate }) {
+  const { employee } = useAuth();
+  const today = todayIso();
+  const [year, month] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+  const { data: days = [], isLoading } = useMonthlyAttendance(employee?.id, year, month);
+  const { data: balances = [] } = useLeaveBalances(employee?.id, year);
+  const { data: leaves = [] } = useLeaves();
+  const present = days.filter((r) => r.status === 'Present' || r.status === 'Half Day').length;
+  const late = days.filter((r) => r.is_late).length;
+  const leaveLeft = balances.reduce((sum, b) => sum + Number(b.available || 0), 0);
+  const waiting = leaves.filter((l) => isMine(l, employee) && /pending|review|hold/i.test(l.status || '')).length;
+  return (
+    <StatRow className="home-phone-only" label="My month">
+      <StatCard label="Present days" value={present} sub="This month" icon={CalendarCheck2} tone="green" loading={isLoading} onClick={() => onNavigate?.('attendance')} />
+      <StatCard label="Leave left" value={leaveLeft} sub={`${year} balance`} icon={Umbrella} tone="blue" onClick={() => onNavigate?.('leave')} />
+      <StatCard label="Late marks" value={late} sub="This month" icon={Clock} tone="amber" loading={isLoading} onClick={() => onNavigate?.('attendance')} />
+      <StatCard label="Waiting" value={waiting} sub="Leave requests" icon={ListChecks} tone="violet" onClick={() => onNavigate?.('leave')} />
+    </StatRow>
+  );
+}
+
 /** My profile at a glance, from the employee record (2026 redesign). */
 export function MyProfileCard({ onNavigate }) {
   const { employee, user } = useAuth();
@@ -95,7 +164,7 @@ export function MyProfileCard({ onNavigate }) {
     [Phone, 'Phone', record?.phone],
   ].filter(([, , value]) => value);
   return (
-    <Widget title="My profile" action="View profile" onAction={() => onNavigate?.('profile')}>
+    <Widget title="My profile" action="View profile" onAction={() => onNavigate?.('profile')} className="home-phone-hide">
       <div className="my-profile-head">
         <span className="my-profile-avatar" aria-hidden="true">{initialsOf(person.full_name)}</span>
         <div className="min-w-0">
@@ -136,7 +205,7 @@ export function MyMonthCard({ onNavigate }) {
   );
 
   return (
-    <Widget title="This Month" icon={CalendarCheck2} action="Attendance" onAction={() => onNavigate?.('attendance')}>
+    <Widget title="This Month" icon={CalendarCheck2} action="Attendance" onAction={() => onNavigate?.('attendance')} className="home-phone-hide">
       {rows.length === 0 ? (
         <EmptyNote>No attendance computed yet this month.</EmptyNote>
       ) : (

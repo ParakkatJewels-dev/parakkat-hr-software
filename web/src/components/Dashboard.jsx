@@ -28,7 +28,7 @@ import { KpiRow, HolidaysCard, QuickActions, inr } from './dashboard/shared';
 import { useActionableApprovals } from './dashboard/useActionableApprovals';
 import ActionCenter from './dashboard/ActionCenter';
 import {
-  TodayAtWork, MyProfileCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, MyRoutineToday, EssSection,
+  TodayAtWork, MyProfileCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, MyRoutineToday, EssSection, TodayStrip, MyPhoneStats,
 } from './dashboard/selfWidgets';
 import PageHeader from './ui/PageHeader';
 import './dashboard/home.css';
@@ -244,6 +244,8 @@ function EmployeeDashboard({ onNavigate, actions }) {
   return (
     <>
       <SelfServiceLinks onNavigate={onNavigate} />
+      <TodayStrip onNavigate={onNavigate} />
+      <MyPhoneStats onNavigate={onNavigate} />
       <Row3>
         <TodayAtWork onNavigate={onNavigate} />
         <MyLeaveBalances onNavigate={onNavigate} />
