@@ -296,11 +296,7 @@ export default function ReportsAnalytics() {
               key={t.id}
               onClick={() => setTab(t.id)}
               aria-current={tab === t.id ? 'page' : undefined}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold transition-colors cursor-pointer ${
-                tab === t.id
-                  ? 'bg-brand/15 text-brand-ink dark:text-brand-ink border border-brand/25'
-                  : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
-              }`}
+              className={`drawer-tab flex items-center gap-1.5 ${tab === t.id ? 'drawer-tab-active' : ''}`}
             >
               <t.icon size={11} /> {t.label}
             </button>

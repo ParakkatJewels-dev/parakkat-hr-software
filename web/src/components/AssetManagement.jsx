@@ -8,7 +8,7 @@ import { SkeletonRows } from './ui/Skeleton';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Package, Laptop, Smartphone, Monitor, KeyRound, Car, Armchair, AlertTriangle,
-  Plus, Search, X, SearchX, ChevronRight, Boxes,
+  Plus, Search, X, SearchX, ChevronRight, Boxes, UserCheck, PackageCheck, Wrench,
 } from 'lucide-react';
 import {
   useAssets, useUpsertAsset, useAssetPhotos,
@@ -23,6 +23,7 @@ import FormSection, { Field, FIELD } from './ui/FormSection';
 import AssetDetail from './AssetDetail';
 import EmployeeLink from './ui/EmployeeLink';
 import AssetPhotoField from './ui/AssetPhotoField';
+import { StatCard } from './ui/StatCard';
 
 const categoryIcon = (a) => {
   if (a?.category === 'Software') return KeyRound;
@@ -88,10 +89,10 @@ export default function AssetManagement() {
   const stats = useMemo(() => {
     const by = (s) => assets.filter((a) => a.status === s).length;
     return [
-      { label: 'Registered', value: assets.length, sub: 'Items in your scope', tone: 'green' },
-      { label: 'Allocated', value: by('Allocated'), sub: 'Out with somebody', tone: 'blue' },
-      { label: 'Available', value: by('Available'), sub: 'Ready to hand out', tone: 'amber' },
-      { label: 'Off the road', value: by('Under Repair') + by('Damaged') + by('Lost'), sub: 'Repair, damaged or lost', tone: 'violet' },
+      { label: 'Registered', value: assets.length, sub: 'Items in your scope', tone: 'green', icon: Boxes },
+      { label: 'Allocated', value: by('Allocated'), sub: 'Out with somebody', tone: 'blue', icon: UserCheck },
+      { label: 'Available', value: by('Available'), sub: 'Ready to hand out', tone: 'amber', icon: PackageCheck },
+      { label: 'Off the road', value: by('Under Repair') + by('Damaged') + by('Lost'), sub: 'Repair, damaged or lost', tone: 'red', icon: Wrench },
     ];
   }, [assets]);
 
@@ -189,14 +190,8 @@ export default function AssetManagement() {
         </div>
       )}
 
-      <section className="people-insight-grid">
-        {stats.map((s) => (
-          <div key={s.label} className="people-insight-card" data-tone={s.tone}>
-            <span>{s.label}</span>
-            <strong>{s.value}</strong>
-            <em>{s.sub}</em>
-          </div>
-        ))}
+      <section className="stat-row" aria-label="Asset figures">
+        {stats.map((s) => <StatCard key={s.label} label={s.label} value={s.value} sub={s.sub} tone={s.tone} icon={s.icon} />)}
       </section>
 
       {showForm && canManage && (

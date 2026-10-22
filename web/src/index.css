@@ -3094,42 +3094,27 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .emp-hero-chips > span {
     display: inline-flex;
     align-items: center;
-    min-height: 1.35rem;
+    min-height: 1.6rem;
     border: 1px solid var(--surface-border);
     border-radius: 999px;
-    padding: .24rem .55rem;
-    background: color-mix(in srgb, var(--surface-subtle) 74%, var(--surface-elevated));
+    padding: .2rem .65rem;
+    background: var(--surface-elevated);
     color: var(--surface-text-soft);
-    font-family: var(--font-mono);
-    font-size: .66rem;
-    font-weight: 850;
-    line-height: 1;
-    text-transform: uppercase;
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.2;
   }
 
-  .emp-status.is-active {
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-  }
-
-  .emp-status.is-leave {
-    border-color: color-mix(in srgb, var(--tone-amber) 30%, transparent);
-    background: color-mix(in srgb, var(--tone-amber) 12%, transparent);
-    color: var(--tone-amber);
-  }
-
-  .emp-status.is-probation {
-    border-color: color-mix(in srgb, var(--tone-blue) 30%, transparent);
-    background: color-mix(in srgb, var(--tone-blue) 12%, transparent);
-    color: var(--tone-blue);
-  }
-
-  .emp-status.is-inactive {
-    border-color: color-mix(in srgb, var(--tone-red) 30%, transparent);
-    background: color-mix(in srgb, var(--tone-red) 12%, transparent);
-    color: var(--tone-red);
-  }
+  .emp-status { gap: .4rem; border-color: transparent !important; }
+  .emp-status::before { content: ''; width: .4rem; height: .4rem; border-radius: 999px; background: currentColor; }
+  .emp-status.is-active { background: #e1f7ea; color: #08743a; }
+  .emp-status.is-leave { background: #fef4d7; color: #8a4205; }
+  .emp-status.is-probation { background: #e8f2fe; color: #0b57d0; }
+  .emp-status.is-inactive { background: #fee7eb; color: #b40f2b; }
+  .dark .emp-status.is-active { background: rgba(16, 185, 129, .16); color: #6ee7b7; }
+  .dark .emp-status.is-leave { background: rgba(251, 191, 36, .14); color: #fcd34d; }
+  .dark .emp-status.is-probation { background: rgba(96, 165, 250, .16); color: #93c5fd; }
+  .dark .emp-status.is-inactive { background: rgba(251, 113, 133, .15); color: #fda4af; }
 
   .emp-layout {
     display: grid;
@@ -3584,43 +3569,32 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     opacity: .55;
   }
 
+  /* Asset statuses as the shared pill (2026 redesign): a dot and a word on a soft tint. */
   .asset-status {
     display: inline-flex;
     align-items: center;
-    border: 1px solid transparent;
+    gap: .4rem;
+    border: 0;
     border-radius: 999px;
-    padding: .22rem .55rem;
-    font-family: var(--font-mono);
-    font-size: .6875rem;
-    font-weight: 850;
-    line-height: 1;
-    text-transform: uppercase;
+    padding: .25rem .65rem;
+    background: #eff2f7;
+    color: #4c5876;
+    font-size: .75rem;
+    font-weight: 600;
+    line-height: 1.2;
     white-space: nowrap;
   }
+  .asset-status::before { content: ''; width: .4rem; height: .4rem; border-radius: 999px; background: currentColor; opacity: .85; }
 
-  .asset-status.is-allocated {
-    border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-  }
-
-  .asset-status.is-available {
-    border-color: color-mix(in srgb, var(--tone-blue) 28%, transparent);
-    background: color-mix(in srgb, var(--tone-blue) 11%, transparent);
-    color: var(--tone-blue);
-  }
-
-  .asset-status.is-repair {
-    border-color: color-mix(in srgb, var(--tone-amber) 30%, transparent);
-    background: color-mix(in srgb, var(--tone-amber) 12%, transparent);
-    color: var(--tone-amber);
-  }
-
-  .asset-status.is-bad {
-    border-color: color-mix(in srgb, var(--tone-red) 30%, transparent);
-    background: color-mix(in srgb, var(--tone-red) 11%, transparent);
-    color: var(--tone-red);
-  }
+  .asset-status.is-allocated { background: #e8f2fe; color: #0b57d0; }
+  .asset-status.is-available { background: #e1f7ea; color: #08743a; }
+  .asset-status.is-repair { background: #fef4d7; color: #8a4205; }
+  .asset-status.is-bad { background: #fee7eb; color: #b40f2b; }
+  .dark .asset-status { background: rgba(148, 163, 184, .14); color: #cbd5e1; }
+  .dark .asset-status.is-allocated { background: rgba(96, 165, 250, .16); color: #93c5fd; }
+  .dark .asset-status.is-available { background: rgba(16, 185, 129, .16); color: #6ee7b7; }
+  .dark .asset-status.is-repair { background: rgba(251, 191, 36, .14); color: #fcd34d; }
+  .dark .asset-status.is-bad { background: rgba(251, 113, 133, .15); color: #fda4af; }
 
   .asset-status.is-retired {
     border-color: var(--surface-border-strong);
