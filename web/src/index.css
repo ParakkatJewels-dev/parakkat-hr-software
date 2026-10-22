@@ -2155,16 +2155,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     overflow: hidden;
   }
 
-  .directory-person-card::before {
-    content: '';
-    position: absolute;
-    inset-inline: 0;
-    top: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent), var(--tone-blue));
-    opacity: .72;
-  }
-
   .directory-person-card:hover {
     box-shadow: var(--shadow-card-hover);
   }
@@ -7629,33 +7619,33 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
     font-size: .66rem;
   }
 
-  main .directory-card-grid {
-    gap: .55rem !important;
-  }
-
+  /* People as phone rows (round 2, as on the boards): photo or initials, name and role, where
+     they sit and their code, the status on the right. */
+  main .directory-card-grid { gap: .5rem !important; }
   main .directory-person-card {
-    min-height: 0;
-    padding: .72rem !important;
-    border-radius: var(--radius-sm);
-  }
-
-  main .directory-person-card .mobile-list-row {
-    flex-wrap: nowrap;
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
+    column-gap: .75rem;
+    min-height: 0;
+    padding: .7rem .8rem !important;
   }
-
-  main .directory-person-card h3 {
-    font-size: .88rem;
-    line-height: 1.2;
+  main .directory-person-card > .w-full,
+  main .directory-person-card > .w-full > .mobile-list-row { display: contents; }
+  main .directory-person-card .directory-avatar { grid-column: 1; grid-row: 1 / span 2; width: 2.75rem; height: 2.75rem; }
+  main .directory-person-card .state-pill { grid-column: 3; grid-row: 1 / span 2; align-self: center; }
+  main .directory-person-card > .w-full > .mt-3 { grid-column: 2; grid-row: 1; min-width: 0; margin: 0; }
+  main .directory-person-card h3 { font-size: .9rem; line-height: 1.25; }
+  main .directory-person-card > .w-full > .mt-3 p { margin-top: 0; font-size: .75rem; }
+  main .directory-completeness { display: none; }
+  main .directory-person-card > div:last-child {
+    display: flex; grid-column: 2; grid-row: 2; gap: .35rem; min-width: 0; margin: .1rem 0 0; padding: 0; border: 0;
   }
-
-  main .directory-person-card p {
-    font-size: .72rem;
-  }
-
-  main .directory-completeness {
-    margin-top: .65rem;
-  }
+  main .directory-person-card > div:last-child > p { margin: 0; overflow: hidden; font-size: .6875rem; text-overflow: ellipsis; white-space: nowrap; }
+  main .directory-person-card > div:last-child > p + p { flex: none; }
+  main .directory-person-card > div:last-child > p + p::before { content: '· '; }
+  /* Phones always get the rows; the table/cards switch and row density are computer controls. */
+  main .directory-view-tools { display: none; }
 
   main .directory-table-card {
     padding: 0 !important;
@@ -7720,7 +7710,7 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
 
   main .directory-filter-primary {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     gap: .45rem;
   }
 
@@ -7743,9 +7733,10 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
     border-radius: var(--radius-sm);
     background: var(--surface-subtle);
     color: var(--surface-text);
-    padding: .45rem .6rem;
-    font-size: .72rem;
-    font-weight: 850;
+    padding: .45rem .7rem;
+    font-size: .75rem;
+    font-weight: 700;
+    white-space: nowrap;
   }
 
   main .directory-filter-button > span:last-child {
