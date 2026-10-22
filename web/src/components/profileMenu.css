@@ -669,13 +669,14 @@
     padding: var(--space-card);
   }
 
-  .profile-details-pair,
-  .profile-employment .profile-facts {
+  .profile-details-pair {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* Employment details pair up two to a row on a phone (round 2). */
   .profile-employment .profile-facts {
-    gap: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0 .85rem;
   }
 
   .profile-employment .profile-facts > div {
@@ -683,11 +684,11 @@
     border-bottom: 1px solid color-mix(in srgb, var(--surface-border) 75%, transparent);
   }
 
-  .profile-employment .profile-facts > div:first-child {
+  .profile-employment .profile-facts > div:nth-child(-n+2) {
     padding-top: .15rem;
   }
 
-  .profile-employment .profile-facts > div:last-child {
+  .profile-employment .profile-facts > div:nth-last-child(-n+2) {
     padding-bottom: 0;
     border-bottom: 0;
   }

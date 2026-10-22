@@ -233,7 +233,7 @@ export default function ReportsAnalytics() {
   const headcountReady = reportReady(employeeQuery, exitsQuery) && Boolean(org) && !orgQuery.error;
 
   return (
-    <div className="page-shell space-y-5 animate-fade-in">
+    <div className="page-shell space-y-5 animate-fade-in reports-page">
       <PageHeader
         title="Reports & Analytics"
         subtitle="Branch-wise reports, scoped to what you may see. Pick a month and branch, then export."

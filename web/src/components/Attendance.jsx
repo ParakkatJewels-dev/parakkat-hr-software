@@ -407,7 +407,7 @@ function TodayView({ workDate, setWorkDate }) {
           actually noticed: everyone reads as "no punch out" and the day looks like mass absence.
           On 29 July the machine stopped uploading at 13:07 and nothing said so for five hours. */}
       {isToday && health?.brokenHop ? (
-        <div className="premium-card border-amber-300 dark:border-amber-900/60">
+        <div className="premium-card attendance-sync-warning border-amber-300 dark:border-amber-900/60">
           <div className="flex items-start gap-2">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="text-xs text-amber-800 dark:text-amber-200">
@@ -446,7 +446,7 @@ function TodayView({ workDate, setWorkDate }) {
       </StatRow>
 
       <div className="premium-card mobile-filter-card space-y-3">
-        <div className="mobile-toolbar flex flex-wrap items-center gap-2">
+        <div className="mobile-toolbar attendance-today-toolbar flex flex-wrap items-center gap-2">
           <input
             type="date"
             value={workDate}
@@ -538,7 +538,7 @@ function TodayView({ workDate, setWorkDate }) {
         ) : (
           <>
             <div className="table-scroll">
-              <table className="premium-table w-full text-xs">
+              <table className="premium-table phone-rows w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Employee</th>
@@ -851,7 +851,7 @@ function CalendarView({ employeeId, employeeName, selectedDate, onSelectDate }) 
             ))}
           </ul>
           <div className="table-scroll month-record-table-wrap">
-            <table className="premium-table w-full text-xs">
+            <table className="premium-table phone-rows w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Date</th>
@@ -1020,7 +1020,7 @@ export function ExceptionsView() {
           <div className="p-10 text-center text-xs text-neutral-500">{search.trim() || issue !== 'All exceptions' ? 'No exceptions match your filters.' : 'No exceptions in this range.'}</div>
         ) : (
           <div className="table-scroll">
-            <table className="premium-table w-full text-xs">
+            <table className="premium-table phone-rows w-full text-xs">
               <thead>
                 <tr>
                   <th className="text-left">Date</th>
@@ -1306,7 +1306,7 @@ export function RegularizationsView({ employee, canApprove }) {
             <div className="p-10 text-center text-xs text-neutral-500">{search.trim() ? 'No requests match your search.' : reviewing ? 'Nothing waiting for approval.' : 'No correction requests yet.'}</div>
           ) : (
             <div className="table-scroll">
-              <table className="premium-table w-full text-xs">
+              <table className="premium-table phone-rows w-full text-xs">
                 <thead>
                   <tr>
                     <th className="text-left">Date</th>

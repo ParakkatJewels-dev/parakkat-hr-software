@@ -107,8 +107,8 @@ export default function TicketDesk() {
     finally { submitting.current = false; }
   };
   const closeForm = () => { if (!add.isPending && !submitting.current) setShowForm(false); };
-  return <section className="space-y-4" aria-label="Helpdesk tickets">
-    <div className="flex flex-wrap items-center justify-between gap-3">
+  return <section className="space-y-4 ticket-desk" aria-label="Helpdesk tickets">
+    <div className="flex flex-wrap items-center justify-between gap-3 ticket-desk-bar">
       <div className="flex flex-wrap gap-2" aria-label="Helpdesk sections">
         <button type="button" className={btnClass(section === 'tickets' || !canManageCategories ? 'primary' : 'ghost')}
           aria-label={canViewQueue ? queueLabel('Tickets', allCount) : undefined}
@@ -163,7 +163,7 @@ export default function TicketDesk() {
             aria-label={queueLabel('Tickets to HR', hrCount)} onClick={() => chooseQueue(needsAction ? 'hr-needs-action' : 'hr')}>Tickets to HR<QueueBadge count={hrCount} /></button>}
         </div>}
         {canViewQueue && <p className="text-xs text-neutral-500">Counts show unresolved tickets you can update, including tickets on hold.{needsAction ? ' Showing tickets that need action.' : ''}</p>}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 ticket-filters">
           <label className="space-y-1 text-sm"><span>Search tickets</span><input type="search" className={INPUT} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Subject, employee or category" /></label>
           <label className="space-y-1 text-sm"><span>Ticket status</span><select className={INPUT} value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{(needsAction ? ACTIONABLE_TICKET_STATUSES : TICKET_STATUSES).map((value) => <option key={value}>{value}</option>)}</select></label>
           <label className="space-y-1 text-sm"><span>Ticket category</span><select className={INPUT} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">All categories</option>
@@ -175,14 +175,14 @@ export default function TicketDesk() {
         {query.error && <div role="alert" className="flex items-start gap-2 text-sm text-rose-700 dark:text-rose-300"><AlertTriangle size={16} className="shrink-0" /><span>{humanDbError(query.error)} {hasTickets && 'Showing the last available tickets and counts. They may be out of date. '}<button type="button" className="underline" onClick={() => query.refetch()}>Retry tickets</button></span></div>}
         {!hasTickets ? !query.error && <SkeletonRows rows={4} avatar={false} label="Loading support tickets" />
             : matches.length === 0 ? <p className="py-8 text-center text-sm text-neutral-500">{ticketRows.length ? 'No tickets match these filters.' : 'No tickets visible to you yet.'}</p>
-              : <div className="divide-y divide-neutral-200 dark:divide-neutral-800">{pager.slice.map((ticket) => <article key={ticket.id} {...rowProps(ticket.id)} className="py-4" aria-label={`Ticket: ${ticket.subject}`}>
-                <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1">
+              : <div className="divide-y divide-neutral-200 dark:divide-neutral-800">{pager.slice.map((ticket) => <article key={ticket.id} {...rowProps(ticket.id)} className="py-4 ticket-row" aria-label={`Ticket: ${ticket.subject}`}>
+                <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0 flex-1 ticket-row-copy">
                   <div className="flex flex-wrap items-center gap-2 text-xs"><span className="font-semibold text-neutral-600 dark:text-neutral-300">{ticket.category ?? 'Uncategorised'}</span><span className={ticket.priority === 'High' ? 'text-rose-700 dark:text-rose-300' : 'text-neutral-500'}>{ticket.priority}</span></div>
                   <h3 className="mt-1 break-words text-sm font-semibold text-neutral-900 dark:text-neutral-100">{ticket.subject}</h3>
                   {ticket.description && <p className="mt-1 whitespace-pre-wrap break-words text-sm text-neutral-600 dark:text-neutral-400">{ticket.description}</p>}
                   <p className="mt-2 text-xs text-neutral-500">{ticket.employee?.full_name ?? 'Unknown employee'}{ticket.employee?.branch?.code ? ` · ${ticket.employee.branch.code}` : ''}</p>
                   <p className="mt-1 flex items-center gap-1.5 text-xs text-neutral-500"><Building2 size={13} />Assigned to {ticket.routed_department?.name ?? 'Unassigned department'}</p>
-                </div><div className="flex flex-wrap items-center justify-end gap-2">
+                </div><div className="flex flex-wrap items-center justify-end gap-2 ticket-row-controls">
                   <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${badgeClass(ticket.status)}`}>{ticket.status}</span>
                   {canManageTicket(ticket, { viewingAsEmployee }) && <select className={`${INPUT} !w-auto`} aria-label={`Update status for ${ticket.subject}`} value={ticket.status}
                     disabled={update.isPending} onChange={(event) => update.mutate({ id: ticket.id, status: event.target.value })}>{TICKET_STATUSES.map((value) => <option key={value}>{value}</option>)}</select>}

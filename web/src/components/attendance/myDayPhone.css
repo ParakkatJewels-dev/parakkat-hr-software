@@ -128,3 +128,46 @@
   .attendance-self-phone .calendar-month-bar .mobile-list-actions:first-child,
   .attendance-self-phone .attendance-day-detail { display: none; }
 }
+
+/* Attendance lists for managers on a phone (round 2): one compact row per person — name and code,
+   the status on the right, then in / out / worked on one line — instead of a tall card of
+   label:value pairs. Columns a phone can do without (branch, shift, punch list, breaks, OT) step
+   aside; the person's own page has them. */
+@media (max-width: 640px) {
+  main .premium-table.phone-rows tbody { gap: .5rem; }
+  main .premium-table.phone-rows tr {
+    display: flex; flex-wrap: wrap; align-items: center; column-gap: .75rem; row-gap: .2rem; padding: .7rem .8rem;
+  }
+  main .premium-table.phone-rows td {
+    display: block !important; width: auto !important; min-width: 0; padding: 0 !important; border: 0 !important; font-size: .75rem; line-height: 1.4;
+  }
+  main .premium-table.phone-rows td::before { display: none; }
+  /* A line break after the name and status, so the times always start their own line. */
+  main .premium-table.phone-rows tr::before { content: ''; order: 3; flex: 0 0 100%; height: 0; }
+  main .premium-table.phone-rows td:is([data-label="Branch"], [data-label="Shift"], [data-label="Punches"], [data-label="Breaks"], [data-label="OT"]) { display: none !important; }
+  main .premium-table.phone-rows td[data-label="Employee"] { flex: 1 1 55%; order: 1; font-size: .875rem; }
+  main .premium-table.phone-rows td[data-label="Date"] { order: 0; flex: 1 1 100%; color: var(--surface-text-soft); font-size: .6875rem; font-weight: 600; }
+  main .premium-table.phone-rows td[data-label="Status"] { order: 2; flex: none; margin-left: auto; text-align: right; }
+  main .premium-table.phone-rows td:is([data-label="First punch"], [data-label="Latest punch"], [data-label="Worked"], [data-label="Proposed"]) {
+    order: 4; flex: none; color: var(--surface-text); font-variant-numeric: tabular-nums;
+  }
+  main .premium-table.phone-rows td[data-label="First punch"]::before { content: 'In '; }
+  main .premium-table.phone-rows td[data-label="Latest punch"]::before { content: 'Out '; }
+  main .premium-table.phone-rows td[data-label="Worked"]::before { content: 'Worked '; }
+  main .premium-table.phone-rows td:is([data-label="First punch"], [data-label="Latest punch"], [data-label="Worked"])::before {
+    display: inline; color: var(--surface-text-soft); font-family: var(--font-sans); font-weight: 500; text-transform: none; letter-spacing: 0;
+  }
+  main .premium-table.phone-rows td:is([data-label="Issue"], [data-label="Reason"]) { order: 5; flex: 1 1 100%; color: var(--surface-text-soft); }
+  main .premium-table.phone-rows td[data-label="Decision"] { order: 6; flex: 1 1 100%; display: flex !important; justify-content: flex-end; gap: .4rem; text-align: right !important; }
+  main .premium-table.phone-rows td[data-label="Status"] { text-align: right !important; }
+
+  /* The sync warning stays, in two lines; the date sits beside refresh, the search under them. */
+  .attendance-sync-warning .text-xs { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+  main .attendance-today-toolbar { display: grid !important; grid-template-columns: minmax(0, 1fr) 2.5rem; gap: .5rem; }
+  main .attendance-today-toolbar > input[type="date"] { width: 100%; }
+  main .attendance-today-toolbar > .relative { grid-column: 1 / -1; grid-row: 2; }
+  main .attendance-today-toolbar > button { width: 2.5rem; height: 2.5rem; justify-self: end; }
+
+  /* "By person" is a section screen already; the second pill of that name steps aside on phones. */
+  .attendance-views button[aria-label="By person"] { display: none; }
+}
