@@ -15,6 +15,9 @@ const stubs = {
   '../lib/dbErrors': `export { humanDbError } from ${JSON.stringify(new URL('../lib/dbErrors.js', import.meta.url).href)};`,
   './ui/FormSection': 'export default "routine-note-form"; export const FIELD="field";',
   './ui/Btn': 'export const btnClass = () => "button";',
+  './ui/StatCard': 'export const StatCard="test-stat-card", StatRow="test-stat-row";',
+  './ui/StatusPill': 'export default "test-status-pill";',
+  './ui/Avatar': 'export default "test-avatar"; export const initialsOf=()=>"", tintFor=()=>"";',
   './ui/Pagination': 'export default "routine-note-pagination"; export const usePagination = (...args) => globalThis.routineNotesTest.paginate(...args);',
 };
 const loader = registerHooks({

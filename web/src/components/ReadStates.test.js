@@ -53,7 +53,7 @@ test('failed background goal refreshes retain known goals and identify them as c
 test('initial expense failures do not fabricate zero totals or an empty history', () => {
   const html = render(Expense, 'expenses', { error: new Error('Failed to fetch') });
   assert.match(html, /Expense claims could not be loaded/); assert.match(html, /Try again/);
-  assert.doesNotMatch(html, /Total Claims|Pending ₹|Approved ₹|No .*expense claims visible/);
+  assert.doesNotMatch(html, /Total claims|stat-card-label">Pending|stat-card-label">Approved|No .*expense claims visible/);
 });
 
 test('failed expense refreshes keep the previous rows and totals visible with a warning', () => {
@@ -62,7 +62,7 @@ test('failed expense refreshes keep the previous rows and totals visible with a 
   ] });
   assert.match(html, /Expense claims could not be refreshed/);
   assert.match(html, /Showing the last available data/); assert.match(html, /Travel Expenses/);
-  assert.match(html, /Total Claims/); assert.match(html, /250/);
+  assert.match(html, /Total claims/); assert.match(html, /250/);
 });
 
 test('initial reads announce loading and successful empty reads keep their true empty states', () => {
@@ -70,7 +70,7 @@ test('initial reads announce loading and successful empty reads keep their true 
   assert.match(goals, /aria-label="Loading goals"/); assert.doesNotMatch(goals, /No goals set/);
   const expenses = render(Expense, 'expenses', { loading: true });
   assert.match(expenses, /aria-label="Loading expense totals"/);
-  assert.match(expenses, /aria-label="Loading expense claims"/); assert.doesNotMatch(expenses, /Total Claims/);
+  assert.match(expenses, /aria-label="Loading expense claims"/); assert.doesNotMatch(expenses, /Total claims/);
   assert.match(render(Performance, 'goals', { data: [] }), /No goals set for you yet/);
   assert.match(render(Expense, 'expenses', { data: [] }), /No expense claims visible to you yet/);
 });

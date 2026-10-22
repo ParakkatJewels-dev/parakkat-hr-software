@@ -116,7 +116,7 @@ export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
   return <div className="payroll-workflow space-y-4">
     <section className="premium-card payroll-context">
       <div>
-        <p className="payroll-eyebrow">MONTHLY PAYROLL</p>
+        <p className="payroll-eyebrow">Monthly payroll</p>
         <h2 className="text-lg font-bold text-neutral-900 dark:text-white">Run monthly payroll</h2>
         <p className={`${HELP} mt-1`}>Choose the company and month once, then work through the steps below.</p>
       </div>

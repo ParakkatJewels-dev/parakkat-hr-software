@@ -1,16 +1,7 @@
 .payroll-workflow { --pf-line: #e2e8e4; --pf-soft: #f5f8f6; --pf-ink: #20382c; --pf-muted: #63776a; min-width: 0; }
 .dark .payroll-workflow { --pf-line: #303b36; --pf-soft: #18221c; --pf-ink: #e3ece7; --pf-muted: #a2b0a8; }
 .payroll-context { display: grid; grid-template-columns: 1fr minmax(300px, 1fr); gap: 18px 32px; align-items: center; }
-.payroll-eyebrow { font-size: 10px; font-weight: 750; letter-spacing: .12em; color: var(--pf-muted); margin-bottom: 7px; }
-.payroll-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.payroll-steps button { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--pf-line); border-radius: var(--radius-control); padding: 11px 14px; color: var(--pf-muted); cursor: pointer; transition: background .15s, border-color .15s; }
-.payroll-steps button:hover { background: var(--pf-soft); }
-.payroll-steps button[aria-current=step] { border-color: #149a65; background: #0a956610; color: var(--pf-ink); box-shadow: inset 0 0 0 1px #149a6520; }
-.payroll-step-number { display: flex; align-items: center; justify-content: center; flex: 0 0 30px; width: 30px; min-width: 30px; height: 30px; border: 1px solid var(--pf-line); border-radius: 50%; font-size: 12px; font-weight: 700; background: var(--pf-soft); }
-[aria-current=step] > .payroll-step-number { background: #087449; border-color: #087449; color: white; }
-.payroll-steps strong { display: block; font-size: 13px; font-weight: 650; }
-.payroll-steps small { display: block; font-size: 11px; margin-top: 3px; color: var(--pf-muted); }
-.payroll-steps button:disabled { opacity: .55; cursor: wait; }
+.payroll-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0; color: var(--pf-muted); margin-bottom: 7px; }
 .payroll-workflow button:focus-visible, .payroll-workflow summary:focus-visible { outline: 2px solid #149a65; outline-offset: 3px; }
 .payroll-section-heading, .payroll-flow-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .payroll-readiness, .payroll-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--pf-line); border-radius: var(--radius-card); background: var(--pf-soft); overflow: hidden; }
@@ -59,3 +50,21 @@
 .dark .payroll-prepare-tabs button[aria-pressed=true] { background: #27352d; }
 .payroll-prepare-tabs button:disabled { cursor: wait; opacity: .6; }
 .payroll-input-tip summary { cursor: pointer; }
+
+/* The three monthly steps (2026 redesign): numbered circles joined by a line; the current step
+   coral, finished steps green. */
+.payroll-steps { position: relative; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; padding: .35rem 0; }
+.payroll-steps button { position: relative; display: flex; align-items: center; justify-content: center; gap: .6rem; padding: .5rem .75rem; border: 0; background: transparent; color: var(--pf-muted); text-align: left; cursor: pointer; }
+.payroll-steps button + button::before { content: ''; position: absolute; top: 50%; right: calc(50% + 5.5rem); left: calc(-50% + 5.5rem); height: 2px; border-radius: 999px; background: var(--pf-line); }
+.payroll-steps button:hover { color: var(--pf-ink); }
+.payroll-steps button[aria-current=step] { color: var(--pf-ink); }
+.payroll-step-number { display: flex; flex: 0 0 2.1rem; align-items: center; justify-content: center; width: 2.1rem; min-width: 2.1rem; height: 2.1rem; border-radius: 50%; background: #eef1f5; color: #4c5876; font-size: .875rem; font-weight: 700; }
+[aria-current=step] > .payroll-step-number { background: var(--coral); color: #fff; box-shadow: 0 6px 14px rgba(255, 90, 39, .28); }
+.payroll-steps strong { display: block; font-size: .9rem; font-weight: 650; }
+.payroll-steps small { display: block; margin-top: 2px; color: var(--pf-muted); font-size: .75rem; }
+.payroll-steps button:disabled { opacity: .55; cursor: wait; }
+@media (max-width: 760px) {
+  .payroll-steps button { flex-direction: column; gap: .35rem; text-align: center; }
+  .payroll-steps button + button::before { display: none; }
+  .payroll-steps small { display: none; }
+}

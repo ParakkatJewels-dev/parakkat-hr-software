@@ -48,6 +48,9 @@ const stubs = {
   '../auth/usePermissions': 'export const usePermissions = () => ({ can: (_permission, scope) => globalThis.shiftAssignmentUI.can(scope) });',
   './ui/Pagination': 'export default "shift-pagination"; export const usePagination = (rows, size) => globalThis.shiftAssignmentUI.paginate(rows,size);',
   './ui/Btn': 'export const btnClass = () => "button";',
+  './ui/StatCard': 'export const StatCard="test-stat-card", StatRow="test-stat-row";',
+  './ui/StatusPill': 'export default "test-status-pill";',
+  './ui/Avatar': 'export default "test-avatar"; export const initialsOf=()=>"", tintFor=()=>"";',
 };
 const loader = registerHooks({
   resolve(specifier, context, next) {

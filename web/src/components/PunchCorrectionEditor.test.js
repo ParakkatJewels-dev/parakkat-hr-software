@@ -22,6 +22,9 @@ const stubs = {
   './ui/FormSection': 'export default "form-section"; export const FIELD="field";',
   './ui/ConfirmDialog': 'export default "confirm-dialog";',
   './ui/Btn': 'export const btnClass=()=>"button";',
+  './ui/StatCard': 'export const StatCard="test-stat-card", StatRow="test-stat-row";',
+  './ui/StatusPill': 'export default "test-status-pill";',
+  './ui/Avatar': 'export default "test-avatar"; export const initialsOf=()=>"", tintFor=()=>"";',
 };
 const loader = registerHooks({
   resolve(specifier, context, next) {

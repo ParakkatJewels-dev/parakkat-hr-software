@@ -10,12 +10,10 @@ import ConfirmDialog from './ui/ConfirmDialog';
 import ListSearch from './ui/ListSearch';
 import Pagination, { usePagination } from './ui/Pagination';
 import { SkeletonRows } from './ui/Skeleton';
+import StatusPill from './ui/StatusPill';
 
 const INPUT = 'w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-xs text-neutral-800 focus:outline-none focus:border-brand/60 disabled:opacity-60 dark:border-neutral-850 dark:bg-neutral-900 dark:text-neutral-200';
 const money = value => value == null ? '—' : `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const statusClass = status => status === 'Published' || status === 'Paid'
-  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
-  : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400';
 const inputSave = mutation => ['save-payroll-monthly-inputs', 'save-payroll-policy', 'save-salary-structure', 'run-payroll', 'publish-payroll', 'save-payroll-adjustment', 'delete-payroll-adjustment', 'create-payroll-advance', 'void-payroll-advance', 'save-payroll-advance-recovery', 'set-payroll-payment-status'].includes(mutation.options.mutationKey?.[0]);
 const EMPTY_RUNS = [];
 
@@ -85,7 +83,7 @@ export default function PayrollHistory({ onBusyChange }) {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="text-sm font-bold text-neutral-900 dark:text-white">{run.period} · {run.entity?.code || run.entity?.name || 'Company unavailable'}</h3>
-                <span className={`rounded px-2 py-1 text-2xs font-bold uppercase ${statusClass(run.status)}`}>{run.status}</span>
+                <StatusPill status={run.status} tone={run.status === 'Published' || run.status === 'Paid' ? 'success' : 'warning'} />
               </div>
               <p className="mt-1 text-xs text-neutral-500">{run.employees} employees · Net pay <span className="font-semibold tabular-nums text-neutral-700 dark:text-neutral-200">{money(run.total_net)}</span></p>
               {run.needs_recalculation && run.status === 'Draft' && <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Inputs changed. Recalculate this draft before publishing.</p>}

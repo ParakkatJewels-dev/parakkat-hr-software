@@ -32,6 +32,9 @@ const stubs = {
   './ui/Pagination': 'export default "payroll-pagination";',
   './ui/ConfirmDialog': 'export default "payroll-confirm";',
   './ui/Btn': 'export const btnClass = () => "button";',
+  './ui/StatCard': 'export const StatCard="test-stat-card", StatRow="test-stat-row";',
+  './ui/StatusPill': 'export default "test-status-pill";',
+  './ui/Avatar': 'export default "test-avatar"; export const initialsOf=()=>"", tintFor=()=>"";',
   './PayrollSheetFrame': 'export default "sheet-frame";',
   './payrollInputGrid.css': 'export default {};',
 };

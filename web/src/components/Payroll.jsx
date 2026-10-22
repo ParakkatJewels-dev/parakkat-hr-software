@@ -34,6 +34,17 @@ import PayrollSalarySetup from './PayrollSalarySetup';
 import PayrollHistory from './PayrollHistory';
 import PayrollCalculationDetail from './PayrollCalculationDetail';
 import PageHeader from './ui/PageHeader';
+import { useShellNav } from './shell/shellNavContext';
+import StatusPill from './ui/StatusPill';
+
+// The title follows the tab, as on the redesign boards.
+const TAB_TITLES = {
+  run: ['Run payroll', 'Prepare, review and publish your monthly payroll.'],
+  history: ['Payroll history', 'Every month that has been run, and what it paid.'],
+  payslips: ['Payslips', 'Published payslips, with each line of the calculation.'],
+  salary: ['Salary setup', 'Monthly salary structures for each employee.'],
+  components: ['Pay components', 'The earnings and deductions payroll uses.'],
+};
 
 const money = (n) =>
   n == null
@@ -44,10 +55,6 @@ const INPUT =
   'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60';
 const BTN = btnClass('primary');
 const BTN_GHOST = btnClass('ghost');
-const statusClass = (s) =>
-  s === 'Paid' || s === 'Published'
-    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400'
-    : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400';
 
 const Err = ({ e }) =>
   e ? (
@@ -72,6 +79,9 @@ export default function Payroll() {
   const runBadge = canManage ? navigationScreenCount('payroll/run', counts.data) : null;
 
   const TABS = TAB_DEFS.filter((t) => !t.managerOnly || canManage);
+  // The section's other screen (Expenses) joins the end of this tab row: one row of tabs, not two.
+  const shellNav = useShellNav();
+  const expenses = shellNav?.section?.tabs.find((item) => item.id === 'expense');
   // In the URL, so a refresh comes back to the tab you were reading. See lib/useUrlTab.
   const [routeTab] = useUrlTab(canManage ? 'run' : 'payslips', [...TABS.map((t) => t.id), ...(canManage ? ['worksheet'] : [])]);
   const tab = routeTab === 'worksheet' ? 'run' : routeTab;
@@ -96,32 +106,34 @@ export default function Payroll() {
   return (
     <div className="page-shell space-y-5 animate-fade-in">
       <PageHeader
-        title={canManage ? 'Payroll' : 'My Payslips'}
-        subtitle={canManage
-          ? 'Prepare, review and publish each month. Salary setup and past payroll live here too.'
-          : 'Your payslips.'}
+        title={canManage ? (TAB_TITLES[tab]?.[0] ?? 'Payroll') : 'My payslips'}
+        subtitle={canManage ? (TAB_TITLES[tab]?.[1] ?? '') : 'Your payslips.'}
+        tabs={TABS.length < 2}
       />
 
       {TABS.length > 1 && (
-        <nav aria-label="Payroll views" className="mobile-segmented mobile-segmented-dense tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              disabled={worksheetBusy && t.id !== tab}
-              aria-current={tab === t.id ? 'page' : undefined}
-              aria-label={navigationCountLabel(t.label, t.id === 'run' ? runBadge : null)}
-              className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
-                tab === t.id
-                  ? 'border-brand text-brand-ink'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-              }`}
-            >
-              <t.icon size={13} /> {t.label}
-              {t.id === 'run' && <NavigationCountBadge badge={runBadge} />}
-            </button>
-          ))}
-        </nav>
+        <div className="section-tabbar payroll-tabbar">
+          <nav aria-label="Payroll views" className="section-tab-scroll">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                disabled={worksheetBusy && t.id !== tab}
+                aria-current={tab === t.id ? 'page' : undefined}
+                aria-label={navigationCountLabel(t.label, t.id === 'run' ? runBadge : null)}
+                className={`section-tab-button ${tab === t.id ? 'is-active' : ''}`}
+              >
+                {t.label}
+                {t.id === 'run' && <NavigationCountBadge badge={runBadge} />}
+              </button>
+            ))}
+            {expenses && (
+              <button type="button" className="section-tab-button" disabled={worksheetBusy}
+                onClick={() => shellNav.select(shellNav.navTarget(expenses))}>{expenses.label}</button>
+            )}
+          </nav>
+        </div>
       )}
 
       {tab === 'payslips' && <PayslipsTab />}
@@ -191,7 +203,7 @@ function PayslipsTab() {
                 <span className="block text-2xs uppercase tracking-wider text-neutral-400 font-bold">Net pay</span>
                 <span className="block text-sm font-bold font-mono text-neutral-900 dark:text-white">{money(p.net)}</span>
               </div>
-              <span className={`text-2xs font-bold uppercase px-2 py-1 rounded ${statusClass(p.status)}`}>{p.status}</span>
+              <StatusPill status={p.status} tone={p.status === 'Paid' || p.status === 'Published' ? 'success' : 'warning'} />
             </div>
           </button>
           {openId === p.id && <PayslipDetail payslip={p} />}

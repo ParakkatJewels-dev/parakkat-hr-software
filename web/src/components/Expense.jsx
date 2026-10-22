@@ -1,6 +1,6 @@
 import { SkeletonCards, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo, useCallback } from 'react';
-import { FileText, Check, Ban, Plus } from 'lucide-react';
+import { FileText, Check, Ban, Plus, ReceiptText, Clock, CheckCircle2 } from 'lucide-react';
 import { useExpenses, useAddExpense, useSetExpenseStatus } from '../data/expenses';
 import { useAuth } from '../auth/AuthContext';
 import FormSection, { Field, FIELD, FormError } from './ui/FormSection';
@@ -15,16 +15,13 @@ import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
+import StatusPill from './ui/StatusPill';
 
 const CATEGORIES = ['Local Conveyance', 'Travel Expenses', 'Telephone/Mobile Bills', 'Medical Claims', 'Office Supplies', 'Other'];
 const blankExpenseForm = () => ({ category: 'Local Conveyance', amount: '', expense_date: todayIso(), description: '' });
 
-const statusClass = (s) =>
-  s === 'Approved' || s === 'Paid'
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30'
-    : s === 'Rejected'
-    ? 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/30'
-    : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/30';
+const EXPENSE_TONE = { Approved: 'success', Paid: 'success', Rejected: 'danger', Pending: 'warning' };
 
 export default function Expense() {
   const expensesQuery = useExpenses();
@@ -204,11 +201,11 @@ export default function Expense() {
       <QueryError error={error} title={hasData ? 'Expense claims could not be refreshed.' : 'Expense claims could not be loaded.'}
         onRetry={refetch} retrying={isFetching} hasData={hasData} />
 
-      {isLoading ? <SkeletonCards count={3} label="Loading expense totals" /> : (!error || hasData) && <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-        <Stat label="Total Claims" value={totals.count} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
-        <Stat label="Pending ₹" value={totals.pending.toLocaleString()} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
-        <Stat label="Approved ₹" value={totals.approved.toLocaleString()} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
-      </div>}
+      {isLoading ? <SkeletonCards count={3} label="Loading expense totals" /> : (!error || hasData) && <StatRow label="Expense totals">
+        <Stat label="Total claims" icon={ReceiptText} tone="slate" value={totals.count} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
+        <Stat label="Pending" sub="Awaiting a decision" icon={Clock} tone="amber" value={`₹${totals.pending.toLocaleString('en-IN')}`} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
+        <Stat label="Approved" sub="Ready to reimburse or paid" icon={CheckCircle2} tone="green" value={`₹${totals.approved.toLocaleString('en-IN')}`} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
+      </StatRow>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
@@ -244,7 +241,7 @@ export default function Expense() {
                     <div className="mobile-list-actions text-right flex flex-col items-end gap-1.5 shrink-0">
                       <span className="font-mono font-bold text-neutral-800 dark:text-slate-100 text-sm">₹{Number(exp.amount).toLocaleString()}</span>
                       <div className="flex items-center gap-1.5">
-                        <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold border ${statusClass(exp.status)}`}>{exp.status}</span>
+                        <StatusPill status={exp.status} tone={EXPENSE_TONE[exp.status] ?? 'warning'} />
                         {canDecide(exp) && exp.status === 'Pending' && (
                           <>
                             <button disabled={setStatus.isPending} onClick={() => { if (!setStatus.isPending) setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id }); }} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-brand/10 dark:bg-brand/15 text-brand-ink dark:text-brand-ink hover:bg-brand/20 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"><Check size={13} /></button>
@@ -282,18 +279,9 @@ export default function Expense() {
   );
 }
 
-const Stat = ({ label, value, onClick, active = false }) => {
-  const Tag = onClick ? 'button' : 'div';
-  return (
-  <Tag
-    {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
-    className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
-  >
-    <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
-    <span className="text-2xl font-extrabold font-mono text-neutral-850 dark:text-slate-100 block mt-1.5">{value}</span>
-  </Tag>
-  );
-};
+const Stat = ({ label, value, sub, icon, tone, onClick, active = false }) => (
+  <StatCard label={label} value={value} sub={sub} icon={icon} tone={tone} onClick={onClick} active={active} title={onClick ? `Show ${label}` : undefined} />
+);
 const Limit = ({ k, v }) => (
   <div className="flex justify-between border-b border-neutral-100 dark:border-neutral-855 pb-1"><span>{k}</span><span className="text-neutral-800 dark:text-slate-200">{v}</span></div>
 );

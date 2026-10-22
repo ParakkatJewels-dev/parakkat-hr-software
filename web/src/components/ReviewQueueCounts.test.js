@@ -158,7 +158,7 @@ test('expense review queue counts claims separately from money and excludes self
     {...claim, id:'filed', created_by:'self-user'}, {...claim, id:'out-of-scope', branch_id:'other'},
     {...claim, id:'approved', status:'Approved'}, {...claim, id:'paid', status:'Paid'},
   ];
-  assert.equal(page.find(node => node.props.label === 'Pending ₹').props.value, '200');
+  assert.equal(page.find(node => node.props.label === 'Pending').props.value, '₹200');
   page.button('Mine').props.onClick();
   assert.deepEqual(page.rows(), ['mine']);
   page.button('My review queue').props.onClick();
