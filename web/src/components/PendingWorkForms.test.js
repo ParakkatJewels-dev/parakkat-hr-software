@@ -60,6 +60,7 @@ const stubs = {
   './ui/ListSearch': 'export default "test-search";',
   './ui/EmployeeLink': 'export default "test-employee";',
   './EmployeeAttendanceDetail': 'export default "test-attendance-detail";',
+  './attendance/MyDayPhone': 'export default "test-my-day";',
 };
 const loader = registerHooks({
   resolve(specifier, context, next) {
