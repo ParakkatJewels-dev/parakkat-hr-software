@@ -13,6 +13,7 @@ import { useEmployees } from '../data/employees';
 import PageHeader from './ui/PageHeader';
 import Pagination, { usePagination } from './ui/Pagination';
 
+import SearchSelect from './ui/SearchSelect';
 // The parts of a company, in the order you actually set them up. All four are optional — only the
 // company itself is required (employees.entity_id is NOT NULL) — so each says what it is for and
 // nobody has to guess whether they must fill it in.
@@ -624,13 +625,13 @@ function QuickSetup({ onDone, onCancel }) {
             <input aria-label={`Department ${i + 1} code`} className={rowInput + ' font-mono uppercase'} value={d.code}
               onChange={(e) => setRow(departments, setDepartments)(i, { code: e.target.value })} placeholder="SAL" />
             {/* Branches from this same form, referenced by code until they have ids. */}
-            <select aria-label={`Department ${i + 1} branch`} className={rowInput + ' cursor-pointer'} value={d.branchCode}
+            <SearchSelect aria-label={`Department ${i + 1} branch`} className={rowInput + ' cursor-pointer'} value={d.branchCode}
               onChange={(e) => setRow(departments, setDepartments)(i, { branchCode: e.target.value })}>
               <option value="">Whole company</option>
               {cleanBranches.map((b) => (
                 <option key={b.code} value={b.code}>{b.name || b.code}</option>
               ))}
-            </select>
+            </SearchSelect>
             <button type="button" onClick={() => dropRow(departments, setDepartments)(i)}
               disabled={departments.length === 1} aria-label={`Remove department ${i + 1}`}
               className={ICON_BTN + ' disabled:opacity-30 disabled:cursor-not-allowed'}>
@@ -916,7 +917,7 @@ function FormModal({ modal, fieldOptions, onChange, onSubmit, onClose, busy, err
         {fields.map((f) => (
           <Field key={f.key} label={f.label} htmlFor={`org-${f.key}`} required={f.required}>
             {f.type === 'select' ? (
-              <select
+              <SearchSelect
                 id={`org-${f.key}`}
                 value={form[f.key] ?? ''}
                 onChange={(e) => setField(f.key, e.target.value)}
@@ -926,7 +927,7 @@ function FormModal({ modal, fieldOptions, onChange, onSubmit, onClose, busy, err
                 {(fieldOptions[f.from] ?? []).map((o) => (
                   <option key={o.id} value={o.id}>{labelOf(o)}</option>
                 ))}
-              </select>
+              </SearchSelect>
             ) : (
               <input
                 id={`org-${f.key}`}

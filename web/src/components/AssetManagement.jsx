@@ -25,6 +25,7 @@ import EmployeeLink from './ui/EmployeeLink';
 import AssetPhotoField from './ui/AssetPhotoField';
 import { StatCard } from './ui/StatCard';
 
+import SearchSelect from './ui/SearchSelect';
 const categoryIcon = (a) => {
   if (a?.category === 'Software') return KeyRound;
   if (a?.category === 'Vehicle') return Car;
@@ -278,18 +279,18 @@ export default function AssetManagement() {
                 falls back to when it is returned, and what makes unallocated stock visible to
                 anyone but a global admin — see migration 0076. */}
             <Field label="Owned by (company)" htmlFor="as-entity" required>
-              <select id="as-entity" required value={form.owner_entity_id} className={FIELD + ' cursor-pointer'}
+              <SearchSelect id="as-entity" required value={form.owner_entity_id} className={FIELD + ' cursor-pointer'}
                 onChange={(e) => setForm({ ...form, owner_entity_id: e.target.value, owner_branch_id: '' })}>
                 <option value="">Choose a company…</option>
                 {(org?.entities ?? []).map((en) => <option key={en.id} value={en.id}>{en.name}</option>)}
-              </select>
+              </SearchSelect>
             </Field>
             <Field label="Owned by (branch)" htmlFor="as-branch">
-              <select id="as-branch" value={form.owner_branch_id} className={FIELD + ' cursor-pointer'}
+              <SearchSelect id="as-branch" value={form.owner_branch_id} className={FIELD + ' cursor-pointer'}
                 onChange={(e) => setForm({ ...form, owner_branch_id: e.target.value })}>
                 <option value="">Company-wide</option>
                 {branchesForEntity.map((b) => <option key={b.id} value={b.id}>{b.name || b.code}</option>)}
-              </select>
+              </SearchSelect>
             </Field>
             <Field label="Kept at" htmlFor="as-loc">
               <input id="as-loc" value={form.location} className={FIELD}

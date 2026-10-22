@@ -22,7 +22,8 @@ const reactHooks = `import React from ${JSON.stringify(import.meta.resolve('reac
 const loader = registerHooks({
   resolve(specifier, context, next) {
     const stub = hookModules.has(context.parentURL) && (specifier === 'react' ? reactHooks
-      : specifier === '../../lib/useRevealOnOpen' ? 'export const useRevealOnOpen = () => ({ current: null });' : null);
+      : specifier === '../../lib/useRevealOnOpen' ? 'export const useRevealOnOpen = () => ({ current: null });'
+      : specifier === './SearchSelect' ? 'export default "select"; export const SEARCH_FROM = 7;' : null);
     if (stub) return { url: `data:text/javascript,${encodeURIComponent(stub)}`, shortCircuit: true };
     if (modules.has(context.parentURL) && specifier.startsWith('.')) {
       const jsx = new URL(`${specifier}.jsx`, context.parentURL).href;

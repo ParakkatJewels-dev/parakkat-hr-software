@@ -36,6 +36,7 @@ import { NavigationCountBadge } from './ui/CountBadge';
 import { paginationWindow } from '../lib/pagination';
 import PageHeader from './ui/PageHeader';
 
+import SearchSelect from './ui/SearchSelect';
 const TABS = [
   { id: 'mapping', label: 'Devices & mapping', icon: Fingerprint, perm: 'device.manage' },
   { id: 'shifts', label: 'Shifts', icon: Clock, perm: 'shift.manage' },
@@ -351,7 +352,7 @@ function MappingTab() {
                     <td data-label="Last seen" className="text-neutral-500">{relativeTime(d.last_seen_at)}</td>
                     {showBranchMapping && (
                       <td data-label="Branch">
-                        <select
+                        <SearchSelect
                           value={d.branch_id ?? ''}
                           aria-label={`Branch for terminal ${d.serial_number}`}
                           onChange={(e) =>
@@ -367,7 +368,7 @@ function MappingTab() {
                           {branches.map((b) => (
                             <option key={b.id} value={b.id}>{b.name ?? b.code}</option>
                           ))}
-                        </select>
+                        </SearchSelect>
                       </td>
                     )}
                     <td data-label="State">
@@ -443,7 +444,7 @@ function ShiftsTab() {
           <fieldset disabled={save.isPending} className="space-y-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <label className={label}>Company
-              <select
+              <SearchSelect
                 required={!isSuperAdmin}
                 value={form.entity_id ?? ''}
                 onChange={(e) => setForm({ ...form, entity_id: e.target.value })}
@@ -453,7 +454,7 @@ function ShiftsTab() {
                   ? <option value="">All companies (shared)</option>
                   : <option value="" disabled>Select…</option>}
                 {entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}
-              </select>
+              </SearchSelect>
             </label>
             <label className={label}>Code
               <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} className={input} />
@@ -671,11 +672,11 @@ function HolidaysTab() {
     <div className="space-y-4">
       <div className="premium-card mobile-toolbar flex flex-wrap items-end gap-3">
         <label className={label}>Calendar
-          <select value={effectiveCalendar} onChange={(e) => setCalendarId(e.target.value)} className={`${input} min-w-0 sm:min-w-50`}>
+          <SearchSelect value={effectiveCalendar} onChange={(e) => setCalendarId(e.target.value)} className={`${input} min-w-0 sm:min-w-50`}>
             {calendars.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.entity ? ` (${c.entity.code})` : ''}</option>
             ))}
-          </select>
+          </SearchSelect>
         </label>
         <label className={label}>Year
           <input type="number" value={activeYear} onChange={(e) => setActiveYear(Number(e.target.value))} className={`${input} w-full sm:w-24`} />

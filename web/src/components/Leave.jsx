@@ -23,6 +23,7 @@ import { NavigationCountBadge } from './ui/CountBadge';
 import LeaveBalanceCards from './leave/LeaveBalanceCards';
 import PageHeader from './ui/PageHeader';
 
+import SearchSelect from './ui/SearchSelect';
 /**
  * The catalog decides what a leave is called — this file no longer does.
  *
@@ -366,7 +367,7 @@ export default function Leave() {
                 {!typesQuery.isLoading && !typesQuery.error && activeTypes.length === 0 && <p role="alert" className="text-sm text-amber-700 dark:text-amber-300">No active leave types are available. Ask HR to configure a leave type before applying.</p>}
                 <div className="space-y-1">
                   <label htmlFor="leave-apply-type" className="text-neutral-500 font-semibold uppercase text-2xs tracking-wider">Leave Type</label>
-                  <select id="leave-apply-type" required disabled={typesQuery.isLoading || Boolean(typesQuery.error)} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
+                  <SearchSelect id="leave-apply-type" required disabled={typesQuery.isLoading || Boolean(typesQuery.error)} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
                     className="w-full bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3.5 py-2 focus:outline-none focus:border-black dark:focus:border-brand cursor-pointer font-medium">
                     <option value="">Choose a leave type</option>
                     {form.type && !selectedType && <option value={form.type} disabled>Choose an available leave type</option>}
@@ -375,7 +376,7 @@ export default function Leave() {
                         {t.name}{t.is_paid === false ? ' — unpaid' : ''}
                       </option>
                     ))}
-                  </select>
+                  </SearchSelect>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">

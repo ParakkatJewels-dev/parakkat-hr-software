@@ -14,7 +14,9 @@ for (const name of ['Leave', 'Expense', 'Onboarding', 'Recruitment']) {
 }
 const queries = names => names.map(name => `export const ${name} = () => globalThis.reviewQueueTest.queries.${name};`).join('\n');
 const mutations = names => names.map(name => `export const ${name} = () => ({reset() {}});`).join('\n');
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
+  './ui/SearchSelect': SEARCH_SELECT_STUB,
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))}; export default React;
     export const useState = value => globalThis.reviewQueueTest.state(value);
     export const useMemo = fn => fn(), useCallback = fn => fn, useEffect = () => {};`,

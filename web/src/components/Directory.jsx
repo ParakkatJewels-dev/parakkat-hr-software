@@ -50,6 +50,7 @@ import { StatCard, StatRow } from './ui/StatCard';
 import StatusPill from './ui/StatusPill';
 import { tintFor } from './ui/Avatar';
 
+import SearchSelect from './ui/SearchSelect';
 const initials = (name) =>
   (name || '')
     .split(' ')
@@ -1495,12 +1496,12 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
             </div>
             {!isEdit && <div>
               <label className={L} htmlFor="emp-shift">Working shift *</label>
-              <select id="emp-shift" required className={FORM_INPUT} value={chosenShift?.id || ''}
+              <SearchSelect id="emp-shift" required className={FORM_INPUT} value={chosenShift?.id || ''}
                 disabled={busy || !form.entity_id || shiftsLoading || Boolean(shiftsQuery.error)}
                 onChange={(e) => patch({ shift_id: e.target.value })} aria-describedby="emp-shift-help">
                 <option value="">{!form.entity_id ? 'Choose a company first' : shiftsLoading ? 'Loading shifts…' : 'Choose a shift'}</option>
                 {availableShifts.map(shift => <option key={shift.id} value={shift.id}>{shift.name} · {shiftSchedule(shift)} · {shiftDailyBasis(shift)} paid{shift.is_default ? ' · default' : ''}</option>)}
-              </select>
+              </SearchSelect>
             </div>}
           </div>
           {!isEdit ? <div id="emp-shift-help" className="mt-2 text-xs text-neutral-500">
@@ -1735,7 +1736,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                 <div className="space-y-3">
                   <div>
                     <label className={L} htmlFor="emp-role">Role</label>
-                    <select
+                    <SearchSelect
                       id="emp-role"
                       className={FORM_INPUT}
                       value={access.roleKey}
@@ -1744,7 +1745,7 @@ function EmployeeFormModal({ employee, org, busy, error, onClose, onSubmit }) {
                       {roleOptions.map((r) => (
                         <option key={r.key} value={r.key}>{r.label}</option>
                       ))}
-                    </select>
+                    </SearchSelect>
                     {/* A dropdown hides the descriptions the radio list used to show, so the one
                         that matters — what the chosen role actually reaches — stays visible. */}
                     {rolePreset?.blurb && (

@@ -19,6 +19,7 @@ import Drawer from './Drawer';
 import { btnClass } from '../ui/Btn';
 import { useLedger } from './ui';
 
+import SearchSelect from '../ui/SearchSelect';
 /** The period as rows for a spreadsheet: what was worked on, delivered and given as help. */
 export function reportRows(report) {
   const rows = [];
@@ -99,9 +100,9 @@ export default function LedgerReports() {
         </div>
         <div className="ledger-pickers">
           {canTeam && people.length > 0 && (
-            <label>Report for <select value={person} onChange={(e) => { setPerson(e.target.value); setDraft(null); }}>
+            <label>Report for <SearchSelect value={person} onChange={(e) => { setPerson(e.target.value); setDraft(null); }}>
               <option value="">Me</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
-            </select></label>)}
+            </SearchSelect></label>)}
           {period === 'day' && <label>Day <input type="date" value={day} max={today} onChange={(e) => setDay(e.target.value || today)} /></label>}
           {period === 'week' && <label>Any day in the week <input type="date" value={day} onChange={(e) => setDay(e.target.value || today)} /></label>}
           {period === 'month' && <label>Month <input type="month" value={month} onChange={(e) => setMonth(e.target.value || today.slice(0, 7))} /></label>}

@@ -16,6 +16,7 @@ import Pagination, { usePagination } from './ui/Pagination';
 import './developerSettings.css';
 import PageHeader from './ui/PageHeader';
 
+import SearchSelect from './ui/SearchSelect';
 const dateLabel = value => {
   if (!value) return 'Never';
   const date = new Date(value);
@@ -169,7 +170,7 @@ export function CreateKeyForm({ entities, orgError, orgLoading, initialKey = nul
     {initialKey && <p className="developer-replacement-note">This creates a separate key. It does not revoke <strong>{initialKey.name}</strong> or enable API access.</p>}
     <Field label="Key name" htmlFor={`${id}-name`} required><input id={`${id}-name`} className="developer-input" autoComplete="off" placeholder="e.g. Reporting dashboard" required maxLength={80} value={name} onChange={event => setName(event.target.value)} disabled={busy} /></Field>
     <fieldset className="developer-scopes" disabled={busy}><legend>Data access</legend><p>Each permission allows reading only.</p>{API_KEY_SCOPES.map(scope => <label key={scope.key} className="developer-scope-choice"><input type="checkbox" checked={scopes.includes(scope.key)} onChange={event => setScopes(current => event.target.checked ? [...current, scope.key] : current.filter(key => key !== scope.key))} /><span><strong>{scope.label}</strong><small>{scope.description}</small></span></label>)}</fieldset>
-    <div className="developer-form-grid"><Field label="Company" htmlFor={`${id}-company`}><select id={`${id}-company`} className="developer-input" value={entityId} onChange={event => setEntityId(event.target.value)} disabled={busy || orgLoading || Boolean(orgError)}><option value="">All companies</option>{missingCompany && <option value={entityId} disabled>Original company unavailable</option>}{entities.map(entity => <option key={entity.id} value={entity.id}>{entity.name || entity.code}</option>)}</select></Field>
+    <div className="developer-form-grid"><Field label="Company" htmlFor={`${id}-company`}><SearchSelect id={`${id}-company`} className="developer-input" value={entityId} onChange={event => setEntityId(event.target.value)} disabled={busy || orgLoading || Boolean(orgError)}><option value="">All companies</option>{missingCompany && <option value={entityId} disabled>Original company unavailable</option>}{entities.map(entity => <option key={entity.id} value={entity.id}>{entity.name || entity.code}</option>)}</SearchSelect></Field>
       <Field label="Expires after" htmlFor={`${id}-expiry`}><select id={`${id}-expiry`} className="developer-input" value={expiresInDays} onChange={event => setExpiresInDays(Number(event.target.value))} disabled={busy}>{API_KEY_EXPIRY_DAYS.map(days => <option key={days} value={days}>{days} days</option>)}</select></Field></div>
     {orgError && <FormError message="Company choices could not be loaded. Reload the page before creating a key." />}
     {missingCompany && !orgError && <FormError message="The original company is no longer available. Choose a company before creating this replacement." />}

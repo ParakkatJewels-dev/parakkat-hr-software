@@ -38,6 +38,7 @@ import PageHeader from './ui/PageHeader';
 import { useShellNav } from './shell/shellNavContext';
 import StatusPill from './ui/StatusPill';
 
+import SearchSelect from './ui/SearchSelect';
 // The title follows the tab, as on the redesign boards.
 const TAB_TITLES = {
   run: ['Run payroll', 'Prepare, review and publish your monthly payroll.'],
@@ -174,9 +175,9 @@ function PayslipsTab() {
       {mineOnly && employee?.id && <MyPayOverview employeeId={employee.id} onOpen={(month, id) => { setSearch(''); setPeriod(month); setOpenId(id); }} />}
       <div className="premium-card flex flex-col sm:flex-row gap-3 sm:items-end">
         {!mineOnly && <label className="text-xs font-semibold text-neutral-500">Company
-          <select aria-label="Payslip company" value={companyId} onChange={event => setCompanyId(event.target.value)} className={INPUT + ' block mt-1'}>
+          <SearchSelect aria-label="Payslip company" value={companyId} onChange={event => setCompanyId(event.target.value)} className={INPUT + ' block mt-1'}>
             <option value="">All companies</option>{(org?.entities ?? []).map(entity => <option value={entity.id} key={entity.id}>{entity.code} — {entity.name}</option>)}
-          </select>
+          </SearchSelect>
         </label>}
         <label className="text-xs font-semibold text-neutral-500">Payroll month
           <input type="month" required aria-label="Payslip month" value={period} onChange={(e) => { if (e.target.value) setPeriod(e.target.value); }} className={INPUT + ' block mt-1'} />
@@ -406,7 +407,7 @@ function ComponentsTab() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <select
+          <SearchSelect
             required={!isSuperAdmin}
             aria-label="Company"
             value={form.entity_id}
@@ -417,11 +418,11 @@ function ComponentsTab() {
               ? <option value="">All companies</option>
               : <option value="" disabled>Company…</option>}
             {(org?.entities ?? []).map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}
-          </select>
-          <select aria-label="Branch" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
+          </SearchSelect>
+          <SearchSelect aria-label="Branch" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
             <option value="">All branches</option>
             {(org?.branches ?? []).map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}
-          </select>
+          </SearchSelect>
           <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300 cursor-pointer">
             <input type="checkbox" checked={form.prorate_on_lop} onChange={(e) => setForm({ ...form, prorate_on_lop: e.target.checked })} className="accent-brand" />
             Reduce with unpaid days

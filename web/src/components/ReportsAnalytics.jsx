@@ -27,6 +27,7 @@ import QueryError from './ui/QueryError';
 import { headcountByBranch, reportReady } from '../lib/reportRows';
 import PageHeader from './ui/PageHeader';
 
+import SearchSelect from './ui/SearchSelect';
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
 const th = 'py-2 px-2 text-xs font-bold uppercase tracking-wider text-neutral-450 dark:text-neutral-500';
@@ -275,7 +276,7 @@ export default function ReportsAnalytics() {
           <span>{branchId === 'all' ? 'All' : '1 active'}</span>
         </button>
         <div className={`reports-filter-row mobile-filter-panel ${filtersOpen ? 'is-open' : ''}`}>
-          <select
+          <SearchSelect
             value={branchId}
             onChange={(e) => {
               setBranchId(e.target.value);
@@ -288,7 +289,7 @@ export default function ReportsAnalytics() {
             {branches.map((b) => (
               <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
             ))}
-          </select>
+          </SearchSelect>
         </div>
         <div className="mobile-segmented flex gap-1.5 ml-auto">
           {TABS.map((t) => (

@@ -6,6 +6,7 @@ import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { SkeletonRows } from './ui/Skeleton';
 
+import SearchSelect from './ui/SearchSelect';
 const INPUT = 'w-full min-h-11 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200';
 const emptyForm = { id: null, name: '', department_id: '', is_active: true, is_hr_queue: false };
 
@@ -56,13 +57,13 @@ export default function TicketCategories({ categories = [], departments = [], is
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="space-y-1 text-sm font-medium"><span>Category name</span><input required maxLength={80} className={INPUT}
           value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="For example, IT support" /></label>
-        <label className="space-y-1 text-sm font-medium"><span>Assigned department</span><select required className={INPUT}
+        <label className="space-y-1 text-sm font-medium"><span>Assigned department</span><SearchSelect required className={INPUT}
           value={form.department_id} disabled={departmentsLoading || Boolean(departmentsError)}
           onChange={(event) => setForm({ ...form, department_id: event.target.value })}>
           <option value="">{departmentsLoading ? 'Loading departments…' : 'Select a department'}</option>
           {form.department_id && !selectedDepartment && <option value={form.department_id} disabled>Department unavailable — choose another</option>}
           {activeDepartments.map((department) => <option key={department.id} value={department.id}>{[department.name, department.branch?.code, department.entity?.name].filter(Boolean).join(' · ')}</option>)}
-        </select></label>
+        </SearchSelect></label>
       </div>
       {departmentsError && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{humanDbError(departmentsError)} <button type="button" onClick={onRetryDepartments} className="underline">Retry departments</button></p>}
       {!departmentsLoading && !departmentsError && activeDepartments.length === 0 && <p className="text-sm text-amber-700 dark:text-amber-300">Add an active department in Organization before creating a ticket category.</p>}

@@ -13,6 +13,7 @@ import { humanDbError } from '../../lib/dbErrors';
 import { istToday } from '../../lib/dates';
 import { btnClass } from '../ui/Btn';
 
+import SearchSelect from '../ui/SearchSelect';
 const FIELD = 'w-full min-w-0 text-sm rounded-lg px-2.5 py-1.5 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent,var(--accent))]';
 const HEADING = 'flex items-center gap-1.5 text-2xs font-bold uppercase tracking-wide text-neutral-500 dark:text-neutral-400';
 const shortDay = (value) => (value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : '');
@@ -105,19 +106,19 @@ function CreativeFields({ task, canEdit, save }) {
         <SuggestSetting label="Work type" value={task.work_type} options={WORK_TYPES} disabled={!canEdit} onSave={(v) => save({ work_type: v })} />
         <label className="block space-y-1">
           <span className={HEADING}>Campaign</span>
-          <select className={FIELD} disabled={!canEdit} value={task.campaign_id ?? ''} onChange={(e) => save({ campaign_id: e.target.value || null })}>
+          <SearchSelect className={FIELD} disabled={!canEdit} value={task.campaign_id ?? ''} onChange={(e) => save({ campaign_id: e.target.value || null })}>
             <option value="">None</option>
             {task.campaign_id && !campaigns.some((c) => c.id === task.campaign_id) && <option value={task.campaign_id}>{task.campaign ?? 'A removed campaign'}</option>}
             {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          </SearchSelect>
         </label>
         <label className="block space-y-1">
           <span className={HEADING}>Vendor</span>
-          <select className={FIELD} disabled={!canEdit} value={task.vendor_id ?? ''} onChange={(e) => save({ vendor_id: e.target.value || null })}>
+          <SearchSelect className={FIELD} disabled={!canEdit} value={task.vendor_id ?? ''} onChange={(e) => save({ vendor_id: e.target.value || null })}>
             <option value="">None</option>
             {task.vendor_id && !data.vendors.some((v) => v.id === task.vendor_id) && <option value={task.vendor_id}>{task.vendor ?? 'A removed vendor'}</option>}
             {data.vendors.map((v) => <option key={v.id} value={v.id}>{v.name}{v.role ? ` · ${v.role}` : ''}</option>)}
-          </select>
+          </SearchSelect>
         </label>
         <CostSetting label="Estimated cost" value={task.est_cost} disabled={!canEdit} onSave={(v) => save({ est_cost: v })} />
         <CostSetting label="Actual cost" value={task.actual_cost} disabled={!canEdit} onSave={(v) => save({ actual_cost: v })} />
@@ -204,13 +205,13 @@ export default function TaskWorkSections({ taskId, open = true, onRemind }) {
         )}
         <label className="block space-y-1">
           <span className={HEADING}>Depends on</span>
-          <select className={FIELD} disabled={!canEdit} value={task.depends_on_task_id ?? ''}
+          <SearchSelect className={FIELD} disabled={!canEdit} value={task.depends_on_task_id ?? ''}
             onChange={(e) => save({ depends_on_task_id: e.target.value || null })}>
             <option value="">Nothing</option>
             {task.depends_on_task_id && !dependsOptions.some((t) => t.id === task.depends_on_task_id) && (
               <option value={task.depends_on_task_id}>{task.depends_on_title ?? 'Another task'}</option>)}
             {dependsOptions.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}
-          </select>
+          </SearchSelect>
         </label>
         <TextSetting label="Tags" value={(task.tags ?? []).join(', ')} placeholder="comma separated" disabled={!canEdit}
           onSave={(v) => save({ tags: String(v ?? '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean).slice(0, 20) })} />

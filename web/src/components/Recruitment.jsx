@@ -12,6 +12,7 @@ import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
 
+import SearchSelect from './ui/SearchSelect';
 const PIPELINE = ['Applied', 'Shortlisted', 'Interview', 'Offered', 'Hired'];
 const STAGES = [...PIPELINE, 'Rejected'];
 const nextStage = (s) => PIPELINE[PIPELINE.indexOf(s) + 1] || s;
@@ -96,9 +97,9 @@ export default function Recruitment() {
 
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_15rem] gap-3">
         <ListSearch value={search} onChange={setSearch} label="Search hiring" placeholder="Search candidates, jobs or company…" />
-        <select aria-label="Hiring company" className={INPUT} value={company} onChange={(e) => setCompany(e.target.value)}>
+        <SearchSelect aria-label="Hiring company" className={INPUT} value={company} onChange={(e) => setCompany(e.target.value)}>
           <option value="">All companies</option>{entities.map((e) => <option key={e.id} value={e.id}>{e.code} · {e.name}</option>)}
-        </select>
+        </SearchSelect>
       </div>
       <QueryError error={jobsError} title="Job openings could not be loaded." onRetry={jobsQuery.refetch} hasData={hasJobs} />
       <QueryError error={candidatesError} title="Candidates could not be loaded." onRetry={candidatesQuery.refetch} hasData={hasCandidates} />
@@ -181,7 +182,7 @@ export default function Recruitment() {
                 <button onClick={() => setShowForm(false)} aria-label="Close opening form"><X size={15} /></button>
               </div>
               <form onSubmit={submit} className="space-y-3 text-xs">
-                <Field label="Entity"><select required value={job.entity_id} onChange={(e) => setJob({ ...job, entity_id: e.target.value })} className={INPUT}><option value="">Select…</option>{entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}</select></Field>
+                <Field label="Entity"><SearchSelect required value={job.entity_id} onChange={(e) => setJob({ ...job, entity_id: e.target.value })} className={INPUT}><option value="">Select…</option>{entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}</SearchSelect></Field>
                 <Field label="Job Title"><input required value={job.title} onChange={(e) => setJob({ ...job, title: e.target.value })} placeholder="e.g. Sales Executive" className={INPUT} /></Field>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Type"><select value={job.type} onChange={(e) => setJob({ ...job, type: e.target.value })} className={INPUT}><option>Full-time</option><option>Part-time</option><option>Contract</option><option>Internship</option></select></Field>

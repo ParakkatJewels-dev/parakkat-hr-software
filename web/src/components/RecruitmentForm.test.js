@@ -21,7 +21,9 @@ const harness = {
   candidates: [{ id: 'candidate', name: 'QA applicant', stage: 'Applied', job: { title: 'QA Role' } }],
 };
 globalThis.recruitmentAudit = harness;
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
+  './ui/SearchSelect': SEARCH_SELECT_STUB,
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))}; export default React; export const useState = value => globalThis.recruitmentAudit.state(value); export const useMemo = fn => fn();`,
   '../data/recruitment': `export const useJobs=()=>({data:[]}); export const useCandidates=()=>({data:globalThis.recruitmentAudit.candidates}); export const useAddJob=()=>globalThis.recruitmentAudit.mutation; export const useSetCandidateStage=()=>globalThis.recruitmentAudit.mutation;`,
   '../data/org': 'export const useVisibleOrg=()=>({data:{entities:[{id:"company",code:"QA",name:"QA Company"}]}});',

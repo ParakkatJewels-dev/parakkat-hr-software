@@ -9,6 +9,7 @@ import { Message, dateLabel, money, useLedger } from './ui';
 import { CheckCircle2, Clock, FolderOpen, LifeBuoy } from 'lucide-react';
 import { StatCard, StatRow } from '../ui/StatCard';
 
+import SearchSelect from '../ui/SearchSelect';
 const axis = { stroke: 'var(--surface-text-soft)', fontSize: 12, tickLine: false };
 const tooltip = { contentStyle: { background: 'var(--surface-elevated)', border: '1px solid var(--surface-border)', borderRadius: 4, fontSize: 13 },
   cursor: { fill: 'var(--surface-muted)' } };
@@ -58,8 +59,8 @@ export default function LedgerInsights() {
     .sort((a, b) => (a.full_name ?? '').localeCompare(b.full_name ?? '')), [employeesQuery.data, employee?.id]);
   const insights = useWorkInsights(person || null);
   const picker = canTeam && people.length > 0 && (
-    <div className="ledger-pickers"><label>Insights for <select value={person} onChange={(e) => setPerson(e.target.value)}>
-      <option value="">Me</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></label></div>);
+    <div className="ledger-pickers"><label>Insights for <SearchSelect value={person} onChange={(e) => setPerson(e.target.value)}>
+      <option value="">Me</option>{people.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</SearchSelect></label></div>);
   if (insights.isLoading) return <>{picker}<p className="ledger-quiet">Working out the last six months…</p></>;
   if (insights.error) return <>{picker}<Message error={insights.error} /></>;
   const data = insights.data;

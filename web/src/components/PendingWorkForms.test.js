@@ -15,7 +15,9 @@ for (const name of ['TicketDesk', 'TicketCategories', 'Attendance', 'Leave']) {
 }
 const queryStubs = names => names.map(name => `export const ${name} = () => globalThis.pendingFormTest.queries.${name};`).join('\n');
 const mutationStubs = names => names.map(name => `export const ${name} = () => globalThis.pendingFormTest.mutation;`).join('\n');
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
+  './ui/SearchSelect': SEARCH_SELECT_STUB,
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))}; export default React;
     export const useState = value => globalThis.pendingFormTest.useState(value);
     export const useRef = value => globalThis.pendingFormTest.useRef(value);

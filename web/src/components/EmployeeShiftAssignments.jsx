@@ -6,6 +6,7 @@ import { usePermissions } from '../auth/usePermissions';
 import Pagination, { usePagination } from './ui/Pagination';
 import { btnClass } from './ui/Btn';
 
+import SearchSelect from './ui/SearchSelect';
 const input = 'w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 px-3 py-2 text-xs';
 const hours = minutes => `${Math.floor(Number(minutes) / 60)}h ${Number(minutes) % 60}m`;
 const covers = (assignment, date) => assignment.effective_from <= date && (!assignment.effective_to || assignment.effective_to >= date);
@@ -105,9 +106,9 @@ export default function EmployeeShiftAssignments() {
         {!loading && !queryError && !filtered.length && <p className="text-xs text-neutral-500">No employees match these filters.</p>}
         <Pagination {...pager} noun="employees" disabled={assign.isPending} />
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs">Assign shift<select required className={input} value={chosenShift?.id || ''} onChange={event => setShiftId(event.target.value)}>
+          <label className="text-xs">Assign shift<SearchSelect required className={input} value={chosenShift?.id || ''} onChange={event => setShiftId(event.target.value)}>
             <option value="">Choose a shift</option>{availableShifts.map(shift => <option key={shift.id} value={shift.id}>{shift.code} — {shift.name} ({hours(shift.full_day_minutes)})</option>)}
-          </select></label>
+          </SearchSelect></label>
           <label className="text-xs">Note (optional)<input className={input} value={note} onChange={event => setNote(event.target.value)} placeholder="Reason or roster reference" /></label>
         </div>
         {!loading && !queryError && !availableShifts.length && <p className="text-xs text-amber-700 dark:text-amber-400">No active shift matches these employees. Choose one company or create a shared shift.</p>}

@@ -51,6 +51,7 @@ import { StatCard, StatRow } from './ui/StatCard';
 import StatusPill from './ui/StatusPill';
 import Avatar from './ui/Avatar';
 
+import SearchSelect from './ui/SearchSelect';
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
  * beyond your own record — canBeyondSelf, not canAny.
@@ -121,10 +122,10 @@ export function PersonAttendanceView() {
     </div>}
     <section className="premium-card grid grid-cols-1 sm:grid-cols-2 gap-3">
       <label className="text-xs text-neutral-600 dark:text-neutral-300">Employee
-        <select aria-label="Attendance employee" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={person?.id ?? ''} onChange={event => change('employee', event.target.value)} disabled={people.isLoading || Boolean(people.error) || correctionBusy}>
+        <SearchSelect aria-label="Attendance employee" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={person?.id ?? ''} onChange={event => change('employee', event.target.value)} disabled={people.isLoading || Boolean(people.error) || correctionBusy}>
           <option value="">Choose an employee…</option>
           {employees.map(item => <option key={item.id} value={item.id}>{item.full_name} · {item.employee_code}</option>)}
-        </select>
+        </SearchSelect>
       </label>
       <label className="text-xs text-neutral-600 dark:text-neutral-300">Month
         <input type="month" disabled={correctionBusy} aria-label="Attendance month" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={period} max={todayIso().slice(0, 7)} onChange={event => { if (validMonth(event.target.value)) change('period', event.target.value); }} />
@@ -1199,10 +1200,10 @@ export function RegularizationsView({ employee, canApprove }) {
           </p>
 
           {onBehalf && <label className="block text-2xs uppercase tracking-wider text-neutral-500">Employee
-            <select aria-label="Correction employee" value={target?.id ?? ''} disabled={people.isLoading || Boolean(people.error)} onChange={event => { setSelectedId(event.target.value); setForm(current => ({ ...current, checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' })); setFormError(''); create.reset(); }} className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-2 rounded-xl text-xs">
+            <SearchSelect aria-label="Correction employee" value={target?.id ?? ''} disabled={people.isLoading || Boolean(people.error)} onChange={event => { setSelectedId(event.target.value); setForm(current => ({ ...current, checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' })); setFormError(''); create.reset(); }} className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-2 rounded-xl text-xs">
               <option value="">Choose an employee…</option>
               {eligible.map(person => <option key={person.id} value={person.id}>{person.full_name} · {person.employee_code}</option>)}
-            </select>
+            </SearchSelect>
           </label>}
           {onBehalf && people.error && <ErrorNote error={people.error} />}
           {onBehalf && selectedId && !target && !people.isLoading && !people.error && <p role="alert" className="text-xs text-amber-700">This employee is not available in your correction scope.</p>}

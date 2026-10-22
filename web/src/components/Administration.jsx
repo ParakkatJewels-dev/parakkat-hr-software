@@ -24,6 +24,7 @@ import UsersDirectory from './UsersDirectory';
 import { paginationWindow } from '../lib/pagination';
 import PageHeader from './ui/PageHeader';
 
+import SearchSelect from './ui/SearchSelect';
 const BTN = btnClass('primary');
 const BTN_GHOST = btnClass('ghost');
 const ICON_BTN = btnClass('subtle', 'md', true);
@@ -795,12 +796,12 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
 
       <form onSubmit={submit} className="space-y-2.5">
         <Field label="Role">
-          <select autoFocus value={roleId} onChange={(e) => setRoleId(e.target.value)} className={INPUT} required>
+          <SearchSelect autoFocus value={roleId} onChange={(e) => setRoleId(e.target.value)} className={INPUT} required>
             <option value="">Select a role…</option>
             {assignableRoles.map((r) => (
               <option key={r.id} value={r.id}>{prettyRole(r.key)}</option>
             ))}
-          </select>
+          </SearchSelect>
         </Field>
 
         {role && (allowedScopes.length > 1 ? (
@@ -836,12 +837,12 @@ function AssignRoleForm({ user, roles, orgList, ecode, isSuperAdmin, busy, error
 
         {role && scopeDef?.needsId && (
           <Field label={`Which ${scopeType}?`}>
-            <select value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={INPUT} required>
+            <SearchSelect value={scopeId} onChange={(e) => setScopeId(e.target.value)} className={INPUT} required>
               <option value="">Select…</option>
               {[...items].sort((a, b) => itemLabel(a).localeCompare(itemLabel(b))).map((it) => (
                 <option key={it.id} value={it.id}>{itemLabel(it)}</option>
               ))}
-            </select>
+            </SearchSelect>
           </Field>
         )}
 

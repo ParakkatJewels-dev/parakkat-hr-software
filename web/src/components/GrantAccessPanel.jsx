@@ -21,6 +21,7 @@ import { ROLE_PRESETS, areaLevel, areaLevelsFor, grantableRoles, lockedRoles, pl
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
 
+import SearchSelect from './ui/SearchSelect';
 export { ROLE_PRESETS, grantableRoles };
 
 const inputCls =
@@ -324,11 +325,11 @@ export default function GrantAccessPanel({ employee: fixedEmployee, onClose, onD
                   {needsPlace && (
                     <label className="block">
                       <span className="sr-only">Which {level.noun}</span>
-                      <select value={placeId} className={inputCls + ' cursor-pointer'} aria-label={`Which ${level.noun}`}
+                      <SearchSelect value={placeId} className={inputCls + ' cursor-pointer'} aria-label={`Which ${level.noun}`}
                         onChange={(e) => setPlaceId(e.target.value)}>
                         <option value="">{theirPlaceId && theirPlaceAllowed ? 'Where they work' : `Choose a ${level.noun}…`}</option>
                         {places.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
-                      </select>
+                      </SearchSelect>
                     </label>
                   )}
                 </div>

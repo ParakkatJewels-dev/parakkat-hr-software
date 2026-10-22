@@ -26,6 +26,7 @@ import { useRunPayroll, usePublishPayroll } from '../data/payroll';
 import ConfirmDialog from './ui/ConfirmDialog';
 import './payrollWorkflow.css';
 
+import SearchSelect from './ui/SearchSelect';
 const INPUT = 'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60 disabled:opacity-60';
 const LABEL = 'block text-xs font-medium text-neutral-600 dark:text-neutral-300 space-y-1';
 const HELP = 'text-xs text-neutral-500 dark:text-neutral-400';
@@ -122,10 +123,10 @@ export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className={LABEL}><span>Company</span>
-          <select className={INPUT} value={entityId} onChange={event => changeContext({ entityId: event.target.value })} disabled={busy || org.isLoading || employees.isLoading}>
+          <SearchSelect className={INPUT} value={entityId} onChange={event => changeContext({ entityId: event.target.value })} disabled={busy || org.isLoading || employees.isLoading}>
             <option value="">Choose a company…</option>
             {entities.map(item => <option key={item.id} value={item.id}>{item.code} — {item.name}</option>)}
-          </select>
+          </SearchSelect>
         </label>
         <label className={LABEL}><span>Payroll month</span>
           <input type="month" disabled={busy} className={INPUT} value={period} onChange={event => {

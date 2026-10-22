@@ -21,6 +21,7 @@ import { btnClass } from '../ui/Btn';
 import Drawer from './Drawer';
 import { Field, Message, StatusPill, Suggest, dateLabel, useLedger } from './ui';
 
+import SearchSelect from '../ui/SearchSelect';
 const REPEATS = [['', 'None'], ['daily', 'Daily'], ['weekly', 'Weekly'], ['weekdays', 'Mon–Fri'], ['monthly', 'Monthly']];
 const scopeOf = (e) => ({ entityId: e.entity_id, zoneId: e.zone_id, branchId: e.branch_id, deptId: e.department_id, employeeId: e.id });
 
@@ -57,10 +58,10 @@ export function NewTaskPanel({ preset = {}, onClose, onCreated }) {
           {preset.note && <p className="ledger-quiet">{preset.note}</p>}
           {templates.length > 0 && (
             <label className="ledger-field ledger-template-pick"><span>Start from a template</span>
-              <select className="ledger-input" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+              <SearchSelect className="ledger-input" value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
                 <option value="">No template</option>
                 {templates.map((t) => <option key={t.id} value={t.id}>{t.name}{t.subtasks?.length ? ` · ${t.subtasks.length} subtasks` : ''}</option>)}
-              </select></label>)}
+              </SearchSelect></label>)}
         </div>)}
       <TaskComposer
         key={templateId || 'blank'}

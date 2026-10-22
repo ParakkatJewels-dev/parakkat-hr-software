@@ -11,7 +11,9 @@ import { hasPerm } from '../lib/permissionMatch.js';
 const target = new URL('./Directory.jsx', import.meta.url);
 const code = (await transformWithOxc(await readFile(target, 'utf8'), target.pathname,
   { jsx: { runtime: 'automatic' } })).code;
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
+  './ui/SearchSelect': SEARCH_SELECT_STUB,
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))};
     export const useState = value => globalThis.directoryAccessTest.state(value);
     export const useMemo = fn => fn(), useCallback = fn => fn, useDeferredValue = value => value, useEffect = () => {};

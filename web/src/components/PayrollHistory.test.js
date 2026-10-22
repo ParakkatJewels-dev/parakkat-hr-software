@@ -8,7 +8,9 @@ import { getPayrollSessionStateEntry } from '../lib/usePayrollSessionState.js';
 
 const sourceUrl = new URL('./PayrollHistory.jsx', import.meta.url);
 const { code } = await transformWithOxc(await readFile(sourceUrl, 'utf8'), sourceUrl.pathname, { jsx: { runtime: 'automatic' } });
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
+  './ui/SearchSelect': SEARCH_SELECT_STUB,
   react: `export { default } from ${JSON.stringify(import.meta.resolve('react'))}; export const useState = initial => globalThis.payrollHistory.state(initial); export const useEffect = () => {}; export const useMemo = compute => compute();`,
   '@tanstack/react-query': 'export const useQueryClient = () => globalThis.payrollHistory.client; export const useIsMutating = filters => globalThis.payrollHistory.client.isMutating(filters);',
   'react-router-dom': 'export const Link = "a";',

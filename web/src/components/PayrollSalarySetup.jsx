@@ -18,6 +18,7 @@ import ListSearch from './ui/ListSearch';
 import Pagination, { usePagination } from './ui/Pagination';
 import { SkeletonRows } from './ui/Skeleton';
 
+import SearchSelect from './ui/SearchSelect';
 const money = value => value == null ? '—' : `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const SALARY_SESSION_KEY = ['salary-setup'];
 const EMPTY_ROWS = [];
@@ -195,16 +196,16 @@ export default function PayrollSalarySetup({ onBusyChange }) {
         <ListSearch value={search} onChange={setSearch} label="Search salary employees" placeholder="Search employee name or code…" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <label className="sr-only" htmlFor="salary-company">Company</label>
-          <select id="salary-company" value={company} onChange={event => { setCompany(event.target.value); setBranch(''); }} className={FIELD}>
+          <SearchSelect id="salary-company" value={company} onChange={event => { setCompany(event.target.value); setBranch(''); }} className={FIELD}>
             <option value="">All companies</option>
             {company && !companies.some(item => item.id === company) && <option value={company}>Selected company</option>}
             {companies.map(entity => <option key={entity.id} value={entity.id}>{entity.name || entity.code}</option>)}
-          </select>
+          </SearchSelect>
           <label className="sr-only" htmlFor="salary-branch">Branch</label>
-          <select id="salary-branch" value={branch} onChange={event => setBranch(event.target.value)} className={FIELD}>
+          <SearchSelect id="salary-branch" value={branch} onChange={event => setBranch(event.target.value)} className={FIELD}>
             <option value="">All branches</option>
             {branches.map(item => <option key={item.id} value={item.id}>{item.name || item.code}</option>)}
-          </select>
+          </SearchSelect>
           <label className="sr-only" htmlFor="salary-status">Salary status</label>
           <select id="salary-status" value={status} onChange={event => setStatus(event.target.value)} className={FIELD}>
             <option value="">All salary statuses</option><option value="missing">Missing salary</option><option value="ready">Salary set</option>

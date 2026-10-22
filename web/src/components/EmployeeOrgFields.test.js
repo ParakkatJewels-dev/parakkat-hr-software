@@ -9,7 +9,11 @@ import { hasPerm } from '../lib/permissionMatch.js';
 
 const target = new URL('./EmployeeOrgFields.jsx', import.meta.url);
 const { code } = await transformWithOxc(await readFile(target, 'utf8'), target.pathname, { jsx: { runtime: 'automatic' } });
-const loader = registerHooks({ load(url, context, next) {
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
+const loader = registerHooks({ resolve(specifier, context, next) {
+  return context.parentURL === target.href && specifier === './ui/SearchSelect'
+    ? { url: `data:text/javascript,${encodeURIComponent(SEARCH_SELECT_STUB)}`, shortCircuit: true } : next(specifier, context);
+}, load(url, context, next) {
   return url === target.href ? { source: code, format: 'module', shortCircuit: true } : next(url, context);
 } });
 const { EmployeeOrgFields } = await import(target.href);

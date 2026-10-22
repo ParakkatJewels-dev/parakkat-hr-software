@@ -38,7 +38,9 @@ function render(client, auth = {}) {
 // Real handlers with isolated hook scheduling and I/O; synthetic cached queries never write company data.
 const sourceUrl = new URL('./EmployeeShiftAssignments.jsx', import.meta.url);
 const { code } = await transformWithOxc(await readFile(sourceUrl, 'utf8'), sourceUrl.pathname, { jsx: { runtime: 'automatic' } });
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
+  './ui/SearchSelect': SEARCH_SELECT_STUB,
   react: 'export const useState = initial => globalThis.shiftAssignmentUI.state(initial); export const useMemo = calculate => calculate();',
   '../data/employees': 'export const useEmployees = () => globalThis.shiftAssignmentUI.query(["employees"]);',
   '../data/shifts': `export const useShiftAssignments = () => globalThis.shiftAssignmentUI.query(['shift-assignments','all']);

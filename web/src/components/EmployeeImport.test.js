@@ -7,7 +7,9 @@ import { createServer, transformWithOxc } from 'vite';
 
 const target = new URL('./EmployeeImport.jsx', import.meta.url);
 const { code } = await transformWithOxc(await readFile(target, 'utf8'), target.pathname, { jsx: { runtime: 'automatic' } });
+const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
+  './ui/SearchSelect': SEARCH_SELECT_STUB,
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))}; export default React;
     export const useState = initial => globalThis.importUI.state(initial); export const useMemo = calculate => calculate(); export const useCallback = callback => callback;`,
   '../data/org': 'export const useVisibleOrg = () => ({ data: globalThis.importUI.org });',

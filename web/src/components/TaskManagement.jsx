@@ -44,6 +44,7 @@ import { useTaskAttachmentCounts } from '../data/taskAttachments';
 import { istToday } from '../lib/dates';
 import TaskAttachmentDraft from './TaskAttachmentDraft';
 
+import SearchSelect from './ui/SearchSelect';
 const INPUT =
   'w-full min-h-11 text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-[var(--work-accent)] transition-colors';
 
@@ -450,10 +451,10 @@ export default function TaskManagement({ view = 'board' } = {}) {
               </select>
             </label>
             {peopleOnBoard.length > 1 && <label className="work-filter input-shell"><span>Assignee</span>
-              <select value={personId} onChange={(e) => { setPersonId(e.target.value); pager.setPage(1); }} aria-label="Filter tasks by person">
+              <SearchSelect value={personId} onChange={(e) => { setPersonId(e.target.value); pager.setPage(1); }} aria-label="Filter tasks by person">
                 <option value="">Everyone</option>
                 {peopleOnBoard.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
+              </SearchSelect>
             </label>}
             <label className="work-filter input-shell"><ArrowDownWideNarrow size={14} /><span className="sr-only">Sort</span>
               <select value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); pager.setPage(1); }} aria-label="Sort tasks">

@@ -1,5 +1,6 @@
 import React from 'react';
 
+import SearchSelect from './ui/SearchSelect';
 // Reusable cascading org selectors for an employee: Company → Branch → Department → Designation.
 // Labelled "Company" to match the rest of the UI; the underlying column is still entity_id.
 // Controlled: `value` holds { entity_id, branch_id, department_id, designation_id } and every change
@@ -28,7 +29,7 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       <div>
         <label className={L} htmlFor="org-entity">Company *</label>
-        <select id="org-entity"
+        <SearchSelect id="org-entity"
           className={inputClass}
           value={value.entity_id ?? ''}
           required
@@ -36,11 +37,11 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
         >
           <option value="">Select…</option>
           {entities.map((en) => <option key={en.id} value={en.id}>{en.code} — {en.name}</option>)}
-        </select>
+        </SearchSelect>
       </div>
       <div>
         <label className={L} htmlFor="org-branch">Branch</label>
-        <select id="org-branch"
+        <SearchSelect id="org-branch"
           className={inputClass}
           value={value.branch_id ?? ''}
           disabled={!value.entity_id}
@@ -49,11 +50,11 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
           <option value="">—</option>
           {branches.map((b) => <option key={b.id} value={b.id}>{b.code}{b.name ? ` · ${b.name}` : ''}</option>)}
           {inheritedBranch && <option value={value.branch_id}>Branch from {selectedDepartment.name}</option>}
-        </select>
+        </SearchSelect>
       </div>
       <div>
         <label className={L} htmlFor="org-department">Department</label>
-        <select id="org-department"
+        <SearchSelect id="org-department"
           className={inputClass}
           value={value.department_id ?? ''}
           disabled={!value.entity_id}
@@ -66,11 +67,11 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
         >
           <option value="">—</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
+        </SearchSelect>
       </div>
       <div>
         <label className={L} htmlFor="org-designation">Designation</label>
-        <select id="org-designation"
+        <SearchSelect id="org-designation"
           className={inputClass}
           value={value.designation_id ?? ''}
           disabled={!value.entity_id}
@@ -78,7 +79,7 @@ export function EmployeeOrgFields({ org, value, onChange, inputClass, labelClass
         >
           <option value="">—</option>
           {designations.map((g) => <option key={g.id} value={g.id}>{g.title}{g.grade ? ` (${g.grade})` : ''}</option>)}
-        </select>
+        </SearchSelect>
       </div>
     </div>
   );

@@ -31,6 +31,7 @@ import { SkeletonRows } from './ui/Skeleton';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 import StatusPill from './ui/StatusPill';
 
+import SearchSelect from './ui/SearchSelect';
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
@@ -523,15 +524,15 @@ function AskPanel({ myDepartments, onClose, onDone, request = null }) {
         {!editing && myDepartments.length > 1 && (
           <div className="space-y-1">
             <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Asking on behalf of</label>
-            <select value={fromId} onChange={(e) => setFromId(e.target.value)} className={INPUT}>
+            <SearchSelect value={fromId} onChange={(e) => setFromId(e.target.value)} className={INPUT}>
               {myDepartments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            </SearchSelect>
           </div>
         )}
 
         <div className="space-y-1">
           <label className="block text-base font-semibold text-neutral-600 dark:text-neutral-300">Ask which department</label>
-          <select
+          <SearchSelect
             disabled={editing}
             value={toId}
             onChange={(e) => { setToId(e.target.value); setPreferredId(''); setQ(''); }}
@@ -539,7 +540,7 @@ function AskPanel({ myDepartments, onClose, onDone, request = null }) {
           >
             <option value="">Choose a department…</option>
             {targets.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-          </select>
+          </SearchSelect>
         </div>
 
         <div className="space-y-1">

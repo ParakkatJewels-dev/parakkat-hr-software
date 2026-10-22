@@ -14,6 +14,7 @@ import Pagination, { usePagination } from './ui/Pagination';
 import { SkeletonRows } from './ui/Skeleton';
 import TicketCategories from './TicketCategories';
 
+import SearchSelect from './ui/SearchSelect';
 const INPUT = 'w-full min-h-11 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200';
 const initialForm = { categoryId: '', subject: '', description: '', priority: 'Medium' };
 const badgeClass = (status) => status === 'Resolved'
@@ -129,11 +130,11 @@ export default function TicketDesk() {
         <div className="flex items-center justify-between gap-3"><h2 className="text-base font-bold">Raise support ticket</h2>
           <button type="button" className={btnClass('ghost')} disabled={add.isPending} aria-label="Close ticket form" onClick={closeForm}><X size={18} /></button></div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="space-y-1 text-sm font-medium"><span>Category</span><select required className={INPUT} value={form.categoryId}
+          <label className="space-y-1 text-sm font-medium"><span>Category</span><SearchSelect required className={INPUT} value={form.categoryId}
             disabled={categories.isLoading || Boolean(categories.error)} onChange={(event) => setForm({ ...form, categoryId: event.target.value })}>
             <option value="">{categories.isLoading ? 'Loading categories…' : 'Choose a category'}</option>
             {form.categoryId && !selectedCategory && <option value={form.categoryId} disabled>Category unavailable — choose another</option>}
-            {activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
+            {activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</SearchSelect></label>
           <label className="space-y-1 text-sm font-medium"><span>Priority</span><select className={INPUT} value={form.priority}
             onChange={(event) => setForm({ ...form, priority: event.target.value })}>{['Low', 'Medium', 'High'].map((value) => <option key={value}>{value}</option>)}</select></label>
         </div>

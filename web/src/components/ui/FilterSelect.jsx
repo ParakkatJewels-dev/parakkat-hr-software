@@ -5,6 +5,7 @@
 // Sales / Active" with nothing saying which dimension each belongs to, and nothing showing that
 // a filter is applied at all, so a list narrowed to 12 people looks like the whole company.
 import React from 'react';
+import SearchSelect, { SEARCH_FROM } from './SearchSelect';
 
 /**
  * A filter that says what it filters.
@@ -33,6 +34,19 @@ export default function FilterSelect({ label, value, options, onChange, allValue
       >
         {label}
       </label>
+      {/* Long lists (branches, departments…) get the searchable dropdown; short ones stay native. */}
+      {options.length >= SEARCH_FROM ? (
+        <SearchSelect
+          id={id}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          options={options.map((o) => ({ value: o, label: o }))}
+          aria-label={label}
+          className={`bg-transparent border-none text-sm font-semibold w-full sm:max-w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500/50 rounded-md ${
+            active ? 'text-coral-700 dark:text-coral-500' : 'text-neutral-800 dark:text-neutral-200'
+          }`}
+        />
+      ) : (
       <select
         id={id}
         value={value}
@@ -47,6 +61,7 @@ export default function FilterSelect({ label, value, options, onChange, allValue
           </option>
         ))}
       </select>
+      )}
     </div>
   );
 }

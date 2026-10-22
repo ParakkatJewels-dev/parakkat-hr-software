@@ -16,6 +16,7 @@ import { Check, X, Loader2 } from 'lucide-react';
 import { btnClass } from './Btn';
 import { humanDbError } from '../../lib/dbErrors';
 
+import SearchSelect from './SearchSelect';
 const INPUT =
   'w-full min-w-0 text-sm rounded-lg px-2 py-1.5 bg-white dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 placeholder:text-neutral-400 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 transition-colors';
 
@@ -71,7 +72,7 @@ export default function InlineRowForm({
                 {f.required && <span className="text-rose-500 ml-0.5" aria-hidden="true">*</span>}
               </label>
               {f.type === 'select' ? (
-                <select
+                <SearchSelect
                   id={`inline-${f.key}`}
                   ref={i === 0 ? firstRef : undefined}
                   value={form[f.key] ?? ''}
@@ -83,7 +84,7 @@ export default function InlineRowForm({
                   {(fieldOptions[f.from] ?? []).map((o) => (
                     <option key={o.id} value={o.id}>{labelOf(o)}</option>
                   ))}
-                </select>
+                </SearchSelect>
               ) : (
                 <input
                   id={`inline-${f.key}`}

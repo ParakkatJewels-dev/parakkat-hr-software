@@ -19,6 +19,7 @@ import { detectLayout, extractPeople, planImport, runImport } from '../data/empl
 import PageHeader from './ui/PageHeader';
 import PagedCollection from './ui/PagedCollection';
 
+import SearchSelect from './ui/SearchSelect';
 const STATUS_STYLE = {
   new: 'text-brand-ink dark:text-brand-ink',
   update: 'text-blue-600 dark:text-blue-400',
@@ -202,7 +203,7 @@ export default function EmployeeImport({ onDone }) {
                   <label htmlFor="imp-entity" className="block text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-1">
                     Import into which company? *
                   </label>
-                  <select
+                  <SearchSelect
                     id="imp-entity"
                     value={entityId}
                     disabled={busy}
@@ -213,20 +214,20 @@ export default function EmployeeImport({ onDone }) {
                     {entities.map((e) => (
                       <option key={e.id} value={e.id}>{e.code} — {e.name}</option>
                     ))}
-                  </select>
+                  </SearchSelect>
                 </div>
 
                 {plan?.counts.create > 0 && <fieldset disabled={busy} className="grid gap-3 sm:grid-cols-2">
                   <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300" htmlFor="imp-shift">
                     Shift for rows without a shift
-                    <select id="imp-shift" value={defaultShiftId} onChange={event => setDefaultShiftId(event.target.value)}
+                    <SearchSelect id="imp-shift" value={defaultShiftId} onChange={event => setDefaultShiftId(event.target.value)}
                       disabled={shiftsQuery.isLoading || Boolean(shiftsQuery.error)}
                       className="mt-1 w-full rounded-lg px-2.5 py-2 text-sm bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800">
                       <option value="">Select a shift…</option>
                       {availableShifts.map(shift => <option key={shift.id} value={shift.id}>
                         {shift.code} — {shift.name} · {shift.start_time?.slice(0, 5)}–{shift.end_time?.slice(0, 5)}{shift.crosses_midnight ? ' next day' : ''} · {Math.floor(shift.full_day_minutes / 60)}h {shift.full_day_minutes % 60}m paid
                       </option>)}
-                    </select>
+                    </SearchSelect>
                   </label>
                   <label className="block text-xs font-semibold text-neutral-600 dark:text-neutral-300" htmlFor="imp-join-date">
                     Join date for rows without a date

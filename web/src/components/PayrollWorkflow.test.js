@@ -31,7 +31,9 @@ before(async () => {
   const virtualUrl = `${sourceUrl.href}?workflow-handler-tests`;
   const source = `${await readFile(sourceUrl, 'utf8')}\nexport { Register as TestRegister, CompanyWorksheet as TestCompanyWorksheet };`;
   const { code } = await transformWithOxc(source, sourceUrl.pathname, { jsx: { runtime: 'automatic' } });
+  const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
   const stubs = {
+    './ui/SearchSelect': SEARCH_SELECT_STUB,
     react: `export { default } from ${JSON.stringify(import.meta.resolve('react'))}; export const useState = initial => globalThis.payrollFlow.state(initial); export const useEffect = () => {}; export const useMemo = compute => compute();`,
     '@tanstack/react-query': 'export const useQueryClient = () => globalThis.payrollFlow.client; export const useIsMutating = () => globalThis.payrollFlow.activeSaves;',
     'react-router-dom': 'export const Link = "a"; export const useSearchParams = () => [globalThis.payrollFlow.params, next => { globalThis.payrollFlow.params = next; }];',
