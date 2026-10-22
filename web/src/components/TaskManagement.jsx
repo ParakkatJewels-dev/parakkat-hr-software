@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useDeferredValue, useRef, useId } 
 import {
   Plus, X, AlertTriangle, Flag,
   CalendarClock, User, Search, PenLine, ShieldAlert,
-  Square, ArrowDownWideNarrow, ArrowLeft,
+  Square, ArrowDownWideNarrow, ArrowLeft, ClipboardList, ListTodo, Clock3, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import {
   useTasks, useCreateTask, useUpdateTask, useDeleteTask, useAddAssignee, useRemoveAssignee,
@@ -27,6 +27,8 @@ import {
 } from '../lib/taskBoard';
 import TaskListRow, { TaskListColumns, TaskStatusGuide } from './TaskListRow';
 import './tasks.css';
+import { StatCard, StatRow } from './ui/StatCard';
+import { initialsOf, tintFor } from './ui/Avatar';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useFocusRow } from '../lib/useFocusRow';
 import { focusIsMissing } from '../lib/focusRow';
@@ -424,19 +426,17 @@ export default function TaskManagement({ view = 'board' } = {}) {
 
       <div className="work-browse" hidden={composerOpen}>
       {canCreate && isBoard && (
-        <div className="flex justify-end">
-          <button ref={newTaskButton} type="button" onClick={(event) => openComposer({ defaultAssignee: employee?.id }, event.currentTarget)}
-            className="work-button work-button-primary"><Plus size={16} /> Assign a task</button>
-        </div>
+        <button ref={newTaskButton} type="button" onClick={(event) => openComposer({ defaultAssignee: employee?.id }, event.currentTarget)}
+          className="work-button work-button-primary work-assign-inline"><Plus size={16} /> Assign a task</button>
       )}
       {isBoard && <>
-        <div className="work-overview" aria-label="Task summary">
-          <Stat label="All tasks" value={stats.total} active={statusFilter === 'All'} onClick={() => { setStatusFilter('All'); pager.setPage(1); }} />
-          <Stat label="To do" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => { setStatusFilter('To Do'); pager.setPage(1); }} />
-          <Stat label="In progress" value={stats.progress} active={statusFilter === 'In Progress'} onClick={() => { setStatusFilter('In Progress'); pager.setPage(1); }} />
-          <Stat label="Completed" value={stats.done} active={statusFilter === 'Done'} onClick={() => { setStatusFilter('Done'); pager.setPage(1); }} />
-          <Stat label="Overdue" value={stats.overdue} accent={stats.overdue > 0} active={statusFilter === 'Overdue'} onClick={() => { setStatusFilter('Overdue'); pager.setPage(1); }} />
-        </div>
+        <StatRow label="Task summary" className="work-overview-stats">
+          <Stat label="Total tasks" icon={ClipboardList} tone="slate" value={stats.total} active={statusFilter === 'All'} onClick={() => { setStatusFilter('All'); pager.setPage(1); }} />
+          <Stat label="To do" icon={ListTodo} tone="violet" value={stats.todo} active={statusFilter === 'To Do'} onClick={() => { setStatusFilter('To Do'); pager.setPage(1); }} />
+          <Stat label="In progress" icon={Clock3} tone="blue" value={stats.progress} active={statusFilter === 'In Progress'} onClick={() => { setStatusFilter('In Progress'); pager.setPage(1); }} />
+          <Stat label="Completed" icon={CheckCircle2} tone="green" value={stats.done} active={statusFilter === 'Done'} onClick={() => { setStatusFilter('Done'); pager.setPage(1); }} />
+          <Stat label="Overdue" icon={AlertCircle} tone="red" value={stats.overdue} active={statusFilter === 'Overdue'} onClick={() => { setStatusFilter('Overdue'); pager.setPage(1); }} />
+        </StatRow>
         <div className="work-toolbar">
           <label className="work-search input-shell">
             <Search size={16} />
@@ -554,6 +554,7 @@ export default function TaskManagement({ view = 'board' } = {}) {
             ))}
           </div>
           <Pagination {...pager} noun="tasks" sizes={[10, 25, 50, 100]} className="task-list-pagination" keepVisible />
+          {isBoard && <TeamWorkload tasks={tasks} onPick={(id) => { setPersonId(id); pager.setPage(1); }} />}
         </div>
       )}
 
@@ -938,10 +939,52 @@ export function TaskComposer({
   );
 }
 
-function Stat({ label, value, accent, onClick, active = false }) {
+function Stat({ label, value, icon, tone, onClick, active = false }) {
+  return <StatCard label={label} value={value} icon={icon} tone={tone} onClick={onClick} active={active} />;
+}
+
+const WORKLOAD_TONES = ['#ff5a27', '#10b96a', '#3b82f6', '#8b5cf6', '#f59e0b', '#0ea5e9'];
+
+/**
+ * Team workload (2026 redesign): open tasks per person on the visible board, as bars. Worked out
+ * from the tasks already loaded — nothing extra is fetched.
+ */
+function TeamWorkload({ tasks, onPick }) {
+  const rows = useMemo(() => {
+    const byPerson = new Map();
+    for (const task of tasks) {
+      if (['Done', 'Cancelled'].includes(task.status)) continue;
+      for (const row of assigneesOf(task)) {
+        if (!row.id) continue;
+        const entry = byPerson.get(row.id) ?? { id: row.id, name: row.employee?.full_name || ASSIGNEE_HIDDEN, open: 0 };
+        entry.open += 1;
+        byPerson.set(row.id, entry);
+      }
+    }
+    return [...byPerson.values()].sort((a, b) => b.open - a.open || a.name.localeCompare(b.name)).slice(0, 8);
+  }, [tasks]);
+  if (rows.length < 2) return null;
+  const max = Math.max(...rows.map((row) => row.open));
   return (
-    <button type="button" onClick={onClick} aria-pressed={active} className={`work-stat ${accent ? 'work-stat-overdue' : ''}`}>
-      <span className="work-stat-value">{value}</span><span>{label}</span>
-    </button>
+    <section className="work-workload" aria-labelledby="work-workload-title">
+      <header>
+        <h3 id="work-workload-title">Team workload</h3>
+        <p>Open tasks by team member.</p>
+      </header>
+      <ul>
+        {rows.map((row, index) => (
+          <li key={row.id}>
+            <button type="button" onClick={() => onPick(row.id)} title={`Show ${row.name}'s tasks`}>
+              <span className={`work-workload-avatar ${tintFor(row.name)}`} aria-hidden="true">{initialsOf(row.name)}</span>
+              <span className="work-workload-name">{row.name}</span>
+              <span className="work-workload-bar" aria-hidden="true">
+                <span style={{ width: `${Math.max(6, (row.open / max) * 100)}%`, background: WORKLOAD_TONES[index % WORKLOAD_TONES.length] }} />
+              </span>
+              <strong>{row.open}<span className="sr-only"> open tasks</span></strong>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

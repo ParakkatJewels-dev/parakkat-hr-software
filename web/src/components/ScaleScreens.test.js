@@ -251,7 +251,7 @@ test('675 team goals stay paged and searchable', () => {
   const goals = accountFixtures().employees.map((employee, i) => ({ id: `goal-${i}`, title: `Goal ${i}`,
     employee, employee_id: employee.id, status: 'Active', progress: 25 }));
   const html = render(Performance, [[['goals'], goals]], {}, '/performance/team');
-  assert.equal((html.match(/<article /g) ?? []).length, 25);
+  assert.equal((html.match(/<article class="premium-card"/g) ?? []).length, 25);
   assert.match(html, /of 675 goals/);
   assert.match(html, /Search goals/);
   assert.doesNotMatch(html, />Goal 674</);

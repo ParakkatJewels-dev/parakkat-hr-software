@@ -10,7 +10,7 @@
 // exists because you asked for it stays readable to you, even though it lives on another team.
 import React, { useState, useDeferredValue } from 'react';
 import {
-  HandHelping, Send, Check, X, AlertTriangle, Search, ArrowRight, Clock,
+  HandHelping, Send, Check, X, AlertTriangle, Search, ArrowRight, Clock, Plus, Handshake, Archive,
 } from 'lucide-react';
 import {
   useHelpRequests, useDepartments, useDepartmentPeople,
@@ -29,28 +29,22 @@ import Pagination, { usePagination } from './ui/Pagination';
 import Avatar from './ui/Avatar';
 import { SkeletonRows } from './ui/Skeleton';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
+import StatusPill from './ui/StatusPill';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
 
-const statusClass = (s) =>
-  s === 'Accepted' ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30'
-  : s === 'Declined' ? 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/30'
-  : s === 'Cancelled' ? 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-500 dark:border-neutral-800'
-  : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/30';
+const REQUEST_TONE = { Accepted: 'success', Declined: 'danger', Cancelled: 'neutral', Pending: 'warning' };
 
 function Pill({ status }) {
-  return (
-    <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border shrink-0 ${statusClass(status)}`}>
-      {status}
-    </span>
-  );
+  return <StatusPill status={status} tone={REQUEST_TONE[status] ?? 'warning'} className="shrink-0" />;
 }
 
 export default function TeamRequests({ myDepartments = [] }) {
   const myIds = myDepartments.map((d) => d.id);
   const { data: requests = [], isLoading, error } = useHelpRequests();
   const [asking, setAsking] = useState(false);
+  const [side, setSide] = useState('incoming');
   // The request being corrected. A request was write-once: getting the title wrong meant
   // withdrawing and re-raising, which loses the thread the other head is already reading.
   const [editingRequest, setEditingRequest] = useState(null);
@@ -80,71 +74,96 @@ export default function TeamRequests({ myDepartments = [] }) {
     );
   }
 
+  const waiting = incoming.filter((r) => r.status === 'Pending').length;
+  const accepted = [...incoming, ...outgoing].filter((r) => r.status === 'Accepted').length;
+  const closed = [...incoming, ...outgoing].filter((r) => ['Declined', 'Cancelled'].includes(r.status)).length;
+
   return (
-    <div className="space-y-6">
-      <div className="task-subview-header flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-neutral-500 dark:text-neutral-400">
-          Need somebody outside your department? Ask their head. They decide who does it.
-        </p>
-        <button onClick={() => setAsking(true)} className={btnClass('primary')}>
-          <HandHelping size={14} /> <span>Ask another department</span>
-        </button>
+    <div className="requests-layout">
+      <div className="requests-main">
+        <div className="requests-toolbar">
+          <div className="requests-toggle" role="radiogroup" aria-label="Which requests">
+            {[['incoming', 'Waiting on you', incoming.length], ['outgoing', 'You asked for', outgoing.length]].map(([id, label, count]) => (
+              <button key={id} type="button" role="radio" aria-checked={side === id} onClick={() => setSide(id)}>
+                {label} <span className="requests-toggle-count">{count}</span>
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => setAsking(true)} className={btnClass('primary')}>
+            <Plus size={16} /> <span>New request</span>
+          </button>
+        </div>
+        <p className="requests-hint">Need somebody outside your department? Ask their head. They decide who does it.</p>
+
+        {mutationError && (
+          <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
+            <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+            <span>{humanDbError(mutationError, 'help_requests')}</span>
+          </div>
+        )}
+
+        {asking && (
+          <AskPanel
+            myDepartments={myDepartments}
+            onClose={() => setAsking(false)}
+            onDone={() => setAsking(false)}
+          />
+        )}
+
+        {editingRequest && (
+          <AskPanel
+            key={editingRequest.id}
+            myDepartments={myDepartments}
+            request={editingRequest}
+            onClose={() => setEditingRequest(null)}
+            onDone={() => setEditingRequest(null)}
+          />
+        )}
+
+        {/* Both lists stay mounted (each keeps its page); only the chosen one shows. */}
+        <div hidden={side !== 'incoming'}>
+          <Group
+            title="Waiting on you"
+            empty="Nobody has asked your team for help."
+            requests={incoming}
+            render={(r) => (
+              <IncomingCard
+                key={r.id}
+                request={r}
+                busy={respond.isPending}
+                onRespond={(args) => { respond.reset(); return respond.mutateAsync({ requestId: r.id, ...args }); }}
+              />
+            )}
+          />
+        </div>
+        <div hidden={side !== 'outgoing'}>
+          <Group
+            title="You asked for"
+            empty="You haven't asked another department for anything yet."
+            requests={outgoing}
+            render={(r) => (
+              <OutgoingCard
+                key={r.id}
+                request={r}
+                busy={cancel.isPending}
+                onCancel={() => { cancel.reset(); return cancel.mutateAsync(r.id).catch(() => {}); }}
+                onEdit={() => setEditingRequest(r)}
+              />
+            )}
+          />
+        </div>
       </div>
 
-      {mutationError && (
-        <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-300">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-          <span>{humanDbError(mutationError, 'help_requests')}</span>
-        </div>
-      )}
-
-      {asking && (
-        <AskPanel
-          myDepartments={myDepartments}
-          onClose={() => setAsking(false)}
-          onDone={() => setAsking(false)}
-        />
-      )}
-
-      {editingRequest && (
-        <AskPanel
-          key={editingRequest.id}
-          myDepartments={myDepartments}
-          request={editingRequest}
-          onClose={() => setEditingRequest(null)}
-          onDone={() => setEditingRequest(null)}
-        />
-      )}
-
-      <Group
-        title="Waiting on you"
-        empty="Nobody has asked your team for help."
-        requests={incoming}
-        render={(r) => (
-          <IncomingCard
-            key={r.id}
-            request={r}
-            busy={respond.isPending}
-            onRespond={(args) => { respond.reset(); return respond.mutateAsync({ requestId: r.id, ...args }); }}
-          />
-        )}
-      />
-
-      <Group
-        title="You asked for"
-        empty="You haven't asked another department for anything yet."
-        requests={outgoing}
-        render={(r) => (
-          <OutgoingCard
-            key={r.id}
-            request={r}
-            busy={cancel.isPending}
-            onCancel={() => { cancel.reset(); return cancel.mutateAsync(r.id).catch(() => {}); }}
-            onEdit={() => setEditingRequest(r)}
-          />
-        )}
-      />
-
+      <aside className="requests-side" aria-label="Response overview">
+        <section className="requests-overview">
+          <h3>Response overview</h3>
+          <div className="requests-overview-tiles">
+            <button type="button" data-tone="coral" onClick={() => setSide('incoming')}><Clock size={22} aria-hidden="true" /><strong>{waiting}</strong><span>Waiting on you</span></button>
+            <div data-tone="blue"><Handshake size={22} aria-hidden="true" /><strong>{accepted}</strong><span>In progress</span></div>
+            <div data-tone="green"><Archive size={22} aria-hidden="true" /><strong>{closed}</strong><span>Closed</span></div>
+          </div>
+        </section>
+      </aside>
     </div>
   );
 }
@@ -161,9 +180,7 @@ function Group({ title, empty, requests, render }) {
   const pager = usePagination(requests, 10);
   return (
     <section className="space-y-2.5">
-      <h2 className="text-2xs font-bold uppercase tracking-widest text-neutral-450 dark:text-neutral-500 px-1">
-        {title} {requests.length > 0 && <span className="font-mono opacity-70">· {requests.length}</span>}
-      </h2>
+      <h2 className="sr-only">{title}</h2>
       {requests.length === 0 ? (
         <p className="premium-card p-6 text-center text-xs text-neutral-500">{empty}</p>
       ) : (
@@ -179,12 +196,14 @@ function Group({ title, empty, requests, render }) {
 /** Shared header: what was asked, by whom, and where it stands. */
 function RequestHead({ request, otherLabel, otherName }) {
   return (
+    <div className="request-head min-w-0 flex items-start gap-3">
+    <span className="request-icon" aria-hidden="true"><HandHelping size={20} /></span>
     <div className="min-w-0 space-y-1">
       {/* `truncate` cut a real request title on a phone and there was no way to read the rest.
           The title takes its own row there; the priority wraps under it. */}
       <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
         <span className="font-bold text-sm text-neutral-850 dark:text-slate-100 min-w-0 line-clamp-2 flex-[1_1_100%] sm:flex-[0_1_auto]">{request.title}</span>
-        <span className="text-2xs font-bold uppercase font-mono text-neutral-400 shrink-0">{request.priority}</span>
+        <StatusPill status={request.priority} tone={request.priority === 'High' || request.priority === 'Urgent' ? 'danger' : 'info'} className="shrink-0" />
       </div>
       {request.description && (
         <p className="text-xs text-neutral-500 dark:text-neutral-400 line-clamp-2">{request.description}</p>
@@ -194,6 +213,7 @@ function RequestHead({ request, otherLabel, otherName }) {
         {request.due_date && <span className="font-mono">· due {request.due_date}</span>}
         <span className="font-mono">· {relativeTime(request.created_at)}</span>
       </div>
+    </div>
     </div>
   );
 }

@@ -5,7 +5,9 @@
 // `goals` table (migration 0043), scoped by RLS: you always see your own, managers with
 // performance.manage see and set their team's.
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Check, X, Target, CheckCircle2, AlertCircle, Gauge } from 'lucide-react';
+import { StatCard, StatRow } from './ui/StatCard';
+import StatusPill from './ui/StatusPill';
 import { useGoals, useSaveGoal, useDeleteGoal } from '../data/goals';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
@@ -109,17 +111,22 @@ export default function Performance() {
               onClick={() => { setCreated(null); setView(k); }}
               aria-current={view === k ? 'page' : undefined}
               aria-label={navigationCountLabel(label, badge)}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
-                view === k
-                  ? 'bg-brand/15 text-brand-ink border border-brand/25'
-                  : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
-              }`}
+              className={`drawer-tab flex items-center gap-1.5 ${view === k ? 'drawer-tab-active' : ''}`}
             >
               {label}
               <NavigationCountBadge badge={badge} />
             </button>
           ); })}
         </nav>
+      )}
+
+      {!isLoading && shown.length > 0 && (
+        <StatRow label="Goal summary">
+          <StatCard label="Active" value={shown.filter((g) => g.status === 'Active').length} icon={Target} tone="blue" />
+          <StatCard label="Completed" value={shown.filter((g) => g.status === 'Completed').length} icon={CheckCircle2} tone="green" />
+          <StatCard label="Overdue" value={shown.filter(isOverdue).length} icon={AlertCircle} tone="red" />
+          <StatCard label="Average progress" value={`${Math.round(shown.reduce((sum, g) => sum + Number(g.progress || 0), 0) / shown.length)}%`} icon={Gauge} tone="violet" />
+        </StatRow>
       )}
 
       <FormError message={save.error || del.error} />
@@ -136,7 +143,7 @@ export default function Performance() {
           {search.trim() || status !== 'All' ? 'No goals match these filters.' : view === 'mine' ? 'No goals set for you yet.' : 'No goals set for your team yet.'}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="goals-grid">
           {pager.slice.map((g) => {
             const own = g.employee_id === employee?.id;
             const manage = canManageGoal(g);
@@ -146,16 +153,7 @@ export default function Performance() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="break-words text-base font-bold text-neutral-900 dark:text-white">{g.title}</span>
-                      {g.status !== 'Active' && (
-                        <span className={`text-2xs font-bold uppercase px-1.5 py-0.5 rounded ${g.status === 'Completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400' : 'bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300'}`}>
-                          {g.status}
-                        </span>
-                      )}
-                      {isOverdue(g) && (
-                        <span className="text-2xs font-bold uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400">
-                          Overdue
-                        </span>
-                      )}
+                      {isOverdue(g) ? <StatusPill status="Overdue" /> : <StatusPill status={g.status} tone={g.status === 'Active' ? 'info' : undefined} />}
                     </div>
                     <p className="text-xs text-neutral-500 mt-0.5">
                       {view === 'team' && <>{g.employee?.full_name} · </>}
@@ -178,7 +176,7 @@ export default function Performance() {
                 <div className="mt-3 flex items-center gap-3">
                   <div className="h-1.5 flex-1 rounded-full bg-neutral-150 dark:bg-charcoal-800 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${g.progress >= 100 ? 'bg-emerald-500' : 'bg-brand-action'}`}
+                      className="h-full rounded-full transition-all bg-emerald-500"
                       style={{ width: `${Math.max(0, Math.min(100, g.progress))}%` }}
                     />
                   </div>

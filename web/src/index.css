@@ -214,6 +214,7 @@
   --forest: #0b3a2d;
   --forest-raised: #143b2f;
   --nav-heading: #a6dad7;
+  --link: #1f55b5;            /* "View all →" style links (redesign) */
   /* Pastel tones for number-card icon tiles and status pills (from the boards). */
   --tone-green-bg: #e4fbf0;  --tone-green-fg: #0a8a4a;
   --tone-blue-bg: #e3f0fd;   --tone-blue-fg: #1f64d6;
@@ -286,6 +287,7 @@
   --coral-ink: #ff9a78;
   --forest: #0b2f25;
   --forest-raised: #123e31;
+  --link: #93b4f5;
   --tone-green-bg: rgba(16, 185, 129, .16);  --tone-green-fg: #6ee7b7;
   --tone-blue-bg: rgba(96, 165, 250, .16);   --tone-blue-fg: #93c5fd;
   --tone-violet-bg: rgba(167, 139, 250, .16); --tone-violet-fg: #c4b5fd;
@@ -2225,9 +2227,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
     align-items: center;
     gap: .65rem;
-    padding: .25rem .375rem;
-    border: 1px solid var(--surface-border);
-    border-radius: var(--radius-sm);
+    padding: .5rem .25rem;
+    border: 0;
+    border-radius: 0;
     background: transparent;
     box-shadow: none;
   }
@@ -2253,9 +2255,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .pagination-range b {
     color: var(--surface-text);
-    font-family: var(--font-mono);
-    font-size: .875rem;
-    font-weight: 800;
+    font-size: .8125rem;
+    font-weight: 600;
   }
 
   .pagination-range span {
@@ -2266,10 +2267,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .pagination-page-label {
     color: var(--surface-text-soft);
-    font-size: .6875rem;
-    font-weight: 750;
+    font-size: .75rem;
+    font-weight: 500;
     line-height: 1.15;
-    text-transform: uppercase;
+    text-transform: none;
   }
 
   .pagination-pages {
@@ -2293,13 +2294,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 1.85rem;
-    height: 1.85rem;
-    border: 1px solid transparent;
-    border-radius: var(--radius-sm);
-    color: var(--surface-text-soft);
-    font-size: .75rem;
-    font-weight: 800;
+    min-width: 2.25rem;
+    height: 2.25rem;
+    border: 1px solid var(--surface-border);
+    border-radius: .65rem;
+    background: var(--surface-elevated);
+    color: var(--surface-text);
+    font-size: .8125rem;
+    font-weight: 600;
     line-height: 1;
     font-variant-numeric: tabular-nums;
     transition: background-color .16s ease, color .16s ease, box-shadow .16s ease, transform .16s ease;
@@ -2320,10 +2322,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .pagination-number[aria-current="page"] {
-    border-color: color-mix(in srgb, var(--accent) 30%, var(--surface-border));
-    background: var(--accent-soft);
-    color: var(--accent-strong);
-    box-shadow: none;
+    border-color: var(--coral);
+    background: var(--coral);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(255, 90, 39, .25);
   }
 
   .pagination-ellipsis {
@@ -2344,17 +2346,18 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: .45rem;
     min-width: 0;
     color: var(--surface-text-soft);
-    font-size: .6875rem;
-    font-weight: 750;
+    font-size: .75rem;
+    font-weight: 500;
     line-height: 1;
-    text-transform: uppercase;
+    text-transform: none;
   }
 
   .pagination-size select {
     min-width: 3.75rem;
-    height: 1.85rem;
+    height: 2.25rem;
+    min-height: 2.25rem !important;
     border: 1px solid var(--surface-border);
-    border-radius: var(--radius-sm);
+    border-radius: .65rem;
     background: transparent;
     color: var(--surface-text);
     padding: 0 1.65rem 0 .65rem;
@@ -9469,7 +9472,7 @@ button.role-chip:hover,
   }
   .pagination-mobile-options > summary::-webkit-details-marker { display: none; }
   .pagination-mobile-options > summary:hover,
-  .pagination-mobile-options[open] > summary { background: var(--accent-soft); }
+  .pagination-mobile-options[open] > summary { background: var(--coral-soft); }
   .pagination-mobile-options > summary:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
@@ -9583,3 +9586,7 @@ button.role-chip:hover,
   .settings-theme-track,
   .settings-theme-thumb { transition: none; }
 }
+
+/* ---- Goals (2026 redesign) ---- */
+.goals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); gap: .9rem; }
+.goals-grid > article { display: flex; flex-direction: column; }

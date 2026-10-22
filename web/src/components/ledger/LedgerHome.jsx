@@ -3,7 +3,8 @@
 // I am on — from the same records the team sees. The creative team also gets what needs attention
 // across their shared campaigns, the coming festival dates and the latest ideas.
 import React, { useState } from 'react';
-import { AlertTriangle, CalendarClock, Check, Lightbulb, Megaphone, Trash2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, BarChart3, Check, CheckCircle2, Clock, FileText, LifeBuoy, Lightbulb, Megaphone, Plus, Trash2 } from 'lucide-react';
+import { StatCard, StatRow } from '../ui/StatCard';
 import { connectGoogleCalendar, syncGoogleCalendar, useGoogleEvents } from '../../data/googleCalendar';
 import { useWorkHome, useWorkRpc } from '../../data/work';
 import { useCreativeHome, useCreativeWrite } from '../../data/creative';
@@ -21,14 +22,17 @@ function saveView(view) { try { globalThis.localStorage?.setItem(VIEW_KEY, view)
 
 function Figures({ home }) {
   const items = [
-    ['Open', home.pending.length], ['Done today', home.completed_today.length], ['Done this week', home.done_this_week],
-    ['Worked on today', home.worked_on_today],
-    ['Help today', home.support_today, home.support_minutes_today ? formatMinutes(home.support_minutes_today) : null], ['Overdue', home.overdue],
+    { label: 'Open', value: home.pending.length, icon: FileText, tone: 'blue' },
+    { label: 'Done today', value: home.completed_today.length, icon: CheckCircle2, tone: 'green' },
+    { label: 'Done this week', value: home.done_this_week, icon: BarChart3, tone: 'violet' },
+    { label: 'Worked on today', value: home.worked_on_today, icon: Clock, tone: 'coral' },
+    { label: 'Help today', value: home.support_today, sub: home.support_minutes_today ? formatMinutes(home.support_minutes_today) : null, icon: LifeBuoy, tone: 'blue' },
+    { label: 'Overdue', value: home.overdue, icon: AlertCircle, tone: 'red' },
   ];
   return (
-    <dl className="ledger-figures">
-      {items.map(([label, value, extra]) => <div key={label}><dt>{label}</dt><dd>{value}{extra && <small> · {extra}</small>}</dd></div>)}
-    </dl>
+    <StatRow label="Today’s figures" className="ledger-stats">
+      {items.map((item) => <StatCard key={item.label} {...item} />)}
+    </StatRow>
   );
 }
 
@@ -38,6 +42,7 @@ function Schedule({ home }) {
   const google = home.google ?? { connected: false, status: 'disconnected' };
   const events = useGoogleEvents(google.connected);
   const [error, setError] = useState(null);
+  const [day, setDay] = useState('Today');
   const tomorrow = addDays(today, 1);
   const run = async (name, args) => {
     setError(null);
@@ -52,16 +57,22 @@ function Schedule({ home }) {
   const days = [['Today', items.filter((item) => item.at.slice(0, 10) <= today)], ['Tomorrow', items.filter((item) => item.at.slice(0, 10) === tomorrow)]];
   const needsReconnect = google.status === 'needs_reconnect' || events.data?.reconnect;
   return (
-    <section className="ledger-home-block" aria-labelledby="ledger-schedule-title">
-      <h3 id="ledger-schedule-title"><CalendarClock size={16} /> Schedule
-        <button type="button" className="ledger-link" onClick={() => open('reminder')}>Add a reminder</button></h3>
+    <section className="ledger-home-block ledger-schedule" aria-labelledby="ledger-schedule-title">
+      <h3 id="ledger-schedule-title">Today’s schedule
+        <button type="button" className="ledger-link" onClick={() => open('reminder')}><Plus size={14} /> Add a reminder</button></h3>
+      <div className="ledger-day-toggle" role="radiogroup" aria-label="Day">
+        {days.map(([label, list]) => (
+          <button key={label} type="button" role="radio" aria-checked={day === label} onClick={() => setDay(label)}>
+            {label}{list.length > 0 && <span className="ledger-count">{list.length}</span>}
+          </button>
+        ))}
+      </div>
       {needsReconnect ? <p className="ledger-note">Google Calendar needs reconnecting. Reminders still save here.
         <button type="button" className="ledger-link" onClick={() => connectGoogleCalendar().catch(setError)}>Reconnect</button></p>
         : !google.connected && <p className="ledger-quiet">Google Calendar is not connected, so reminders stay in the app. Connect it in Settings.</p>}
       {events.error && <p className="ledger-quiet">Calendar events could not be loaded just now.</p>}
-      {days.map(([label, list]) => (
+      {days.filter(([label]) => label === day).map(([label, list]) => (
         <div key={label} className="ledger-schedule-day">
-          <h4>{label}</h4>
           {!list.length ? <p className="ledger-quiet">Nothing scheduled.</p> : (
             <ul className="ledger-plain-list">
               {list.map((item) => (
@@ -182,27 +193,34 @@ export default function LedgerHome() {
       {data.overdue > 0 && (
         <p className="ledger-overdue" role="alert"><AlertTriangle size={15} /> {data.overdue} open task{data.overdue === 1 ? ' is' : 's are'} past the due date.</p>)}
       <Figures home={data} />
-      <Schedule home={data} />
+      <div className="ledger-home-row" data-single={data.completed_today.length ? undefined : 'true'}>
+        <Schedule home={data} />
+        {data.completed_today.length > 0 && (
+          <section className="ledger-home-block" aria-labelledby="ledger-done-title">
+            <h3 id="ledger-done-title">Done today <span className="ledger-count">{data.completed_today.length}</span></h3>
+            <ul className="ledger-done-list">{data.completed_today.map((task) => (
+              <li key={task.id}>
+                <span className="ledger-done-mark" aria-hidden="true"><Check size={14} /></span>
+                <span className="min-w-0">
+                  <button type="button" className="ledger-text-button ledger-item-title" onClick={() => open('task', task.id)}>{task.title}</button>
+                  {task.outcome && <span className="ledger-quiet">{task.outcome}</span>}
+                </span>
+              </li>))}</ul>
+          </section>)}
+      </div>
       {creative && <CreativeHome />}
       <section className="ledger-home-tasks" aria-labelledby="ledger-tasks-title">
         <div className="ledger-tasks-head">
-          <h3 id="ledger-tasks-title">My open work <span className="ledger-count">{data.pending.length}</span></h3>
+          <h3 id="ledger-tasks-title">Open work <span className="ledger-count">{data.pending.length}</span></h3>
           <div className="ledger-segmented" role="radiogroup" aria-label="Show tasks as">
             {[['board', 'Board'], ['list', 'List']].map(([id, label]) => (
               <button key={id} type="button" role="radio" aria-checked={view === id} className="ledger-segment" onClick={() => choose(id)}>{label}</button>))}
           </div>
         </div>
         {view === 'board'
-          ? (data.pending.length ? <TaskBoard tasks={data.pending} onOpen={(id) => open('task', id)} />
+          ? (data.pending.length ? <TaskBoard tasks={data.pending} onOpen={(id) => open('task', id)} onAdd={() => open('new-task')} />
             : <p className="ledger-empty">Nothing open. Press N to add a task.</p>)
           : <TaskManagement view="todo" />}
-        {data.completed_today.length > 0 && (
-          <div className="ledger-section">
-            <h3>Done today <span className="ledger-count">{data.completed_today.length}</span></h3>
-            <ul className="ledger-list ledger-list-compact">{data.completed_today.map((task) => (
-              <li key={task.id}><button type="button" className="ledger-text-button ledger-item-title" onClick={() => open('task', task.id)}>{task.title}</button>
-                {task.outcome && <span className="ledger-quiet"> — {task.outcome}</span>}</li>))}</ul>
-          </div>)}
       </section>
     </div>
   );

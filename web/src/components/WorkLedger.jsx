@@ -6,7 +6,7 @@
 // creative team (departments a super admin chooses) also gets shared Campaigns, Ideas and Library.
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BarChart3, BookOpen, CheckSquare, FileText, HandHelping, Home, Lightbulb, Megaphone, Plus, Search, Settings, Trash2, Users,
+  BarChart3, BookOpen, CheckSquare, FileText, HandHelping, Home, LifeBuoy, Lightbulb, Megaphone, Plus, Search, Settings, Trash2, Users,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -37,6 +37,22 @@ import { NavigationCountBadge } from './ui/CountBadge';
 import { btnClass } from './ui/Btn';
 import './ledger/ledger.css';
 import PageHeader from './ui/PageHeader';
+import { useShellNav } from './shell/shellNavContext';
+
+// Each tab opens with its own title, as on the redesign boards ("Team work", "Requests" …).
+export const TAB_META = {
+  home: { title: 'Your work, at a glance', subtitle: 'Stay focused on what matters today.' },
+  team: { title: 'Team work', subtitle: 'See priorities, ownership and progress.', primary: 'Assign task' },
+  requests: { title: 'Requests', subtitle: 'Ask another department and keep every hand-off clear.', hidePrimary: true },
+  routines: { title: 'Routines', subtitle: 'Daily, weekly and monthly duties, ticked off as they are done.' },
+  reports: { title: 'Work reports', subtitle: 'What was done, written up and ready to share.' },
+  insights: { title: 'Insights', subtitle: 'Delivery, on-time work, help given and turnaround.' },
+  campaigns: { title: 'Campaigns', subtitle: 'Every campaign from first idea to launch.' },
+  ideas: { title: 'Ideas', subtitle: 'Capture now, decide later.' },
+  library: { title: 'Library', subtitle: 'Vendors, templates, key dates and brand notes.' },
+  deleted: { title: 'Deleted tasks', subtitle: 'Restore anything removed by mistake.' },
+  settings: { title: 'Work settings', subtitle: 'Calendar, sound, shortcuts and the Sheet import.' },
+};
 
 // Recharts is large; only Insights needs it.
 const LedgerInsights = lazy(() => import('./ledger/LedgerInsights'));
@@ -111,6 +127,11 @@ export default function WorkLedger() {
   const connected = Boolean(home.data?.google?.connected);
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
+  // The Work section's other screen (Goals) joins the end of this tab row, so the page shows one
+  // row of tabs rather than two.
+  const shellNav = useShellNav();
+  const goals = shellNav?.section?.tabs.find((item) => item.id === 'performance');
+  const meta = TAB_META[tab] ?? TAB_META.home;
 
   // A notification or old Task Management link to one task opens it here. Team keeps its own
   // highlight-the-row behaviour (Task Management's board reads ?focus= itself).
@@ -186,37 +207,42 @@ export default function WorkLedger() {
     <LedgerContext.Provider value={context}>
       <div className="page-shell space-y-5 animate-fade-in ledger-page">
         <PageHeader
-          title="Work Ledger"
-          subtitle={[employee?.full_name, canTeam ? 'your work and your team’s' : 'your tasks, notes, help given and reports'].filter(Boolean).join(' · ')}
+          title={meta.title}
+          subtitle={meta.subtitle}
+          tabs={false}
           actions={<>
             <button type="button" className={btnClass('ghost')} onClick={() => setCommand('')} aria-keyshortcuts="/">
               <Search size={15} /> Search or add <kbd className="ledger-kbd">/</kbd></button>
-            <button type="button" className={btnClass('ghost')} onClick={() => setDrawer({ kind: 'help' })} aria-keyshortcuts="H">Log help</button>
-            <button type="button" className={btnClass('primary')} onClick={() => setNewTask({})} aria-keyshortcuts="N"><Plus size={16} /> New task</button>
+            <button type="button" className={btnClass('ghost')} onClick={() => setDrawer({ kind: 'help' })} aria-keyshortcuts="H">
+              <LifeBuoy size={15} /> Log help</button>
+            {!meta.hidePrimary && <button type="button" className={btnClass('primary')} onClick={() => setNewTask({})} aria-keyshortcuts="N"><Plus size={16} /> {meta.primary ?? 'New task'}</button>}
           </>}
         />
-        <nav role="tablist" aria-label="Work Ledger sections"
-          className="mobile-segmented mobile-segmented-dense tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
-          {tabs.map((item, index) => {
-            const badge = badgeFor(item);
-            return (
-              <button key={item.id} type="button" role="tab" id={`ledger-tab-${item.id}`} aria-controls={`ledger-panel-${item.id}`}
-                aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} aria-keyshortcuts={String(index + 1)}
-                aria-label={badge ? navigationCountLabel(item.label, badge) : undefined}
-                className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
-                  tab === item.id ? 'border-brand text-brand-ink' : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'}`}
-                onClick={() => setTab(item.id)}
-                onKeyDown={(event) => {
-                  if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-                  const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
-                  setTab(next.id); document.getElementById(`ledger-tab-${next.id}`)?.focus();
-                }}>
-                <item.icon size={13} aria-hidden="true" /> {item.label}
-                {badge && <NavigationCountBadge badge={badge} />}
-              </button>
-            );
-          })}
-        </nav>
+        <div className="section-tabbar ledger-tabbar">
+          <nav role="tablist" aria-label="Work Ledger sections" className="section-tab-scroll">
+            {tabs.map((item, index) => {
+              const badge = badgeFor(item);
+              return (
+                <button key={item.id} type="button" role="tab" id={`ledger-tab-${item.id}`} aria-controls={`ledger-panel-${item.id}`}
+                  aria-selected={tab === item.id} tabIndex={tab === item.id ? 0 : -1} aria-keyshortcuts={String(index + 1)}
+                  aria-label={badge ? navigationCountLabel(item.label, badge) : undefined}
+                  className={`section-tab-button ${tab === item.id ? 'is-active' : ''}`}
+                  onClick={() => setTab(item.id)}
+                  onKeyDown={(event) => {
+                    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+                    const next = tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                    setTab(next.id); document.getElementById(`ledger-tab-${next.id}`)?.focus();
+                  }}>
+                  {item.label}
+                  {badge && <NavigationCountBadge badge={badge} />}
+                </button>
+              );
+            })}
+            {goals && (
+              <button type="button" className="section-tab-button" onClick={() => shellNav.select(shellNav.navTarget(goals))}>{goals.label}</button>
+            )}
+          </nav>
+        </div>
         {newTask && <NewTaskPanel preset={newTask} onClose={() => setNewTask(null)} onCreated={(id) => setDrawer({ kind: 'task', payload: id })} />}
         <section className="ledger-panel" role="tabpanel" id={`ledger-panel-${tab}`} aria-labelledby={`ledger-tab-${tab}`} hidden={Boolean(newTask)}>
           {panel()}

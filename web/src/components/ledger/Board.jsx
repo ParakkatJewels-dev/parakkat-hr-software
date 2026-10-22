@@ -2,7 +2,8 @@
 // another lane (or use "Move to…" / Alt+arrows) and the task itself moves — the same record Task
 // Management shows. Done asks for an optional outcome; a progress note goes straight onto the task.
 import React, { useState } from 'react';
-import { AlertTriangle, CheckSquare, Link2, MessageSquare, Paperclip, Pin, Star } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Check, CheckSquare, Link2, MessageSquare, Paperclip, Pin, Plus, Star } from 'lucide-react';
+import { initialsOf, tintFor } from '../ui/Avatar';
 import { LANE_TARGETS, useWorkUpdate, useWorkWrite } from '../../data/work';
 import { humanDbError } from '../../lib/dbErrors';
 import { istToday } from '../../lib/dates';
@@ -60,16 +61,21 @@ function DonePrompt({ task, onDone }) {
 
 function CardMeta({ task, today, me }) {
   const overdue = task.due_date && task.due_date < today;
+  const dueToday = task.due_date === today;
+  const owner = task.assignee_name && task.employee_id !== me ? task.assignee_name : null;
   return (
-    <p className="ledger-card-meta">
-      {task.assignee_name && task.employee_id !== me && <span>{task.assignee_name}</span>}
+    <div className="ledger-card-meta">
+      {owner && <span className="ledger-card-owner"><span className={`ledger-card-avatar ${tintFor(owner)}`} aria-hidden="true">{initialsOf(owner)}</span>{owner}</span>}
+      {task.due_date && (
+        <span className="ledger-due-chip" data-tone={overdue || dueToday ? 'bad' : 'info'} data-overdue={overdue || undefined}>
+          <CalendarDays size={12} aria-hidden="true" />{overdue ? 'Overdue · ' : dueToday ? '' : 'Due '}{dueToday ? 'Due today' : dateLabel(task.due_date)}
+        </span>)}
       {['High', 'Urgent'].includes(task.priority) && <span className="ledger-high">{task.priority}</span>}
-      {task.due_date && <span data-overdue={overdue || undefined}>{overdue ? 'Overdue · ' : 'Due '}{dateLabel(task.due_date)}</span>}
       {task.subtasks_total > 0 && <span><CheckSquare size={12} /> {task.subtasks_done}/{task.subtasks_total}</span>}
       {task.comments_count > 0 && <span><MessageSquare size={12} /> {task.comments_count}</span>}
       {task.attachments_count > 0 && <span><Paperclip size={12} /> {task.attachments_count}</span>}
       {task.waiting_on && <span>Waiting on {task.waiting_on}</span>}
-    </p>
+    </div>
   );
 }
 
@@ -91,7 +97,11 @@ export function TaskCard({ task, onMove, onOpen }) {
       draggable={canEdit && !mode} onKeyDown={onKeyDown}
       onDragStart={(event) => { event.dataTransfer.setData('text/plain', task.id); event.dataTransfer.effectAllowed = 'move'; }}>
       <header className="ledger-card-head">
-        {task.lane === 'review' && <StatusPill status={task.step} />}
+        {canEdit && (
+          <button type="button" className="ledger-card-check" aria-label={`Mark "${task.title}" done`} title="Mark done"
+            aria-pressed={mode === 'done'} onClick={() => setMode(mode === 'done' ? null : 'done')}><Check size={13} /></button>
+        )}
+        <h4 className="ledger-card-title"><button type="button" className="ledger-card-open" onClick={() => onOpen(task.id)}>{task.title}</button></h4>
         <span className="ledger-card-marks">
           <button type="button" className={btnClass('subtle', 'sm', true)} aria-pressed={task.focused}
             aria-label={task.focused ? 'Remove from today’s focus' : 'Add to today’s focus'}
@@ -100,7 +110,7 @@ export function TaskCard({ task, onMove, onOpen }) {
             onClick={() => write.mutate({ op: 'mark', taskId: task.id, pinned: !task.pinned, focus: task.focused })}><Pin size={14} fill={task.pinned ? 'currentColor' : 'none'} /></button>
         </span>
       </header>
-      <h4 className="ledger-card-title"><button type="button" className="ledger-card-open" onClick={() => onOpen(task.id)}>{task.title}</button></h4>
+      {task.lane === 'review' && <div className="ledger-card-step"><StatusPill status={task.step} /></div>}
       <CardMeta task={task} today={today} me={employeeId} />
       <div className="ledger-card-chips">
         {task.stale && <span className="ledger-chip-flag" title="No movement for over 7 days">Stale</span>}
@@ -113,10 +123,7 @@ export function TaskCard({ task, onMove, onOpen }) {
       {mode === 'progress' && <ProgressForm task={task} onDone={() => setMode(null)} />}
       {!mode && (
         <footer className="ledger-card-actions">
-          {canEdit && <>
-            <button type="button" className="ledger-text-button" onClick={() => setMode('done')}>Done</button>
-            <button type="button" className="ledger-text-button" onClick={() => setMode('progress')}>Log progress</button>
-          </>}
+          {canEdit && <button type="button" className="ledger-text-button" onClick={() => setMode('progress')}>Log progress</button>}
           <button type="button" className="ledger-text-button" onClick={() => onOpen(task.id)}>Open</button>
           {canEdit && (
             <select className="ledger-move" aria-label={`Move ${task.title} to`} value="" onChange={(event) => onMove(task, event.target.value)}>
@@ -131,7 +138,7 @@ export function TaskCard({ task, onMove, onOpen }) {
   );
 }
 
-export function TaskBoard({ tasks, onOpen }) {
+export function TaskBoard({ tasks, onOpen, onAdd }) {
   const update = useWorkUpdate();
   const [over, setOver] = useState(null);
   const move = (task, laneId) => {
@@ -152,7 +159,8 @@ export function TaskBoard({ tasks, onOpen }) {
               const task = tasks.find((item) => item.id === event.dataTransfer.getData('text/plain'));
               if (task?.can_edit) move(task, lane.id);
             }}>
-            <h3 className="ledger-lane-head">{lane.label} <span className="ledger-count">{lane.tasks.length}</span></h3>
+            <h3 className="ledger-lane-head">{lane.label} <span className="ledger-count">{lane.tasks.length}</span>
+              {onAdd && lane.id === 'todo' && <button type="button" className="ledger-lane-add" aria-label="Add a task" title="Add a task" onClick={onAdd}><Plus size={16} /></button>}</h3>
             {lane.id === 'progress' && lane.tasks.length > WIP_LIMIT && (
               <p className="ledger-wip" role="note"><AlertTriangle size={13} /> {lane.tasks.length} in progress — more than {WIP_LIMIT} at once slows everything down.</p>)}
             {lane.tasks.map((task) => <TaskCard key={task.id} task={task} onMove={move} onOpen={onOpen} />)}

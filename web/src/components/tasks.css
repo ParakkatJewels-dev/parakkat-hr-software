@@ -1,52 +1,42 @@
-/* Keep the requested black/neutral surfaces, with the app's shared emerald brand and status tones. */
+/* Task workspace on the 2026 redesign tokens: white cards, slate lines, coral for the current choice. */
 .work-page {
-  --work-bg: #fff;
-  --work-soft: #fafafa;
-  --work-hover: #f5f5f5;
-  --work-line: #e5e5e5;
-  --work-text: #000;
-  --work-description: #404040;
-  --work-muted: #666;
-  --work-accent: var(--accent-ink);
-  --work-selected: var(--accent-soft);
-  --work-danger: color-mix(in srgb, var(--tone-red) 85%, #000);
-  --work-progress-ink: color-mix(in srgb, var(--tone-amber) 70%, #000);
+  --work-bg: var(--surface-elevated, #fff);
+  --work-soft: #f6f8fa;
+  --work-hover: #f1f4f8;
+  --work-line: #e8ecf1;
+  --work-text: var(--surface-text);
+  --work-description: #434b6b;
+  --work-muted: var(--surface-text-soft);
+  --work-accent: var(--coral-ink);
+  --work-selected: var(--coral-soft);
+  --work-danger: #c8102e;
+  --work-progress-ink: #a85400;
   --work-primary: var(--accent-action);
   --work-primary-hover: var(--accent-action-hover);
   --work-primary-text: var(--accent-on);
-  --surface-elevated: var(--work-bg);
-  --surface-subtle: var(--work-soft);
-  --surface-muted: #ededed;
-  --surface-border: var(--work-line);
-  --surface-border-strong: #ccc;
-  --surface-text: var(--work-text);
-  --surface-text-soft: var(--work-muted);
   display: flex;
-  /* Full width, matching .page-shell: the 1600px cap left an empty band down both sides on a wide
-     monitor, and a task board is exactly the kind of dense list that wants the pixels. The
-     container query below measures this element, so widening it also gives the inner breakpoints
-     more room to work with rather than fighting them. */
+  /* Full width, matching .page-shell. The container query below measures this element. */
   width: 100%;
   min-width: 0;
   margin-inline: 0;
   container: task-workspace / inline-size;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   color: var(--work-text);
 }
 .dark .work-page {
-  --work-bg: #000;
-  --work-soft: #111;
-  --work-hover: #1a1a1a;
-  --work-line: #333;
-  --work-text: #f5f5f5;
-  --work-description: #d4d4d4;
-  --work-muted: #aaa;
+  --work-bg: var(--surface-elevated);
+  --work-soft: var(--surface-subtle);
+  --work-hover: var(--surface-muted);
+  --work-line: var(--surface-border);
+  --work-text: var(--surface-text);
+  --work-description: #cbd5e1;
+  --work-muted: var(--surface-text-soft);
   --work-danger: var(--tone-red);
   --work-progress-ink: var(--tone-amber);
-  --surface-muted: #333;
-  --surface-border-strong: #555;
 }
+/* The page header already carries "Assign task". */
+.ledger-page .work-page .work-assign-inline { display: none; }
 .work-page *, .work-page *::before, .work-page *::after { box-sizing: border-box; }
 .work-page :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--work-accent); outline-offset: 3px; }
 .work-page button { -webkit-tap-highlight-color: transparent; }
@@ -58,7 +48,7 @@
 .work-page .work-page-header p { margin-top: 8px; color: var(--work-muted); font-size: 14px; line-height: 1.5; }
 .work-page .work-browse { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
 .work-page .work-browse[hidden] { display: none; }
-.work-page .work-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; border: 1px solid var(--work-line); border-radius: 6px; background: var(--work-bg); color: var(--work-text); font-size: 14px; font-weight: 550; cursor: pointer; transition: background .15s, border-color .15s; }
+.work-page .work-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; border: 1px solid #dde2ea; border-radius: 12px; background: var(--work-bg); color: var(--work-text); font-size: 14px; font-weight: 550; cursor: pointer; transition: background .15s, border-color .15s; }
 .work-page .work-button:hover { background: var(--work-hover); border-color: var(--surface-border-strong); }
 .work-page .work-icon-button { width: 44px; min-width: 44px; height: 44px; padding: 0; flex: none; }
 .work-page .work-button-primary { background: var(--work-primary); border-color: var(--work-primary); color: var(--work-primary-text); min-height: 44px; padding-inline: 16px; }
@@ -75,11 +65,11 @@
 .work-page .work-stat-value { color: var(--work-text); font-size: 23px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
 .work-page .work-stat-overdue .work-stat-value { color: var(--work-danger); }
 .work-page .work-toolbar { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; }
-.work-page .work-search { display: flex; align-items: center; gap: 9px; flex: 1 1 220px; min-width: 0; max-width: 400px; padding: 0 11px; min-height: 44px; background: var(--work-bg); border: 1px solid var(--work-line); border-radius: 6px; color: var(--work-muted); }
+.work-page .work-search { display: flex; align-items: center; gap: 9px; flex: 1 1 220px; min-width: 0; max-width: 400px; padding: 0 12px; min-height: 44px; background: var(--work-bg); border: 1px solid #dde2ea; border-radius: 12px; color: var(--work-muted); }
 .work-page .work-search input { background: transparent; border: 0; padding: 8px 0; min-width: 0; width: 100%; color: var(--work-text); font-size: 14px; outline: none; }
 .work-page .work-search:focus-within { border-color: var(--work-accent); }
 .work-page .work-filters { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
-.work-page .work-filter { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; padding: 0 10px; border: 1px solid var(--work-line); border-radius: 6px; background: var(--work-bg); color: var(--work-muted); font-size: 14px; }
+.work-page .work-filter { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid #dde2ea; border-radius: 12px; background: var(--work-bg); color: var(--work-muted); font-size: 14px; }
 .work-page .work-filter > span:not(.sr-only) { font-size: 11px; }
 .work-page .work-filter select { max-width: 155px; min-width: 0; padding: 7px 0; border: 0; background: transparent; color: var(--work-text); font: inherit; cursor: pointer; }
 .work-page select option { background: var(--work-bg); color: var(--work-text); }
@@ -88,9 +78,9 @@
 .work-page .task-list-summary > div { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; }
 .work-page .task-list-summary-label { text-transform: none; letter-spacing: 0; font-size: 14px; font-weight: 600; color: var(--work-text); }
 .work-page .task-list-summary strong { color: var(--work-muted); font-size: 12px; font-weight: 450; }
-.work-page .work-list { border: 1px solid var(--work-line); border-radius: 9px; background: var(--work-bg); overflow: clip; }
+.work-page .work-list { border: 1px solid var(--work-line); border-radius: var(--radius-card); background: var(--work-bg); overflow: clip; box-shadow: var(--shadow-card); }
 .work-page .work-list-columns, .work-page .work-row-grid { display: grid; grid-template-columns: minmax(0, 1fr) 142px 125px 140px 148px; gap: 18px; }
-.work-page .work-list-columns { padding: 12px 20px; background: var(--work-soft); color: var(--work-muted); font-size: 11px; font-weight: 550; border-bottom: 1px solid var(--work-line); }
+.work-page .work-list-columns { padding: 12px 20px; background: var(--work-soft); color: #4c5876; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--work-line); }
 .work-page .work-list-columns > span:first-child { padding-left: 56px; }
 .work-page .work-row { min-width: 0; border-bottom: 1px solid var(--work-line); background: var(--work-bg); scroll-margin-top: 90px; transition: background .15s; }
 .work-page .work-row:last-child { border-bottom: 0; }
@@ -303,3 +293,43 @@
   .work-page .work-editor .task-assignee-option { align-items: flex-start; flex-direction: column; gap: 2px; }
   .work-page .work-editor .task-composer-fields { gap: 22px; }
 }
+
+/* ---- Team workload (2026 redesign) ---- */
+.work-workload { padding: 1.15rem 1.25rem; border: 1px solid var(--work-line); border-radius: var(--radius-card); background: var(--work-bg); box-shadow: var(--shadow-card); }
+.work-workload header h3 { margin: 0; font-size: 1.05rem !important; font-weight: 700 !important; }
+.work-workload header p { margin: .2rem 0 .85rem; color: var(--work-muted); font-size: .8125rem; }
+.work-workload ul { display: grid; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.work-workload button { display: grid; width: 100%; grid-template-columns: 2rem minmax(7rem, 11rem) minmax(0, 1fr) 2rem; align-items: center; gap: .8rem; padding: .35rem .25rem; border-radius: .6rem; text-align: left; }
+.work-workload button:hover { background: var(--work-soft); }
+.work-workload-avatar { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: 999px; font-size: .7rem; font-weight: 700; }
+.work-workload-name { overflow: hidden; color: var(--work-text); font-size: .875rem; text-overflow: ellipsis; white-space: nowrap; }
+.work-workload-bar { position: relative; height: .6rem; overflow: hidden; border-radius: 999px; background: #ebf0f6; }
+.work-workload-bar > span { position: absolute; inset: 0 auto 0 0; border-radius: inherit; }
+.dark .work-workload-bar { background: rgba(148, 163, 184, .18); }
+.work-workload strong { color: var(--work-text); font-size: .875rem; text-align: right; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .work-workload button { grid-template-columns: 2rem minmax(0, 1fr) 2rem; }
+  .work-workload-bar { grid-column: 2 / 3; }
+}
+
+/* ---- Requests (2026 redesign) ---- */
+.requests-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; align-items: start; }
+@media (min-width: 1180px) { .requests-layout { grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 1fr); } }
+.requests-main { display: grid; gap: .85rem; min-width: 0; }
+.requests-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }
+.requests-toggle { display: inline-flex; flex: 1 1 22rem; max-width: 34rem; gap: .35rem; padding: .3rem; border: 1px solid var(--surface-border); border-radius: .9rem; background: var(--surface-subtle); }
+.requests-toggle button { display: inline-flex; flex: 1; align-items: center; justify-content: center; gap: .45rem; min-height: 2.6rem; border-radius: .65rem; color: var(--surface-text-soft); font-size: .875rem; font-weight: 600; }
+.requests-toggle button[aria-checked="true"] { border: 1px solid color-mix(in srgb, var(--coral) 30%, transparent); background: var(--coral-soft); color: var(--coral-ink); }
+.requests-toggle-count { display: inline-flex; align-items: center; justify-content: center; min-width: 1.4rem; padding: 0 .35rem; border-radius: 999px; background: var(--surface-elevated); font-size: .75rem; }
+.requests-hint { margin: -.25rem 0 0; color: var(--surface-text-soft); font-size: .8125rem; }
+.request-icon { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem; border-radius: .8rem; background: var(--tone-coral-bg); color: var(--tone-coral-fg); }
+.requests-side { display: grid; gap: 1rem; }
+.requests-overview { padding: 1.15rem 1.25rem; border: 1px solid var(--surface-border); border-radius: var(--radius-card); background: var(--surface-elevated); box-shadow: var(--shadow-card); }
+.requests-overview h3 { margin: 0 0 .85rem; font-size: 1.05rem !important; font-weight: 700 !important; }
+.requests-overview-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+.requests-overview-tiles > * { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .9rem .5rem; border-radius: .9rem; text-align: center;
+  background: var(--tile-bg); color: var(--tile-fg); --tile-bg: var(--tone-coral-bg); --tile-fg: var(--tone-coral-fg); }
+.requests-overview-tiles [data-tone="blue"] { --tile-bg: var(--tone-blue-bg); --tile-fg: var(--tone-blue-fg); }
+.requests-overview-tiles [data-tone="green"] { --tile-bg: var(--tone-green-bg); --tile-fg: var(--tone-green-fg); }
+.requests-overview-tiles strong { color: var(--surface-text); font-size: 1.6rem; font-weight: 750; line-height: 1.1; }
+.requests-overview-tiles span { font-size: .75rem; font-weight: 600; }
