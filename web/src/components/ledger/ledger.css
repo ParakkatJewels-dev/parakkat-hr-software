@@ -411,10 +411,59 @@ textarea.ledger-input { resize: vertical; }
   .ledger-toolbar > :last-child { margin-left: 0; width: 100%; }
 }
 @media (max-width: 639px) {
-  .ledger-segmented { width: 100%; }
-  .ledger-segment { flex: 1 1 auto; justify-content: center; }
+  /* Round 2 phone header: search and log help as icons beside the main button, on one row. The
+     Home quick buttons repeated these, so they step aside. */
+  .ledger-page > .page-header .page-header-actions {
+    display: grid; grid-template-columns: 2.5rem 2.5rem minmax(0, 1fr); width: 100%; gap: .5rem; margin: 0;
+  }
+  .ledger-page > .page-header .page-header-actions > button:nth-child(-n+2) {
+    width: 2.5rem; padding: 0 !important; justify-content: center; font-size: 0; gap: 0;
+  }
+  .ledger-page > .page-header .page-header-actions > button:nth-child(-n+2) svg { width: 18px; height: 18px; }
+  .ledger-page > .page-header .page-header-actions .ledger-kbd { display: none; }
+  .ledger-page > .page-header .page-header-actions > button:nth-child(3) { justify-content: center; }
+  .ledger-big-buttons { display: none !important; }
+  .ledger-chart { height: 165px; }
+
+  /* Routines: the page title already says Routines; the views become pills; filters pair up. */
+  .ledger-page .routine-page-heading > div:first-child { display: none; }
+  .ledger-page .routine-page-heading { justify-content: flex-end; }
+  .routine-view-tabs, .routine-workspace nav[aria-label="Team routine view"] {
+    flex-wrap: nowrap !important; overflow-x: auto; scrollbar-width: none; gap: .5rem !important;
+  }
+  .routine-view-tabs::-webkit-scrollbar { display: none; }
+  .routine-view-tabs > button, .routine-workspace nav[aria-label="Team routine view"] > button {
+    flex: none; min-height: 2.125rem !important; height: auto !important; padding: 0 .9rem !important; border: 0 !important;
+    border-radius: 999px !important; background: var(--surface-muted) !important; color: var(--surface-text-soft) !important;
+    font-size: .8125rem !important; box-shadow: none !important;
+  }
+  .routine-view-tabs > button[aria-pressed="true"], .routine-workspace nav[aria-label="Team routine view"] > button[aria-pressed="true"] {
+    background: var(--chip-active-bg) !important; color: var(--chip-active-fg) !important;
+  }
+  .routine-workspace section > .grid.gap-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .routine-workspace section > .grid.gap-3 > label:first-child { grid-column: 1 / -1; }
+  .routine-workspace section > .grid.gap-3 > label > span { font-size: .75rem; }
+
+  /* Segmented choices (report period, library sections…) are a row of pills you swipe. */
+  .ledger-segmented { display: flex; flex-wrap: nowrap; width: 100%; gap: .5rem; overflow-x: auto; scrollbar-width: none; }
+  .ledger-segmented::-webkit-scrollbar { display: none; }
+  .ledger-segment { flex: none; min-height: 2.125rem; padding: 0 .9rem; border: 0; border-radius: 999px; background: var(--surface-muted); color: var(--surface-text-soft); font-size: .8125rem; box-shadow: none; }
+  .ledger-segment[aria-checked="true"], .ledger-segment[aria-pressed="true"], .ledger-segment.is-active { background: var(--chip-active-bg); color: var(--chip-active-fg); }
+
+  /* Ledger tables read as rows: the first column as the title, the rest as one line under it. */
+  .ledger-table-scroll { overflow: visible; }
+  .ledger-table { display: block; min-width: 0 !important; width: 100%; }
+  .ledger-table thead { display: none; }
+  .ledger-table tbody { display: block; }
+  .ledger-table tr { display: block; padding: .6rem 0; border-bottom: 1px solid var(--surface-border); }
+  .ledger-table tr:last-child { border-bottom: 0; }
+  .ledger-table td { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .25rem; max-width: 100%; margin: .1rem .75rem .1rem 0; padding: 0 !important; border: 0 !important; color: var(--surface-text-soft); font-size: .8125rem; white-space: normal; overflow-wrap: anywhere; }
+  .ledger-table td:first-child { display: block; margin: 0 0 .15rem; color: var(--surface-text); font-size: .875rem; font-weight: 650; }
+  .ledger-table td:last-child:has(button) { display: flex; justify-content: flex-end; margin: .2rem 0 0; }
+  .ledger-table td:empty { display: none; }
   .ledger-input, .ledger-command-input, .ledger-page select, .ledger-overlays select, .ledger-page input[type="date"] { font-size: 16px; }
-  .ledger-schedule-actions { margin-left: 0; flex-basis: 100%; }
+  .ledger-schedule-actions { margin-left: 0; flex-basis: 100%; flex-wrap: nowrap; gap: .4rem; }
+  .ledger-schedule-actions .ledger-move { flex: 1 1 auto; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .ledger-drawer, .ledger-drawer-backdrop, .ledger-command-backdrop { animation: none; } .ledger-lane, .ledger-card { transition: none; } }
 @media print {

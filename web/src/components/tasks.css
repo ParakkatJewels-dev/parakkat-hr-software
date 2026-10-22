@@ -209,31 +209,36 @@
   .work-page .work-stat-value { font-size: 19px; }
   .work-page .work-stat:last-child { grid-column: 1 / -1; }
   .work-page .work-search { flex-basis: 100%; max-width: none; }
-  .work-page .work-filters { display: grid; width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .work-page .work-filter { width: 100%; flex-wrap: wrap; gap: 0; padding: 6px 10px; }
-  .work-page .work-filter select { flex: 1 1 100%; width: 0; max-width: none; min-height: 32px; padding: 4px 0; }
-  .work-page .work-filter > span:not(.sr-only) { display: block; font-size: 12px; }
-  .work-page .work-filter > svg { display: none; }
-  .work-page .work-filter .sr-only { position: static; width: auto; height: auto; padding: 0; margin: 0; overflow: visible; clip-path: none; font-size: 12px; }
-  .work-page .work-filters .work-button { font-size: 13px; padding-inline: 8px; }
-  .work-page .work-row-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'content' 'person' 'date' 'status' 'actions'; padding: 14px 12px; gap: 10px; }
+  /* Round 2: filters are one row of compact selects you swipe; each select still has its label. */
+  .work-page .work-filters { display: flex; flex-wrap: nowrap; width: 100%; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .work-page .work-filters::-webkit-scrollbar { display: none; }
+  .work-page .work-filter { flex: none; width: auto; min-height: 36px; gap: 4px; padding: 0 10px; border-radius: 999px; }
+  .work-page .work-filter select { width: auto; max-width: 9.5rem; min-height: 34px; padding: 0; }
+  .work-page .work-filter > span:not(.sr-only) { display: none; }
+  .work-page .work-filters .work-button { flex: none; min-height: 36px; font-size: 13px; padding-inline: 10px; border-radius: 999px; }
+  /* A task is a compact row: title, then who and when on one line, then status and actions. */
+  .work-page .work-row-grid { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'content content' 'person date' 'status actions'; padding: 12px; gap: 6px 10px; }
   .work-page .work-row-content { gap: 10px; }
-  .work-page .work-title { font-size: 16px; line-height: 1.5; }
-  .work-page .work-description { font-size: 14px; line-height: 1.6; margin-top: 6px; }
-  .work-page .work-row-meta { gap: 4px 10px; margin-top: 6px; font-size: 12px; }
-  .work-page .work-row-person, .work-page .work-row-date { margin-left: 54px; font-size: 13px; justify-self: start; }
-  .work-page .work-row-person > span:nth-child(2) { white-space: normal; }
+  .work-page .work-complete { width: 34px; height: 34px; min-height: 34px; }
+  .work-page .work-title { font-size: 15px; line-height: 1.35; }
+  .work-page .work-description { display: -webkit-box; overflow: hidden; margin-top: 2px; font-size: 13px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 1; }
+  .work-page .work-row-meta { gap: 2px 10px; margin-top: 4px; font-size: 12px; }
+  .work-page .work-row-meta button { min-height: 28px; }
+  .work-page .work-row-person, .work-page .work-row-date { margin-left: 44px; font-size: 12px; justify-self: start; }
+  .work-page .work-row-date { margin-left: 0; justify-self: end; }
+  .work-page .work-row-person > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .work-page .work-personal { gap: 16px; }
-  .work-page .work-personal .work-row-grid { grid-template-areas: 'content' 'date' 'status' 'actions'; }
+  .work-page .work-personal .work-row-grid { grid-template-areas: 'content content' 'date date' 'status actions'; }
+  .work-page .work-personal .work-row-date { margin-left: 44px; justify-self: start; }
   .work-page .work-personal .work-row-person { display: none; }
   .work-page .work-personal-summary strong { font-size: 17px; }
   .work-page .work-quick-add { padding: 12px; }
-  .work-page .work-status { justify-self: stretch; min-height: 44px; margin-left: 54px; width: auto; font-size: 14px; }
-  .work-page .work-status select { min-height: 34px; }
-  .work-page .work-expand { min-height: 44px; }
+  .work-page .work-status { justify-self: start; min-width: 8.5rem; min-height: 36px; margin-left: 0; width: auto; font-size: 13px; }
+  .work-page .work-status select { width: 100%; min-height: 30px; }
+  .work-page .work-expand, .work-page .work-row-actions .work-icon-button { width: 36px; height: 36px; min-height: 36px; }
   .work-page .work-row-details { margin: 0 10px 14px; padding: 12px; }
   .work-page .work-detail-toolbar { gap: 12px; }
-  .work-page .work-row-actions { margin-left: 54px; justify-self: start; }
+  .work-page .work-row-actions { margin-left: 0; justify-self: end; gap: 4px; }
   .work-page .work-quick-fields input:not([type=date]) { flex-basis: 100%; font-size: 16px; }
   .work-page .work-quick-fields input[type=date] { min-width: 0; width: 100%; flex: 1 1 100%; }
   .work-page .work-quick-fields :is(input, select) { min-height: 44px; font-size: 16px; }

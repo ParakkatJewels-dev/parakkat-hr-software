@@ -54,9 +54,9 @@
   .routine-workspace .routine-editor .form-section { padding: 18px; }
 }
 @media (max-width: 640px) {
-  .routine-workspace .routine-page-heading > button { width: 100%; }
-  .routine-workspace .routine-view-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .routine-workspace .routine-view-tabs button { padding-inline: 8px; font-size: 14px; }
+  /* Round 2: the views are a row of pills (ledger.css styles them); Create routine stays compact. */
+  .routine-workspace .routine-page-heading > button { width: auto; }
+  .routine-workspace .routine-view-tabs { display: flex; padding-bottom: .6rem; }
   .routine-workspace .routine-filter-panel { padding: 14px; }
   .routine-filter-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .routine-workspace .routine-assignment-body { padding: 16px; }

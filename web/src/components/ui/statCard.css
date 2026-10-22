@@ -91,7 +91,7 @@
   .stat-card-icon { width: 2.125rem; height: 2.125rem; border-radius: .65rem; }
   .stat-card-icon svg { width: 17px; height: 17px; }
   .stat-card-copy { gap: .2rem; }
-  .stat-card-label { font-size: .75rem; -webkit-line-clamp: 1; }
+  .stat-card-label { font-size: .75rem; -webkit-line-clamp: 2; }
   .stat-card-value { font-size: 1.3rem; }
   .stat-card-sub { font-size: .6875rem; -webkit-line-clamp: 1; }
 }
