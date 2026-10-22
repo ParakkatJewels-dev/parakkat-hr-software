@@ -323,7 +323,7 @@ function ScreensTab({ user, sections, hidden, isSuperAdmin, loading, error, pend
                   </span>
                   {t.perm && (
                     <span className="hidden sm:inline text-2xs font-mono text-neutral-400 shrink-0 ml-auto">
-                      {t.perm}
+                      {[].concat(t.perm).join(" · ")}
                     </span>
                   )}
                   <button

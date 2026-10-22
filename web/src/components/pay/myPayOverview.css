@@ -1,0 +1,37 @@
+/* My pay on a phone (round 2). Computers keep the month picker view on its own. */
+.my-pay-phone { display: none; }
+
+@media (max-width: 640px) {
+  .my-pay-phone { display: grid; gap: .625rem; }
+  .my-pay-card {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: .75rem; width: 100%;
+    padding: 1rem 1.05rem; border-radius: var(--radius-card); text-align: left; color: #fff;
+    background: linear-gradient(130deg, #ff6a33 0%, #ff5a27 50%, #f24a17 100%); box-shadow: 0 10px 22px rgba(255, 90, 39, .22);
+  }
+  .my-pay-card:disabled { opacity: .9; }
+  .my-pay-card-copy { display: flex; min-width: 0; flex-direction: column; gap: .25rem; }
+  .my-pay-card-copy > span { color: rgba(255, 255, 255, .92); font-size: .8125rem; font-weight: 600; }
+  .my-pay-card-copy strong { font-size: 1.85rem; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .my-pay-card-copy small { color: rgba(255, 255, 255, .92); font-size: .8125rem; }
+  .my-pay-card-icon {
+    display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem;
+    border-radius: 999px; background: rgba(255, 255, 255, .2);
+  }
+  .my-pay-phone .stat-card-value { font-size: 1.1rem; }
+
+  .my-pay-list {
+    padding: .35rem var(--space-card) .2rem; border: 1px solid var(--surface-border); border-radius: var(--radius-card);
+    background: var(--surface-elevated); box-shadow: var(--shadow-card);
+  }
+  .my-pay-list h3 { margin: .45rem 0 .2rem; color: var(--surface-text); font-size: .9375rem !important; font-weight: 700; }
+  .my-pay-row { display: flex; align-items: center; gap: .7rem; width: 100%; min-height: 3.25rem; padding: .5rem 0; text-align: left; }
+  .my-pay-row + .my-pay-row { border-top: 1px solid var(--surface-border); }
+  .my-pay-row-icon {
+    display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem;
+    border-radius: .7rem; background: var(--surface-muted); color: var(--surface-text-soft);
+  }
+  .my-pay-row-copy { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: .1rem; }
+  .my-pay-row-copy strong { color: var(--surface-text); font-size: .875rem; font-weight: 650; }
+  .my-pay-row-copy span { color: var(--surface-text-soft); font-size: .8125rem; font-variant-numeric: tabular-nums; }
+  .my-pay-row-chevron { flex: none; color: var(--surface-text-soft); }
+}

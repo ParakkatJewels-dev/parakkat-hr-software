@@ -33,6 +33,7 @@ import PayrollWorksheet from './PayrollWorksheet';
 import PayrollSalarySetup from './PayrollSalarySetup';
 import PayrollHistory from './PayrollHistory';
 import PayrollCalculationDetail from './PayrollCalculationDetail';
+import MyPayOverview from './pay/MyPayOverview';
 import PageHeader from './ui/PageHeader';
 import { useShellNav } from './shell/shellNavContext';
 import StatusPill from './ui/StatusPill';
@@ -170,6 +171,7 @@ function PayslipsTab() {
 
   return (
     <div className="space-y-2">
+      {mineOnly && employee?.id && <MyPayOverview employeeId={employee.id} onOpen={(month, id) => { setSearch(''); setPeriod(month); setOpenId(id); }} />}
       <div className="premium-card flex flex-col sm:flex-row gap-3 sm:items-end">
         {!mineOnly && <label className="text-xs font-semibold text-neutral-500">Company
           <select aria-label="Payslip company" value={companyId} onChange={event => setCompanyId(event.target.value)} className={INPUT + ' block mt-1'}>

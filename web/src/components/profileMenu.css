@@ -552,8 +552,10 @@
 }
 
 @media (max-width: 1023px) {
+  /* Round 2: the profile uses the shared phone frame (top bar, title, pills); its own top bar
+     is no longer shown. */
   .user-profile > .profile-mobile-topbar {
-    display: flex;
+    display: none;
     align-items: center;
     justify-content: space-between;
     min-width: 0;
@@ -656,12 +658,12 @@
   .profile-layout,
   .profile-details,
   .profile-details-pair {
-    gap: 1rem;
+    gap: var(--section-gap);
   }
 
   .user-profile .profile-hero,
   .profile-card {
-    padding: 1rem;
+    padding: var(--space-card);
   }
 
   .profile-details-pair,

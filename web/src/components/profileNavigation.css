@@ -1,7 +1,4 @@
 @media (max-width: 1023px) {
-  .app-header[data-profile-page="true"] { display: none; }
-  .section-tabbar[data-profile-page="true"] { display: none; }
-  .app-main[data-profile-page="true"] { padding-top: calc(.65rem + env(safe-area-inset-top)); }
   .app-header .app-header-title { min-width: 0; }
   .app-header .app-header-title-label { max-width: none; }
   /* More (round 2): a full-screen page on phones, like the reference phone kit — brand at the

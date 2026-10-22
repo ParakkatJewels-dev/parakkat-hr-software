@@ -76,7 +76,11 @@ export const OVERSIGHT_NAV = [
     id: 'home',
     group: 'Workspace',
     label: 'Home',
-    tabs: [{ id: 'dashboard', label: 'Home', perm: null }],
+    tabs: [
+      { id: 'dashboard', label: 'Home', perm: null },
+      // Round 2: every request you can decide, in one place (leave, corrections, expenses).
+      { id: 'approvals', label: 'Approvals', perm: ['leave.approve', 'regularization.approve', 'expense.approve'] },
+    ],
   },
   // Daily work stays near the top of the full menu as well as on the mobile bar.
   {
@@ -216,7 +220,9 @@ export function canSeeTab(tab, { canAny, canBeyondSelf, hidden, isSuperAdmin = f
   // `!tab.perm` would otherwise wave through.
   if (tab.superOnly) return Boolean(isSuperAdmin);
   if (!tab.perm) return true;
-  return tab.scoped ? canBeyondSelf(tab.perm) : canAny(tab.perm);
+  // A list of permissions opens the tab to anyone holding one of them.
+  const perms = Array.isArray(tab.perm) ? tab.perm : [tab.perm];
+  return perms.some((perm) => (tab.scoped ? canBeyondSelf(perm) : canAny(perm)));
 }
 
 /** The name a tab takes for this viewer — see `selfLabel`. */

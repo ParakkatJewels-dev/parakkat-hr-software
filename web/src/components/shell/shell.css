@@ -437,10 +437,6 @@ main .page-header-title,
 
 /* ---- Below the desktop breakpoint ------------------------------------------- */
 @media (max-width: 1023px) {
-  /* The profile page keeps its own phone layout (hero + menu), so its desktop header steps aside,
-     staying in the page only as its heading for screen readers. */
-  .profile-page-header { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-  .profile-page-header .page-header-crumbs, .profile-page-header .section-tabbar { display: none; }
   /* Phone top bar, like the reference: logo on the left; search, bell and you on the right, on
      the page colour rather than a white strip. */
   .app-header {

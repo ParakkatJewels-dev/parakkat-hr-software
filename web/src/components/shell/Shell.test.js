@@ -67,6 +67,7 @@ test('actions render on the right whether passed as a prop or as children', () =
 // Every screen in a multi-screen section must use PageHeader, or it loses its section tabs (they
 // used to live in a strip under the top bar). A new tab must be added here, which is the point.
 const SCREEN_FILES = {
+  dashboard: 'Dashboard.jsx', approvals: 'Approvals.jsx',
   ledger: 'WorkLedger.jsx', performance: 'Performance.jsx',
   attendance: 'Attendance.jsx', 'attendance-person': 'EmployeeAttendanceDetail.jsx', leave: 'Leave.jsx', 'attendance-admin': 'AttendanceAdmin.jsx',
   team: 'Team.jsx', directory: 'Directory.jsx', 'employee-import': 'EmployeeImport.jsx', organization: 'Organization.jsx',

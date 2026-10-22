@@ -81,6 +81,7 @@
   "rewrites": [
     { "source": "/api/v1/:resource", "destination": "/api/v1/[resource]?resource=:resource" },
     { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/approvals", "destination": "/index.html" },
     { "source": "/directory", "destination": "/index.html" },
     { "source": "/employee-import", "destination": "/index.html" },
     { "source": "/organization", "destination": "/index.html" },

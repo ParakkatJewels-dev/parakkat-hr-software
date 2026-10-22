@@ -515,6 +515,7 @@ function HomeGreeting({ selfService }) {
   const date = new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   return (
     <PageHeader
+      crumbs={[]}
       title={`${greeting()}, ${first}`}
       subtitle={selfService ? 'Here’s your self-service overview for today.' : 'Here’s what’s happening across Parakkat HRMS today.'}
       meta={<span className="home-date">{date}</span>}

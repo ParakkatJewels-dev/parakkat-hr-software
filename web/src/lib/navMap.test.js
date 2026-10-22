@@ -455,3 +455,12 @@ test('the phone bar lights a screen\'s own button, else its section\'s, and neve
     for (const route of ['profile', 'settings', 'menu', 'not-a-screen']) assert.equal(mobileLitId(destinations, route), '', `${role}: ${route}`);
   }
 });
+
+test('Approvals opens to anyone who can decide a leave, correction or expense, and to nobody else', () => {
+  const approvals = OVERSIGHT_NAV.find((section) => section.id === 'home').tabs.find((tab) => tab.id === 'approvals');
+  const holding = (...perms) => ({ canAny: (perm) => perms.includes(perm), canBeyondSelf: (perm) => perms.includes(perm) });
+  assert.equal(canSeeTab(approvals, holding('leave.approve')), true);
+  assert.equal(canSeeTab(approvals, holding('expense.approve')), true);
+  assert.equal(canSeeTab(approvals, holding('regularization.approve')), true);
+  assert.equal(canSeeTab(approvals, holding('leave.read', 'expense.read')), false);
+});

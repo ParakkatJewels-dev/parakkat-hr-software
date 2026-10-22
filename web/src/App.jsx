@@ -14,6 +14,7 @@ import NotFound from './pages/NotFound';
 import InstallPrompt from './components/InstallPrompt';
 import { SkeletonPage } from './components/ui/Skeleton';
 const Directory = lazy(() => import('./components/Directory'));
+const Approvals = lazy(() => import('./components/Approvals'));
 const EmployeeImport = lazy(() => import('./components/EmployeeImport'));
 const EmployeeAttendanceDetail = lazy(() => import('./components/EmployeeAttendanceDetail'));
 const Attendance = lazy(() => import('./components/Attendance'));
@@ -861,6 +862,8 @@ export default function App() {
               switch (activeTab) {
               case 'dashboard':
                 return <Dashboard onNavigate={setActiveTab} viewRole={primaryRole} />;
+              case 'approvals':
+                return <Approvals />;
               case 'employee-import':
                 return <EmployeeImport onDone={() => setActiveTab('directory')} />;
               case 'directory':
