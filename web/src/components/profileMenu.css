@@ -274,6 +274,9 @@
 }
 
 .profile-facts dd a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
   color: inherit;
   text-decoration: none;
 }

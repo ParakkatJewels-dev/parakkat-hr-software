@@ -381,13 +381,13 @@ function ComponentsTab() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-          <input required placeholder="Code (e.g. PF)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className={INPUT} />
-          <input required placeholder="Name (e.g. Provident Fund)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={INPUT} />
-          <select value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} className={INPUT + ' cursor-pointer'}>
+          <input required aria-label="Component code" placeholder="Code (e.g. PF)" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} className={INPUT} />
+          <input required aria-label="Component name" placeholder="Name (e.g. Provident Fund)" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={INPUT} />
+          <select aria-label="Component type" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })} className={INPUT + ' cursor-pointer'}>
             <option value="deduction">Deduction (reduces pay)</option>
             <option value="earning">Allowance (part of gross)</option>
           </select>
-          <select value={form.calc_type} onChange={(e) => setForm({ ...form, calc_type: e.target.value })} className={INPUT + ' cursor-pointer'}>
+          <select aria-label="How it is calculated" value={form.calc_type} onChange={(e) => setForm({ ...form, calc_type: e.target.value })} className={INPUT + ' cursor-pointer'}>
             <option value="percent_of_basic">% of basic</option>
             <option value="percent_of_gross">% of regular monthly salary</option>
             <option value="fixed">Fixed amount</option>
@@ -396,18 +396,19 @@ function ComponentsTab() {
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           {form.calc_type === 'fixed' ? (
-            <input type="number" step="0.01" placeholder="Amount ₹" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className={INPUT} />
+            <input type="number" step="0.01" aria-label="Fixed amount in rupees" placeholder="Amount ₹" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} className={INPUT} />
           ) : (
-            <input type="number" step="0.0001" placeholder="Rate %" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} className={INPUT} />
+            <input type="number" step="0.0001" aria-label="Rate in percent" placeholder="Rate %" value={form.rate} onChange={(e) => setForm({ ...form, rate: e.target.value })} className={INPUT} />
           )}
-          <input type="number" step="0.01" placeholder="Cap base at ₹" value={form.cap_base} onChange={(e) => setForm({ ...form, cap_base: e.target.value })} className={INPUT} />
-          <input type="number" step="0.01" placeholder="Only if gross ≥ ₹" value={form.min_gross} onChange={(e) => setForm({ ...form, min_gross: e.target.value })} className={INPUT} />
-          <input type="number" step="0.01" placeholder="Only if gross ≤ ₹" value={form.max_gross} onChange={(e) => setForm({ ...form, max_gross: e.target.value })} className={INPUT} />
+          <input type="number" step="0.01" aria-label="Cap the base at, in rupees" placeholder="Cap base at ₹" value={form.cap_base} onChange={(e) => setForm({ ...form, cap_base: e.target.value })} className={INPUT} />
+          <input type="number" step="0.01" aria-label="Only if gross is at least, in rupees" placeholder="Only if gross ≥ ₹" value={form.min_gross} onChange={(e) => setForm({ ...form, min_gross: e.target.value })} className={INPUT} />
+          <input type="number" step="0.01" aria-label="Only if gross is at most, in rupees" placeholder="Only if gross ≤ ₹" value={form.max_gross} onChange={(e) => setForm({ ...form, max_gross: e.target.value })} className={INPUT} />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
           <select
             required={!isSuperAdmin}
+            aria-label="Company"
             value={form.entity_id}
             onChange={(e) => setForm({ ...form, entity_id: e.target.value })}
             className={INPUT + ' cursor-pointer'}
@@ -417,7 +418,7 @@ function ComponentsTab() {
               : <option value="" disabled>Company…</option>}
             {(org?.entities ?? []).map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}
           </select>
-          <select value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
+          <select aria-label="Branch" value={form.branch_id} onChange={(e) => setForm({ ...form, branch_id: e.target.value })} className={INPUT + ' cursor-pointer'}>
             <option value="">All branches</option>
             {(org?.branches ?? []).map((x) => <option key={x.id} value={x.id}>{x.code}</option>)}
           </select>

@@ -8692,6 +8692,9 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
   transition: color .15s ease, text-decoration-color .15s ease;
 }
 
+/* In a table row the name is the row's main way in, so it gets a full-size target. */
+.premium-table .employee-link { display: inline-flex; align-items: center; min-height: 1.5rem; }
+
 .employee-link:hover,
 .employee-link:focus-visible {
   color: var(--accent-strong);
