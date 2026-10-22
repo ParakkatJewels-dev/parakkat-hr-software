@@ -23,6 +23,7 @@ import { currentSectionId } from '../lib/sectionSpy';
 import { usePermissions } from '../auth/usePermissions';
 import { useAuth } from '../auth/AuthContext';
 import PagedCollection from './ui/PagedCollection';
+import { btnClass } from './ui/Btn';
 
 const initials = (name) =>
   (name || '')
@@ -616,28 +617,35 @@ export default function ProfileDrawer({ emp: initialEmp, onClose, onEdit, onGran
     <section className="emp-profile animate-fade-in">
       <header className="emp-hero">
         <div className="emp-hero-bar">
-          <button type="button" onClick={onClose} className="emp-back">
-            <ArrowLeft size={14} /> Directory
-          </button>
+          <nav aria-label="Breadcrumb" className="page-header-crumbs emp-crumbs">
+            <ol>
+              <li><span>People</span><ChevronRight size={13} aria-hidden="true" /></li>
+              <li><button type="button" onClick={onClose}>Directory</button><ChevronRight size={13} aria-hidden="true" /></li>
+              <li><span aria-current="page">{emp.full_name}</span></li>
+            </ol>
+          </nav>
           <div className="emp-hero-actions">
             {emp.email && (
-              <a href={`mailto:${emp.email}`} title="Send email" aria-label="Send email">
-                <Mail size={14} />
+              <a href={`mailto:${emp.email}`} title="Send email" aria-label="Send email" className={btnClass('ghost', 'md', true)}>
+                <Mail size={16} />
               </a>
             )}
             {emp.phone && (
-              <a href={`tel:${emp.phone}`} title="Call employee" aria-label="Call employee">
-                <Phone size={14} />
+              <a href={`tel:${emp.phone}`} title="Call employee" aria-label="Call employee" className={btnClass('ghost', 'md', true)}>
+                <Phone size={16} />
               </a>
             )}
+            <button type="button" onClick={onClose} className={btnClass('ghost')}>
+              <ArrowLeft size={16} /> Directory
+            </button>
             {onGrantAccess && (
-              <button type="button" onClick={onGrantAccess} title="Give access" aria-label="Give access">
-                <KeyRound size={14} />
+              <button type="button" onClick={onGrantAccess} className={btnClass('ghost')}>
+                <KeyRound size={16} /> Give access
               </button>
             )}
             {onEdit && (
-              <button type="button" onClick={onEdit} title="Edit employee" aria-label="Edit employee">
-                <Pencil size={14} />
+              <button type="button" onClick={onEdit} className={btnClass('primary')}>
+                <Pencil size={16} /> Edit employee
               </button>
             )}
           </div>

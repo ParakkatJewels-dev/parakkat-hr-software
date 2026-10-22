@@ -527,3 +527,27 @@ main .page-header-title,
   .leave-row-open { grid-row: 1; grid-column: 2; }
   .leave-row-note { padding-left: 3.2rem; }
 }
+
+/* ---- Attention banner (e.g. "6 profiles need attention", board 36) ---- */
+.attention-banner {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  margin-top: .9rem;
+  padding: .85rem 1.1rem;
+  border: 1px solid #f6dfa0;
+  border-radius: var(--radius-card);
+  background: #fef5d9;
+  color: #7a4405;
+}
+.attention-banner > svg { flex: none; color: #c97a06; }
+.attention-banner strong { display: block; color: var(--surface-text); font-size: .9rem; font-weight: 700; }
+.attention-banner span { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .1rem; color: #7a4405; font-size: .8rem; }
+.attention-banner span svg { margin-left: .4rem; }
+.attention-banner span svg:first-child { margin-left: 0; }
+.attention-banner[data-tone="good"] { border-color: #bfe8d0; background: #ecf9f1; color: #08743a; }
+.attention-banner[data-tone="good"] > svg, .attention-banner[data-tone="good"] span { color: #08743a; }
+.dark .attention-banner { border-color: rgba(251, 191, 36, .3); background: rgba(251, 191, 36, .1); color: #fcd34d; }
+.dark .attention-banner span, .dark .attention-banner > svg { color: #fcd34d; }
+.dark .attention-banner[data-tone="good"] { border-color: rgba(16, 185, 129, .3); background: rgba(16, 185, 129, .1); }
+.dark .attention-banner[data-tone="good"] span, .dark .attention-banner[data-tone="good"] > svg { color: #6ee7b7; }

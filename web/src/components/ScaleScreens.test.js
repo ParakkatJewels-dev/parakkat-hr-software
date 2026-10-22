@@ -244,7 +244,7 @@ test('roster quality counts unique incomplete people and MTD excludes future joi
   ];
   const html = render(PeopleOverview, [], { employees, filtered: employees, activeFilterCount: 0 });
   assert.match(html, /1 record needs attention/);
-  assert.match(html, /<strong>1<\/strong><small>Joined MTD<\/small>/);
+  assert.match(html, /stat-card-label">Joined this month<\/span><span class="stat-card-value">1<\/span>/);
 });
 
 test('675 team goals stay paged and searchable', () => {

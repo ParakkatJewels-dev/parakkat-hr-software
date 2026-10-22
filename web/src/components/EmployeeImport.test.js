@@ -21,6 +21,9 @@ const stubs = {
     export const runImport = async payload => { globalThis.importUI.submitted.push(payload); return { created: payload.rows.filter(row => row.status === 'new').length, updated: 0, branches: 0, designations: 0 }; };`,
   '../lib/employeeSpreadsheet': 'export const readEmployeeSheet = () => globalThis.importUI.sheet;',
   './ui/PageHeader': 'export default "page-header";',
+  './ui/StatCard': 'export const StatCard="test-stat-card", StatRow="test-stat-row";',
+  './ui/StatusPill': 'export default "test-status-pill";',
+  './ui/Avatar': 'export default "test-avatar"; export const initialsOf=()=>"", tintFor=()=>"";',
   './ui/PagedCollection': 'export default "paged-collection";',
 };
 const loader = registerHooks({

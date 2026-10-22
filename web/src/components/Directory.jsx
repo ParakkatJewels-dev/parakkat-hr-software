@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, User, ArrowLeft, X, AlertTriangle,
   List, LayoutGrid, Download, ArrowUpDown, Plus, Copy, Check, Loader2, Rows3, SlidersHorizontal,
-  Users, Building2, MapPin, Briefcase, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
+  Users, UserCheck, Clock, Plane, MapPin, Mail, CalendarDays, UploadCloud, FileCheck2, Trash2,
   Image, PenLine, Landmark, GraduationCap, IdCard, FileSignature, ShieldCheck, ClipboardList,
   HeartPulse, FileText, Eye, Award, Calculator,
   ChevronDown,
@@ -46,6 +46,9 @@ import {
   totalGrossFromParts,
 } from '../lib/salaryDraft';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
+import StatusPill from './ui/StatusPill';
+import { tintFor } from './ui/Avatar';
 
 const initials = (name) =>
   (name || '')
@@ -56,14 +59,7 @@ const initials = (name) =>
     .join('')
     .toUpperCase() || '?';
 
-const statusClass = (status) =>
-  status === 'Active'
-    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-500/10'
-    : status === 'On Leave'
-    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-500/10'
-    : status === 'Probation'
-    ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-400 border border-blue-500/10'
-    : 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-500/10';
+const PERSON_TONE = { Active: 'success', 'On Leave': 'warning', Probation: 'info' };
 
 const monthStartIso = () => {
   return `${istToday().slice(0, 7)}-01`;
@@ -94,64 +90,22 @@ export function PeopleOverview({ employees, filtered, activeFilterCount }) {
   const noPlacement = employees.filter((e) => !e.branch_id && !e.department_id).length;
   const needsAttention = employees.filter((e) => !e.email || (!e.branch_id && !e.department_id)).length;
   const activeRate = pct(active, employees.length);
-  const visibleRate = pct(filtered.length, employees.length);
-  const topBranches = Object.entries(
-    employees.reduce((m, e) => {
-      const key = e.branch?.name || e.branch?.code || 'Unplaced';
-      m[key] = (m[key] || 0) + 1;
-      return m;
-    }, {})
-  )
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
-
-  const stats = [
-    { label: 'Active roster', value: active, sub: `${activeRate}% of visible scope`, icon: Users, tone: 'green' },
-    { label: 'On probation', value: probation, sub: 'Needs closer follow-up', icon: Briefcase, tone: 'blue' },
-    { label: 'On leave', value: onLeave, sub: 'Current status', icon: CalendarDays, tone: 'amber' },
-    { label: 'Joined MTD', value: joinedMtd, sub: 'This month', icon: Building2, tone: 'violet' },
-  ];
 
   return (
-    <section className="directory-overview">
-      <div className="directory-overview-copy">
-        <span className="directory-eyebrow">People overview</span>
-        <h2>Roster Status</h2>
-        <p>
-          {activeFilterCount
-            ? `${filtered.length} people match the current filters, covering ${visibleRate}% of your visible roster.`
-            : `${employees.length} people are visible in your current role scope.`}
-        </p>
-        <div className="directory-overview-bars" aria-label="Largest branches">
-          {topBranches.map(([branch, count]) => (
-            <span key={branch}>
-              <strong>{branch}</strong>
-              <i style={{ width: `${pct(count, employees.length)}%` }} />
-              <em>{count}</em>
-            </span>
-          ))}
-        </div>
-      </div>
-
-      <div className="directory-overview-stats">
-        {stats.map(({ label, value, sub, icon: Icon, tone }) => (
-          <div key={label} className="directory-overview-stat" data-tone={tone}>
-            <span><Icon size={14} /></span>
-            <strong>{value}</strong>
-            <small>{label}</small>
-            <em>{sub}</em>
-          </div>
-        ))}
-      </div>
-
-      <div className="directory-overview-quality">
-        <div>
-          <span className="directory-eyebrow">Data quality</span>
+    <section className="directory-overview-v2" aria-label="Roster status">
+      <StatRow label="Roster figures">
+        <StatCard label="Total people" value={employees.length}
+          sub={activeFilterCount ? `${filtered.length} match the filters` : 'Visible to you'} icon={Users} tone="green" />
+        <StatCard label="Active" value={active} sub={`${activeRate}% of the roster`} icon={UserCheck} tone="green" />
+        <StatCard label="On probation" value={probation} sub="Needs closer follow-up" icon={Clock} tone="blue" />
+        <StatCard label="Joined this month" value={joinedMtd} sub="This month" icon={CalendarDays} tone="violet" />
+        <StatCard label="On leave" value={onLeave} sub="Current status" icon={Plane} tone="amber" />
+      </StatRow>
+      <div className="attention-banner" data-tone={needsAttention === 0 ? 'good' : 'warn'} role="status">
+        <AlertTriangle size={20} aria-hidden="true" />
+        <div className="min-w-0">
           <strong>{needsAttention === 0 ? 'All records have contact and placement details' : `${needsAttention} ${needsAttention === 1 ? 'record needs' : 'records need'} attention`}</strong>
-        </div>
-        <div className="directory-quality-grid">
-          <span><Mail size={12} /> {noEmail} missing email</span>
-          <span><MapPin size={12} /> {noPlacement} missing placement</span>
+          <span><Mail size={12} aria-hidden="true" /> {noEmail} missing email <MapPin size={12} aria-hidden="true" /> {noPlacement} missing placement</span>
         </div>
       </div>
     </section>
@@ -796,8 +750,8 @@ export default function Directory() {
                   </th>
                   <th scope="col" className="directory-col-location hidden sm:table-cell">Location</th>
                   <th scope="col" className="directory-col-department hidden md:table-cell">Department</th>
-                  <th scope="col" className="directory-col-email hidden lg:table-cell">Email</th>
-                  <th scope="col" className="directory-col-company hidden xl:table-cell">Company</th>
+                  <th scope="col" className="directory-col-email hidden xl:table-cell">Email</th>
+                  <th scope="col" className="directory-col-company hidden 2xl:table-cell">Company</th>
                   <th scope="col" className="directory-col-status text-center">Status</th>
                 </tr>
               </thead>
@@ -837,7 +791,7 @@ export default function Directory() {
                         <div className="flex items-center gap-2.5 min-w-0">
                           {/* Steady colours. The avatar used to invert to solid black on hover,
                               which flickered down the whole list as the pointer travelled. */}
-                          <div className="avatar-cell directory-avatar w-8 h-8 rounded-lg bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-brand-ink flex items-center justify-center font-bold text-xs shrink-0 font-mono select-none">
+                          <div className={`avatar-cell directory-avatar w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 select-none ${tintFor(emp.full_name)}`}>
                             {avatars[emp.id]
                               ? <img src={avatars[emp.id]} alt="" loading="lazy" />
                               : initials(emp.full_name)}
@@ -859,16 +813,14 @@ export default function Directory() {
                       <td data-label="Department" className="directory-col-department text-sm text-neutral-600 dark:text-neutral-300 py-3 hidden md:table-cell">
                         {emp.department?.name || '—'}
                       </td>
-                      <td data-label="Email" className="directory-col-email text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate hidden lg:table-cell">
+                      <td data-label="Email" className="directory-col-email text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate hidden xl:table-cell">
                         {emp.email || '—'}
                       </td>
-                      <td data-label="Company" className="directory-col-company text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate hidden xl:table-cell">
+                      <td data-label="Company" className="directory-col-company text-sm text-neutral-500 dark:text-neutral-400 py-3 truncate hidden 2xl:table-cell">
                         {emp.entity?.name || '—'}
                       </td>
                       <td data-label="Status" className="directory-col-status py-3 text-center">
-                        <span className={`text-2xs inline-block px-2 py-0.5 rounded-full font-bold tracking-wide uppercase leading-none ${statusClass(emp.status)}`}>
-                          {emp.status}
-                        </span>
+                        <StatusPill status={emp.status} tone={PERSON_TONE[emp.status] ?? 'danger'} />
                       </td>
                     </tr>
                   );
@@ -898,14 +850,12 @@ export default function Directory() {
             >
               <div className="w-full">
                 <div className="mobile-list-row flex items-start justify-between gap-2">
-                  <div className="directory-avatar w-10 h-10 rounded-xl bg-neutral-100 dark:bg-charcoal-800 text-neutral-700 dark:text-brand-ink flex items-center justify-center font-bold text-sm shrink-0 font-mono select-none">
+                  <div className={`directory-avatar w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 select-none ${tintFor(emp.full_name)}`}>
                     {avatars[emp.id]
                       ? <img src={avatars[emp.id]} alt="" loading="lazy" />
                       : initials(emp.full_name)}
                   </div>
-                  <span className={`text-2xs px-2 py-0.5 rounded-full font-bold tracking-wide uppercase shrink-0 ${statusClass(emp.status)}`}>
-                    {emp.status}
-                  </span>
+                  <StatusPill status={emp.status} tone={PERSON_TONE[emp.status] ?? 'danger'} className="shrink-0" />
                 </div>
                 <div className="mt-3">
                   <h3 className="font-bold text-neutral-900 dark:text-white text-md truncate">

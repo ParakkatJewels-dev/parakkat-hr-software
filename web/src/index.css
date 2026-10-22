@@ -2971,24 +2971,15 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: .8rem;
   }
 
+  /* Record header (2026 redesign): on the canvas, like every page header — breadcrumb and
+     actions, then the person. */
   .emp-hero {
     position: relative;
-    overflow: hidden;
-    border: 1px solid color-mix(in srgb, var(--surface-border) 82%, transparent);
-    border-radius: var(--radius-card);
-    background:
-      linear-gradient(135deg, color-mix(in srgb, var(--surface-elevated) 90%, #dcfce7), var(--surface-elevated) 62%),
-      var(--surface-elevated);
-    box-shadow: var(--shadow-card);
-  }
-
-  .emp-hero::before {
-    content: '';
-    position: absolute;
-    inset-inline: 0;
-    top: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent), var(--tone-blue), var(--tone-amber));
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .emp-hero-bar {
@@ -2997,13 +2988,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: .75rem;
-    padding: .9rem 1rem 0;
+    padding: 0;
   }
+  .emp-crumbs { margin: 0; }
 
   .emp-back,
-  .emp-hero-actions > button,
-  .emp-hero-actions > a,
   .emp-contact-actions > button,
   .emp-contact-actions > a {
     display: inline-flex;
@@ -3030,16 +3021,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: .45rem;
   }
 
-  .emp-hero-actions > button,
-  .emp-hero-actions > a {
-    width: 2.35rem;
-    height: 2.35rem;
-    border-radius: var(--radius-sm);
-  }
-
   .emp-back:hover,
-  .emp-hero-actions > button:hover,
-  .emp-hero-actions > a:hover,
   .emp-contact-actions > button:hover,
   .emp-contact-actions > a:hover {
     border-color: color-mix(in srgb, var(--accent) 36%, var(--surface-border));
@@ -3054,7 +3036,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: 1rem;
-    padding: 1rem 1.15rem 1.25rem;
+    padding: 1rem 0 .5rem;
   }
 
   .emp-avatar {
@@ -3063,13 +3045,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: var(--radius-sm);
-    background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--tone-blue) 72%, var(--accent)));
-    color: #fff;
+    border-radius: 999px;
+    background: var(--tone-green-bg);
+    color: var(--tone-green-fg);
     font-size: clamp(1.25rem, 2.4vw, 1.75rem);
-    font-weight: 900;
-    font-family: var(--font-mono);
-    box-shadow: 0 14px 32px color-mix(in srgb, var(--accent) 22%, transparent);
+    font-weight: 750;
+    box-shadow: none;
     overflow: hidden;
   }
 
@@ -3090,9 +3071,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .emp-hero-text h1 {
     margin: 0;
     color: var(--surface-text);
-    font-size: clamp(1.4rem, 2.6vw, 2.25rem) !important;
-    line-height: 1.05 !important;
-    font-weight: 900 !important;
+    font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.3rem) !important;
+    line-height: 1.1 !important;
+    font-weight: 750 !important;
+    letter-spacing: -.02em;
   }
 
   .emp-hero-text p {
