@@ -51,7 +51,7 @@
   font-weight: 700;
 }
 .navigation-count-status-compact { justify-content: center; }
-.liquid-glass-nav > .navigation-count-status {
+.mobile-bottom-nav > .navigation-count-status {
   position: absolute;
   bottom: calc(100% + .35rem);
   right: .5rem;

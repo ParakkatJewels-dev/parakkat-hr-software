@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createServer } from 'vite';
 import { NAVIGATION_COUNT_KEYS, navigationScreenCount } from '../../lib/navigationCounts.js';
 
-let server, CountBadge, LiquidGlassNav, App, AuthContext, SectionTabs, ShellNavContext, originalWindow, originalStorage;
+let server, CountBadge, MobileTabBar, App, AuthContext, SectionTabs, ShellNavContext, originalWindow, originalStorage;
 let collapsed = false;
 before(async () => {
   originalWindow = globalThis.window;
@@ -15,7 +15,7 @@ before(async () => {
   const storage = { getItem: key => key === 'sidebar-collapsed' && collapsed ? 'true' : null, setItem() {}, removeItem() {} };
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ default: CountBadge } = await server.ssrLoadModule('/src/components/ui/CountBadge.jsx'));
-  ({ default: LiquidGlassNav } = await server.ssrLoadModule('/src/components/ui/LiquidGlassNav.jsx'));
+  ({ default: MobileTabBar } = await server.ssrLoadModule('/src/components/shell/MobileTabBar.jsx'));
   ({ default: App } = await server.ssrLoadModule('/src/App.jsx'));
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
   ({ default: SectionTabs } = await server.ssrLoadModule('/src/components/shell/SectionTabs.jsx'));
@@ -61,19 +61,19 @@ test('CountBadge caps visual numbers while exposing the exact singular or plural
   assert.match(decorative, /count-badge-corner/);
 });
 
-test('LiquidGlassNav exposes exact action and unread counts without changing current-page semantics', () => {
+test('the phone tab bar exposes exact action and unread counts without changing current-page semantics', () => {
   const items = [
     { id: 'tasks', label: 'Tasks', badge: navigationScreenCount('tasks', counts) },
     { id: 'messages', label: 'Chat', badge: navigationScreenCount('messages', counts, 205) },
     { id: 'attendance', label: 'Time', badge: navigationScreenCount('attendance', counts) },
   ];
-  const html = render(LiquidGlassNav, { items, activeId: 'tasks', onSelect() {} });
+  const html = render(MobileTabBar, { items, activeId: 'tasks', onSelect() {} });
   assert.match(html, /aria-label="Tasks, 127 tasks to complete" aria-current="page"/);
   assert.match(html, /aria-label="Chat, 205 unread messages"/);
   assert.match(html, /aria-label="Time, 3 attendance requests to review"/);
   assert.equal((html.match(/>99\+<\/span>/g) ?? []).length, 2);
   assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1);
-  const empty = render(LiquidGlassNav, { items: [{ id: 'tasks', label: 'Tasks', badge: navigationScreenCount('tasks', {}) }], activeId: '', onSelect() {} });
+  const empty = render(MobileTabBar, { items: [{ id: 'tasks', label: 'Tasks', badge: navigationScreenCount('tasks', {}) }], activeId: '', onSelect() {} });
   assert.match(empty, /aria-label="Tasks"/);
   assert.doesNotMatch(empty, /class="count-badge/);
 });

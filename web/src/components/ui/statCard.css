@@ -1,8 +1,8 @@
 /* Number cards (2026 redesign). Tones come from the --tone-* tokens in index.css. */
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: .9rem;
+  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  gap: .75rem;
 }
 /* Six cards would otherwise wrap five-and-one on mid-size screens. */
 .stat-row[data-count="6"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -12,9 +12,9 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: .9rem;
+  gap: .75rem;
   min-width: 0;
-  padding: 1.05rem 1.1rem;
+  padding: .85rem 1rem;
   border: 1px solid var(--surface-border);
   border-radius: var(--radius-card);
   background: var(--surface-elevated);
@@ -42,9 +42,9 @@
   flex: none;
   align-items: center;
   justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: .875rem;
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: .8rem;
   background: var(--tile-bg);
   color: var(--tile-fg);
 }
@@ -61,7 +61,7 @@
 }
 .stat-card-value {
   color: var(--surface-text);
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
@@ -81,10 +81,15 @@
 .stat-card-sub[data-tone="bad"]  { color: var(--tone-red-fg); font-weight: 600; }
 .stat-card-sub[data-tone="warn"] { color: var(--tone-amber-fg); font-weight: 600; }
 
+/* Phones: as in the reference kit — label on top, the figure under it, the icon tile in the top
+   right corner, two cards to a row. */
 @media (max-width: 640px) {
-  .stat-row, .stat-row[data-count="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
-  .stat-card { gap: .65rem; padding: .8rem .85rem; }
-  .stat-card-icon { width: 2.5rem; height: 2.5rem; border-radius: .75rem; }
-  .stat-card-icon svg { width: 19px; height: 19px; }
+  .stat-row, .stat-row[data-count="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .625rem; }
+  .stat-card { flex-direction: row-reverse; align-items: flex-start; justify-content: space-between; gap: .5rem; padding: .75rem .8rem; }
+  .stat-card-icon { width: 2.125rem; height: 2.125rem; border-radius: .65rem; }
+  .stat-card-icon svg { width: 17px; height: 17px; }
+  .stat-card-copy { gap: .2rem; }
+  .stat-card-label { font-size: .75rem; -webkit-line-clamp: 1; }
   .stat-card-value { font-size: 1.3rem; }
+  .stat-card-sub { font-size: .6875rem; -webkit-line-clamp: 1; }
 }

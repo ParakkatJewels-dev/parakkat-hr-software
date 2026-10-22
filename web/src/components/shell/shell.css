@@ -253,7 +253,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: calc(4.5rem + env(safe-area-inset-top));
+  min-height: calc(4rem + env(safe-area-inset-top));
   padding-top: env(safe-area-inset-top);
   padding-left: max(var(--space-shell), env(safe-area-inset-left));
   padding-right: max(var(--space-shell), env(safe-area-inset-right));
@@ -283,8 +283,8 @@
 .app-header-search {
   align-items: center;
   gap: .65rem;
-  width: min(29rem, 42vw);
-  height: 2.75rem;
+  width: min(28rem, 42vw);
+  height: 2.5rem;
   padding: 0 .9rem;
   border: 1px solid var(--surface-border);
   border-radius: .875rem;
@@ -313,9 +313,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  min-height: 2.75rem !important;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: 2.5rem !important;
   padding: 0 !important;
   border: 1px solid var(--surface-border) !important;
   border-radius: 999px !important;
@@ -337,8 +337,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
   overflow: hidden;
   border-radius: 999px;
   background: var(--forest);
@@ -350,16 +350,16 @@
 .header-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
 /* ---- Page header ---------------------------------------------------------- */
-.page-header { margin-bottom: 1.25rem; }
+.page-header { margin-bottom: var(--section-gap); }
 .page-header-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
-  gap: .9rem 1.25rem;
+  gap: .75rem 1rem;
 }
 .page-header-copy { min-width: 0; flex: 1 1 16rem; }
-.page-header-crumbs { margin: 0 0 .45rem; color: var(--surface-text-soft); font-size: .8125rem; }
+.page-header-crumbs { margin: 0 0 .3rem; color: var(--surface-text-soft); font-size: .8125rem; }
 .page-header-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: 0; padding: 0; list-style: none; }
 .page-header-crumbs li { display: inline-flex; align-items: center; gap: .35rem; }
 .page-header-crumbs button { display: inline-flex; align-items: center; min-height: 1.5rem; padding: 0 .15rem; border-radius: .35rem; color: var(--surface-text-soft); }
@@ -370,16 +370,16 @@ main .page-header-title,
 .page-header-title {
   margin: 0;
   color: var(--surface-text);
-  font-size: clamp(1.55rem, 1.25rem + 1vw, 2rem) !important;
+  font-size: clamp(1.375rem, 1.2rem + .5vw, 1.625rem) !important; /* 22 → 26 */
   font-weight: 750 !important;
   line-height: 1.12 !important;
   letter-spacing: -.02em !important;
 }
 .page-header-subtitle {
   max-width: 48rem;
-  margin: .35rem 0 0;
+  margin: .25rem 0 0;
   color: var(--surface-text-soft);
-  font-size: .9375rem;
+  font-size: .875rem;
   line-height: 1.45;
 }
 .page-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .6rem; margin-left: auto; }
@@ -387,12 +387,12 @@ main .page-header-title,
 
 /* Section tabs, under the title. */
 .section-tabbar {
-  margin-top: 1.1rem;
+  margin-top: .85rem;
   border-bottom: 1px solid var(--surface-border);
 }
 .section-tab-scroll {
   display: flex;
-  gap: 1.75rem;
+  gap: 1.5rem;
   margin-bottom: -1px;
   overflow-x: auto;
   scrollbar-width: none;
@@ -403,10 +403,10 @@ main .page-header-title,
   display: inline-flex;
   flex: none;
   align-items: center;
-  padding: .7rem .1rem .8rem;
+  padding: .55rem .1rem .65rem;
   border-bottom: 2.5px solid transparent;
   color: var(--surface-text-soft);
-  font-size: .9375rem;
+  font-size: .875rem;
   font-weight: 500;
   white-space: nowrap;
   transition: color .15s ease, border-color .15s ease;
@@ -439,29 +439,32 @@ main .page-header-title,
      staying in the page only as its heading for screen readers. */
   .profile-page-header { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .profile-page-header .page-header-crumbs, .profile-page-header .section-tabbar { display: none; }
+  /* Phone top bar, like the reference: logo on the left; search, bell and you on the right, on
+     the page colour rather than a white strip. */
   .app-header {
-    min-height: calc(3.9rem + env(safe-area-inset-top));
-    padding-left: max(1rem, env(safe-area-inset-left));
-    padding-right: max(1rem, env(safe-area-inset-right));
-    background: color-mix(in srgb, var(--surface-elevated) 92%, transparent) !important;
-    box-shadow: 0 1px 0 var(--surface-border);
+    min-height: calc(3.5rem + env(safe-area-inset-top));
+    gap: .75rem;
+    padding-left: max(var(--space-shell), env(safe-area-inset-left));
+    padding-right: max(var(--space-shell), env(safe-area-inset-right));
+    background: color-mix(in srgb, var(--surface-bg) 94%, transparent) !important;
+    box-shadow: none;
   }
-  .app-header-actions { gap: .4rem; }
+  .app-header-actions { gap: .45rem; }
   .app-header-icon,
   .header-notifications > button,
-  .header-profile-avatar { width: 2.5rem; height: 2.5rem; min-height: 2.5rem !important; }
+  .header-profile-avatar { width: 2.375rem; height: 2.375rem; min-height: 2.375rem !important; }
+  /* Switching role lives in More on phones and tablets. */
+  .app-header .role-chip { display: none; }
 }
 
 @media (max-width: 640px) {
-  .page-header { margin-bottom: 1rem; }
+  .page-header { margin-bottom: 0; }
+  .page-header-crumbs:not(.page-header-eyebrow) { display: none; }
   main .page-header-title,
-  .page-header-title { font-size: 1.5rem !important; }
-  .page-header-subtitle { font-size: .875rem; }
-  .page-header-actions { width: 100%; }
-  .page-header-actions > * { flex: 1 1 auto; justify-content: center; }
-  .section-tab-scroll { gap: 1.25rem; }
-  .section-tab-button { font-size: .875rem; }
-  .app-header .role-chip-label { display: none; }
+  .page-header-title { font-size: 1.375rem !important; }
+  .page-header-row { align-items: center; gap: .6rem .75rem; }
+  .page-header-actions { gap: .5rem; }
+  .page-header-actions > * { flex: 0 0 auto; }
   /* Appearance is in the More menu on a phone; the bar keeps search, role, bell and you. */
   .app-header .header-theme-toggle { display: none; }
 }

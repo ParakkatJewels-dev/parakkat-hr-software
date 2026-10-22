@@ -42,11 +42,10 @@ const Notifications = lazy(() => import('./components/Notifications'));
 import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
-import LiquidGlassNav from './components/ui/LiquidGlassNav';
+import MobileTabBar from './components/shell/MobileTabBar';
 import { NavigationCountBadge, NavigationCountStatus } from './components/ui/CountBadge';
 import Sidebar from './components/shell/Sidebar';
 import { ShellNavContext } from './components/shell/shellNavContext';
-import './components/ui/liquidGlassNav.css';
 import './components/shell/shell.css';
 import { useAuth } from './auth/AuthContext';
 import { useEmployeeAvatars } from './data/documents';
@@ -1023,7 +1022,7 @@ export default function App() {
           onInstall={installPwa}
         />
 
-        <LiquidGlassNav
+        <MobileTabBar
           items={mobilePrimarySections}
           activeId={isNotFound ? '' : mobileLitId(mobilePrimarySections, activeTab)}
           currentId={isNotFound ? '' : activeTab}

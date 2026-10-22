@@ -71,8 +71,12 @@
      the content ran 78% wider — everything stretched except the breathing room, which is exactly
      what "cramped on the big screen" looks like. The type scale still stops at 1440 on purpose:
      text should not keep growing, but space around it should. */
-  --space-card: clamp(0.625rem, 0.539rem + 0.366vw, 1.125rem); /* 10 → 18  card gutter */
-  --space-shell: clamp(0.625rem, 0.389rem + 1.007vw, 2rem);    /* 10 → 32  left/right */
+  /* Round 2 (22 Oct 2026): the phone reference keeps a 16px page edge and ~14px inside cards.
+     The old 10px floor made phone pages feel cramped at the sides while stacked headers and
+     margins wasted the height; the edges come back to 16px and the stacking is removed instead. */
+  --space-card: clamp(0.875rem, 0.8rem + 0.2vw, 1.125rem);     /* 14 → 18  card gutter */
+  --space-shell: clamp(1rem, 0.85rem + 0.6vw, 2rem);           /* 16 → 32  left/right */
+  --section-gap: clamp(0.75rem, 0.68rem + 0.3vw, 1rem);        /* 12 → 16  between blocks */
   /* Top and bottom get their own, more generous ramp. Side gutters are constrained by how much
      width you can afford to give away; vertical space is nearly free on a tall screen, and
      content that starts flush against the header reads as cramped on a large display. */
@@ -654,7 +658,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .premium-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
   .premium-table th {
     border-bottom: 1px solid var(--surface-border);
-    padding: .75rem .9rem;
+    padding: .6rem .85rem;
     font-size: .8125rem;
     font-weight: 600;
     text-transform: none;
@@ -694,7 +698,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .premium-table.is-compact td { padding-block: .3rem; }
   .premium-table.is-compact td .avatar-cell { width: 1.5rem; height: 1.5rem; }
   .premium-table.is-compact td .row-sub { display: none; }
-  .premium-table td { border-bottom: 1px solid var(--surface-border); padding: calc(var(--space-cell) + .3rem) .9rem; color: var(--surface-text); transition: background-color .15s ease; }
+  .premium-table td { border-bottom: 1px solid var(--surface-border); padding: calc(var(--space-cell) + .2rem) .85rem; color: var(--surface-text); transition: background-color .15s ease; }
   .premium-table tr:last-child td { border-bottom: none; }
   .premium-table tbody tr:hover td { background: var(--surface-subtle); }
   .dark .premium-table th { color: var(--surface-text-soft); border-color: var(--surface-border); background: var(--surface-subtle); }
@@ -4458,7 +4462,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
    value; it stays authoritative there because it also carries the mobile nav's bottom clearance. */
 .app-main { padding-inline: var(--space-shell); }
 
-
+/* Round 2: one vertical rhythm between a page's blocks on every screen size. The space-y-5/6 that
+   screens wrap themselves in gave 20–24px between every card, which is most of what read as
+   "too much padding" on a computer. Tailwind 4 puts space-y on margin-block-end. */
+main .space-y-5 > :not(:last-child),
+main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
 
 
 .page-shell .premium-card > h3,
@@ -4898,9 +4906,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 
-
-
-
 .page-shell:not(.dashboard-shell):not(.people-page) > .grid:has(> .premium-card) {
   gap: .75rem;
 }
@@ -4911,8 +4916,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 
-
-
 .page-shell:not(.dashboard-shell):not(.people-page) .premium-card > h3,
 .page-shell:not(.dashboard-shell):not(.people-page) .premium-card > div > h3 {
   display: flex;
@@ -4921,7 +4924,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   border-bottom-color: var(--work-line) !important;
   padding-bottom: .65rem;
 }
-
 
 
 .page-shell:not(.dashboard-shell):not(.people-page) label {
@@ -4952,7 +4954,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   border-color: color-mix(in srgb, var(--surface-border) 92%, transparent);
   background: color-mix(in srgb, var(--surface-subtle) 54%, var(--surface-elevated));
 }
-
 
 
 .page-shell:not(.dashboard-shell):not(.people-page) .table-scroll {
@@ -5797,9 +5798,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     padding-left: max(1.5rem, env(safe-area-inset-left));
     padding-right: max(1.5rem, env(safe-area-inset-right));
   }
-}
-.mobile-drawer { padding-top: env(safe-area-inset-top); padding-left: env(safe-area-inset-left); }
-.mobile-bottom-nav { display: none; }
+}.mobile-bottom-nav { display: none; }
 
 @media (max-width: 900px) {
   .settings-layout { grid-template-columns: 1fr; }
@@ -5903,199 +5902,90 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 @media (max-width: 1023px) {
   :root {
-    /* The nav is a floating glass capsule rather than a bar bolted to the bottom edge, so its own
-       height, the gap it leaves beneath itself and the safe area are three separate numbers.
-       --mobile-nav-height keeps its old meaning — the band the nav covers — because the install
-       nudge, the mobile filter sheet and the filter FAB all measure their clearance from it. */
-    --mobile-nav-control-height: 3.65rem;
-    --mobile-nav-float-gap: .85rem;
+    /* The phone tab bar (2026 redesign, round 2): a flat white bar on the bottom edge, like the
+       reference phone kit, instead of the floating glass capsule. --mobile-nav-height keeps its
+       meaning — the band the bar covers — because the install nudge, the filter sheet and the
+       filter button all measure their clearance from it. */
+    --mobile-nav-control-height: 3.6rem;
     --mobile-nav-safe-bottom: env(safe-area-inset-bottom);
-    --mobile-nav-safe-left: env(safe-area-inset-left);
-    --mobile-nav-safe-right: env(safe-area-inset-right);
-    --mobile-nav-height: calc(
-      var(--mobile-nav-control-height) + var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom)
-    );
+    --mobile-nav-height: calc(var(--mobile-nav-control-height) + var(--mobile-nav-safe-bottom));
     --mobile-nav-clearance: calc(var(--mobile-nav-height) + .75rem);
   }
 
-  .app-content {
-    position: relative;
-  }
+  .app-content { position: relative; }
 
   .app-main {
-    padding-bottom: calc(var(--mobile-nav-height) + .5rem);
-    scroll-padding-bottom: calc(var(--mobile-nav-height) + .5rem);
+    padding-bottom: calc(var(--mobile-nav-height) + .75rem);
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + .75rem);
   }
 
-  /* Floating mobile dock. Keep the scroll content underneath the translucent surface;
-     .app-main reserves its clearance. Anchoring to .app-content also keeps the dock with
-     the app viewport when the browser chrome or on-screen keyboard changes its height. */
   .mobile-bottom-nav {
-    /* Column count and current column come from App.jsx as inline custom properties; the
-       fallbacks here keep the bar sane if it ever renders before they are set. */
-    --nav-count: 5;
-    --nav-active: 0;
-    --nav-gap: .1rem;
-    --nav-pad: .3rem;
-
     position: absolute;
     z-index: 40;
-    right: max(.7rem, calc(var(--mobile-nav-safe-right) + .35rem));
-    bottom: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom));
-    left: max(.7rem, calc(var(--mobile-nav-safe-left) + .35rem));
+    inset: auto 0 0 0;
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: minmax(0, 1fr);
-    gap: var(--nav-gap);
-    height: var(--mobile-nav-control-height);
-    max-width: 34rem;
+    height: var(--mobile-nav-height);
     margin: 0;
-    margin-inline: auto;
-    padding: var(--nav-pad);
-    border: 1px solid rgba(255, 255, 255, .72);
-    border-radius: 999px;
-    overflow: hidden;
-    isolation: isolate;
-    transform: translate3d(0, 0, 0);
-    /* Opaque enough to read without backdrop-filter. */
+    padding: 0 max(.25rem, env(safe-area-inset-right)) var(--mobile-nav-safe-bottom) max(.25rem, env(safe-area-inset-left));
+    border-top: 1px solid var(--surface-border);
     background: var(--surface-elevated);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .95),
-      inset 0 -1px 0 rgba(255, 255, 255, .35),
-      0 2px 6px rgba(16, 32, 26, .07),
-      0 12px 30px rgba(16, 32, 26, .16);
-  }
-
-  /* A neutral film, blurred background and fine rim create the glass appearance. */
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .mobile-bottom-nav {
-      background: linear-gradient(180deg, rgba(255, 255, 255, .58), rgba(255, 255, 255, .3));
-      -webkit-backdrop-filter: blur(24px) saturate(170%);
-      backdrop-filter: blur(24px) saturate(170%);
-    }
-  }
-
-  /* Scroll-edge effect, in the strip the capsule leaves beneath itself. Content scrolls into that
-     strip the way it does under any floating iOS bar, and without this a page ends on a hard
-     half-line of text at the very bottom of the screen. A masked blur rather than a gradient
-     scrim: it needs no opinion about what colour the page behind it is, and where the platform
-     cannot do backdrop-filter it simply does nothing. Below the nav, above the scroller. */
-  .app-content::after {
-    content: '';
-    position: absolute;
-    z-index: 39;
-    inset: auto 0 0 0;
-    height: calc(var(--mobile-nav-float-gap) + var(--mobile-nav-safe-bottom) + .5rem);
-    pointer-events: none;
-    -webkit-backdrop-filter: blur(10px);
-    backdrop-filter: blur(10px);
-    -webkit-mask-image: linear-gradient(to top, #000 45%, transparent);
-    mask-image: linear-gradient(to top, #000 45%, transparent);
-  }
-
-  /* Specular highlight — the bright arc real glass picks up along its top edge. Decorative, so it
-     never takes a touch from the button beneath it. */
-  .mobile-bottom-nav::before {
-    content: '';
-    position: absolute;
-    z-index: 0;
-    top: 0;
-    right: 5%;
-    left: 5%;
-    height: 48%;
-    border-radius: 999px 999px 60% 60% / 999px 999px 100% 100%;
-    pointer-events: none;
-    background: linear-gradient(180deg, rgba(255, 255, 255, .7), rgba(255, 255, 255, 0));
-    opacity: .65;
-  }
-
-  /* Equal columns let the selection capsule slide using a compositor-friendly transform.
-     The percentage in translateX is the capsule's own width, plus one grid gap per tab. */
-  .mobile-bottom-nav-indicator {
-    --nav-col: calc(
-      (100% - 2 * var(--nav-pad) - (var(--nav-count) - 1) * var(--nav-gap)) / var(--nav-count)
-    );
-
-    position: absolute;
-    z-index: 0;
-    top: var(--nav-pad);
-    bottom: var(--nav-pad);
-    left: var(--nav-pad);
-    width: var(--nav-col);
-    transform: translateX(calc(var(--nav-active) * (100% + var(--nav-gap))));
-    transform-origin: center;
-    border-radius: 999px;
-    pointer-events: none;
-    background: var(--coral-soft);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .95),
-      inset 0 -1px 0 rgba(255, 255, 255, .48),
-      0 2px 7px rgba(16, 32, 26, .1);
-    transition:
-      transform .48s cubic-bezier(.22, 1, .36, 1),
-      width .3s ease,
-      opacity .2s ease;
-  }
-
-  /* No section on the bar is current — hide rather than park the capsule on the first tab and
-     claim something that is not true. */
-  .mobile-bottom-nav-indicator[data-visible="false"] {
-    opacity: 0;
+    box-shadow: 0 -6px 18px rgba(15, 23, 42, .05);
   }
 
   .mobile-bottom-nav-item {
     position: relative;
-    z-index: 1;
-    min-width: 0;
-    min-height: 2.75rem !important;
-    height: 100%;
-    display: grid;
-    grid-template-rows: 1.55rem auto;
+    display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    align-content: center;
-    gap: .12rem;
-    padding: 0 .1rem;
-    border: 0;
-    border-radius: 999px;
-    color: var(--surface-text);
-    background: transparent;
-    touch-action: manipulation;
-    -webkit-user-select: none;
-    user-select: none;
+    gap: .22rem;
+    min-width: 0;
+    padding: .35rem .15rem .3rem;
+    color: var(--surface-text-soft);
     -webkit-tap-highlight-color: transparent;
-    transition: color .2s ease, background-color .2s ease,
-      transform .28s cubic-bezier(.22, 1, .36, 1);
+    transition: color .15s ease;
   }
 
+  .mobile-bottom-nav-icon { display: inline-flex; }
+
   .mobile-bottom-nav-item svg {
-    justify-self: center;
-    width: 1.4rem;
-    height: 1.4rem;
+    width: 1.375rem;
+    height: 1.375rem;
     stroke-width: 1.8;
-    fill: transparent;
-    transition: fill .22s ease, stroke-width .22s ease,
-      transform .3s cubic-bezier(.32, .72, 0, 1);
   }
 
   .mobile-bottom-nav-label {
-    display: block;
     max-width: 100%;
     overflow: hidden;
-    color: inherit;
     font-size: .6875rem;
     font-weight: 600;
-    line-height: .875rem;
-    letter-spacing: -.005em;
-    text-align: center;
+    line-height: 1.1;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* The current destination is coral, icon and label, as in the reference. */
+  .mobile-bottom-nav-item-active { color: var(--coral); }
+  .mobile-bottom-nav-item-active svg {
+    fill: color-mix(in srgb, currentColor 16%, transparent);
+    stroke-width: 2.1;
+  }
+  .mobile-bottom-nav-item-active .mobile-bottom-nav-label { font-weight: 700; }
+
+  .mobile-bottom-nav-item:active { color: var(--surface-text); }
+  .mobile-bottom-nav-item-active:active { color: var(--coral-hover); }
+
+  .mobile-bottom-nav-item:focus-visible {
+    outline: 2px solid var(--coral);
+    outline-offset: -5px;
+    border-radius: .85rem;
   }
 
   .mobile-bottom-nav-avatar {
     display: grid;
     place-items: center;
-    justify-self: center;
     width: 1.5rem;
     height: 1.5rem;
     overflow: hidden;
@@ -6106,198 +5996,31 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     font-size: .5625rem;
     font-weight: 750;
     line-height: 1;
-    letter-spacing: -.02em;
-    transition: border-color .2s ease, box-shadow .2s ease, transform .28s ease;
   }
+  .mobile-bottom-nav-avatar img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .mobile-bottom-nav-item-active .mobile-bottom-nav-avatar { border-color: currentColor; }
 
-  .mobile-bottom-nav-avatar img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  /* The moving surface carries the selected state while the icon and label add contrast. */
-  /* 2026 redesign: the current destination is coral. */
-  .mobile-bottom-nav-item-active {
-    color: var(--coral);
-  }
-
-  .mobile-bottom-nav-item-active svg {
-    fill: color-mix(in srgb, currentColor 20%, transparent);
-    stroke-width: 2.1;
-  }
-
-  .mobile-bottom-nav-item-active .mobile-bottom-nav-label {
-    font-weight: 700;
-  }
-
-  .mobile-bottom-nav-item-active .mobile-bottom-nav-avatar {
-    border-color: var(--coral);
-    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--coral) 22%, transparent);
-  }
-
-  .mobile-bottom-nav-item:focus-visible {
-    outline: 2px solid var(--accent-strong);
-    outline-offset: -2px;
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .mobile-bottom-nav-item:hover {
-      color: var(--accent-strong);
-      background-color: rgba(255, 255, 255, .25);
-      transform: translateY(-1px);
-    }
-
-    .mobile-bottom-nav-item:hover svg,
-    .mobile-bottom-nav-item:hover .mobile-bottom-nav-avatar {
-      transform: translateY(-1px) scale(1.06);
-    }
-  }
-
-  .mobile-bottom-nav-item:active {
-    transform: scale(.94);
-  }
-
-  .mobile-bottom-nav-item:active svg,
-  .mobile-bottom-nav-item:active .mobile-bottom-nav-avatar {
-    transform: scale(.96);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .mobile-bottom-nav-indicator,
-    .mobile-bottom-nav-item,
-    .mobile-bottom-nav-item svg,
-    .mobile-bottom-nav-avatar {
-      transition: none;
-    }
-
-    .mobile-bottom-nav-item:hover,
-    .mobile-bottom-nav-item:hover svg,
-    .mobile-bottom-nav-item:hover .mobile-bottom-nav-avatar,
-    .mobile-bottom-nav-item:active,
-    .mobile-bottom-nav-item:active svg,
-    .mobile-bottom-nav-item:active .mobile-bottom-nav-avatar {
-      transform: none;
-    }
-  }
-
-  /* Dark mode keeps a darker translucent film so the labels retain contrast. */
-  .dark .mobile-bottom-nav {
-    border-color: rgba(255, 255, 255, .2);
-    background: var(--surface-elevated);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .16),
-      inset 0 -1px 0 rgba(0, 0, 0, .3),
-      0 2px 6px rgba(0, 0, 0, .24),
-      0 12px 30px rgba(0, 0, 0, .42);
-  }
-
-  @supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-    .dark .mobile-bottom-nav {
-      background: linear-gradient(180deg, rgba(30, 36, 34, .72), rgba(21, 27, 25, .48));
-      -webkit-backdrop-filter: blur(24px) saturate(160%);
-      backdrop-filter: blur(24px) saturate(160%);
-    }
-  }
-
-  .dark .mobile-bottom-nav::before {
-    background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0));
-    opacity: .6;
-  }
-
-  .dark .mobile-bottom-nav-indicator {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, .19), rgba(255, 255, 255, .07)),
-      color-mix(in srgb, var(--accent) 12%, transparent);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, .22),
-      inset 0 -1px 0 rgba(0, 0, 0, .22),
-      0 4px 14px rgba(0, 0, 0, .3);
-  }
-
-  .dark .mobile-bottom-nav-item-active {
-    color: var(--coral);
-  }
-
-  .dark .mobile-bottom-nav-item-active .mobile-bottom-nav-avatar {
-    border-color: var(--coral);
-  }
-
-  @media (hover: hover) and (pointer: fine) {
-    .dark .mobile-bottom-nav-item:hover {
-      color: var(--accent-ink);
-      background-color: rgba(255, 255, 255, .08);
-    }
-  }
-
-  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-    .mobile-bottom-nav,
-    .dark .mobile-bottom-nav {
-      background: var(--surface-elevated);
-      border-color: var(--surface-text-soft);
-      -webkit-backdrop-filter: none;
-      backdrop-filter: none;
-    }
-
-    .mobile-bottom-nav::before,
-    .app-content::after {
-      display: none;
-    }
-
-    .mobile-bottom-nav-indicator,
-    .dark .mobile-bottom-nav-indicator {
-      background: var(--surface-muted);
-      border: 1px solid currentColor;
-      box-shadow: none;
-    }
-  }
+  .dark .mobile-bottom-nav { box-shadow: 0 -6px 18px rgba(0, 0, 0, .3); }
 
   @media (forced-colors: active) {
-    .mobile-bottom-nav,
-    .dark .mobile-bottom-nav {
-      background: Canvas;
-      border-color: ButtonText;
-      box-shadow: none;
-      -webkit-backdrop-filter: none;
-      backdrop-filter: none;
-    }
-
-    .mobile-bottom-nav::before,
-    .app-content::after {
-      display: none;
-    }
-
-    .mobile-bottom-nav-indicator,
-    .dark .mobile-bottom-nav-indicator {
-      background: Canvas;
-      border: 2px solid Highlight;
-      box-shadow: none;
-    }
-
-    .mobile-bottom-nav-item,
-    .mobile-bottom-nav-item-active,
-    .dark .mobile-bottom-nav-item-active,
-    .mobile-bottom-nav-avatar {
-      color: ButtonText;
-    }
-
-    .mobile-bottom-nav-item:focus-visible {
-      outline-color: Highlight;
-    }
+    .mobile-bottom-nav { border-top: 1px solid CanvasText; }
+    .mobile-bottom-nav-item-active { color: Highlight; }
   }
 }
 
 @media (max-width: 640px) {
   :root {
-    --radius-card: var(--radius-sm);
-    --radius-control: var(--radius-sm);
+    /* Softer phone corners, as in the reference (cards ~14px, controls ~12px). */
+    --radius-card: .875rem;
+    --radius-control: .75rem;
   }
 
   body { font-size: 13.5px; }
   .page-shell { width: 100%; }
-  main .page-shell > * + * {
-    margin-top: .65rem !important;
+  /* One vertical rhythm on phones. Home lays its rows out with a grid gap, so it is left out —
+     a margin here on top of that gap is what doubled the space between Home's rows. */
+  main .page-shell:not(.home-page) > * + * {
+    margin-top: var(--section-gap) !important;
   }
 
   main .user-profile > * + * {
@@ -6309,8 +6032,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   /* The bottom padding is the nav's band, not a fixed .75rem: the glass capsule now floats over
      this scroller instead of sitting below it, so the last card has to clear it by itself. */
   .app-main {
-    padding: .65rem var(--space-shell) calc(var(--mobile-nav-height) + .5rem);
-    scroll-padding-bottom: calc(var(--mobile-nav-height) + .5rem);
+    padding: .75rem var(--space-shell) calc(var(--mobile-nav-height) + .75rem);
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + .75rem);
   }
   /* .app-main is the scroll container, and a scroll container's padding-bottom is not always
      honoured at the end of the scroll. This pseudo-element guarantees the last card clears the
@@ -6417,10 +6140,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .user-profile-value:has(.user-profile-phone-editor) {
     grid-column: 1 / -1;
   }
-
-
-
-
 
 
   .page-header-actions {
@@ -6559,9 +6278,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
 
-
-
-
   main .premium-card,
   main [class*="rounded-2xl"] {
     border-radius: var(--radius-card);
@@ -6607,10 +6323,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     padding: .85rem !important;
   }
 
-  main .space-y-6 > :not([hidden]) ~ :not([hidden]),
-  main .space-y-5 > :not([hidden]) ~ :not([hidden]),
-  main .space-y-4 > :not([hidden]) ~ :not([hidden]) {
-    margin-top: .65rem !important;
+  /* Tailwind 4's space-y sets margin-block-END on every child but the last, so that is the side to
+     shorten; the old margin-top override collapsed with it and left the full 20–24px. */
+  main .space-y-4 > :not(:last-child),
+  main .space-y-5 > :not(:last-child),
+  main .space-y-6 > :not(:last-child) {
+    margin-block-end: var(--section-gap) !important;
   }
 
   main .gap-6,
@@ -7554,9 +7272,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
 
-
-
-
   main .dashboard-alert-strip {
     padding: .65rem .75rem;
   }
@@ -7625,7 +7340,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     font-size: .76rem;
     line-height: 1.1;
   }
-
 
 
   main .directory-overview {
@@ -8259,18 +7973,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       color-mix(in srgb, var(--surface-elevated) 88%, transparent) !important;
     box-shadow: 0 1px 0 var(--surface-border);
   }
-
-  .app-header-title {
-    min-width: 0;
-    flex: 1 1 auto;
-    gap: .5rem !important;
-  }
-
-  .app-header-title-label {
-    min-width: 0;
-    max-width: min(38vw, 9.5rem);
-  }
-
   .app-header-actions {
     min-width: 0;
     gap: .25rem;
@@ -8304,14 +8006,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .command-palette-input button {
     width: 100%;
   }
-
-  .mobile-menu-trigger {
-    display: inline-flex !important;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-  }
-
   .mobile-search-trigger,
   .header-update-action,
   .header-install-action,
@@ -8341,77 +8035,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
       background: transparent !important;
     }
   }
-
-  .mobile-drawer {
-    align-items: flex-end;
-    justify-content: center;
-    padding: .75rem;
-  }
-
-  .mobile-drawer-panel {
-    width: min(100%, 27rem) !important;
-    height: auto !important;
-    max-height: min(82dvh, 38rem);
-    padding: .75rem !important;
-    border: 1px solid color-mix(in srgb, var(--surface-border-strong) 80%, transparent);
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--surface-elevated) 90%, transparent) !important;
-    box-shadow: 0 24px 70px rgba(0, 0, 0, .32);
-    backdrop-filter: blur(22px) saturate(1.15);
-    padding-bottom: max(.75rem, env(safe-area-inset-bottom)) !important;
-  }
-
-  .mobile-drawer-panel > button[aria-label="Close navigation menu"] {
-    top: .75rem;
-    right: .75rem;
-    width: 2.35rem;
-    height: 2.35rem;
-  }
-
-  .mobile-drawer-panel nav {
-    max-height: min(58dvh, 26rem);
-  }
-
-  .mobile-drawer-panel nav > div {
-    display: flex;
-    flex-direction: column;
-    gap: .35rem;
-  }
-
-  .mobile-drawer-panel nav button {
-    min-height: 3.15rem;
-    flex-direction: row;
-    justify-content: flex-start;
-    gap: .75rem !important;
-    border-radius: var(--radius-sm);
-    padding: .75rem .85rem !important;
-    text-align: left;
-    font-size: .82rem;
-    line-height: 1.1;
-    background: color-mix(in srgb, var(--surface-elevated) 70%, transparent);
-    border-color: color-mix(in srgb, var(--surface-border) 78%, transparent) !important;
-  }
-
-  .mobile-drawer-panel nav button svg {
-    width: 1.05rem;
-    height: 1.05rem;
-  }
-
-  .mobile-drawer-panel nav button[aria-current="page"] {
-    background: color-mix(in srgb, var(--accent) 12%, var(--surface-elevated));
-    border-color: color-mix(in srgb, var(--accent) 32%, transparent) !important;
-    box-shadow: inset 3px 0 0 var(--accent);
-  }
-
-  .mobile-drawer-panel nav button[aria-current="page"]::after {
-    content: '';
-    width: .42rem;
-    height: .42rem;
-    margin-left: auto;
-    border-radius: 999px;
-    background: var(--accent);
-  }
-
   /* Native-mobile guardrails ------------------------------------------------
      These rules are intentionally global inside the mobile block. Individual pages can still
      choose their layout, but the shell keeps one scroll owner, no accidental horizontal canvas,
@@ -8459,11 +8082,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     --mobile-nav-safe-bottom: 0px;
     --mobile-nav-safe-left: 0px;
     --mobile-nav-safe-right: 0px;
-    /* Standalone has no URL bar under the capsule, so the home indicator is the only thing it
-       shares that strip with — it can afford a slightly wider float than a browser tab gets.
-       Derived, not hard-coded, so the reserved band below still matches what is drawn. */
-    --mobile-nav-float-gap: .7rem;
-    --mobile-nav-height: calc(var(--mobile-nav-control-height) + var(--mobile-nav-float-gap));
+    /* The inset viewport already stops above the home indicator, so the bar needs no safe band. */
+    --mobile-nav-height: var(--mobile-nav-control-height);
     position: fixed;
     inset: 0;
     width: 100%;
@@ -8690,9 +8310,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 @media (max-width: 380px) {
   :root {
-    --space-shell: .5rem;
-    --space-card: .625rem;
-    --mobile-nav-float-gap: 1rem;
+    --space-shell: .875rem;
+    --space-card: .75rem;
   }
 
   .app-header {
@@ -8701,16 +8320,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     padding-right: max(.5rem, env(safe-area-inset-right));
     gap: .25rem;
   }
-
-  .app-header-title {
-    min-width: 0;
-    gap: .25rem;
-  }
-
-  .app-header-title-label {
-    max-width: 34vw;
-  }
-
   .app-header-actions {
     flex-shrink: 0;
     gap: 0;
@@ -8732,14 +8341,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
   .role-chip-caret {
     display: block;
-  }
-
-  .mobile-bottom-nav {
-    --nav-gap: .06rem;
-    --nav-pad: .24rem;
-
-    right: max(.45rem, calc(var(--mobile-nav-safe-right) + .2rem));
-    left: max(.45rem, calc(var(--mobile-nav-safe-left) + .2rem));
   }
 
 
@@ -9332,12 +8933,7 @@ button.role-chip:hover,
   .app-header {
     padding-left: max(.75rem, env(safe-area-inset-left));
     padding-right: max(.75rem, env(safe-area-inset-right));
-  }
-
-  .app-header-title-label {
-    max-width: min(50vw, 10rem);
-  }
-}
+  }}
 
 /* ---- Skip link ----------------------------------------------------------- */
 /* This app has a long sidebar; without this a keyboard user tabs through every nav item on
