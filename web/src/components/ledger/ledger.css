@@ -279,6 +279,25 @@ textarea.ledger-input { resize: vertical; }
 .ledger-card-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: .6rem; padding-top: .55rem; border-top: 1px solid var(--surface-border); }
 .ledger-card-actions .ledger-move { margin-left: auto; width: auto !important; }
 .ledger-page .ledger-move, .ledger-overlays .ledger-move { min-height: 28px; padding: 2px 6px; font-size: var(--text-xs); }
+/* Touch dragging (boardTouch.js): the card being moved stays in place, dimmed; a lifted copy follows
+   the finger above everything. The lane dots only show on phones. */
+.ledger-card[data-dragging] { opacity: .4; }
+.ledger-drag-layer { position: fixed; inset: 0; z-index: 80; overflow: hidden; pointer-events: none; }
+.ledger-drag-ghost { position: absolute; top: 0; left: 0; margin: 0; scale: 1.03; border-color: color-mix(in srgb, var(--coral) 35%, var(--surface-border));
+  box-shadow: var(--shadow-pop); cursor: grabbing; will-change: translate; animation: ledger-lift .14s ease-out; }
+.ledger-drag-ghost h4 { font-family: inherit; letter-spacing: 0; }
+@keyframes ledger-lift { from { scale: 1; box-shadow: 0 1px 2px rgba(16, 24, 40, .04); } }
+.ledger-board[data-dragging] { touch-action: none; }
+.ledger-board-dots { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .ledger-card[draggable="true"] { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+}
+/* The app's 44px touch floor (index.css) would blow the round done button's ring up to 44px; keep
+   the ring its own size and give the finger the 44px through an invisible halo instead. */
+@media (pointer: coarse) {
+  .ledger-card-head .ledger-card-check { position: relative; min-width: 0; min-height: 0; }
+  .ledger-card-head .ledger-card-check::after { content: ''; position: absolute; inset: -.625rem; }
+}
 
 /* ---- List view ---- */
 .ledger-filters, .ledger-bulk { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
@@ -340,6 +359,10 @@ textarea.ledger-input { resize: vertical; }
 .ledger-due-item { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: .625rem .75rem; border: 1px solid var(--surface-border);
   border-left: 3px solid var(--accent); border-radius: var(--radius-card); background: var(--surface-elevated); box-shadow: var(--shadow-pop); font-size: var(--text-sm); }
 .ledger-due-item > span { flex: 1; }
+/* Bell, message, Done, close on one row; the time never splits from its AM/PM (round 3: it wrapped
+   as "11:30" / "AMDone" on phones). */
+.ledger-due .ledger-due-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; overflow: visible; -webkit-line-clamp: unset; }
+.ledger-due-item .ledger-quiet { white-space: nowrap; }
 .ledger-due-item svg { color: var(--accent-ink); }
 
 /* ---- Campaigns ---- */
@@ -401,8 +424,22 @@ textarea.ledger-input { resize: vertical; }
   .ledger-big-buttons { display: grid; grid-template-columns: 1fr; gap: .5rem; }
   .ledger-big-buttons button { min-height: 46px !important; height: auto !important; font-size: var(--text-md) !important; }
   .ledger-home-columns { grid-template-columns: 1fr; }
-  .ledger-board { grid-template-columns: 1fr; }
-  .ledger-lane { min-height: 0; }
+  /* The board is a row of lanes you swipe through: one lane per screen with the next one peeking in,
+     snapping lane by lane, each lane scrolling its own cards under a header that stays put. It scrolls
+     inside itself, out to the card's edges, so the page never scrolls sideways. */
+  .ledger-board { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(85%, 22rem); gap: .625rem;
+    overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .ledger-board::-webkit-scrollbar { display: none; }
+  .ledger-home-tasks .ledger-board { margin-inline: calc(-1 * var(--space-card)); padding-inline: var(--space-card); scroll-padding-inline: var(--space-card); }
+  .ledger-board[data-dragging] { scroll-snap-type: none; }
+  .ledger-lane { min-height: 0; max-height: 68vh; max-height: min(68dvh, 36rem); padding-top: 0; overflow-y: auto; scroll-snap-align: start; }
+  .ledger-lane-head { position: sticky; top: 0; z-index: 1; margin: 0 -.75rem .6rem; padding: .7rem .95rem .5rem; background: inherit; transition: background .12s; }
+  .ledger-board-dots { display: flex; justify-content: center; gap: 0; margin: -.35rem 0 .3rem; }
+  .ledger-board-dot { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; padding: 0; border: 0; border-radius: 999px;
+    background: none; cursor: pointer; }
+  .ledger-board-dot::before { content: ''; width: .375rem; height: .375rem; border-radius: 999px; background: var(--surface-border-strong); transition: width .2s, background-color .2s; }
+  .ledger-board-dot[aria-current="true"]::before { width: 1rem; background: var(--coral); }
+  .ledger-board-dot:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; }
   .ledger-form { grid-template-columns: 1fr; }
   .ledger-drawer-backdrop { align-items: flex-end; }
   .ledger-drawer { width: 100%; height: auto; max-height: 92dvh; border-left: 0; border-radius: .75rem .75rem 0 0; animation-name: ledger-rise; }
@@ -465,7 +502,8 @@ textarea.ledger-input { resize: vertical; }
   .ledger-schedule-actions { margin-left: 0; flex-basis: 100%; flex-wrap: nowrap; gap: .4rem; }
   .ledger-schedule-actions .ledger-move { flex: 1 1 auto; min-width: 0; }
 }
-@media (prefers-reduced-motion: reduce) { .ledger-drawer, .ledger-drawer-backdrop, .ledger-command-backdrop { animation: none; } .ledger-lane, .ledger-card { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .ledger-drawer, .ledger-drawer-backdrop, .ledger-command-backdrop { animation: none; } .ledger-lane, .ledger-card { transition: none; }
+  .ledger-drag-ghost { animation: none; } .ledger-lane-head, .ledger-board-dot::before { transition: none; } }
 @media print {
   .ledger-page nav[role="tablist"], .ledger-due, .ledger-actions, .ledger-toolbar { display: none !important; }
 }

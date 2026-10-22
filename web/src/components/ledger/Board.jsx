@@ -1,7 +1,9 @@
 // My work as a board: five lanes worked out from each task's status and review step. Drag a card to
 // another lane (or use "Move to…" / Alt+arrows) and the task itself moves — the same record Task
 // Management shows. Done asks for an optional outcome; a progress note goes straight onto the task.
-import React, { useState } from 'react';
+// On phones the lanes are a row you swipe through, and a card is dragged by pressing and holding it
+// (boardTouch.js); computers keep HTML5 drag-and-drop.
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CalendarDays, Check, CheckSquare, Link2, MessageSquare, Paperclip, Pin, Plus, Star } from 'lucide-react';
 import { initialsOf, tintFor } from '../ui/Avatar';
 import { LANE_TARGETS, useWorkUpdate, useWorkWrite } from '../../data/work';
@@ -9,6 +11,7 @@ import { humanDbError } from '../../lib/dbErrors';
 import { istToday } from '../../lib/dates';
 import { btnClass } from '../ui/Btn';
 import { StatusPill, dateLabel, errorText, useLedger } from './ui';
+import { attachBoardTouchDrag, lanesInView, showLane } from './boardTouch';
 
 export const LANES = [
   { id: 'todo', label: 'To do' },
@@ -80,7 +83,7 @@ function CardMeta({ task, today, me }) {
 }
 
 /** A task on the board. */
-export function TaskCard({ task, onMove, onOpen }) {
+export function TaskCard({ task, onMove, onOpen, dragging = false }) {
   const { today, employeeId } = useLedger();
   const write = useWorkWrite();
   const [mode, setMode] = useState(null);
@@ -94,7 +97,7 @@ export function TaskCard({ task, onMove, onOpen }) {
   };
   return (
     <article className="ledger-card" tabIndex={0} aria-label={task.title} data-focused={task.focused || undefined} data-pinned={task.pinned || undefined}
-      draggable={canEdit && !mode} onKeyDown={onKeyDown}
+      data-task-id={task.id} data-dragging={dragging || undefined} draggable={canEdit && !mode} onKeyDown={onKeyDown}
       onDragStart={(event) => { event.dataTransfer.setData('text/plain', task.id); event.dataTransfer.effectAllowed = 'move'; }}>
       <header className="ledger-card-head">
         {canEdit && (
@@ -141,17 +144,53 @@ export function TaskCard({ task, onMove, onOpen }) {
 export function TaskBoard({ tasks, onOpen, onAdd }) {
   const update = useWorkUpdate();
   const [over, setOver] = useState(null);
+  const [dragId, setDragId] = useState(null);
+  const [inView, setInView] = useState([0]);
+  const boardRef = useRef(null);
+  const latest = useRef(null);
   const move = (task, laneId) => {
     if (!LANE_TARGETS[laneId] || laneId === task.lane) return;
     update.mutate({ id: task.id, patch: LANE_TARGETS[laneId] });
   };
+  latest.current = { tasks, move };
+  const syncInView = () => setInView((was) => { const now = lanesInView(boardRef.current); return now.join() === was.join() ? was : now; });
+  // Touch and pen: press and hold a card to pick it up (mouse drags stay HTML5 below).
+  useEffect(() => {
+    const board = boardRef.current;
+    const touch = attachBoardTouchDrag(board, {
+      taskFor: (id) => latest.current.tasks.find((task) => task.id === id),
+      onLift: (task) => setDragId(task.id),
+      onOver: setOver,
+      onDrop: (task, laneId) => {
+        const current = latest.current.tasks.find((item) => item.id === task.id) ?? task;
+        if (current.can_edit) latest.current.move(current, laneId);
+      },
+      onEnd: () => { setDragId(null); setOver(null); },
+    });
+    syncInView();
+    window.addEventListener('resize', syncInView);
+    return () => { touch.destroy(); window.removeEventListener('resize', syncInView); };
+  }, []);
+  const frame = useRef(0);
+  const onScroll = () => {
+    if (frame.current) return;
+    frame.current = requestAnimationFrame(() => { frame.current = 0; syncInView(); });
+  };
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
   const lanes = LANES.map((lane) => ({ ...lane, tasks: tasks.filter((task) => task.lane === lane.id) }));
   return (
     <div className="ledger-board-wrap">
       {update.error && <p className="ledger-alert" role="alert">{humanDbError(update.error, 'tasks')}</p>}
-      <div className="ledger-board">
+      {/* Phones: which lane is in view; tap a dot to jump to that lane. */}
+      <div className="ledger-board-dots" role="group" aria-label="Board lanes">
+        {lanes.map((lane, index) => (
+          <button key={lane.id} type="button" className="ledger-board-dot" aria-label={`Show ${lane.label}, ${lane.tasks.length} tasks`}
+            aria-current={inView.includes(index) || undefined} onClick={() => showLane(boardRef.current, lane.id)} />
+        ))}
+      </div>
+      <div className="ledger-board" ref={boardRef} onScroll={onScroll}>
         {lanes.map((lane) => (
-          <section key={lane.id} className="ledger-lane" aria-label={`${lane.label}, ${lane.tasks.length} tasks`} data-over={over === lane.id || undefined}
+          <section key={lane.id} className="ledger-lane" data-lane-id={lane.id} aria-label={`${lane.label}, ${lane.tasks.length} tasks`} data-over={over === lane.id || undefined}
             onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; setOver(lane.id); }}
             onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOver(null); }}
             onDrop={(event) => {
@@ -163,7 +202,7 @@ export function TaskBoard({ tasks, onOpen, onAdd }) {
               {onAdd && lane.id === 'todo' && <button type="button" className="ledger-lane-add" aria-label="Add a task" title="Add a task" onClick={onAdd}><Plus size={16} /></button>}</h3>
             {lane.id === 'progress' && lane.tasks.length > WIP_LIMIT && (
               <p className="ledger-wip" role="note"><AlertTriangle size={13} /> {lane.tasks.length} in progress — more than {WIP_LIMIT} at once slows everything down.</p>)}
-            {lane.tasks.map((task) => <TaskCard key={task.id} task={task} onMove={move} onOpen={onOpen} />)}
+            {lane.tasks.map((task) => <TaskCard key={task.id} task={task} onMove={move} onOpen={onOpen} dragging={dragId === task.id} />)}
             {!lane.tasks.length && <p className="ledger-lane-empty">Nothing here.</p>}
           </section>
         ))}
