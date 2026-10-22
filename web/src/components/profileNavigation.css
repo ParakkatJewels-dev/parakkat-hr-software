@@ -4,6 +4,9 @@
   .app-main[data-profile-page="true"] { padding-top: calc(.65rem + env(safe-area-inset-top)); }
   .app-header .app-header-title { min-width: 0; }
   .app-header .app-header-title-label { max-width: none; }
+  /* More (round 2): a full-screen page on phones, like the reference phone kit — brand at the
+     top, you, then plain lists of icon + label + arrow on the page colour, sign out last. Tablets
+     keep it as a panel from the right. */
   .profile-navigation-sheet {
     position: fixed;
     inset: 0;
@@ -12,23 +15,20 @@
     justify-content: flex-end;
     padding: 0;
     background: rgb(12 20 17 / .35);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
     animation: profile-menu-backdrop .18s ease both;
   }
   .profile-navigation-sheet .profile-navigation-panel {
     display: flex;
     flex-direction: column;
-    width: min(100%, 28rem);
+    width: min(100%, 26rem);
     height: 100%;
     min-height: 0;
     padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     border: 0;
-    border-left: 1px solid var(--surface-border);
     border-radius: 0;
-    background: var(--surface-elevated);
+    background: var(--surface-bg);
     box-shadow: -12px 0 50px rgb(0 0 0 / .12);
-    animation: profile-menu-enter .28s cubic-bezier(.2, .8, .2, 1) both;
+    animation: profile-menu-enter .24s cubic-bezier(.2, .8, .2, 1) both;
   }
   .profile-navigation-heading {
     display: flex;
@@ -36,56 +36,90 @@
     justify-content: space-between;
     flex: none;
     gap: 12px;
-    min-height: 64px;
-    padding: 8px 12px 8px 20px;
-    border-bottom: 1px solid var(--surface-border);
+    min-height: 56px;
+    padding: 0 var(--space-shell);
   }
-  .profile-navigation-heading h2 { font-size: 19px; line-height: 1.3; font-weight: 700; color: var(--surface-text); }
   .profile-navigation-heading button {
     display: grid;
     place-items: center;
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
+    border: 1px solid var(--surface-border);
     border-radius: 50%;
-    background: var(--surface-muted);
+    background: var(--surface-elevated);
     color: var(--surface-text);
     cursor: pointer;
   }
-  .profile-navigation-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 16px 24px; }
-  .profile-navigation-identity { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .profile-navigation-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px var(--space-shell) 24px; }
+
+  .profile-navigation-identity {
+    display: flex; align-items: center; gap: 12px; width: 100%; margin-bottom: 12px; padding: 12px 14px;
+    border: 1px solid var(--surface-border); border-radius: var(--radius-card); background: var(--surface-elevated);
+    box-shadow: var(--shadow-card); text-align: left; cursor: pointer;
+  }
+  .profile-navigation-identity:disabled { cursor: default; }
   .profile-navigation-avatar {
-    display: grid; place-items: center; flex: none; width: 48px; height: 48px;
-    border-radius: 50%; background: var(--forest); color: #fff; font-size: 15px; font-weight: 700;
+    display: grid; place-items: center; flex: none; width: 44px; height: 44px;
+    border-radius: 50%; background: var(--forest); color: #fff; font-size: 14px; font-weight: 700;
   }
-  .profile-navigation-identity > div { min-width: 0; }
-  .profile-navigation-identity strong { display: block; overflow-wrap: anywhere; color: var(--surface-text); font-size: 15px; font-weight: 650; }
-  .profile-navigation-identity span:not(.profile-navigation-avatar) { display: block; color: var(--surface-text-soft); font-size: 12px; margin-top: 3px; }
-  .profile-navigation-shortcuts { display: grid; gap: 2px; padding-block: 4px 12px; border-bottom: 1px solid var(--surface-border); }
-  .profile-navigation-shortcuts button {
-    display: flex; align-items: center; gap: 12px; min-height: 48px; padding: 10px;
-    border-radius: var(--radius-control); color: var(--surface-text); text-align: left; font-size: 14px; cursor: pointer;
-  }
-  .profile-navigation-shortcuts button span { flex: 1; }
-  .profile-navigation-shortcuts button:hover { background: var(--surface-muted); }
-  .profile-navigation-role { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-block: 16px; }
-  .profile-navigation-role > span { color: var(--surface-text-soft); font-size: 12px; }
-  .profile-navigation-role .role-chip-label { display: inline !important; }
-  .profile-navigation-role .role-chip { min-height: 44px; padding-inline: 10px; }
-  .profile-navigation-role .role-menu { max-width: min(280px, calc(100vw - 44px)); }
+  .profile-navigation-identity-copy { flex: 1; min-width: 0; }
+  .profile-navigation-identity strong { display: block; overflow-wrap: anywhere; color: var(--surface-text); font-size: 15px; font-weight: 700; }
+  .profile-navigation-identity-copy > span { display: block; margin-top: 2px; color: var(--surface-text-soft); font-size: 12px; }
+
   .profile-navigation-search {
-    display: flex; align-items: center; gap: 8px; margin-block: 16px 20px; padding: 0 12px;
-    border: 1px solid var(--surface-border); border-radius: var(--radius-control); background: var(--surface-muted); color: var(--surface-text-soft);
+    display: flex; align-items: center; gap: 8px; margin: 0 0 14px; padding: 0 12px;
+    border: 1px solid var(--surface-border); border-radius: 999px; background: var(--surface-elevated); color: var(--surface-text-soft);
   }
-  .profile-navigation-panel .profile-navigation-search input { min-width: 0; width: 100%; height: 44px; padding: 0; border: 0; border-radius: 0; box-shadow: none; font-size: 16px; color: var(--surface-text); background: transparent; outline: none; }
-  .profile-navigation-search:focus-within { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+  .profile-navigation-panel .profile-navigation-search input { min-width: 0; width: 100%; height: 40px; padding: 0; border: 0; border-radius: 0; box-shadow: none; font-size: 16px; color: var(--surface-text); background: transparent; outline: none; }
+  .profile-navigation-search:focus-within { outline: 2px solid var(--coral); outline-offset: 2px; }
   .profile-navigation-panel nav { padding: 0; overflow: visible; }
-  .profile-navigation-panel nav button { min-height: 44px; }
   .profile-navigation-empty { font-size: 14px; color: var(--surface-text-soft); padding: 12px 0; overflow-wrap: anywhere; }
-  .profile-navigation-signout {
-    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px;
-    margin-top: 20px; padding: 12px 8px; border-top: 1px solid var(--surface-border); color: var(--tone-red); font-size: 14px; cursor: pointer;
+
+  .more-group + .more-group { margin-top: 14px; }
+  .profile-navigation-panel nav + .more-group { margin-top: 14px; }
+  .more-group-title {
+    margin: 0 4px 6px; color: var(--surface-text-soft); font-size: 11px; font-weight: 700;
+    letter-spacing: .08em; text-transform: uppercase;
   }
-  .profile-navigation-panel button:focus-visible { outline: 2px solid var(--accent-ink); outline-offset: 2px; }
+  .more-list {
+    overflow: hidden; border: 1px solid var(--surface-border); border-radius: var(--radius-card);
+    background: var(--surface-elevated); box-shadow: var(--shadow-card);
+  }
+  .more-row {
+    display: flex; align-items: center; gap: 12px; width: 100%; min-height: 50px; padding: 8px 14px;
+    color: var(--surface-text); font-size: 14px; font-weight: 500; text-align: left; cursor: pointer;
+  }
+  .more-row + .more-row { border-top: 1px solid var(--surface-border); }
+  .more-row:active { background: var(--surface-muted); }
+  .more-row[aria-current="page"] { color: var(--coral-ink); font-weight: 650; }
+  .more-row-icon { display: inline-flex; flex: none; color: var(--surface-text-soft); }
+  .more-row[aria-current="page"] .more-row-icon { color: var(--coral); }
+  .more-row-label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .more-row-chevron { flex: none; color: var(--surface-text-soft); }
+  .more-switch {
+    position: relative; flex: none; width: 40px; height: 24px; border-radius: 999px;
+    background: var(--surface-border-strong); transition: background-color .15s ease;
+  }
+  .more-switch > span {
+    position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .2); transition: transform .15s ease;
+  }
+  .more-switch.is-on { background: var(--coral); }
+  .more-switch.is-on > span { transform: translateX(16px); }
+  .profile-navigation-role { cursor: default; }
+  .profile-navigation-role .role-chip-label { display: inline !important; }
+  .profile-navigation-role .role-chip { display: inline-flex !important; min-height: 36px; padding-inline: 10px; }
+  .profile-navigation-role .role-menu { max-width: min(280px, calc(100vw - 44px)); }
+
+  .profile-navigation-signout {
+    display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 48px;
+    margin-top: 16px; border-radius: var(--radius-card); background: var(--tone-red-bg); color: var(--tone-red-fg);
+    font-size: 14px; font-weight: 650; cursor: pointer;
+  }
+  .profile-navigation-panel button:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+}
+@media (max-width: 640px) {
+  .profile-navigation-sheet .profile-navigation-panel { width: 100%; box-shadow: none; }
 }
 @keyframes profile-menu-enter { from { transform: translateX(24px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 @keyframes profile-menu-backdrop { from { opacity: 0; } to { opacity: 1; } }

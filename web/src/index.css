@@ -194,6 +194,8 @@
   --surface-elevated: #ffffff;    /* card body */
   --surface-subtle: #f6f8fa;      /* table headers, inset panels */
   --surface-muted: #eef1f5;       /* chips, hover fills */
+  --chip-active-bg: var(--coral-soft);  /* the selected pill on phones (boards' phone layouts) */
+  --chip-active-fg: var(--coral-ink);
   --surface-text: #10201a;        /* overridden to black below */
   --surface-text-soft: #5b6388;   /* blue-slate secondary text, 5.5:1 on the canvas */
   --surface-border: #e8ecf1;      /* hairline border */
@@ -269,6 +271,8 @@
   --surface-elevated: #111a16;
   --surface-subtle: #0d1512;
   --surface-muted: #16241e;
+  --chip-active-bg: rgba(255, 106, 58, .18);
+  --chip-active-fg: #ffab8f;
   --surface-text: #e6f0eb;
   --surface-text-soft: #8ca497;
   --surface-border: #1e2d27;
@@ -6181,67 +6185,57 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
     background: color-mix(in srgb, var(--surface-elevated) 86%, transparent) !important;
   }
 
-  /* On a phone the underline rows are restyled into pills below, so they join the shared gap —
-     and their space-x-* margins have to go, or they would stack on top of it. */
+  /* Phone pills (round 2, after the reference phone kit): every second-level switch — the old
+     underline rows, segmented controls, drawer tabs — is a grey pill, and the current one is dark.
+     The section tabs under page titles use the same look (shell/shell.css). */
   .tab-scroll {
-    gap: var(--tab-gap);
-    padding-block: .5rem;
+    gap: .5rem;
+    padding-block: .35rem;
     border-bottom: 0 !important;
   }
-
-  .tab-scroll > * + * {
-    margin-left: 0 !important;
-  }
-
-  .tab-scroll > button {
-    border: 1px solid var(--surface-border) !important;
-    border-radius: 999px;
-    padding: .5rem .75rem !important;
-    background: var(--surface-elevated);
-    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
-  }
-
-  .tab-scroll > button[aria-current="page"] {
-    background: var(--accent-soft);
-    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
-    color: var(--accent-strong) !important;
-  }
-
-  /* The section tabs' phone styles live with the page header now (shell/shell.css). */
+  .tab-scroll > * + * { margin-left: 0 !important; }
 
   .mobile-segmented {
     width: 100%;
-    gap: var(--tab-gap) !important;
+    gap: .5rem !important;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
+  .mobile-segmented::-webkit-scrollbar { display: none; }
 
-  .mobile-segmented::-webkit-scrollbar {
-    display: none;
-  }
-
+  .tab-scroll > button,
   .mobile-segmented > button,
-  .mobile-segmented [role="tab"] {
-    min-height: 2.35rem;
+  .mobile-segmented [role="tab"],
+  main .drawer-tab {
+    flex: none;
+    min-height: 2.125rem;
     justify-content: center;
-    border: 1px solid var(--surface-border) !important;
+    border: 0 !important;
     border-radius: 999px !important;
-    padding: .5rem .7rem !important;
-    background: var(--surface-elevated);
-    font-size: .75rem !important;
+    padding: 0 .9rem !important;
+    background: var(--surface-muted) !important;
+    color: var(--surface-text-soft) !important;
+    font-size: .8125rem !important;
+    font-weight: 600;
     line-height: 1.1;
     letter-spacing: 0 !important;
     text-transform: none !important;
-    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
+    box-shadow: none !important;
   }
 
-  .mobile-segmented > button[aria-current="page"],
+  .tab-scroll > button[aria-current="page"],
   .mobile-segmented [role="tab"][aria-selected="true"],
-  .mobile-segmented .drawer-tab-active {
-    background: var(--coral-soft) !important;
-    border-color: color-mix(in srgb, var(--coral) 35%, transparent) !important;
-    color: var(--coral-ink) !important;
+  .mobile-segmented .drawer-tab-active,
+  main .drawer-tab-active {
+    background: var(--chip-active-bg) !important;
+    color: var(--chip-active-fg) !important;
+  }
+  /* A two-way switch (Mine / Everyone) is a dark green toggle on the boards. */
+  .mobile-segmented > button[aria-current="page"],
+  .mobile-segmented > button[aria-pressed="true"] {
+    background: var(--forest) !important;
+    color: #fff !important;
   }
 
   /* Narrow screens need controls to use the available width instead of preserving desktop
@@ -6884,7 +6878,7 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
     display: flex;
     flex-wrap: nowrap !important;
     width: 100%;
-    gap: var(--tab-gap) !important;
+    gap: .5rem !important;
     overflow-x: auto;
     padding-bottom: .1rem;
     scroll-snap-type: x proximity;
@@ -6892,10 +6886,9 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
     -webkit-overflow-scrolling: touch;
   }
 
+  /* Pills size to their label, as in the reference; the row scrolls for the rest. */
   main .mobile-segmented > button {
     flex: 0 0 auto;
-    min-width: min(9rem, 46vw);
-    min-height: 2.45rem;
     scroll-snap-align: start;
   }
 
@@ -7113,25 +7106,6 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
 
   main .task-management-page .task-subview-header > button {
     width: 100%;
-  }
-
-  main .mobile-segmented .drawer-tab {
-    justify-content: center;
-    border: 1px solid var(--surface-border);
-    border-radius: 999px;
-    padding: .625rem .75rem;
-    background: var(--surface-elevated);
-    letter-spacing: 0;
-    text-transform: none;
-    font-size: .75rem;
-    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
-  }
-
-  main .mobile-segmented .drawer-tab-active {
-    background: var(--coral-soft);
-    border-color: color-mix(in srgb, var(--coral) 35%, transparent) !important;
-    color: var(--coral-ink) !important;
-    box-shadow: none;
   }
 
   main .mobile-toolbar-actions {
@@ -8310,8 +8284,7 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
 
 @media (max-width: 380px) {
   :root {
-    --space-shell: .875rem;
-    --space-card: .75rem;
+    --space-card: .8125rem;
   }
 
   .app-header {

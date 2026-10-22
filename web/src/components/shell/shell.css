@@ -383,6 +383,8 @@ main .page-header-title,
   line-height: 1.45;
 }
 .page-header-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: .6rem; margin-left: auto; }
+/* The back arrow is a phone affordance; computers have the sidebar and breadcrumb. */
+.page-header-back { display: none; }
 .page-header-actions > .w-full { width: auto; }
 
 /* Section tabs, under the title. */
@@ -465,6 +467,51 @@ main .page-header-title,
   .page-header-row { align-items: center; gap: .6rem .75rem; }
   .page-header-actions { gap: .5rem; }
   .page-header-actions > * { flex: 0 0 auto; }
+
+  /* Screens outside the bottom bar's sections (reached from More or a link) get a back arrow
+     beside their title; the actions stay on the title row while they fit. */
+  .page-header.has-back .page-header-row { flex-wrap: wrap; gap: .5rem .35rem; }
+  .page-header-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    margin-left: -.4rem;
+    border-radius: 999px;
+    color: var(--surface-text);
+  }
+  .page-header-back:active { background: var(--surface-muted); }
+  .page-header-back:focus-visible { outline: 2px solid var(--coral); outline-offset: 1px; }
+  .page-header-back { flex: none; }
+  /* The title keeps at least half the row; buttons that do not fit beside it wrap underneath. */
+  .page-header.has-back .page-header-copy { flex: 1 1 9rem; }
+
+  /* Section tabs become pills you swipe sideways; the current one is light coral, as on the
+     boards' phone layouts. */
+  .section-tabbar { margin: .6rem calc(var(--space-shell) * -1) 0; border-bottom: 0; }
+  .section-tab-scroll {
+    gap: .5rem;
+    margin: 0;
+    padding: 0 var(--space-shell) .1rem;
+    scroll-padding-inline: var(--space-shell);
+  }
+  .section-tab-button {
+    min-height: 2.125rem;
+    padding: 0 .9rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--surface-muted);
+    color: var(--surface-text-soft);
+    font-size: .8125rem;
+    font-weight: 600;
+  }
+  .section-tab-button.is-active {
+    border: 0;
+    background: var(--chip-active-bg);
+    color: var(--chip-active-fg);
+  }
+  .section-tab-button .count-badge { margin-left: .35rem; }
   /* Appearance is in the More menu on a phone; the bar keeps search, role, bell and you. */
   .app-header .header-theme-toggle { display: none; }
 }

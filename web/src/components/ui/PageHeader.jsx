@@ -9,10 +9,28 @@
 //               pages such as an employee profile, which have their own tabs.
 //
 // `eyebrow` is the older prop for a section label; it shows only when there is no breadcrumb.
+//
+// On a phone (round 2, after the reference phone kit) the header is the top of the page: screens
+// under the bottom bar's sections keep a left-aligned title, and every other screen gets an app bar
+// with a back arrow and a centred title. `back` overrides where the arrow goes (or `false` hides it).
 import React from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronRight } from 'lucide-react';
 import SectionTabs from '../shell/SectionTabs';
 import { useShellNav } from '../shell/shellNavContext';
+import { MOBILE_PRIMARY_IDS, mobileLitId } from '../../lib/navMap';
+
+const BAR_ITEMS = MOBILE_PRIMARY_IDS.oversight.map((id) => ({ id }));
+
+/** The back arrow a phone shows, or null on screens that belong to a bottom-bar section. */
+export function phoneBackFor(nav) {
+  if (!nav?.activeTab || mobileLitId(BAR_ITEMS, nav.activeTab)) return null;
+  return () => {
+    // React Router numbers its own history entries; go back only within the app, else to Home.
+    const index = window.history.state?.idx;
+    if (typeof index === 'number' && index > 0) window.history.back();
+    else nav.select('dashboard');
+  };
+}
 
 function defaultCrumbs(nav) {
   const section = nav?.section;
@@ -24,14 +42,20 @@ function defaultCrumbs(nav) {
   ];
 }
 
-export default function PageHeader({ eyebrow, title, subtitle, actions: actionsProp, meta, crumbs, tabs = true, className = '', children }) {
+export default function PageHeader({ eyebrow, title, subtitle, actions: actionsProp, meta, crumbs, tabs = true, back, className = '', children }) {
   const nav = useShellNav();
   // Actions can come as a prop or as children, whichever reads better at the call site.
   const actions = actionsProp ?? children;
   const trail = (crumbs ?? defaultCrumbs(nav))?.map((c) => (typeof c === 'string' ? { label: c } : c)) ?? null;
+  const goBack = back === false ? null : back ?? phoneBackFor(nav);
   return (
-    <div className={`page-header ${className}`}>
+    <div className={`page-header ${goBack ? 'has-back' : ''} ${className}`}>
       <div className="page-header-row">
+        {goBack && (
+          <button type="button" className="page-header-back" onClick={goBack} aria-label="Back">
+            <ArrowLeft size={20} aria-hidden="true" />
+          </button>
+        )}
         <div className="page-header-copy">
           {trail?.length ? (
             <nav aria-label="Breadcrumb" className="page-header-crumbs">

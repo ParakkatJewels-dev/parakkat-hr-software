@@ -45,6 +45,19 @@ test('record pages can drop the section tabs, and a one-screen section has neith
   assert.match(outside, /page-header-eyebrow">Section</);
 });
 
+test('a phone back arrow shows on screens outside the bottom bar\'s sections only', () => {
+  const directory = withNav(nav('directory'), React.createElement(PageHeader, { title: 'Employee Directory' }));
+  assert.match(directory, /class="page-header has-back /);
+  assert.match(directory, /<button type="button" class="page-header-back" aria-label="Back">/);
+  const time = OVERSIGHT_NAV.find((section) => section.id === 'time');
+  for (const tab of ['attendance', 'leave']) {
+    const html = withNav(nav(tab, time), React.createElement(PageHeader, { title: 'Time' }));
+    assert.doesNotMatch(html, /page-header-back/, `${tab} sits under the Attendance button`);
+  }
+  const hidden = withNav(nav('directory'), React.createElement(PageHeader, { title: 'Record', back: false }));
+  assert.doesNotMatch(hidden, /page-header-back/);
+});
+
 test('actions render on the right whether passed as a prop or as children', () => {
   const asProp = renderToStaticMarkup(React.createElement(PageHeader, { title: 'T', actions: React.createElement('button', null, 'Go') }));
   const asChild = renderToStaticMarkup(React.createElement(PageHeader, { title: 'T' }, React.createElement('button', null, 'Go')));

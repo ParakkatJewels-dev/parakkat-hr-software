@@ -626,111 +626,39 @@ export default function App() {
    * So sections that hold more than one screen list them. Single-screen sections stay one line —
    * repeating "Assets / Assets" would be noise, not navigation.
    */
-  const renderEmployeeMobileNavTree = () => {
-    // Headed by the tree's own groups — Work, Me, Support — rather than by "Today" and "More".
-    // Those two split the list at whatever the bottom bar happened to seat, so the drawer's
-    // headings described the bar instead of the app, and a screen moved on or off the bar changed
-    // heading without changing what it is. Work leads here for the same reason it leads the bar.
-    const titles = ESS_NAV.map((group) => group.title);
-    const groups = [
-      ...titles.map((title) => ({
-        title,
-        sections: menuSections.filter((sec) => sec.group === title),
-      })),
-      // A section the ESS tree did not group cannot go unlisted just because it is unexpected.
-      { title: 'More', sections: menuSections.filter((sec) => !titles.includes(sec.group)) },
-    ].filter((group) => group.sections.length > 0);
-
-    return (
-      <div className="mobile-nav-tree employee-more-nav">
-        {groups.map((group) => (
-          <div key={group.title} className="employee-more-group">
-            <p>{group.title}</p>
-            <div className="employee-more-grid">
-              {group.sections.map((sec) => {
-                const Icon = sec.icon;
-                const sectionActive = activeSection?.id === sec.id;
-                const label = sec.label;
-                const badge = sectionBadge(sec);
-                return (
-                  <button
-                    key={sec.id}
-                    type="button"
-                    onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
-                    aria-current={sectionActive ? 'page' : undefined}
-                    aria-label={navigationCountLabel(label, badge)}
-                    className="employee-more-tile"
-                  >
-                    <span className="nav-message-icon" aria-hidden="true"><Icon size={17} />
-                      <NavigationCountBadge badge={badge} corner />
-                    </span>
-                    <span>{label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const renderMobileNavTree = () => {
-    if (primaryRole === 'employee') return renderEmployeeMobileNavTree();
-
-    return (
-      <div className="mobile-nav-tree">
-        {groupSections(menuSections, OVERSIGHT_GROUPS).map((group) => (
-        <div key={group.title ?? 'more'} className="mobile-nav-block">
-        {group.title && <p className="mobile-nav-heading">{group.title}</p>}
-        {group.sections.map((sec) => {
-        const single = sec.tabs.length === 1 ? sec.tabs[0] : null;
-        const Icon = single?.icon ?? sec.icon;
-        const sectionActive = !isNotFound && (single ? single.id === activeTab : activeSection?.id === sec.id);
-        const screens = sec.tabs.length > 1 ? sec.tabs : [];
-        const badge = sectionBadge(sec);
-        return (
-          <div key={sec.id} className="mobile-nav-group">
-            <button
-              type="button"
-              onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
-              aria-current={sectionActive && screens.length === 0 ? 'page' : undefined}
-              aria-label={navigationCountLabel(single?.label ?? sec.label, badge)}
-              className="mobile-nav-section"
-            >
-              <Icon size={15} />
-              <span className="truncate">{single?.label ?? sec.label}</span>
-              <NavigationCountBadge badge={badge} />
-            </button>
-
-            {screens.length > 0 && (
-              <div className="mobile-nav-screens">
-                {screens.map((t) => {
-                  const id = navTarget(t);
-                  const on = !isNotFound && (activeTab === t.id || activeTab === id);
-                  const badge = screenBadge(t.id);
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => { setActiveTab(id); setMobileMenuOpen(false); }}
-                      aria-current={on ? 'page' : undefined}
-                      aria-label={navigationCountLabel(t.label, badge)}
-                      className={on ? 'is-active' : undefined}
-                    >
-                      <span>{t.label}</span><NavigationCountBadge badge={badge} />
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        );
-      })}
+  // The phone More page (round 2, after the reference phone kit): one plain list per group —
+  // icon, label, count, arrow. Sections already on the bottom bar are left out unless searching;
+  // their other screens are one tap away in the pills under each page title.
+  const barSectionIds = new Set(visibleSections
+    .filter((sec) => sec.tabs.some((tab) => mobilePrimarySections.some((item) => item.id === tab.id)))
+    .map((sec) => sec.id));
+  const renderMoreList = () => {
+    const titles = primaryRole === 'employee' ? ESS_NAV.map((group) => group.title) : OVERSIGHT_GROUPS;
+    const listed = needle ? menuSections : menuSections.filter((sec) => !barSectionIds.has(sec.id));
+    return groupSections(listed, titles).map((group) => (
+      <section key={group.title ?? 'more'} className="more-group">
+        {group.title && <h3 className="more-group-title">{group.title}</h3>}
+        <div className="more-list">
+          {group.sections.map((sec) => {
+            const single = sec.tabs.length === 1 ? sec.tabs[0] : null;
+            const Icon = single?.icon ?? sec.icon;
+            const label = single?.label ?? sec.label;
+            const badge = sectionBadge(sec);
+            const current = !isNotFound && (single ? single.id === activeTab : activeSection?.id === sec.id);
+            return (
+              <button key={sec.id} type="button" className="more-row"
+                onClick={() => { openSection(sec); setMobileMenuOpen(false); }}
+                aria-current={current ? 'page' : undefined} aria-label={navigationCountLabel(label, badge)}>
+                <span className="more-row-icon" aria-hidden="true">{Icon && <Icon size={19} />}</span>
+                <span className="more-row-label">{label}</span>
+                <NavigationCountBadge badge={badge} />
+                <ChevronRight size={17} className="more-row-chevron" aria-hidden="true" />
+              </button>
+            );
+          })}
         </div>
-        ))}
-      </div>
-    );
+      </section>
+    ));
   };
 
   return (
@@ -1046,30 +974,50 @@ export default function App() {
           <div ref={menuRef} id="mobile-navigation" role="dialog" aria-modal="true" aria-labelledby="profile-menu-title"
             className="profile-navigation-panel">
             <header className="profile-navigation-heading">
-              <h2 id="profile-menu-title">Menu & settings</h2>
-              <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation menu"><X size={22} /></button>
+              <span className="app-header-brand">
+                <span className="app-header-logo" aria-hidden="true"><BrandMark size={20} /></span>
+                <span className="app-header-wordmark"><strong>PARAKKAT</strong><span>HRMS</span></span>
+              </span>
+              <h2 id="profile-menu-title" className="sr-only">More</h2>
+              <button type="button" onClick={() => setMobileMenuOpen(false)} aria-label="Close navigation menu"><X size={20} /></button>
             </header>
             <div className="profile-navigation-scroll">
-              <div className="profile-navigation-identity">
+              <button type="button" className="profile-navigation-identity" disabled={!canViewTab('profile')}
+                onClick={() => { setActiveTab('profile'); setMobileMenuOpen(false); }}>
                 <span className="profile-navigation-avatar" aria-hidden="true">{displayInitials}</span>
-                <div><strong>{displayName}</strong><span>{displaySubtitle}</span></div>
-              </div>
-              <div className="profile-navigation-shortcuts">
-                {canViewTab('settings') && <button type="button" onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}><Settings size={18} /><span>Settings</span><ChevronRight size={16} /></button>}
-                <button type="button" onClick={toggleTheme} aria-pressed={theme === 'dark'}>
-                  {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}<span>{theme === 'dark' ? 'Light appearance' : 'Dark appearance'}</span>
-                </button>
-              </div>
-              {heldRoles.length > 1 && <div className="profile-navigation-role"><span>Workspace view</span>
-                <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={setViewRole} />
-              </div>}
-              <label className="input-shell profile-navigation-search"><Search size={18} aria-hidden="true" />
+                <span className="profile-navigation-identity-copy"><strong>{displayName}</strong><span>{displaySubtitle}</span></span>
+                {canViewTab('profile') && <ChevronRight size={17} className="more-row-chevron" aria-hidden="true" />}
+              </button>
+              <label className="input-shell profile-navigation-search"><Search size={17} aria-hidden="true" />
                 <input type="search" aria-label="Search menu" placeholder="Search menu" value={menuSearch} onChange={event => setMenuSearch(event.target.value)} />
               </label>
-              <nav aria-label="All sections">{menuSections.length ? renderMobileNavTree() : <p className="profile-navigation-empty" role="status">No sections match “{menuSearch}”.</p>}
+              <nav aria-label="All sections">{menuSections.length ? renderMoreList() : <p className="profile-navigation-empty" role="status">No sections match “{menuSearch}”.</p>}
                 <NavigationCountStatus {...countStatus} />
               </nav>
-              <button type="button" className="profile-navigation-signout" onClick={signOut}><LogOut size={18} />Sign out</button>
+              <section className="more-group">
+                <h3 className="more-group-title">Preferences</h3>
+                <div className="more-list">
+                  {canViewTab('settings') && (
+                    <button type="button" className="more-row" onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}>
+                      <span className="more-row-icon" aria-hidden="true"><Settings size={19} /></span>
+                      <span className="more-row-label">Settings</span>
+                      <ChevronRight size={17} className="more-row-chevron" aria-hidden="true" />
+                    </button>
+                  )}
+                  <button type="button" className="more-row" onClick={toggleTheme} aria-pressed={theme === 'dark'}>
+                    <span className="more-row-icon" aria-hidden="true">{theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}</span>
+                    <span className="more-row-label">Dark appearance</span>
+                    <span className={`more-switch ${theme === 'dark' ? 'is-on' : ''}`} aria-hidden="true"><span /></span>
+                  </button>
+                  {heldRoles.length > 1 && (
+                    <div className="more-row profile-navigation-role">
+                      <span className="more-row-label">Workspace view</span>
+                      <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={setViewRole} />
+                    </div>
+                  )}
+                </div>
+              </section>
+              <button type="button" className="profile-navigation-signout" onClick={signOut}><LogOut size={18} aria-hidden="true" />Sign out</button>
             </div>
           </div>
         </div>
