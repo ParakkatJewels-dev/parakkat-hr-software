@@ -181,7 +181,7 @@ function PayslipsTab() {
         <label className="text-xs font-semibold text-neutral-500">Payroll month
           <input type="month" required aria-label="Payslip month" value={period} onChange={(e) => { if (e.target.value) setPeriod(e.target.value); }} className={INPUT + ' block mt-1'} />
         </label>
-        <div className="flex-1 min-w-0"><ListSearch value={search} onChange={setSearch} label="Search payslips" placeholder="Search employee, code, branch or status…" /></div>
+        {!mineOnly && <div className="flex-1 min-w-0"><ListSearch value={search} onChange={setSearch} label="Search payslips" placeholder="Search employee, code, branch or status…" /></div>}
       </div>
       <Err e={error} />
       {isLoading && <SkeletonRows rows={5} />}

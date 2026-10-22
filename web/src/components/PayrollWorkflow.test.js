@@ -215,7 +215,9 @@ test('employee deep links cannot render company worksheet controls or salary reg
   for (const route of ['', 'run', 'worksheet', 'history', 'salary', 'components']) {
     const html = render({ role: 'employee', route, step: 'publish' });
     assert.doesNotMatch(html, /Save reviewed policy|Export Excel|Payroll register|Monthly payroll steps|Salary setup|Pay components/);
-    assert.match(html, /Search payslips/);
+    // Their own payslips: the month picker, without the search an HR reviewer uses across people.
+    assert.match(html, /aria-label="Payslip month"/);
+    assert.doesNotMatch(html, /Search payslips/);
   }
 });
 

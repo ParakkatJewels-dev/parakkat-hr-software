@@ -47,12 +47,12 @@
      status on the right. Your own list leaves out your name. */
   .leave-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "person status" "type open";
+    grid-template-areas: "person open" "type status";
     gap: .2rem .6rem;
     padding: .7rem .75rem;
   }
   .leave-row-person { grid-area: person; }
-  .leave-row-status { grid-area: status; align-items: flex-end; }
+  .leave-row-status { grid-area: status; align-items: flex-end; align-self: end; }
   .leave-row-type { grid-area: type; grid-column: auto; padding-left: 3.2rem; }
   .leave-row-days { display: none; }
   .leave-row-open { grid-area: open; grid-row: auto; grid-column: auto; justify-self: end; min-height: 2rem; }

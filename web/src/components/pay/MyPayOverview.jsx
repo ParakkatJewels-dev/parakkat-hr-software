@@ -30,7 +30,7 @@ export default function MyPayOverview({ employeeId, onOpen }) {
       </button>
 
       <StatRow label="This financial year">
-        <StatCard label="Earned this year" value={inr(year.gross)} sub={`FY ${year.label} · ${year.months} month${year.months === 1 ? '' : 's'}`} icon={TrendingUp} tone="green" loading={isLoading} />
+        <StatCard label="Earned this year" value={inr(year.gross)} sub={`FY ${year.label}`} icon={TrendingUp} tone="green" loading={isLoading} />
         <StatCard label="Deductions" value={inr(year.deductions)} sub={`FY ${year.label}`} icon={MinusCircle} tone="red" loading={isLoading} />
       </StatRow>
 

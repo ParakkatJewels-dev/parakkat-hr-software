@@ -65,7 +65,7 @@ export default function MyDayPhone({ employeeId, onFix }) {
         <div className="my-day-ring" data-tone={tone}>
           <svg viewBox="0 0 120 120" aria-hidden="true">
             <circle cx="60" cy="60" r="52" className="my-day-ring-track" />
-            <circle cx="60" cy="60" r="52" className="my-day-ring-fill" pathLength="100" strokeDasharray={first ? '100 0' : '0 100'} />
+            {first && <circle cx="60" cy="60" r="52" className="my-day-ring-fill" />}
           </svg>
           <div className="my-day-ring-copy">
             {isLoading ? <Skeleton className="h-8 w-24" /> : <>

@@ -562,7 +562,7 @@ main .page-header-title,
 .dark .leave-row[data-selected] { background: var(--coral-soft); }
 .leave-row-person { display: flex; min-width: 0; align-items: center; gap: .7rem; }
 .leave-row-person strong, .leave-row-type strong { display: block; overflow: hidden; color: var(--surface-text); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.leave-row-person span, .leave-row-type span { display: block; overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.leave-row-person .min-w-0 > span, .leave-row-type span { display: block; overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
 .leave-row-days { color: var(--surface-text); font-size: .8125rem; font-variant-numeric: tabular-nums; }
 .leave-row-status { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: .25rem; }
 .leave-row-stage { color: var(--surface-text-soft); font-size: .72rem; }
