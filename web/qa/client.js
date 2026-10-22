@@ -262,6 +262,7 @@ export const supabase = {
   },
   rpc(name, args = {}) {
     if (name === 'get_my_access') return Promise.resolve({ data: qaAccess, error: null });
+    if (name === 'list_tickets') return new Query(tables.tickets);
     const punchCorrection = punchCorrectionRpc(name, args, { employee: fixture.employees[0], userId: user.id, allows: fixtureAllows,
       event: chatEvent, canWrite: !qaState.failReads && !new URL(window.location.href).searchParams.has('qa-block-write') });
     if (punchCorrection) {

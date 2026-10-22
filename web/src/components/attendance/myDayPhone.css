@@ -1,9 +1,10 @@
 /* My day on a phone (round 2, after the reference phone kit). Computers keep the hero and the
    month grid; this view exists only below 641px. */
-.my-day-phone { display: none; }
+.my-day-phone, .month-record-list { display: none; }
 
 @media (max-width: 640px) {
   .my-day-phone { display: grid; gap: .75rem; }
+  .month-record-list { display: grid; }
 
   .my-day-month {
     display: flex; align-items: center; justify-content: space-between; gap: .5rem;
@@ -16,11 +17,17 @@
   }
   .my-day-month button:active { background: var(--surface-muted); }
 
-  .my-day-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .3rem; }
+  /* The whole month as a strip you swipe, the chosen day kept in the middle. */
+  .my-day-week {
+    display: flex; gap: .4rem; margin: 0 calc(var(--space-shell) * -1); padding: .1rem var(--space-shell) .35rem;
+    overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--space-shell); scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .my-day-week::-webkit-scrollbar { display: none; }
   .my-day-weekday {
-    position: relative; display: flex; flex-direction: column; align-items: center; gap: .15rem;
-    min-height: 3.75rem; padding: .45rem 0 .55rem; border: 1px solid var(--surface-border); border-radius: .85rem;
-    background: var(--surface-elevated); color: var(--surface-text-soft);
+    position: relative; display: flex; flex: 0 0 3.15rem; flex-direction: column; align-items: center; gap: .15rem;
+    min-height: 3.9rem; padding: .45rem 0 .55rem; border: 1px solid var(--surface-border); border-radius: .85rem;
+    background: var(--surface-elevated); color: var(--surface-text-soft); scroll-snap-align: center;
   }
   .my-day-weekday span { font-size: .6875rem; font-weight: 600; }
   .my-day-weekday strong { color: var(--surface-text); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -86,11 +93,38 @@
   .my-day-timeline li[data-kind="pending"]::before { background: transparent; border: 1.5px dashed var(--surface-border-strong); }
   .my-day-timeline time { color: var(--surface-text); font-weight: 650; font-variant-numeric: tabular-nums; }
   .my-day-empty { margin: 0; color: var(--surface-text-soft); font-size: .8125rem; }
-  .my-day-fix {
-    display: flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; min-height: 2.5rem; margin-top: .75rem;
-    border-radius: .85rem; background: var(--tone-amber-bg); color: var(--tone-amber-fg); font-size: .8125rem; font-weight: 650;
+  .my-day-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: .5rem; margin-top: .85rem; }
+  .my-day-links button {
+    display: flex; align-items: center; justify-content: center; gap: .45rem; min-height: 2.5rem;
+    border: 1px solid var(--surface-border); border-radius: .85rem; background: var(--surface-elevated);
+    color: var(--surface-text); font-size: .8125rem; font-weight: 650;
   }
+  .my-day-links button[data-tone="warn"] { border-color: transparent; background: var(--tone-amber-bg); color: var(--tone-amber-fg); }
 
-  /* The computer hero steps aside for this view on a phone. */
-  .self-service-hero.my-attendance-hero { display: none; }
+  /* The month list as day rows (the computer keeps its table). */
+  .month-record-list { display: grid; gap: 0; margin: 0; padding: 0 var(--space-card) .25rem; list-style: none; }
+  .month-record-row {
+    display: grid; grid-template-columns: 2.75rem minmax(0, 1fr) auto; align-items: center; gap: .75rem; width: 100%;
+    min-height: 3.5rem; padding: .55rem 0; text-align: left;
+  }
+  .month-record-list li + li .month-record-row { border-top: 1px solid var(--surface-border); }
+  .month-record-row[aria-pressed="true"] .month-record-date { background: var(--coral); color: #fff; }
+  .month-record-date {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; height: 2.75rem;
+    border-radius: .75rem; background: var(--surface-muted); color: var(--surface-text-soft);
+  }
+  .month-record-date span { font-size: .625rem; font-weight: 600; line-height: 1; }
+  .month-record-date strong { color: inherit; font-size: 1rem; font-weight: 750; line-height: 1.15; }
+  .month-record-row[aria-pressed="false"] .month-record-date strong { color: var(--surface-text); }
+  .month-record-copy { display: flex; min-width: 0; flex-direction: column; gap: .1rem; }
+  .month-record-copy strong { color: var(--surface-text); font-size: .875rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .month-record-copy span { overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+  .month-record-table-wrap { display: none; }
+
+  /* On a phone this view replaces the computer hero, the view pills, the calendar's own month
+     bar and its day panel: the ring above is the day panel. */
+  .self-service-hero.my-attendance-hero,
+  .attendance-self-phone .attendance-views:not(.is-elsewhere),
+  .attendance-self-phone .calendar-month-bar .mobile-list-actions:first-child,
+  .attendance-self-phone .attendance-day-detail { display: none; }
 }

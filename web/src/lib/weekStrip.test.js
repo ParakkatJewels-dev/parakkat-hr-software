@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { weekDays, shiftWeek, punchSteps } from './weekStrip.js';
+import { weekDays, shiftWeek, punchSteps, monthDays, shiftMonth } from './weekStrip.js';
 
 test('the week strip runs Monday to Sunday around the chosen day', () => {
   assert.deepEqual(weekDays('2026-10-22'), ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25']);
@@ -20,4 +20,13 @@ test('punches read as in, breaks and returns, then out', () => {
   assert.deepEqual(punchSteps(['a', 'b']).map((s) => s.label), ['Checked in', 'Checked out']);
   assert.deepEqual(punchSteps(['a', 'b', 'c', 'd']).map((s) => s.label), ['Checked in', 'Break', 'Back to work', 'Checked out']);
   assert.deepEqual(punchSteps(null), []);
+});
+
+test('the day strip lists the whole month and the arrows move a month at a time', () => {
+  assert.equal(monthDays('2026-10-22').length, 31);
+  assert.equal(monthDays('2026-02-10').at(-1), '2026-02-28');
+  assert.equal(monthDays('2028-02-10').length, 29, 'leap years have 29');
+  assert.equal(shiftMonth('2026-10-22', -1, '2026-10-22'), '2026-09-01', 'another month opens on its first day');
+  assert.equal(shiftMonth('2026-09-01', 1, '2026-10-22'), '2026-10-22', 'coming back to this month lands on today');
+  assert.equal(shiftMonth('2026-12-05', 1, '2026-10-22'), '2027-01-01');
 });

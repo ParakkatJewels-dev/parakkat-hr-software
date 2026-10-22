@@ -369,11 +369,15 @@
   .home-page .home-action-icon,
   .home-page .home-list-icon { width: 2.25rem; height: 2.25rem; border-radius: .7rem; }
   .home-page .home-action-copy strong { font-size: .875rem; }
-  .leave-tiles { gap: .5rem; }
-  .leave-tile { padding: .65rem .6rem; }
+  /* Leave tiles share the width however many types there are, and Apply for leave gets room
+     around it instead of sitting on the card's edge. */
+  .leave-tiles { grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr)); gap: .5rem; }
+  .leave-tile { padding: .7rem .75rem; }
   .leave-tile svg { width: 19px; height: 19px; margin-bottom: .2rem; }
   .leave-tile strong { font-size: 1.3rem; }
-  .leave-apply { min-height: 2.5rem; margin-top: .6rem; }
+  .leave-apply { min-height: 2.75rem; margin: .85rem 0 .15rem; padding: 0 .9rem; }
+  /* The bottom bar and More already reach these screens, so Home's pill row steps aside. */
+  .home-page .home-self-links { display: none; }
 
   .today-strip { gap: .625rem; }
   .today-status-card {

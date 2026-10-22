@@ -43,6 +43,8 @@ import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
 import { btnClass } from './ui/Btn';
+import { useMediaQuery } from '../lib/useMediaQuery';
+import { moveMonth } from '../lib/weekStrip';
 import MyDayPhone from './attendance/MyDayPhone';
 import PageHeader from './ui/PageHeader';
 import { StatCard, StatRow } from './ui/StatCard';
@@ -601,11 +603,23 @@ function TodayView({ workDate, setWorkDate }) {
 // Monthly calendar
 // ---------------------------------------------------------------------------
 
-function CalendarView({ employeeId, employeeName }) {
+function CalendarView({ employeeId, employeeName, selectedDate, onSelectDate }) {
   const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [selected, setSelected] = useState(null);
+  const [ownYear, setYear] = useState(now.getFullYear());
+  const [ownMonth, setMonth] = useState(now.getMonth() + 1);
+  const [ownSelected, setOwnSelected] = useState(null);
+  // On a phone the chosen day is shared with the day ring above (round 2): the calendar follows it
+  // and picking a day here shows that day in the ring.
+  const controlled = typeof onSelectDate === 'function' && Boolean(selectedDate);
+  const year = controlled ? Number(selectedDate.slice(0, 4)) : ownYear;
+  const month = controlled ? Number(selectedDate.slice(5, 7)) : ownMonth;
+  const selected = controlled ? selectedDate : ownSelected;
+  const setSelected = (date) => {
+    if (!controlled) return setOwnSelected(date);
+    if (!date) return;
+    onSelectDate(date);
+    document.querySelector('.my-day-phone')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  };
 
   const { data = [], isLoading, error } = useMonthlyAttendance(employeeId, year, month);
   const { data: punches = [] } = useRawPunches(employeeId, selected);
@@ -640,6 +654,7 @@ function CalendarView({ employeeId, employeeName }) {
 
   const shiftMonth = (delta) => {
     const next = new Date(Date.UTC(year, month - 1 + delta, 1));
+    if (controlled) return onSelectDate(moveMonth(selectedDate, delta, todayIso()));
     setYear(next.getUTCFullYear());
     setMonth(next.getUTCMonth() + 1);
     setSelected(null);
@@ -663,7 +678,7 @@ function CalendarView({ employeeId, employeeName }) {
 
   return (
     <div className="space-y-4">
-      <div className="mobile-list-row premium-card flex flex-wrap items-center justify-between gap-3">
+      <div className="mobile-list-row premium-card calendar-month-bar flex flex-wrap items-center justify-between gap-3">
         <div className="mobile-list-actions flex items-center gap-2">
           <button type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month" title="Previous month" className="p-2 rounded-lg bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800">
             <ChevronLeft size={16} />
@@ -725,7 +740,7 @@ function CalendarView({ employeeId, employeeName }) {
                     key={date}
                     onClick={() => setSelected(isSelected ? null : date)}
                     className={`aspect-square rounded-xl p-1.5 flex flex-col items-center justify-center border transition-all
-                      ${isSelected ? 'ring-2 ring-emerald-500 border-transparent' : 'border-neutral-200 dark:border-neutral-850'}
+                      ${isSelected ? 'ring-2 ring-coral-500 border-transparent' : 'border-neutral-200 dark:border-neutral-850'}
                       ${row ? STATUS_STYLES[row.status] ?? '' : 'bg-neutral-50 dark:bg-neutral-950/40 text-neutral-400'}`}
                     title={row ? `${row.status}${row.remarks ? ` — ${row.remarks}` : ''}` : 'Not processed'} aria-label={row ? `${row.status}${row.remarks ? ` — ${row.remarks}` : ''}` : 'Not processed'}
                   >
@@ -817,7 +832,25 @@ function CalendarView({ employeeId, employeeName }) {
         ) : data.length === 0 ? (
           <div className="p-8 text-center text-xs text-neutral-500">No attendance rows computed for this month yet.</div>
         ) : (
-          <div className="table-scroll">
+          <>
+          <ul className="month-record-list">
+            {data.map((row) => (
+              <li key={row.id}>
+                <button type="button" className="month-record-row" aria-pressed={selected === row.work_date} onClick={() => setSelected(row.work_date)}>
+                  <span className="month-record-date">
+                    <span>{new Date(`${row.work_date}T00:00:00Z`).toLocaleDateString('en-IN', { timeZone: 'UTC', weekday: 'short' })}</span>
+                    <strong>{Number(row.work_date.slice(8))}</strong>
+                  </span>
+                  <span className="month-record-copy">
+                    <strong>{firstRecordedPunch(row) ? `${fmtTime(firstRecordedPunch(row))} – ${fmtTime(latestRecordedPunch(row))}` : 'No punches'}</strong>
+                    <span>{row.worked_minutes ? `Worked ${fmtMinutes(row.worked_minutes)}` : row.remarks || '—'}{row.ot_minutes ? ` · OT ${fmtMinutes(row.ot_minutes)}` : ''}</span>
+                  </span>
+                  <StatusBadge status={row.status} isLop={row.is_lop} />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="table-scroll month-record-table-wrap">
             <table className="premium-table w-full text-xs">
               <thead>
                 <tr>
@@ -849,6 +882,7 @@ function CalendarView({ employeeId, employeeName }) {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
     </div>
@@ -1339,6 +1373,9 @@ export default function Attendance() {
   const [workDate, setWorkDate] = useState(todayIso());
   const [params] = useSearchParams();
   const selfAttendanceMode = viewingAsEmployee || !canBeyondSelf('attendance.read');
+  // Phones share one chosen day between the day ring and the month calendar below it.
+  const phone = useMediaQuery('(max-width: 640px)');
+  const [focusDay, setFocusDay] = useState(todayIso());
 
   // A `scoped` tab looks at other people, so it needs the permission held beyond your own record.
   // A `self` tab looks only at you, so it belongs to the employee view — see the note on TABS.
@@ -1362,7 +1399,7 @@ export default function Attendance() {
   const showSourceNote = canAny('device.manage');
 
   return (
-    <div className="page-shell space-y-5 animate-slide-up py-3">
+    <div className={`page-shell space-y-5 animate-slide-up py-3 ${selfAttendanceMode ? 'attendance-self-phone' : ''}`}>
       <PageHeader
         title={selfAttendanceMode ? 'My Attendance' : (TAB_TITLES[tab] ?? 'Attendance')}
         subtitle={showSourceNote
@@ -1378,7 +1415,7 @@ export default function Attendance() {
         />
       ) : null}
 
-      <nav aria-label="Attendance views" className="mobile-segmented mobile-segmented-dense flex flex-wrap gap-1.5">
+      <nav aria-label="Attendance views" className={`mobile-segmented mobile-segmented-dense attendance-views flex flex-wrap gap-1.5 ${tab === 'calendar' ? '' : 'is-elsewhere'}`}>
         {visibleTabs.map((t) => {
           const Icon = t.icon;
           const label = selfAttendanceMode && t.id === 'regularizations' ? 'Fix attendance' : t.label;
@@ -1404,8 +1441,10 @@ export default function Attendance() {
         <TodayView workDate={workDate} setWorkDate={setWorkDate} />
       ) : null}
       {tab === 'calendar' && selfAttendanceMode && employee?.id
-        ? <MyDayPhone employeeId={employee.id} onFix={() => setTab('regularizations')} /> : null}
-      {tab === 'calendar' ? <CalendarView employeeId={employee?.id} employeeName={employee?.full_name} /> : null}
+        ? <MyDayPhone employeeId={employee.id} day={focusDay} onDay={setFocusDay}
+            onFix={() => setTab('regularizations')} onOverview={() => setTab('overview')} /> : null}
+      {tab === 'calendar' ? <CalendarView employeeId={employee?.id} employeeName={employee?.full_name}
+        selectedDate={phone && selfAttendanceMode ? focusDay : undefined} onSelectDate={phone && selfAttendanceMode ? setFocusDay : undefined} /> : null}
       {tab === 'person' ? <PersonAttendanceView /> : null}
       {tab === 'overview' ? (
         employee?.id ? <EmployeeAttendanceDetail employee={employee} embedded /> : (

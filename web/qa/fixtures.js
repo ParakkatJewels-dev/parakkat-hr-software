@@ -102,6 +102,26 @@ export const tables = {
   help_requests: [], task_comments: [], task_attachments: [], pay_components: [], audit_log: [],
 };
 
+// Round 2 phone checks: a few assets with custody history and some help tickets, so the asset
+// detail and help screens have something to lay out. Synthetic like everything else here.
+{
+  const [a, b, c] = fixture.employees;
+  tables.assets = [
+    { id: 'qa-asset-1', category: 'IT', asset_type: 'Laptop', asset_code: 'IT-LAP-0012', name: 'Dell Latitude 5440', make: 'Dell', model: 'Latitude 5440', serial: 'SYN-DL-5440-0012', status: 'Assigned', condition: 'Good', location: 'Head office', notes: 'Synthetic asset for layout checks.', purchase_date: '2025-04-10', purchase_cost: 72000, vendor: 'Synthetic Traders', invoice_no: 'INV-0099', warranty_expires: '2028-04-09', owner_entity_id: a.entity_id, entity_id: a.entity_id, branch_id: a.branch_id, department_id: a.department_id, employee_id: a.id, employee: a, created_at: stamp, updated_at: stamp },
+    { id: 'qa-asset-2', category: 'IT', asset_type: 'Phone', asset_code: 'IT-PHN-0031', name: 'Samsung Galaxy A35', make: 'Samsung', model: 'Galaxy A35', serial: 'SYN-SM-A35-0031', status: 'Available', condition: 'Good', location: 'Store room', purchase_date: '2025-08-02', purchase_cost: 28000, owner_entity_id: b.entity_id, entity_id: b.entity_id, branch_id: b.branch_id, created_at: stamp, updated_at: stamp },
+    { id: 'qa-asset-3', category: 'Furniture', asset_type: 'Chair', asset_code: 'FUR-CHR-0107', name: 'Ergonomic chair', status: 'In Repair', condition: 'Fair', location: 'Branch 2', purchase_date: '2024-11-20', purchase_cost: 9500, owner_entity_id: c.entity_id, entity_id: c.entity_id, branch_id: c.branch_id, created_at: stamp, updated_at: stamp },
+  ];
+  tables.asset_assignments = [
+    { id: 'qa-custody-2', asset_id: 'qa-asset-1', assigned_at: '2026-06-01T10:00:00+05:30', returned_at: null, condition_out: 'Good', notes: 'Issued for field visits', assigned_by_name: 'QA Admin', employee: a },
+    { id: 'qa-custody-1', asset_id: 'qa-asset-1', assigned_at: '2025-04-15T10:00:00+05:30', returned_at: '2026-05-28T17:30:00+05:30', condition_out: 'New', condition_in: 'Good', return_notes: 'Returned on transfer', assigned_by_name: 'QA Admin', returned_by_name: 'QA Admin', employee: b },
+  ];
+  tables.tickets = [a, b, c].map((e, i) => ({ id: `qa-ticket-${i}`, employee_id: e.id, employee: e, requester: e,
+    entity_id: e.entity_id, branch_id: e.branch_id, department_id: e.department_id,
+    subject: ['Laptop will not connect to the office Wi-Fi', 'Payslip shows the wrong bank account', 'Need access to the shared drive'][i],
+    description: 'Synthetic ticket for layout checks.', category: ['IT', 'Payroll', 'IT'][i], priority: ['High', 'Medium', 'Low'][i],
+    status: ['Open', 'In Progress', 'Resolved'][i], created_at: stamp, updated_at: stamp, can_manage: true }));
+}
+
 if (goalsFixtures) {
   const designations = [{ id: 'goal-sales', title: 'Sales Associate' }, { id: 'goal-cashier', title: 'Cashier' }];
   fixture.employees.forEach((employee, index) => Object.assign(employee, {

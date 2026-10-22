@@ -1,15 +1,16 @@
 // My attendance for one day, on a phone (round 2, after the reference phone kit): the month and
-// week to pick a day, a ring with the first punch and the day's status, hours worked and breaks,
-// then the punches as a timeline. The face machines record the punches, so there are no check-in
-// or break buttons — a day that looks wrong goes to Fix attendance instead.
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Clock, Coffee, Fingerprint } from 'lucide-react';
-import { useEmployeeAttendance } from '../../data/employeeAttendance';
-import { todayIso, fmtTime, fmtMinutes } from '../../data/attendance';
+// a swipeable strip of its days, a ring with the first punch and the day's status, hours worked
+// and breaks, then the punches as a timeline. The chosen day is shared with the month calendar
+// and month list below it, so a day picked anywhere shows here. The face machines record the
+// punches, so there are no check-in or break buttons — a day that looks wrong goes to Fix
+// attendance instead.
+import React, { useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Clock, Coffee, Fingerprint, TrendingUp } from 'lucide-react';
+import { useMonthlyAttendance, todayIso, fmtTime, fmtMinutes } from '../../data/attendance';
 import { attendanceTimeline } from '../../lib/attendanceTimeline';
 import { firstRecordedPunch } from '../../lib/recordedPunches';
 import { toneForStatus } from '../../lib/statusTone';
-import { weekDays, shiftWeek, punchSteps } from '../../lib/weekStrip';
+import { monthDays, shiftMonth, punchSteps } from '../../lib/weekStrip';
 import { segments } from '../ui/PunchTimeline';
 import StatusPill from '../ui/StatusPill';
 import { Skeleton } from '../ui/Skeleton';
@@ -18,17 +19,17 @@ import './myDayPhone.css';
 const label = (iso, options) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { timeZone: 'UTC', ...options });
 
 /** A day's status word: the row's, or what an empty past/future day means. */
-function dayStatus(row, iso, today) {
+export function dayStatus(row, iso, today) {
   if (row) return row.is_late && row.status === 'Present' ? 'Late' : row.status || 'Pending';
   return iso > today ? null : 'No record';
 }
 
-export default function MyDayPhone({ employeeId, onFix }) {
+export default function MyDayPhone({ employeeId, day, onDay, onFix, onOverview }) {
   const today = todayIso();
-  const [day, setDay] = useState(today);
-  const week = weekDays(day);
-  const { data: rows = [], isLoading } = useEmployeeAttendance(employeeId, week[0], week[6]);
+  const [year, month] = [Number(day.slice(0, 4)), Number(day.slice(5, 7))];
+  const { data: rows = [], isLoading } = useMonthlyAttendance(employeeId, year, month);
   const byDate = new Map(rows.map((r) => [r.work_date, r]));
+  const days = monthDays(day);
   const row = byDate.get(day);
   const status = dayStatus(row, day, today);
   const tone = status ? toneForStatus(status) : 'neutral';
@@ -38,19 +39,26 @@ export default function MyDayPhone({ employeeId, onFix }) {
   const breaks = segments(timeline).filter((s) => s.away).length;
   const stillIn = day === today && timeline.length % 2 === 1;
 
+  // Keep the chosen day in the middle of the strip, however it was chosen.
+  const strip = useRef(null);
+  useEffect(() => {
+    const el = strip.current?.querySelector('[aria-pressed="true"]');
+    el?.scrollIntoView?.({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+  }, [day]);
+
   return (
     <section className="my-day-phone" aria-label="My day">
       <div className="my-day-month">
-        <button type="button" onClick={() => setDay(shiftWeek(day, -1))} aria-label="Previous week"><ChevronLeft size={18} /></button>
+        <button type="button" onClick={() => onDay(shiftMonth(day, -1, today))} aria-label="Previous month"><ChevronLeft size={18} /></button>
         <strong>{label(day, { month: 'long', year: 'numeric' })}</strong>
-        <button type="button" onClick={() => setDay(shiftWeek(day, 1))} aria-label="Next week"><ChevronRight size={18} /></button>
+        <button type="button" onClick={() => onDay(shiftMonth(day, 1, today))} aria-label="Next month"><ChevronRight size={18} /></button>
       </div>
 
-      <div className="my-day-week" role="group" aria-label="Days of the week">
-        {week.map((iso) => {
+      <div className="my-day-week" role="group" aria-label="Days of the month" ref={strip}>
+        {days.map((iso) => {
           const s = dayStatus(byDate.get(iso), iso, today);
           return (
-            <button key={iso} type="button" onClick={() => setDay(iso)} aria-pressed={iso === day}
+            <button key={iso} type="button" onClick={() => onDay(iso)} aria-pressed={iso === day}
               aria-label={`${label(iso, { weekday: 'long', day: 'numeric', month: 'long' })}${s ? `, ${s}` : ''}`}
               className={`my-day-weekday ${iso === day ? 'is-selected' : ''} ${iso === today ? 'is-today' : ''}`}>
               <span>{label(iso, { weekday: 'short' })}</span>
@@ -83,7 +91,7 @@ export default function MyDayPhone({ employeeId, onFix }) {
       </div>
 
       <div className="my-day-timeline">
-        <h3>{day === today ? 'Today’s timeline' : 'Timeline'}</h3>
+        <h3>{day === today ? 'Today’s timeline' : `Timeline · ${label(day, { day: 'numeric', month: 'short' })}`}</h3>
         {steps.length === 0 ? (
           <p className="my-day-empty">{day > today ? 'Nothing yet — this day is still ahead.' : 'No punches recorded for this day.'}</p>
         ) : (
@@ -96,9 +104,12 @@ export default function MyDayPhone({ employeeId, onFix }) {
             {stillIn && <li data-kind="pending"><time>--:--</time><span>Check out</span></li>}
           </ol>
         )}
-        {(row?.is_missing_punch || row?.breaks_incomplete) && (
-          <button type="button" className="my-day-fix" onClick={onFix}><Fingerprint size={16} aria-hidden="true" /> Fix attendance for this day</button>
-        )}
+        <div className="my-day-links">
+          <button type="button" data-tone={row?.is_missing_punch || row?.breaks_incomplete ? 'warn' : undefined} onClick={onFix}>
+            <Fingerprint size={16} aria-hidden="true" /> Fix attendance
+          </button>
+          {onOverview && <button type="button" onClick={onOverview}><TrendingUp size={16} aria-hidden="true" /> Overview</button>}
+        </div>
       </div>
     </section>
   );
