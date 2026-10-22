@@ -463,3 +463,67 @@ main .page-header-title,
   /* Appearance is in the More menu on a phone; the bar keeps search, role, bell and you. */
   .app-header .header-theme-toggle { display: none; }
 }
+
+/* ---- Attendance: the sync line above the figures ---- */
+.attendance-sync-pill {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  justify-self: end;
+  width: fit-content;
+  margin: 0 0 0 auto;
+  padding: .45rem .85rem;
+  border-radius: 999px;
+  background: #e1f7ea;
+  color: #08743a;
+  font-size: .8125rem;
+  font-weight: 600;
+}
+.attendance-sync-pill span { width: .5rem; height: .5rem; border-radius: 999px; background: #00a75b; }
+.dark .attendance-sync-pill { background: rgba(16, 185, 129, .16); color: #6ee7b7; }
+
+/* ---- Shared card title (sentence case, as on the boards) ---- */
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  margin: 0 0 .25rem;
+  color: var(--surface-text);
+  font-size: 1.05rem !important;
+  font-weight: 700 !important;
+  letter-spacing: -.005em;
+}
+.card-title > svg { color: var(--surface-text-soft); }
+.card-title-count { color: var(--surface-text-soft); font-weight: 600; }
+
+/* ---- Leave request rows (board 28) ---- */
+.leave-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.6fr) minmax(9rem, 1.3fr) minmax(4.5rem, .5fr) minmax(8rem, 1fr) auto;
+  align-items: center;
+  gap: .4rem 1rem;
+  padding: .8rem .9rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .9rem;
+  background: var(--surface-elevated);
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.leave-row + .leave-row { margin-top: .55rem; }
+.leave-row:hover { border-color: var(--surface-border-strong); }
+.leave-row[data-selected] { border-color: color-mix(in srgb, var(--coral) 40%, transparent); background: #fff5ee; }
+.dark .leave-row[data-selected] { background: var(--coral-soft); }
+.leave-row-person { display: flex; min-width: 0; align-items: center; gap: .7rem; }
+.leave-row-person strong, .leave-row-type strong { display: block; overflow: hidden; color: var(--surface-text); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.leave-row-person span, .leave-row-type span { display: block; overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.leave-row-days { color: var(--surface-text); font-size: .8125rem; font-variant-numeric: tabular-nums; }
+.leave-row-status { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; gap: .25rem; }
+.leave-row-stage { color: var(--surface-text-soft); font-size: .72rem; }
+.leave-row-open { display: inline-flex; align-items: center; gap: .25rem; min-height: 2.25rem; padding: 0 .4rem 0 .75rem; border-radius: .65rem; color: var(--surface-text); font-size: .8125rem; font-weight: 600; }
+.leave-row-open:hover { background: var(--surface-muted); }
+.leave-row-note { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .25rem .75rem; margin: 0; padding-left: 3.2rem; color: var(--surface-text-soft); font-size: .75rem; }
+@media (max-width: 900px) {
+  .leave-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .leave-row-type, .leave-row-days, .leave-row-status { grid-column: 1 / 2; padding-left: 3.2rem; }
+  .leave-row-open { grid-row: 1; grid-column: 2; }
+  .leave-row-note { padding-left: 3.2rem; }
+}

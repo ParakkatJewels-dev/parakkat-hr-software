@@ -1,6 +1,9 @@
 import { SkeletonCards, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo, useEffect } from 'react';
-import { Calendar, FileText, CheckCircle2, Clock, Plus } from 'lucide-react';
+import { Calendar, CheckCircle2, Clock, Plus, ClipboardList, PauseCircle, XCircle, ChevronRight } from 'lucide-react';
+import { StatCard, StatRow } from './ui/StatCard';
+import StatusPill from './ui/StatusPill';
+import Avatar from './ui/Avatar';
 import { useHolidays } from '../data/holidays';
 import { useLeaveBalances, useLeaveTypes } from '../data/leaveTypes';
 import { useLeaves, useApplyLeave } from '../data/leaves';
@@ -35,16 +38,7 @@ const FALLBACK_TYPE_NAMES = {
 };
 const LEAVE_FILTERS = ['All', 'My review queue', 'Department review', 'HR sanction', 'Pending', 'On Hold', 'Approved', 'Rejected', 'Cancelled'];
 
-const statusClass = (s) =>
-  s === 'Approved'
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/30'
-    : s === 'Rejected'
-    ? 'bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/30'
-    : s === 'On Hold'
-    ? 'bg-sky-100 text-sky-800 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/30'
-    : s === 'Cancelled'
-    ? 'bg-neutral-100 text-neutral-400 border-neutral-200 dark:bg-neutral-900 dark:text-neutral-500 dark:border-neutral-800'
-    : 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/30';
+const LEAVE_TONE = { Pending: 'warning', 'On Hold': 'info', Approved: 'success', Rejected: 'danger', Cancelled: 'neutral' };
 
 function daysBetween(a, b) {
   const d1 = new Date(a), d2 = new Date(b);
@@ -209,7 +203,7 @@ export default function Leave() {
   return (
     <div className="page-shell space-y-6 animate-slide-up">
       <PageHeader
-        title={selfServiceMode ? 'My Leave' : 'Leave Management'}
+        title={selfServiceMode ? 'My leave' : 'Leave management'}
         subtitle={selfServiceMode
           ? 'Apply for time off and follow every request.'
           : 'Department head review followed by HR sanction, with a record of every decision.'}
@@ -268,21 +262,20 @@ export default function Leave() {
       ) : null}
 
       {/* stats from real data */}
-      {isLoading ? <SkeletonCards count={5} label="Loading leave totals" /> : hasLeaves && <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 ${selfServiceMode ? 'employee-secondary-stats' : ''}`}>
-        <Stat label="Total Requests" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
-        <Stat label="Pending" value={stats.pending} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
-        <Stat label="On Hold" value={stats.onHold} active={statusFilter === 'On Hold'} onClick={() => setStatusFilter('On Hold')} />
-        <Stat label="Approved" value={stats.approved} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
-        <Stat label="Rejected" value={stats.rejected} active={statusFilter === 'Rejected'} onClick={() => setStatusFilter('Rejected')} />
-      </div>}
+      {isLoading ? <SkeletonCards count={5} label="Loading leave totals" /> : hasLeaves && <StatRow label="Leave totals" className={selfServiceMode ? 'employee-secondary-stats' : ''}>
+        <Stat label="Total requests" sub="All leave requests" icon={ClipboardList} tone="slate" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
+        <Stat label="Pending" sub="Awaiting approval" icon={Clock} tone="amber" value={stats.pending} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
+        <Stat label="On hold" sub="Requires attention" icon={PauseCircle} tone="blue" value={stats.onHold} active={statusFilter === 'On Hold'} onClick={() => setStatusFilter('On Hold')} />
+        <Stat label="Approved" icon={CheckCircle2} tone="green" value={stats.approved} active={statusFilter === 'Approved'} onClick={() => setStatusFilter('Approved')} />
+        <Stat label="Rejected" sub="Not approved" icon={XCircle} tone="red" value={stats.rejected} active={statusFilter === 'Rejected'} onClick={() => setStatusFilter('Rejected')} />
+      </StatRow>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* list */}
         <div className={`${showForm ? 'lg:col-span-2' : 'lg:col-span-3'} space-y-4`}>
           <div className="premium-card space-y-4">
-            <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
-              <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" />
-              {selfServiceMode ? 'My Requests' : 'Leave Requests'}
+            <h3 className="card-title">
+              {selfServiceMode ? 'My requests' : 'Leave requests'} <span className="card-title-count">({visibleLeaves.length})</span>
             </h3>
             <div className="flex flex-wrap items-center gap-2">
               {canReviewQueue && <button type="button"
@@ -312,37 +305,41 @@ export default function Leave() {
             ) : (
               <div className="space-y-3.5">
                 {pager.slice.map((req) => (
-                  <div key={req.id} {...rowProps(req.id)} className="mobile-list-row p-4 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 text-xs hover:border-neutral-300 dark:hover:border-neutral-800">
-                    <div className="space-y-1 min-w-0">
-                      <div className="flex items-center space-x-2">
-                        <span className="font-bold text-neutral-855 dark:text-slate-200">{typeName(req.type)}</span>
-                        <span className="text-2xs font-mono px-1.5 py-0.5 bg-neutral-200 dark:bg-neutral-900 text-neutral-500 rounded border border-neutral-305 dark:border-neutral-800">{req.days} day{Number(req.days) === 1 ? '' : 's'}</span>
+                  <div key={req.id} {...rowProps(req.id)} className="leave-row" data-selected={selectedId === req.id || undefined}>
+                    <div className="leave-row-person">
+                      <Avatar name={req.employee?.full_name} size="lg" />
+                      <div className="min-w-0">
+                        <strong>{req.employee?.full_name || 'Unknown'}</strong>
+                        <span>{[req.employee?.designation?.title, req.employee?.branch?.code].filter(Boolean).join(' · ') || typeName(req.type)}</span>
                       </div>
-                      <span className="text-2xs text-neutral-500 block truncate">
-                        {req.start_date} → {req.end_date} · {req.employee?.full_name || 'Unknown'}
-                        {req.employee?.branch?.code ? ` (${req.employee.branch.code})` : ''}
-                      </span>
-                      {req.reason && <p className="text-2xs text-neutral-450 italic whitespace-pre-wrap break-words">{req.reason}</p>}
-                      {(req.status === 'Pending' || req.status === 'On Hold') && <p className="text-xs font-semibold text-neutral-600 dark:text-neutral-300">{leaveStageLabel(req)}</p>}
-                      {req.auto_cancellation_note && (
-                        <p className="text-2xs text-amber-700 dark:text-amber-300">
-                          {req.auto_cancellation_note}
-                          {req.status === 'Approved' && req.cancelled_dates?.length
-                            ? ` · ${req.cancelled_dates.length} date${req.cancelled_dates.length === 1 ? '' : 's'} removed`
-                            : ''}
-                        </p>
-                      )}
                     </div>
-
-                    <div className="mobile-list-actions flex items-center gap-2 shrink-0">
-                      <span className={`text-2xs px-2 py-0.5 rounded-full font-mono font-bold uppercase tracking-wider border ${statusClass(req.status)}`}>
-                        {req.status}
-                      </span>
-                      <button type="button" onClick={() => setSelectedId(req.id)} className={btnClass('secondary')}
-                        aria-label={`${canReview(req) || leaveDecisionsFor(req, employee?.id, viewingAsEmployee).length ? 'Review' : 'View'} leave for ${req.employee?.full_name || typeName(req.type)}`}>
-                        {canReview(req) || leaveDecisionsFor(req, employee?.id, viewingAsEmployee).length ? 'Review' : 'Details & remarks'}
-                      </button>
+                    <div className="leave-row-type">
+                      <strong>{typeName(req.type)}</strong>
+                      <span>{req.start_date === req.end_date ? req.start_date : `${req.start_date} – ${req.end_date}`}</span>
                     </div>
+                    <span className="leave-row-days">{req.days} day{Number(req.days) === 1 ? '' : 's'}</span>
+                    <div className="leave-row-status">
+                      <StatusPill status={req.status} tone={LEAVE_TONE[req.status]} />
+                      {(req.status === 'Pending' || req.status === 'On Hold') && <span className="leave-row-stage">{leaveStageLabel(req)}</span>}
+                    </div>
+                    <button type="button" onClick={() => setSelectedId(req.id)} className="leave-row-open"
+                      aria-label={`${canReview(req) || leaveDecisionsFor(req, employee?.id, viewingAsEmployee).length ? 'Review' : 'View'} leave for ${req.employee?.full_name || typeName(req.type)}`}>
+                      {canReview(req) || leaveDecisionsFor(req, employee?.id, viewingAsEmployee).length ? 'Review' : 'Details'}
+                      <ChevronRight size={16} aria-hidden="true" />
+                    </button>
+                    {(req.reason || req.auto_cancellation_note) && (
+                      <p className="leave-row-note">
+                        {req.reason && <span className="italic">{req.reason}</span>}
+                        {req.auto_cancellation_note && (
+                          <span className="text-amber-700 dark:text-amber-300">
+                            {req.auto_cancellation_note}
+                            {req.status === 'Approved' && req.cancelled_dates?.length
+                              ? ` · ${req.cancelled_dates.length} date${req.cancelled_dates.length === 1 ? '' : 's'} removed`
+                              : ''}
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </div>
                 ))}
                 <Pagination {...pager} noun="requests" />
@@ -396,9 +393,7 @@ export default function Leave() {
             </FormSection>
           ) : (
             <div className="premium-card paged-collection space-y-4 animate-fade-in">
-              <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
-                <Calendar size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Holiday Calendar
-              </h3>
+              <h3 className="card-title"><Calendar size={18} aria-hidden="true" /> Holiday calendar</h3>
               <QueryError error={holidayQuery.error} title="Holidays could not be loaded." onRetry={holidayQuery.refetch}
                 retrying={holidayQuery.isFetching} hasData={Array.isArray(holidayQuery.data)} />
               {holidayQuery.isLoading && <SkeletonRows rows={3} compact avatar={false} label="Loading holidays" />}
@@ -442,15 +437,6 @@ export default function Leave() {
   );
 }
 
-function Stat({ label, value, onClick, active = false }) {
-  const Tag = onClick ? 'button' : 'div';
-  return (
-    <Tag
-      {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
-      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
-    >
-      <span className="text-neutral-500 dark:text-neutral-455 text-xs font-bold uppercase tracking-wider block">{label}</span>
-      <span className="text-2xl font-extrabold font-mono text-neutral-850 dark:text-slate-100 block mt-1.5">{value}</span>
-    </Tag>
-  );
+function Stat({ label, value, sub, icon, tone, onClick, active = false }) {
+  return <StatCard label={label} value={value} sub={sub} icon={icon} tone={tone} onClick={onClick} active={active} title={onClick ? `Show ${label}` : undefined} />;
 }

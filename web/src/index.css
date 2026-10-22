@@ -444,6 +444,11 @@
   input:focus, select:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
 }
 
+/* 2026 redesign: sentence case throughout the screens. The boards set no running text in capitals;
+   only the sidebar's group headings are, and those live outside <main>. */
+main * { text-transform: none !important; }
+main .uppercase { letter-spacing: normal !important; }
+
 /* ---- Typography scale (compact & consistent) ----------------------------- */
 main h1 { font-size: 1.375rem !important; line-height: 1.2 !important; letter-spacing: 0; font-weight: 700 !important; }
 main h2 { font-size: 1.375rem !important; line-height: 1.2 !important; letter-spacing: 0; font-weight: 700 !important; }
@@ -526,7 +531,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 @layer components {
   /* ---- Form controls: the redesign's 40px fields. Layered, so h-* utilities and dense grids
      (which set their own heights) still win. Tables keep their compact inline editors. ---- */
-  .page-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select):not(:where(td *, .payroll-input-grid *, .ledger-table *)) {
+  .page-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select):not(:where(td *, .payroll-input-grid *, .ledger-table *, .input-shell *)) {
     min-height: 2.5rem;
   }
   input[type="checkbox"], input[type="radio"] { accent-color: var(--coral); }

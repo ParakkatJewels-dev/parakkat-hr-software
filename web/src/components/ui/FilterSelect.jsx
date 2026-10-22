@@ -12,7 +12,7 @@ import React from 'react';
  * These were four bare selects in identical grey pills. Once one was set, the row read
  * "PP Imitations / All Branches / Sales / Active" with nothing to say which dimension each
  * belonged to, and nothing to show a filter was even applied. Now each carries its label, and an
- * active one takes the accent colour so a narrowed list never looks like the whole company.
+ * active one takes the coral tint so a narrowed list never looks like the whole company.
  */
 export default function FilterSelect({ label, value, options, onChange, allValue }) {
   const active = value !== allValue;
@@ -21,14 +21,14 @@ export default function FilterSelect({ label, value, options, onChange, allValue
     <div
       className={`input-shell filter-select flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 rounded-xl border px-3 py-2 sm:py-1.5 w-full sm:w-auto transition-colors ${
         active
-          ? 'border-brand/40 bg-brand/10'
-          : 'border-neutral-200 dark:border-neutral-855 bg-neutral-50/80 dark:bg-charcoal-900/50'
+          ? 'border-coral-500/40 bg-coral-50'
+          : 'border-neutral-300 dark:border-neutral-855 bg-white dark:bg-charcoal-900/50'
       }`}
     >
       <label
         htmlFor={id}
-        className={`text-2xs font-bold uppercase tracking-wider shrink-0 ${
-          active ? 'text-brand-ink dark:text-brand-ink' : 'text-neutral-400'
+        className={`text-xs font-medium shrink-0 ${
+          active ? 'text-coral-700 dark:text-coral-500' : 'text-neutral-500 dark:text-neutral-400'
         }`}
       >
         {label}
@@ -37,8 +37,8 @@ export default function FilterSelect({ label, value, options, onChange, allValue
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`bg-transparent border-none text-sm font-semibold cursor-pointer w-full sm:max-w-[150px] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-md ${
-          active ? 'text-brand-ink dark:text-brand-ink' : 'text-neutral-700 dark:text-neutral-300'
+        className={`bg-transparent border-none text-sm font-semibold cursor-pointer w-full sm:max-w-[160px] focus:outline-none focus-visible:ring-2 focus-visible:ring-coral-500/50 rounded-md ${
+          active ? 'text-coral-700 dark:text-coral-500' : 'text-neutral-800 dark:text-neutral-200'
         }`}
       >
         {options.map((o) => (

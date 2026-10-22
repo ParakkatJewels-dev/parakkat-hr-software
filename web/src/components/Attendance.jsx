@@ -9,7 +9,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Clock, Users, AlertTriangle, CalendarDays, Loader2, Download, RefreshCw,
-  CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, Info,
+  CheckCircle2, XCircle, ChevronLeft, ChevronRight, Search, FileSpreadsheet, MapPin, UserX, AlertCircle,
   SlidersHorizontal, Fingerprint, TrendingUp, ArrowLeft,
 } from 'lucide-react';
 import {
@@ -44,6 +44,9 @@ import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCo
 import { NavigationCountBadge } from './ui/CountBadge';
 import { btnClass } from './ui/Btn';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
+import StatusPill from './ui/StatusPill';
+import Avatar from './ui/Avatar';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -73,6 +76,9 @@ const TABS = [
   { id: 'exceptions', label: 'Exceptions', icon: AlertTriangle, perm: 'attendance.manage' },
   { id: 'regularizations', label: 'Regularizations', icon: CheckCircle2 },
 ];
+
+// The page title follows the tab, as on the redesign boards.
+const TAB_TITLES = { today: 'Today’s attendance', person: 'Attendance by person', exceptions: 'Attendance exceptions', regularizations: 'Attendance corrections' };
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
@@ -145,12 +151,14 @@ function DayPunchCorrectionLink({ row }) {
     to={`/attendance/person?employee=${encodeURIComponent(row.employee_id)}&period=${encodeURIComponent(row.work_date.slice(0, 7))}&correctDate=${encodeURIComponent(row.work_date)}`}>Edit punches</Link>;
 }
 
+// Attendance statuses in the redesign's one colour language.
+const ATTENDANCE_TONE = {
+  Present: 'success', 'Half Day': 'warning', Absent: 'danger', 'On Leave': 'info', Holiday: 'info',
+  'Weekly Off': 'neutral', 'Missing Punch': 'danger', 'No Shift': 'neutral',
+};
+
 function StatusBadge({ status, isLop }) {
-  return (
-    <span className={`badge ${STATUS_STYLES[status] ?? 'badge-muted'}`}>
-      {isLop ? 'LOP' : status}
-    </span>
-  );
+  return <StatusPill status={isLop ? 'LOP' : status} tone={isLop ? 'danger' : ATTENDANCE_TONE[status] ?? 'neutral'} />;
 }
 
 /**
@@ -174,27 +182,11 @@ function AttendanceStatusControl({ row }) {
   );
 }
 
-function Kpi({ icon: Icon, label, value, tone = 'neutral', onClick, active = false, loading = false }) {
-  const tones = {
-    neutral: 'text-neutral-800 dark:text-neutral-100',
-    green: 'text-emerald-600 dark:text-emerald-400',
-    amber: 'text-amber-600 dark:text-amber-400',
-    red: 'text-red-600 dark:text-red-400',
-  };
-  const Tag = onClick ? 'button' : 'div';
+/** A figure that filters the table (2026 redesign number card). `tone` picks the icon tile. */
+function Kpi({ icon, label, value, sub, tone = 'slate', onClick, active = false, loading = false }) {
   return (
-    <Tag
-      {...(onClick ? { type: 'button', onClick, title: `Show ${label}` } : {})}
-      className={`premium-card text-left ${onClick ? 'summary-card-link' : ''} ${active ? 'summary-card-link-active' : ''}`}
-    >
-      <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-        <Icon size={13} />
-        {label}
-      </div>
-      <div className={`mt-2 text-2xl font-black font-mono ${tones[tone]}`}>
-        {loading ? <Skeleton as="span" className="inline-block h-7 w-12 align-middle" /> : value}
-      </div>
-    </Tag>
+    <StatCard icon={icon} label={label} value={value} sub={sub} tone={tone} loading={loading}
+      onClick={onClick} active={active} title={onClick ? `Show ${label}` : undefined} />
   );
 }
 
@@ -426,22 +418,29 @@ function TodayView({ workDate, setWorkDate }) {
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {/* Every tile sets a filter the predicate actually implements — the keys come from
-            FLAG_FILTERS or from a real status value, never from a label typed by hand. */}
-        <Kpi icon={Users} label="Roster" value={summary.total} loading={isLoading}
+      {isToday && health && !health.brokenHop && (
+        <p className="attendance-sync-pill" role="status">
+          <span aria-hidden="true" />Device sync healthy{Number.isFinite(health.minutes) ? ` · updated ${forHumans(health.minutes)} ago` : ''}
+        </p>
+      )}
+
+      {/* Every tile sets a filter the predicate actually implements — the keys come from
+          FLAG_FILTERS or from a real status value, never from a label typed by hand. */}
+      <StatRow label="Today’s attendance figures">
+        <Kpi icon={Users} label="Roster" value={summary.total} sub="Scheduled" loading={isLoading}
           onClick={() => setAttendanceFilter(ALL_ROWS)} active={attendanceFilter === ALL_ROWS} />
         <Kpi icon={CheckCircle2} label="Checked in" value={summary.checkedIn} tone="green" loading={isLoading}
+          sub={summary.total ? `${Math.round((summary.checkedIn / summary.total) * 1000) / 10}% of roster` : undefined}
           onClick={() => setAttendanceFilter('Checked in')} active={attendanceFilter === 'Checked in'} />
-        <Kpi icon={Clock} label="Still on site" value={summary.stillIn} tone="green" loading={isLoading}
+        <Kpi icon={MapPin} label="On site now" value={summary.stillIn} tone="blue" loading={isLoading}
           onClick={() => setAttendanceFilter('On site now')} active={attendanceFilter === 'On site now'} />
-        <Kpi icon={AlertTriangle} label="Late" value={summary.late} tone="amber" loading={isLoading}
+        <Kpi icon={Clock} label="Late" value={summary.late} tone="amber" loading={isLoading}
           onClick={() => setAttendanceFilter('Late arrivals')} active={attendanceFilter === 'Late arrivals'} />
-        <Kpi icon={XCircle} label="Absent" value={summary.absent} tone="red" loading={isLoading}
+        <Kpi icon={UserX} label="Absent" value={summary.absent} tone="red" loading={isLoading}
           onClick={() => setAttendanceFilter('Absent')} active={attendanceFilter === 'Absent'} />
-        <Kpi icon={Info} label="Missing punch" value={summary.missingPunch} tone="amber" loading={isLoading}
+        <Kpi icon={AlertCircle} label="Missing punch" value={summary.missingPunch} tone="violet" loading={isLoading}
           onClick={() => setAttendanceFilter('Missing punch')} active={attendanceFilter === 'Missing punch'} />
-      </div>
+      </StatRow>
 
       <div className="premium-card mobile-filter-card space-y-3">
         <div className="mobile-toolbar flex flex-wrap items-center gap-2">
@@ -555,7 +554,8 @@ function TodayView({ workDate, setWorkDate }) {
                 {pager.slice.map((row) => (
                   <tr key={row.id}>
                     <td data-label="Employee">
-                      <div className="font-semibold text-neutral-800 dark:text-neutral-100">
+                      <div className="flex items-center gap-2.5 font-semibold text-neutral-800 dark:text-neutral-100">
+                        <Avatar name={row.employee?.full_name} size="md" />
                         <EmployeeLink employee={row.employee} />
                       </div>
                       <div className="text-2xs text-neutral-400 font-mono">
@@ -1363,7 +1363,7 @@ export default function Attendance() {
   return (
     <div className="page-shell space-y-5 animate-slide-up py-3">
       <PageHeader
-        title={selfAttendanceMode ? 'My Attendance' : 'Attendance'}
+        title={selfAttendanceMode ? 'My Attendance' : (TAB_TITLES[tab] ?? 'Attendance')}
         subtitle={showSourceNote
           ? 'Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes and each day is worked out against the assigned shift.'
           : undefined}
