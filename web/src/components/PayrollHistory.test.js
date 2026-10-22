@@ -11,6 +11,7 @@ const { code } = await transformWithOxc(await readFile(sourceUrl, 'utf8'), sourc
 const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
   './ui/SearchSelect': SEARCH_SELECT_STUB,
+  './ui/MonthPicker': 'export default "test-month-picker";',
   react: `export { default } from ${JSON.stringify(import.meta.resolve('react'))}; export const useState = initial => globalThis.payrollHistory.state(initial); export const useEffect = () => {}; export const useMemo = compute => compute();`,
   '@tanstack/react-query': 'export const useQueryClient = () => globalThis.payrollHistory.client; export const useIsMutating = filters => globalThis.payrollHistory.client.isMutating(filters);',
   'react-router-dom': 'export const Link = "a";',

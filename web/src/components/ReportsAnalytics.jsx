@@ -27,6 +27,7 @@ import QueryError from './ui/QueryError';
 import { headcountByBranch, reportReady } from '../lib/reportRows';
 import PageHeader from './ui/PageHeader';
 
+import MonthPicker from './ui/MonthPicker';
 import SearchSelect from './ui/SearchSelect';
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
@@ -244,13 +245,11 @@ export default function ReportsAnalytics() {
 
       {/* Filters */}
       <div className="premium-card mobile-filter-card mobile-toolbar flex flex-col sm:flex-row sm:items-center gap-3">
-        <input
-          type="month"
+        <MonthPicker
           value={period}
           max={today.slice(0, 7)}
           onChange={(e) => e.target.value && setPeriod(e.target.value)}
           aria-label="Report month"
-          className="bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5 text-xs text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/50"
         />
         {branchId !== 'all' && (
           <div className="mobile-active-filter-row flex flex-wrap items-center gap-1.5 sm:hidden">

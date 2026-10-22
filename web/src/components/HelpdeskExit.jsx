@@ -14,6 +14,7 @@ import { humanDbError } from '../lib/dbErrors';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
+import { useMediaQuery } from '../lib/useMediaQuery';
 import PageHeader from './ui/PageHeader';
 
 export default function HelpdeskExit() {
@@ -72,15 +73,17 @@ export default function HelpdeskExit() {
   };
 
   const exitPager = usePagination(visibleExits, 10, null, exitsMineOnly);
+  const phone = useMediaQuery('(max-width: 640px)');
 
   return (
     <div className="page-shell space-y-6 animate-slide-up text-xs">
       <PageHeader
-        title="Helpdesk & Separation"
-        subtitle="Raise support tickets and track exit clearances."
+        className="page-header-inline-actions"
+        title={phone ? 'Help & support' : 'Helpdesk & Separation'}
+        subtitle={phone ? undefined : 'Raise support tickets and track exit clearances.'}
         actions={canRequestExit && exitsReady && !showExitForm && !myOpenExit && (
           <button type="button" onClick={() => setShowExitForm(true)} className={btnClass('ghost')}>
-            <DoorOpen size={15} /> Request Exit
+            <DoorOpen size={15} /> {phone ? 'Request exit' : 'Request Exit'}
           </button>
         )}
       />

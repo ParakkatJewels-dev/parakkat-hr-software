@@ -7,6 +7,7 @@
 //   actions     right-aligned: outlined secondary first, the coral primary last (prop or children)
 //   tabs        the section's screens, under the title (SectionTabs). `tabs={false}` for record
 //               pages such as an employee profile, which have their own tabs.
+//   views       a screen's own views, merged into the tabs on a phone (see SectionTabs).
 //
 // `eyebrow` is the older prop for a section label; it shows only when there is no breadcrumb.
 //
@@ -42,7 +43,7 @@ function defaultCrumbs(nav) {
   ];
 }
 
-export default function PageHeader({ eyebrow, title, subtitle, actions: actionsProp, meta, crumbs, tabs = true, back, className = '', children }) {
+export default function PageHeader({ eyebrow, title, subtitle, actions: actionsProp, meta, crumbs, tabs = true, views, back, className = '', children }) {
   const nav = useShellNav();
   // Actions can come as a prop or as children, whichever reads better at the call site.
   const actions = actionsProp ?? children;
@@ -86,7 +87,7 @@ export default function PageHeader({ eyebrow, title, subtitle, actions: actionsP
           </div>
         )}
       </div>
-      {tabs && <SectionTabs />}
+      {tabs && <SectionTabs views={views} />}
     </div>
   );
 }

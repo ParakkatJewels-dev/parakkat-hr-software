@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { todayIso } from '../../data/attendance';
 import { RANGE_PRESETS, rangeFor } from '../../lib/dateRange';
+import './dateRange.css';
 
 /**
  * The whole filter as one piece of state.
@@ -38,9 +39,6 @@ export function useDateRange(initialKey = 'month') {
   };
 }
 
-const dateInput =
-  'text-sm rounded-lg px-2 py-1.5 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800';
-
 /**
  * Controlled period filter. Spread the pieces of useDateRange straight in.
  *
@@ -50,42 +48,20 @@ const dateInput =
  */
 export default function DateRangeFilter({ preset, from, to, setPreset, setFrom, setTo, className = '' }) {
   return (
-    <div className={`flex flex-wrap items-center gap-1.5 ${className}`}>
-      {RANGE_PRESETS.filter((p) => p.key !== 'custom').map((p) => (
-        <button
-          key={p.key}
-          type="button"
-          aria-pressed={preset === p.key}
-          onClick={() => setPreset(p.key)}
-          className={`rounded-lg px-2.5 py-1.5 text-sm font-bold cursor-pointer transition-colors ${
-            preset === p.key
-              ? 'bg-brand/15 text-brand-ink dark:text-brand-ink'
-              : 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800'
-          }`}
-        >
-          {p.label}
-        </button>
-      ))}
-
-      <span className="flex w-full sm:w-auto items-center gap-1.5">
-        <input
-          type="date" value={from} max={to} aria-label="From"
-          onChange={(e) => e.target.value && setFrom(e.target.value)}
-          className={dateInput}
-        />
-        <span className="shrink-0 text-xs text-neutral-400">to</span>
-        <input
-          type="date" value={to} min={from} aria-label="To"
-          onChange={(e) => e.target.value && setTo(e.target.value)}
-          className={dateInput}
-        />
+    <div className={`date-range ${className}`}>
+      <div className="date-range-presets" role="group" aria-label="Quick ranges">
+        {RANGE_PRESETS.filter((p) => p.key !== 'custom').map((p) => (
+          <button key={p.key} type="button" aria-pressed={preset === p.key} onClick={() => setPreset(p.key)}>
+            {p.label}
+          </button>
+        ))}
+        {preset === 'custom' ? <span className="date-range-custom">Custom</span> : null}
+      </div>
+      <span className="date-range-dates">
+        <input type="date" value={from} max={to} aria-label="From" onChange={(e) => e.target.value && setFrom(e.target.value)} />
+        <span aria-hidden="true">to</span>
+        <input type="date" value={to} min={from} aria-label="To" onChange={(e) => e.target.value && setTo(e.target.value)} />
       </span>
-
-      {preset === 'custom' ? (
-        <span className="text-2xs font-bold uppercase tracking-wider text-brand-ink dark:text-brand-ink">
-          Custom
-        </span>
-      ) : null}
     </div>
   );
 }

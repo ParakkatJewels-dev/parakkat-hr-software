@@ -20,7 +20,7 @@ export default function FilterSelect({ label, value, options, onChange, allValue
   const id = `filter-${label.toLowerCase()}`;
   return (
     <div
-      className={`input-shell filter-select flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 rounded-xl border px-3 py-2 sm:py-1.5 w-full sm:w-auto transition-colors ${
+      className={`input-shell filter-select ${active ? 'is-active' : ''} flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-1.5 rounded-xl border px-3 py-2 sm:py-1.5 w-full sm:w-auto transition-colors ${
         active
           ? 'border-coral-500/40 bg-coral-50'
           : 'border-neutral-300 dark:border-neutral-855 bg-white dark:bg-charcoal-900/50'

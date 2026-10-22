@@ -1,0 +1,112 @@
+/* Month field (round 3): ‹ October 2026 ›, the month grid behind the middle. */
+.month-picker {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
+  height: 2.5rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .75rem;
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  overflow: hidden;
+}
+.month-picker.is-disabled { opacity: .6; }
+.month-picker:focus-within { border-color: var(--coral); box-shadow: 0 0 0 3px var(--coral-soft); }
+.month-picker-step {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  color: var(--surface-text-soft);
+}
+.month-picker-step:hover:not(:disabled) { background: var(--surface-muted); color: var(--surface-text); }
+.month-picker-step:disabled { opacity: .35; cursor: not-allowed; }
+.month-picker-value {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  min-width: 0;
+  padding: 0 .4rem;
+  border-inline: 1px solid var(--surface-border);
+  font-size: .875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.month-picker-value > svg { flex: none; color: var(--coral); }
+.month-picker-value > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.month-picker-value:hover:not(:disabled) { background: var(--surface-subtle); }
+.month-picker-native { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+
+.month-picker-layer { position: fixed; inset: 0; z-index: 150; pointer-events: none; }
+.month-picker-panel {
+  position: fixed;
+  display: grid;
+  gap: .6rem;
+  padding: .75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 1rem;
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, .16);
+  pointer-events: auto;
+  animation: month-picker-in .12s ease-out both;
+}
+.month-picker-year { display: flex; align-items: center; justify-content: space-between; }
+.month-picker-year strong { font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.month-picker-year button,
+.month-picker-head button {
+  display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem;
+  border-radius: 999px; background: var(--surface-muted); color: var(--surface-text);
+}
+.month-picker-year button:disabled { opacity: .35; }
+.month-picker-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .4rem; }
+.month-picker-cell {
+  height: 2.6rem;
+  border-radius: .7rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text);
+  font-size: .875rem;
+  font-weight: 600;
+}
+.month-picker-cell:hover:not(:disabled) { background: var(--surface-muted); }
+.month-picker-cell[data-now] { box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--coral) 55%, transparent); }
+.month-picker-cell[aria-pressed="true"] { background: var(--coral); color: #fff; box-shadow: none; }
+.month-picker-cell:disabled { opacity: .35; cursor: not-allowed; }
+.month-picker-cell:focus-visible,
+.month-picker-today:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.month-picker-foot { display: flex; justify-content: center; gap: .5rem; }
+.month-picker-foot:empty { display: none; }
+.month-picker-today { padding: .3rem .8rem; border-radius: 999px; color: var(--coral-ink); font-size: .8125rem; font-weight: 650; }
+
+/* Phones: a sheet from the bottom with bigger cells. */
+.month-picker-layer.is-sheet { pointer-events: auto; }
+.month-picker-backdrop { position: absolute; inset: 0; background: rgb(12 20 17 / .4); }
+.is-sheet .month-picker-panel {
+  inset: auto 0 0 0;
+  gap: .8rem;
+  padding: .85rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: 1.25rem 1.25rem 0 0;
+  animation: month-picker-sheet .2s cubic-bezier(.2, .8, .2, 1) both;
+}
+.month-picker-head { display: flex; align-items: center; justify-content: space-between; }
+.month-picker-head strong { font-size: 1.0625rem; font-weight: 700; }
+.is-sheet .month-picker-cell { height: 3rem; font-size: .9375rem; }
+
+@media (max-width: 640px) {
+  .month-picker { display: flex; width: 100%; height: 2.75rem; }
+  .month-picker-step { width: 2.75rem; }
+}
+
+@keyframes month-picker-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes month-picker-sheet { from { transform: translateY(100%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .month-picker-panel { animation: none !important; } }
+
+/* Work reports lay their pickers out as labelled columns; the month is a group, not a <label>
+   (a label around buttons would step the month when its text is tapped). */
+.ledger-month-field { display: grid; gap: 4px; color: var(--surface-text-soft); font-size: .8125rem; font-weight: 600; }

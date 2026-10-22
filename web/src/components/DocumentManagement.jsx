@@ -7,7 +7,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { Skeleton } from './ui/Skeleton';
 import {
   FolderOpen, Plus, ShieldAlert, Loader2, AlertTriangle, FileText, FilePlus,
-  Download, Trash2, Link2, Upload, Search, X, SearchX, Users, Building2,
+  Download, Trash2, Link2, Upload, Search, X, SearchX, Users, Building2, BadgeCheck,
 } from 'lucide-react';
 import { useUrlTab } from '../lib/useUrlTab';
 import {
@@ -20,6 +20,10 @@ import FormSection, { Field, FIELD } from './ui/FormSection';
 import ConfirmDialog from './ui/ConfirmDialog';
 import Pagination, { usePagination } from './ui/Pagination';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
+import { PhoneSearch } from './ui/FilterSheet';
+import { useMediaQuery } from '../lib/useMediaQuery';
+import './documents.css';
 
 // PHOTO_CATEGORY is in here because a document filed under it becomes that person's avatar, so it
 // has to be pickable from this screen too — otherwise the only way to set someone's photo is
@@ -99,10 +103,10 @@ export default function DocumentManagement() {
     const links = docs.length - stored;
     const signed = docs.filter((d) => d.signed).length;
     return [
-      { label: 'Documents', value: docs.length, sub: 'Visible in scope', tone: 'green' },
-      { label: 'Employee docs', value: docs.filter((d) => d.employee_id).length, sub: 'Attached to people', tone: 'amber' },
-      { label: 'Company docs', value: docs.filter((d) => !d.employee_id).length, sub: 'Policies and shared files', tone: 'blue' },
-      { label: 'Signed', value: signed, sub: `${stored} stored · ${links} links`, tone: 'violet' },
+      { label: 'Documents', value: docs.length, sub: 'Visible in scope', tone: 'green', icon: FileText },
+      { label: 'Employee docs', value: docs.filter((d) => d.employee_id).length, sub: 'Attached to people', tone: 'amber', icon: Users },
+      { label: 'Company docs', value: docs.filter((d) => !d.employee_id).length, sub: 'Policies and shared files', tone: 'blue', icon: Building2 },
+      { label: 'Signed', value: signed, sub: `${stored} stored · ${links} links`, tone: 'violet', icon: BadgeCheck },
     ];
   }, [docs]);
 
@@ -184,6 +188,7 @@ export default function DocumentManagement() {
       ? `No matches · ${scoped.length} in this library`
       : `${pager.from}–${pager.to} of ${pager.count} matching · ${scoped.length} in this library`;
   const activeScope = SCOPES.find((s) => s.id === scope) ?? SCOPES[0];
+  const phone = useMediaQuery('(max-width: 640px)');
 
   return (
     <div className="page-shell people-page space-y-5 animate-fade-in">
@@ -199,15 +204,11 @@ export default function DocumentManagement() {
         )}
       />
 
-      <section className="people-insight-grid">
+      <StatRow label="Documents at a glance">
         {stats.map((stat) => (
-          <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
-            <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
-            <em>{stat.sub}</em>
-          </div>
+          <StatCard key={stat.label} icon={stat.icon} tone={stat.tone} label={stat.label} value={stat.value} sub={stat.sub} />
         ))}
-      </section>
+      </StatRow>
 
       {/* Opens directly under the button that summons it — it used to render below the
           whole document list, so on a long list nothing appeared to happen. */}
@@ -286,23 +287,17 @@ export default function DocumentManagement() {
         </FormSection>
       )}
 
-      <div className="mobile-segmented tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
+      {/* The two libraries as one two-way switch (round 3). They were underlined tabs that ran off
+          the edge of a phone, so the second library was half a word. */}
+      <div className="doc-scope-switch" role="group" aria-label="Which documents">
         {SCOPES.map((s) => {
           const count = (s.id === 'employee' ? employeeDocs : companyDocs).length;
           return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => { setScope(s.id); setSearch(''); }}
-              aria-current={scope === s.id ? 'page' : undefined}
-              className={`pb-2.5 shrink-0 whitespace-nowrap flex items-center gap-1.5 font-semibold cursor-pointer border-b-2 transition-all ${
-                scope === s.id
-                  ? 'border-brand text-brand-ink'
-                  : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-              }`}
-            >
-              <s.icon size={13} /> {s.label}
-              <span className="font-mono text-2xs opacity-70">{count}</span>
+            <button key={s.id} type="button" aria-pressed={scope === s.id} aria-current={scope === s.id ? 'page' : undefined}
+              onClick={() => { setScope(s.id); setSearch(''); }}>
+              <s.icon size={15} aria-hidden="true" />
+              <span>{phone ? s.label.replace(' documents', '') : s.label}</span>
+              <em>{count}</em>
             </button>
           );
         })}
@@ -316,6 +311,10 @@ export default function DocumentManagement() {
           <em>{countLabel}</em>
         </div>
 
+        {phone ? (
+          <PhoneSearch value={search} onChange={(e) => setSearch(e.target.value)} label="Search documents"
+            placeholder={scope === 'employee' ? 'Search title, person or file…' : 'Search title or file…'} />
+        ) : (
         <div className="document-search relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" size={15} />
           <input
@@ -338,6 +337,7 @@ export default function DocumentManagement() {
             </button>
           )}
         </div>
+        )}
 
         {isLoading ? (
           <div className="people-document-grid" role="status" aria-label="Loading documents">
@@ -429,14 +429,13 @@ export default function DocumentManagement() {
           </div>
         ) : null}
 
-        <div className="p-3.5 bg-neutral-100 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-850 rounded-xl flex items-start gap-2 text-xs text-neutral-500 dark:text-neutral-450">
-          <ShieldAlert size={14} className="text-neutral-600 dark:text-neutral-400 shrink-0 mt-0.5" />
-          <p>
-            Files are stored privately and are not reachable by URL. Each download link is signed at
-            the moment you click it and expires within a minute, and a file is visible to exactly the
-            people who can see its record.
-          </p>
-        </div>
+        <p className="doc-privacy-note">
+          <ShieldAlert size={13} aria-hidden="true" />
+          <span>
+            Files are stored privately. Each download link works for a minute, and only people who can
+            see the record can open its file.
+          </span>
+        </p>
       </div>
 
       {confirming && (

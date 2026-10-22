@@ -125,8 +125,26 @@
      bar and its day panel: the ring above is the day panel. */
   .self-service-hero.my-attendance-hero,
   .attendance-self-phone .attendance-views:not(.is-elsewhere),
-  .attendance-self-phone .calendar-month-bar .mobile-list-actions:first-child,
   .attendance-self-phone .attendance-day-detail { display: none; }
+}
+
+/* The month bar above your calendar (round 3). Its arrows used to be hidden on a phone because the
+   strip at the top already changes the month — but scrolled down to the calendar there was then no
+   way to change it. Both move the same month now (the calendar follows the chosen day), and the
+   month's totals sit under them as five small figures instead of a wrapping line of numbers. */
+@media (max-width: 640px) {
+  .attendance-self-phone .calendar-month-bar { display: grid !important; gap: .7rem; }
+  .attendance-self-phone .calendar-month-bar > .mobile-list-actions:first-child { display: flex; justify-content: space-between; width: 100%; }
+  .attendance-self-phone .calendar-month-bar > .mobile-list-actions:first-child > button { width: 2.5rem; height: 2.5rem; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; }
+  .attendance-self-phone .calendar-month-bar > .mobile-list-actions:first-child > span { min-width: 0 !important; flex: 1; font-size: .9375rem; }
+  .attendance-self-phone .calendar-month-bar > .mobile-list-actions:last-child {
+    display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .25rem !important; width: 100%;
+    padding-top: .65rem; border-top: 1px solid var(--surface-border);
+  }
+  .attendance-self-phone .calendar-month-bar > .mobile-list-actions:last-child > span {
+    display: flex; flex-direction: column; align-items: center; gap: .1rem; color: var(--surface-text-soft); font-size: .6875rem; text-align: center;
+  }
+  .attendance-self-phone .calendar-month-bar > .mobile-list-actions:last-child b { font-family: var(--font-sans); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 }
 
 /* Attendance lists for managers on a phone (round 2): one compact row per person — name and code,
@@ -160,6 +178,15 @@
   main .premium-table.phone-rows td:is([data-label="Issue"], [data-label="Reason"]) { order: 5; flex: 1 1 100%; color: var(--surface-text-soft); }
   main .premium-table.phone-rows td[data-label="Decision"] { order: 6; flex: 1 1 100%; display: flex !important; justify-content: flex-end; gap: .4rem; text-align: right !important; }
   main .premium-table.phone-rows td[data-label="Status"] { text-align: right !important; }
+  /* Inside a list card the rows are lines with a hairline between them, not cards in a card. */
+  main .premium-card .premium-table.phone-rows tbody { gap: 0; }
+  main .premium-card .premium-table.phone-rows tr {
+    padding: .7rem .15rem; border: 0; border-bottom: 1px solid var(--surface-border); border-radius: 0; background: transparent; box-shadow: none;
+  }
+  main .premium-card .premium-table.phone-rows tr:last-child { border-bottom: 0; }
+  .page-shell:not(.dashboard-shell) .premium-card .table-scroll:has(.phone-rows) { border: 0; border-radius: 0; background: transparent; }
+  main .premium-table.phone-rows td[data-label="Employee"] > div:first-child { min-width: 0; }
+  main .premium-table.phone-rows td[data-label="Employee"] > div:first-child > :last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   /* The sync warning stays, in two lines; the date sits beside refresh, the search under them. */
   .attendance-sync-warning .text-xs { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }

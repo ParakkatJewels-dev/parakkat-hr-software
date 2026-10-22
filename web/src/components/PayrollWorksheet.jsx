@@ -26,6 +26,7 @@ import { useRunPayroll, usePublishPayroll } from '../data/payroll';
 import ConfirmDialog from './ui/ConfirmDialog';
 import './payrollWorkflow.css';
 
+import MonthPicker from './ui/MonthPicker';
 import SearchSelect from './ui/SearchSelect';
 const INPUT = 'w-full text-xs rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand/60 disabled:opacity-60';
 const LABEL = 'block text-xs font-medium text-neutral-600 dark:text-neutral-300 space-y-1';
@@ -129,7 +130,7 @@ export default function PayrollWorksheet({ onDirtyChange, onBusyChange }) {
           </SearchSelect>
         </label>
         <label className={LABEL}><span>Payroll month</span>
-          <input type="month" disabled={busy} className={INPUT} value={period} onChange={event => {
+          <MonthPicker disabled={busy} aria-label="Payroll month" value={period} onChange={event => {
             if (monthPattern.test(event.target.value)) changeContext({ period: event.target.value });
           }} />
         </label>

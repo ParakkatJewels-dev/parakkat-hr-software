@@ -34,6 +34,7 @@ before(async () => {
   const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
   const stubs = {
     './ui/SearchSelect': SEARCH_SELECT_STUB,
+    './ui/MonthPicker': 'export default "test-month-picker";',
     react: `export { default } from ${JSON.stringify(import.meta.resolve('react'))}; export const useState = initial => globalThis.payrollFlow.state(initial); export const useEffect = () => {}; export const useMemo = compute => compute();`,
     '@tanstack/react-query': 'export const useQueryClient = () => globalThis.payrollFlow.client; export const useIsMutating = () => globalThis.payrollFlow.activeSaves;',
     'react-router-dom': 'export const Link = "a"; export const useSearchParams = () => [globalThis.payrollFlow.params, next => { globalThis.payrollFlow.params = next; }];',
@@ -119,7 +120,7 @@ test('managers start in the three-step monthly workflow with one company and mon
   const html = render({ route: '' });
   assert.match(html, /Monthly payroll steps/);
   assert.match(html, /1\. Prepare monthly data/);
-  assert.equal((html.match(/type="month"/g) ?? []).length, 1);
+  assert.equal((html.match(/class="month-picker[ "]/g) ?? []).length, 1);
   const steps = html.match(/<nav[^>]*aria-label="Monthly payroll steps"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
   assert.ok(steps);
   assert.equal((steps.match(/<button\b/g) ?? []).length, 3);

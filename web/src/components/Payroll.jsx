@@ -38,6 +38,7 @@ import PageHeader from './ui/PageHeader';
 import { useShellNav } from './shell/shellNavContext';
 import StatusPill from './ui/StatusPill';
 
+import MonthPicker from './ui/MonthPicker';
 import SearchSelect from './ui/SearchSelect';
 // The title follows the tab, as on the redesign boards.
 const TAB_TITLES = {
@@ -163,25 +164,31 @@ function PayslipsTab() {
   const { data: payslips = [], isLoading, error } = usePayslips(mineOnly ? employee?.id : undefined, {
     period, enabled: !mineOnly || Boolean(employee?.id),
   });
-  const [openId, setOpenId] = useState(null);
+  // `undefined` until someone opens or closes a payslip: then your own month's payslip opens by
+  // itself, since below your pay overview it is the details of that month and nothing else.
+  const [openId, setOpenId] = useState(undefined);
 
   // A payroll run produces one payslip per person — 242 rows. Hook sits above the early
   // returns so it runs in the same order on every render.
   const matching = payslips.filter((p) => (!companyId || mineOnly || p.entity_id === companyId) && `${p.employee?.full_name ?? ''} ${p.employee?.employee_code ?? ''} ${p.employee?.branch?.code ?? ''} ${p.status}`.toLowerCase().includes(search.trim().toLowerCase()));
   const pager = usePagination(matching, 25, null, `${period}:${companyId}:${search}:${mineOnly}`);
+  const isOpen = (id) => (openId === undefined ? mineOnly && matching.length === 1 && matching[0].id === id : openId === id);
+  const choosePeriod = (next) => { setPeriod(next); setOpenId(undefined); };
 
   return (
     <div className="space-y-2">
       {mineOnly && employee?.id && <MyPayOverview employeeId={employee.id} onOpen={(month, id) => { setSearch(''); setPeriod(month); setOpenId(id); }} />}
-      <div className="premium-card flex flex-col sm:flex-row gap-3 sm:items-end">
+      <div className={`premium-card flex flex-col sm:flex-row gap-3 sm:items-end ${mineOnly ? 'payslip-month-card' : ''}`}>
+        {mineOnly && <h2 className="payslip-month-title">Payslip details</h2>}
         {!mineOnly && <label className="text-xs font-semibold text-neutral-500">Company
           <SearchSelect aria-label="Payslip company" value={companyId} onChange={event => setCompanyId(event.target.value)} className={INPUT + ' block mt-1'}>
             <option value="">All companies</option>{(org?.entities ?? []).map(entity => <option value={entity.id} key={entity.id}>{entity.code} — {entity.name}</option>)}
           </SearchSelect>
         </label>}
-        <label className="text-xs font-semibold text-neutral-500">Payroll month
-          <input type="month" required aria-label="Payslip month" value={period} onChange={(e) => { if (e.target.value) setPeriod(e.target.value); }} className={INPUT + ' block mt-1'} />
-        </label>
+        <div className="text-xs font-semibold text-neutral-500">
+          {!mineOnly && <span className="block mb-1">Payroll month</span>}
+          <MonthPicker required aria-label="Payslip month" value={period} onChange={(e) => { if (e.target.value) choosePeriod(e.target.value); }} />
+        </div>
         {!mineOnly && <div className="flex-1 min-w-0"><ListSearch value={search} onChange={setSearch} label="Search payslips" placeholder="Search employee, code, branch or status…" /></div>}
       </div>
       <Err e={error} />
@@ -190,7 +197,7 @@ function PayslipsTab() {
       {pager.slice.map((p) => (
         <div key={p.id} className="premium-card">
           <button
-            onClick={() => setOpenId(openId === p.id ? null : p.id)}
+            onClick={() => setOpenId(isOpen(p.id) ? null : p.id)} aria-expanded={isOpen(p.id)}
             className="mobile-list-row w-full flex flex-wrap items-center justify-between gap-3 text-left cursor-pointer"
           >
             <div className="min-w-0">
@@ -209,7 +216,7 @@ function PayslipsTab() {
               <StatusPill status={p.status} tone={p.status === 'Paid' || p.status === 'Published' ? 'success' : 'warning'} />
             </div>
           </button>
-          {openId === p.id && <PayslipDetail payslip={p} />}
+          {isOpen(p.id) && <PayslipDetail payslip={p} />}
         </div>
       ))}
       <Pagination {...pager} noun="payslips" />

@@ -19,6 +19,8 @@ import { usePermissions } from '../auth/usePermissions';
 import Pagination, { usePagination } from './ui/Pagination';
 import PageHeader from './ui/PageHeader';
 import FilterSelect from './ui/FilterSelect';
+import FilterSheet, { PhoneSearch } from './ui/FilterSheet';
+import { useMediaQuery } from '../lib/useMediaQuery';
 import FormSection, { Field, FIELD } from './ui/FormSection';
 import AssetDetail from './AssetDetail';
 import EmployeeLink from './ui/EmployeeLink';
@@ -148,6 +150,7 @@ export default function AssetManagement() {
   };
 
   // The detail screen replaces the list, so state above survives the trip.
+  const phone = useMediaQuery('(max-width: 640px)');
   if (selectedId && !showForm) {
     return (
       <div className="page-shell people-page space-y-5 animate-fade-in">
@@ -165,6 +168,19 @@ export default function AssetManagement() {
   );
   const typeOptions = ASSET_TYPES[form.category] ?? ASSET_TYPES.Other;
 
+
+  const assetFilters = (
+    <>
+      <FilterSelect
+        label="Category" value={category} allValue="All categories"
+        options={['All categories', ...ASSET_CATEGORIES]} onChange={setCategory}
+      />
+      <FilterSelect
+        label="Status" value={status} allValue="All statuses"
+        options={['All statuses', ...ASSET_STATUSES]} onChange={setStatus}
+      />
+    </>
+  );
   return (
     <div className="page-shell people-page space-y-5 animate-fade-in">
       <PageHeader
@@ -356,6 +372,17 @@ export default function AssetManagement() {
           </em>
         </div>
 
+        {/* A phone keeps the search and folds the two dropdowns behind Filters. */}
+        {phone ? (
+          <div className="phone-filter-bar">
+            <PhoneSearch value={search} onChange={(e) => setSearch(e.target.value)} label="Search assets" placeholder="Search assets…" />
+            <FilterSheet title="Filter assets"
+              count={(category !== 'All categories' ? 1 : 0) + (status !== 'All statuses' ? 1 : 0)}
+              onClear={() => { setCategory('All categories'); setStatus('All statuses'); }}>
+              {assetFilters}
+            </FilterSheet>
+          </div>
+        ) : (
         <div className="asset-toolbar">
           <div className="asset-search relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-500" size={15} />
@@ -374,15 +401,9 @@ export default function AssetManagement() {
               </button>
             )}
           </div>
-          <FilterSelect
-            label="Category" value={category} allValue="All categories"
-            options={['All categories', ...ASSET_CATEGORIES]} onChange={setCategory}
-          />
-          <FilterSelect
-            label="Status" value={status} allValue="All statuses"
-            options={['All statuses', ...ASSET_STATUSES]} onChange={setStatus}
-          />
+          {assetFilters}
         </div>
+        )}
 
         {isLoading ? (
           <SkeletonRows rows={6} compact label="Loading assets" />

@@ -30,11 +30,13 @@ import { useAuth } from '../auth/AuthContext';
 import { btnClass } from './ui/Btn';
 import Pagination, { usePagination } from './ui/Pagination';
 import { useUrlTab } from '../lib/useUrlTab';
+import { useMediaQuery } from '../lib/useMediaQuery';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
 import { paginationWindow } from '../lib/pagination';
 import PageHeader from './ui/PageHeader';
+import { StatCard } from './ui/StatCard';
 
 import SearchSelect from './ui/SearchSelect';
 const TABS = [
@@ -44,13 +46,13 @@ const TABS = [
   { id: 'leaveTypes', label: 'Leave types', icon: CalendarDays, perm: 'leave.manage' },
   { id: 'sync', label: 'Sync status', icon: Activity, perm: 'device.manage' },
 ];
+const SHORT_LABELS = { mapping: 'Devices', sync: 'Sync' };
 
 const input =
   'bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs w-full';
-const label = 'block text-2xs uppercase tracking-wider text-neutral-500';
+const label = 'block text-xs font-medium text-neutral-500 dark:text-neutral-400';
 const btnPrimary = btnClass('primary');
-const btnGhost =
-  'px-3 py-2 rounded-xl bg-neutral-100 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-xs font-bold flex items-center gap-1.5 disabled:opacity-50';
+const btnGhost = btnClass('ghost');
 
 /** One raw error from the sync service: its first line always, the whole of it on request. */
 function ServiceError({ message }) {
@@ -263,13 +265,14 @@ function MappingTab() {
           <Note success={`Mapped. ${link.data?.punchesAdopted ?? 0} historical punches attached${link.data?.recomputedFrom ? ` (${link.data.recomputedFrom} … ${link.data.recomputedTo} recomputing)` : ''}.`} />
         )}
 
-        <div className="mobile-segmented flex flex-wrap gap-1.5">
+        <div className="choice-pills" role="group" aria-label="Which device codes">
           {filters.map((f) => (
             <button
               key={f.id || 'all'}
+              type="button"
               onClick={() => setStatus(f.id)}
-              aria-current={status === f.id ? 'page' : undefined}
-              className={`chip text-xs ${status === f.id ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}
+              aria-pressed={status === f.id}
+              className="choice-pill"
             >
               {f.label}
             </button>
@@ -564,7 +567,7 @@ function ShiftsTab() {
                       ...form,
                       weekly_offs: on ? form.weekly_offs.filter((x) => x !== i) : [...(form.weekly_offs ?? []), i].sort(),
                     })}
-                    className={`chip text-xs ${on ? 'ring-1 ring-emerald-500 text-emerald-700 dark:text-emerald-300' : ''}`}>
+                    aria-pressed={on} className="choice-pill">
                     {d}
                   </button>
                 );
@@ -593,6 +596,8 @@ function ShiftsTab() {
       <div className="premium-card overflow-hidden">
         {isLoading ? (
           <SkeletonTable rows={5} columns={8} label="Loading shifts" />
+        ) : shifts.length === 0 ? (
+          <div className="p-8 text-center text-xs text-neutral-500">No shifts yet. Add the first one with New shift.</div>
         ) : (
           <div className="table-scroll">
             <table className="premium-table w-full text-xs">
@@ -952,7 +957,7 @@ export function SyncTab() {
         <div className={`premium-card col-span-2 md:col-span-3 lg:col-span-3 ${
           health?.brokenHop ? 'border-red-300 dark:border-red-900/60' : ''
         }`}>
-          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Easy Time Pro sync</div>
+          <div className="text-sm font-semibold text-neutral-700 dark:text-neutral-200">Easy Time Pro sync</div>
           <div className={`mt-2 text-sm font-bold ${dx.tone}`}>{dx.label}</div>
           <div className="text-2xs font-mono text-neutral-450 mt-1">{dx.chain}</div>
           <div className="text-2xs text-neutral-500 dark:text-neutral-400 mt-1.5 leading-relaxed">{dx.hint}</div>
@@ -971,16 +976,8 @@ export function SyncTab() {
             {' · '}service last reported {relativeTime(health?.newestRunAt)}
           </div>
         </div>
-        <div className="premium-card">
-          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Punches today</div>
-          <div className="mt-2 text-2xl font-black font-mono">{health?.punchesToday ?? '—'}</div>
-        </div>
-        <div className="premium-card">
-          <div className="text-xs font-bold uppercase tracking-wider text-neutral-500">Unmapped punches</div>
-          <div className={`mt-2 text-2xl font-black font-mono ${health?.punchesUnmapped ? 'text-amber-600 dark:text-amber-400' : ''}`}>
-            {health?.punchesUnmapped ?? '—'}
-          </div>
-        </div>
+        <StatCard icon={Fingerprint} tone="blue" label="Punches today" value={health?.punchesToday ?? '—'} />
+        <StatCard icon={AlertTriangle} tone={health?.punchesUnmapped ? 'amber' : 'green'} label="Unmapped punches" value={health?.punchesUnmapped ?? '—'} />
       </div>
 
       {statusError?.status === 403 ? (
@@ -1154,6 +1151,10 @@ export default function AttendanceAdmin() {
   // tabs this user can actually see, so a link to one they lack permission for lands on the
   // first they do rather than on an empty page.
   const [tab, setTab] = useUrlTab(visible[0]?.id ?? 'mapping', visible.map((t) => t.id));
+  // On a phone these views join the section's pills in one row (see SectionTabs).
+  const phone = useMediaQuery('(max-width: 640px)');
+  const badgeFor = (id) => navigationScreenCount(`attendance-admin/${id}`, counts.data);
+  const views = { items: visible.map((t) => ({ id: t.id, label: t.label, shortLabel: SHORT_LABELS[t.id], badge: badgeFor(t.id) })), active: tab, onSelect: setTab };
 
   if (visible.length === 0) {
     return (
@@ -1165,12 +1166,12 @@ export default function AttendanceAdmin() {
 
   return (
     <div className="page-shell space-y-5 animate-slide-up py-3">
-      <PageHeader title="Attendance setup" subtitle="Shifts, holidays, leave types, and the BioTime device connection." />
+      <PageHeader title="Attendance setup" subtitle="Shifts, holidays, leave types, and the BioTime device connection." views={views} />
 
-      <nav aria-label="Attendance setup views" className="mobile-segmented mobile-segmented-dense flex flex-wrap gap-1.5">
+      {!phone && <nav aria-label="Attendance setup views" className="mobile-segmented mobile-segmented-dense flex flex-wrap gap-1.5">
         {visible.map((t) => {
           const Icon = t.icon;
-          const badge = navigationScreenCount(`attendance-admin/${t.id}`, counts.data);
+          const badge = badgeFor(t.id);
           return (
             <button key={t.id} onClick={() => setTab(t.id)} aria-current={tab === t.id ? 'page' : undefined}
               aria-label={navigationCountLabel(t.label, badge)}
@@ -1180,7 +1181,7 @@ export default function AttendanceAdmin() {
             </button>
           );
         })}
-      </nav>
+      </nav>}
 
       {tab === 'mapping' ? <MappingTab /> : null}
       {tab === 'shifts' ? <ShiftsTab /> : null}

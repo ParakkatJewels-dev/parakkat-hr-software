@@ -15,6 +15,8 @@ import { SkeletonRows } from './ui/Skeleton';
 import TicketCategories from './TicketCategories';
 
 import SearchSelect from './ui/SearchSelect';
+import FilterSheet, { PhoneSearch, SheetField } from './ui/FilterSheet';
+import { useMediaQuery } from '../lib/useMediaQuery';
 const INPUT = 'w-full min-h-11 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-950 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200';
 const initialForm = { categoryId: '', subject: '', description: '', priority: 'Medium' };
 const badgeClass = (status) => status === 'Resolved'
@@ -96,6 +98,14 @@ export default function TicketDesk() {
     if (ticket.category_id && !categoryOptions.has(ticket.category_id)) categoryOptions.set(ticket.category_id, ticket.category ?? 'Category unavailable');
     if (ticket.routed_department_id) departmentOptions.set(ticket.routed_department_id, ticket.routed_department?.name ?? 'Department unavailable');
   }
+  // A phone keeps the search above the list and folds status, category and department into a
+  // sheet (round 3).
+  const phone = useMediaQuery('(max-width: 640px)');
+  const statusFilter = <select className={INPUT} value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{(needsAction ? ACTIONABLE_TICKET_STATUSES : TICKET_STATUSES).map((value) => <option key={value}>{value}</option>)}</select>;
+  const categoryFilter = <select className={INPUT} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">All categories</option>
+    {[...categoryOptions].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>;
+  const departmentFilter = <select className={INPUT} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">All departments</option>
+    {[...departmentOptions].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select>;
   const submit = async (event) => {
     event.preventDefault();
     if (add.isPending || submitting.current || categories.isLoading || categories.error || !employee?.id || !selectedCategory || !form.subject.trim()) return;
@@ -110,13 +120,14 @@ export default function TicketDesk() {
   const closeForm = () => { if (!add.isPending && !submitting.current) setShowForm(false); };
   return <section className="space-y-4 ticket-desk" aria-label="Helpdesk tickets">
     <div className="flex flex-wrap items-center justify-between gap-3 ticket-desk-bar">
-      <div className="flex flex-wrap gap-2" aria-label="Helpdesk sections">
+      {/* A lone "Tickets" button with nothing to switch to and no count only took a row. */}
+      {canManageCategories || canViewQueue ? <div className="flex flex-wrap gap-2" aria-label="Helpdesk sections">
         <button type="button" className={btnClass(section === 'tickets' || !canManageCategories ? 'primary' : 'ghost')}
           aria-label={canViewQueue ? queueLabel('Tickets', allCount) : undefined}
           aria-pressed={section === 'tickets' || !canManageCategories} onClick={() => setSection('tickets')}>Tickets{canViewQueue && <QueueBadge count={allCount} />}</button>
         {canManageCategories && <button type="button" className={btnClass(section === 'categories' ? 'primary' : 'ghost')}
           aria-pressed={section === 'categories'} onClick={() => setSection('categories')}>Categories</button>}
-      </div>
+      </div> : null}
       {canRaise && !showForm && (section !== 'categories' || !canManageCategories) && <button type="button" className={btnClass('primary')}
         onClick={() => { add.reset(); setCreated(false); setShowForm(true); }}><Plus size={16} />Raise Ticket</button>}
     </div>
@@ -164,14 +175,24 @@ export default function TicketDesk() {
             aria-label={queueLabel('Tickets to HR', hrCount)} onClick={() => chooseQueue(needsAction ? 'hr-needs-action' : 'hr')}>Tickets to HR<QueueBadge count={hrCount} /></button>}
         </div>}
         {canViewQueue && <p className="text-xs text-neutral-500">Counts show unresolved tickets you can update, including tickets on hold.{needsAction ? ' Showing tickets that need action.' : ''}</p>}
+        {phone ? (
+          <div className="phone-filter-bar">
+            <PhoneSearch value={search} onChange={(event) => setSearch(event.target.value)} label="Search tickets" placeholder="Search tickets…" />
+            <FilterSheet title="Filter tickets" count={(status ? 1 : 0) + (categoryId ? 1 : 0) + (departmentId ? 1 : 0)}
+              onClear={() => { setStatus(''); setCategoryId(''); setDepartmentId(''); }}>
+              <SheetField label="Ticket status">{statusFilter}</SheetField>
+              <SheetField label="Ticket category">{categoryFilter}</SheetField>
+              <SheetField label="Assigned department">{departmentFilter}</SheetField>
+            </FilterSheet>
+          </div>
+        ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 ticket-filters">
           <label className="space-y-1 text-sm"><span>Search tickets</span><input type="search" className={INPUT} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Subject, employee or category" /></label>
-          <label className="space-y-1 text-sm"><span>Ticket status</span><select className={INPUT} value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All statuses</option>{(needsAction ? ACTIONABLE_TICKET_STATUSES : TICKET_STATUSES).map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label className="space-y-1 text-sm"><span>Ticket category</span><select className={INPUT} value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">All categories</option>
-            {[...categoryOptions].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-          <label className="space-y-1 text-sm"><span>Assigned department</span><select className={INPUT} value={departmentId} onChange={(event) => setDepartmentId(event.target.value)}><option value="">All departments</option>
-            {[...departmentOptions].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
+          <label className="space-y-1 text-sm"><span>Ticket status</span>{statusFilter}</label>
+          <label className="space-y-1 text-sm"><span>Ticket category</span>{categoryFilter}</label>
+          <label className="space-y-1 text-sm"><span>Assigned department</span>{departmentFilter}</label>
         </div>
+        )}
         {update.error && <p role="alert" className="text-sm text-rose-700 dark:text-rose-300">{humanDbError(update.error)}</p>}
         {query.error && <div role="alert" className="flex items-start gap-2 text-sm text-rose-700 dark:text-rose-300"><AlertTriangle size={16} className="shrink-0" /><span>{humanDbError(query.error)} {hasTickets && 'Showing the last available tickets and counts. They may be out of date. '}<button type="button" className="underline" onClick={() => query.refetch()}>Retry tickets</button></span></div>}
         {!hasTickets ? !query.error && <SkeletonRows rows={4} avatar={false} label="Loading support tickets" />

@@ -12,6 +12,7 @@ import Pagination, { usePagination } from './ui/Pagination';
 import { SkeletonRows } from './ui/Skeleton';
 import StatusPill from './ui/StatusPill';
 
+import MonthPicker from './ui/MonthPicker';
 import SearchSelect from './ui/SearchSelect';
 const INPUT = 'w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-xs text-neutral-800 focus:outline-none focus:border-brand/60 disabled:opacity-60 dark:border-neutral-850 dark:bg-neutral-900 dark:text-neutral-200';
 const money = value => value == null ? '—' : `₹${Number(value).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -66,7 +67,7 @@ export default function PayrollHistory({ onBusyChange }) {
           <option value="">All companies</option>
           {companies.map(company => <option key={company.id} value={company.id}>{company.label}</option>)}
         </SearchSelect>
-        <input aria-label="Filter payroll history month" type="month" className={INPUT} value={period} onChange={event => setPeriod(event.target.value)} />
+        <MonthPicker aria-label="Filter payroll history month" clearable value={period} onChange={event => setPeriod(event.target.value)} />
         <select aria-label="Filter payroll history status" className={INPUT} value={status} onChange={event => setStatus(event.target.value)}>
           <option value="">All statuses</option><option value="Draft">Draft</option><option value="Published">Published</option><option value="Paid">Paid</option>
         </select>

@@ -1,0 +1,161 @@
+/* Phone filters (round 3): a search box and a Filters button in one row, the rest in a sheet. */
+.phone-filter-bar { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.phone-filter-bar > .phone-search { flex: 1 1 auto; }
+
+.phone-search {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  min-width: 0;
+  height: 2.75rem;
+  padding: 0 .85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .85rem;
+  background: var(--surface-elevated);
+  color: var(--surface-text-soft);
+}
+.phone-search:focus-within { border-color: var(--coral); box-shadow: 0 0 0 3px var(--coral-soft); }
+.phone-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--surface-text);
+  font-size: 16px; /* below 16px iOS zooms the page on focus */
+  outline: none;
+}
+.phone-search input::placeholder { color: var(--surface-text-soft); opacity: .85; }
+
+.filter-sheet-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  height: 2.75rem;
+  padding: 0 .85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .85rem;
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  font-size: .875rem;
+  font-weight: 600;
+}
+.filter-sheet-button.is-icon { width: 2.75rem; padding: 0; }
+.filter-sheet-button.is-on { border-color: color-mix(in srgb, var(--coral) 45%, transparent); background: var(--coral-soft); color: var(--coral-ink); }
+.filter-sheet-button:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.filter-sheet-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 .3rem;
+  border-radius: 999px;
+  background: var(--coral);
+  color: #fff;
+  font-size: .6875rem;
+  font-weight: 700;
+}
+.filter-sheet-button.is-icon .filter-sheet-count { position: absolute; transform: translate(.8rem, -.8rem); }
+.filter-sheet-button.is-icon { position: relative; }
+
+.filter-sheet-layer { position: fixed; inset: 0; z-index: 140; }
+.filter-sheet-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgb(12 20 17 / .42); animation: filter-sheet-fade .16s ease both; }
+.filter-sheet {
+  position: absolute;
+  inset: auto 0 0 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 86dvh;
+  border-radius: 1.25rem 1.25rem 0 0;
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  box-shadow: 0 -18px 40px rgb(12 20 17 / .2);
+  animation: filter-sheet-up .22s cubic-bezier(.2, .8, .2, 1) both;
+}
+.filter-sheet-head { display: flex; flex: none; align-items: center; justify-content: space-between; gap: .75rem; padding: .9rem .75rem .5rem 1rem; }
+.filter-sheet-head strong { font-size: 1.0625rem; font-weight: 700; }
+.filter-sheet-head button { display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem; border-radius: 999px; background: var(--surface-muted); color: var(--surface-text); }
+.filter-sheet-body {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .75rem;
+  min-height: 0;
+  padding: .25rem 1rem 1rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.filter-sheet-body.is-bare { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+.filter-sheet-foot {
+  display: flex;
+  flex: none;
+  gap: .6rem;
+  padding: .75rem 1rem calc(.75rem + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--surface-border);
+}
+.filter-sheet-foot button { flex: 1; height: 2.875rem; border-radius: .85rem; font-size: .9375rem; font-weight: 650; }
+.filter-sheet-clear { border: 1px solid var(--surface-border); background: var(--surface-elevated); color: var(--surface-text); }
+.filter-sheet-clear:disabled { opacity: .45; }
+.filter-sheet-done { background: var(--coral); color: #fff; }
+
+/* Everything inside the sheet is a full-width labelled field: label on top, a 44px control under it. */
+.filter-sheet-field { display: grid; gap: .35rem; min-width: 0; }
+.filter-sheet-field > span,
+.filter-sheet-body .filter-select > label { color: var(--surface-text-soft); font-size: .8125rem !important; font-weight: 600 !important; }
+.filter-sheet-field input,
+.filter-sheet-field select,
+.filter-sheet-field .search-select {
+  width: 100%;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0 .85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .75rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text);
+  font-size: 16px;
+}
+.filter-sheet-body .filter-select {
+  display: grid !important;
+  gap: .35rem !important;
+  width: 100% !important;
+  max-width: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+.filter-sheet-body .filter-select select,
+.filter-sheet-body .filter-select .search-select {
+  width: 100% !important;
+  max-width: none !important;
+  height: 2.75rem;
+  min-height: 2.75rem !important;
+  padding: 0 .85rem !important;
+  border: 1px solid var(--surface-border) !important;
+  border-radius: .75rem !important;
+  background: var(--surface-subtle) !important;
+  font-size: 16px !important;
+}
+.filter-sheet-body .filter-select.is-active select,
+.filter-sheet-body .filter-select.is-active .search-select { border-color: color-mix(in srgb, var(--coral) 45%, transparent) !important; background: var(--coral-soft) !important; }
+
+/* Quick choices inside a sheet (Today · Last week · This month): a wrap of pills. */
+.filter-sheet-pills { display: flex; flex-wrap: wrap; gap: .4rem; }
+.filter-sheet-pills button { min-height: 2.25rem; padding: 0 .85rem; border-radius: 999px; background: var(--surface-muted); color: var(--surface-text-soft); font-size: .8125rem; font-weight: 600; }
+.filter-sheet-pills button[aria-pressed="true"] { background: var(--chip-active-bg); color: var(--chip-active-fg); }
+
+@keyframes filter-sheet-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes filter-sheet-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .filter-sheet, .filter-sheet-backdrop { animation: none; } }
+
+/* A row of secondary actions under a phone filter bar (Recompute · Exports). */
+.phone-tool-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+.phone-tool-row > button { flex: 1 1 0; min-width: 0; }
+.phone-tool-row .filter-sheet-button { width: auto; }
+.filter-sheet-actions { display: grid; gap: .5rem; }

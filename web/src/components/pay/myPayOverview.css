@@ -35,3 +35,8 @@
   .my-pay-row-copy span { color: var(--surface-text-soft); font-size: .8125rem; font-variant-numeric: tabular-nums; }
   .my-pay-row-chevron { flex: none; color: var(--surface-text-soft); }
 }
+
+/* "Payslip details" and its month on one line (round 3); the browser's month input is gone. */
+.payslip-month-card { flex-direction: row !important; flex-wrap: wrap; align-items: center !important; justify-content: space-between; gap: .6rem .75rem !important; }
+.payslip-month-title { margin: 0; color: var(--surface-text); font-size: 1rem; font-weight: 700; }
+@media (max-width: 640px) { .payslip-month-card > div { flex: 1 1 100%; } }

@@ -29,6 +29,8 @@ import PunchDetails from './ui/PunchDetails';
 import { firstRecordedPunch, latestRecordedPunch, punchDate } from '../lib/recordedPunches';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
+import MonthPicker from './ui/MonthPicker';
+import FilterSheet, { PhoneSearch, SheetField } from './ui/FilterSheet';
 import ListSearch from './ui/ListSearch';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import { useSyncHealth, DIAGNOSIS, forHumans, useQueuedExport, useQueuedRecompute } from '../data/syncStatus';
@@ -127,9 +129,10 @@ export function PersonAttendanceView() {
           {employees.map(item => <option key={item.id} value={item.id}>{item.full_name} · {item.employee_code}</option>)}
         </SearchSelect>
       </label>
-      <label className="text-xs text-neutral-600 dark:text-neutral-300">Month
-        <input type="month" disabled={correctionBusy} aria-label="Attendance month" className="block w-full mt-1 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 px-3 py-2" value={period} max={todayIso().slice(0, 7)} onChange={event => { if (validMonth(event.target.value)) change('period', event.target.value); }} />
-      </label>
+      <div className="text-xs text-neutral-600 dark:text-neutral-300">
+        <span className="block mb-1">Month</span>
+        <MonthPicker disabled={correctionBusy} aria-label="Attendance month" className="w-full" value={period} max={todayIso().slice(0, 7)} onChange={event => { if (validMonth(event.target.value)) change('period', event.target.value); }} />
+      </div>
       {people.error && <ErrorNote error={people.error} />}
       {employeeId && !person && !people.isLoading && !people.error && <p role="alert" className="text-xs text-amber-700">This employee is not available in your attendance scope.</p>}
     </section>
@@ -151,7 +154,7 @@ function DayPunchCorrectionLink({ row }) {
   if (viewingAsEmployee || employee?.id === row.employee_id || !can('attendance.manage', scope)) return null;
   if (row.is_locked) return <span className="text-2xs text-neutral-500">Published · locked</span>;
   if (row.work_date > todayIso()) return null;
-  return <Link className="inline-flex min-h-6 items-center text-xs text-brand-ink underline whitespace-nowrap"
+  return <Link className="inline-flex min-h-6 items-center text-xs font-semibold text-coral-700 dark:text-coral-500 hover:underline whitespace-nowrap"
     to={`/attendance/person?employee=${encodeURIComponent(row.employee_id)}&period=${encodeURIComponent(row.work_date.slice(0, 7))}&correctDate=${encodeURIComponent(row.work_date)}`}>Edit punches</Link>;
 }
 
@@ -392,8 +395,30 @@ function TodayView({ workDate, setWorkDate }) {
     setFiltersOpen(false);
   };
 
+  // A phone keeps the search above the list and moves the date and the dropdowns into a sheet, so
+  // the sheet's count includes a date other than today.
+  const phone = useMediaQuery('(max-width: 640px)');
+  const sheetCount = activeFilters - (query ? 1 : 0) + (isToday ? 0 : 1);
+  const clearSheet = () => {
+    setCompany('All companies'); setBranch('All branches'); setDept('All departments');
+    setAttendanceFilter('All rows'); setWorkDate(todayIso());
+  };
+  const placeFilters = (
+    <>
+      <FilterSelect label="Company" value={company} options={companyOptions}
+        onChange={setCompany} allValue="All companies" />
+      <FilterSelect label="Branch" value={branch} options={branchOptions}
+        onChange={setBranch} allValue="All branches" />
+      <FilterSelect label="Dept" value={dept} options={deptOptions}
+        onChange={setDept} allValue="All departments" />
+      <FilterSelect label="Attendance" value={attendanceFilter} options={attendanceOptions}
+        onChange={setAttendanceFilter} allValue="All rows" />
+    </>
+  );
+
   const activeFilterChips = [
-    query ? { id: 'query', label: `Search: ${query}`, clear: () => setQuery('') } : null,
+    phone && !isToday ? { id: 'date', label: workDate, clear: () => setWorkDate(todayIso()) } : null,
+    query && !phone ? { id: 'query', label: `Search: ${query}`, clear: () => setQuery('') } : null,
     attendanceFilter !== 'All rows'
       ? { id: 'attendance', label: attendanceFilter, clear: () => setAttendanceFilter('All rows') }
       : null,
@@ -446,6 +471,33 @@ function TodayView({ workDate, setWorkDate }) {
           onClick={() => setAttendanceFilter('Missing punch')} active={attendanceFilter === 'Missing punch'} />
       </StatRow>
 
+      {phone ? (
+        <div className="space-y-2">
+          <div className="phone-filter-bar">
+            <PhoneSearch value={query} onChange={(e) => setQuery(e.target.value)} label="Search employees" placeholder="Search people…" />
+            <FilterSheet count={sheetCount} onClear={clearSheet} title="Filter attendance">
+              <SheetField label="Date">
+                <input type="date" value={workDate} onChange={(e) => setWorkDate(e.target.value || todayIso())} />
+              </SheetField>
+              {placeFilters}
+            </FilterSheet>
+            <button type="button" onClick={() => refetch()} className="filter-sheet-button is-icon" title="Refresh" aria-label="Refresh">
+              <RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} />
+            </button>
+          </div>
+          {activeFilterChips.length > 0 && (
+            <div className="mobile-active-filter-row flex flex-wrap items-center gap-1.5">
+              {activeFilterChips.map((chip) => (
+                <button key={chip.id} type="button" onClick={chip.clear} title={`Remove ${chip.label}`}
+                  className="active-filter-chip inline-flex items-center gap-1.5 rounded-full border border-brand/25 bg-brand/10 px-2.5 py-1 text-xs font-bold text-brand-ink dark:text-brand-ink">
+                  <span className="truncate">{chip.label}</span>
+                  <XCircle size={12} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="premium-card mobile-filter-card space-y-3">
         <div className="mobile-toolbar attendance-today-toolbar flex flex-wrap items-center gap-2">
           <input
@@ -507,14 +559,7 @@ function TodayView({ workDate, setWorkDate }) {
 
         {/* Where — company, branch, department. The status chips below answer "what". */}
         <div className={`attendance-filter-row mobile-filter-panel ${filtersOpen ? 'is-open' : ''} grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-850`}>
-          <FilterSelect label="Company" value={company} options={companyOptions}
-            onChange={setCompany} allValue="All companies" />
-          <FilterSelect label="Branch" value={branch} options={branchOptions}
-            onChange={setBranch} allValue="All branches" />
-          <FilterSelect label="Dept" value={dept} options={deptOptions}
-            onChange={setDept} allValue="All departments" />
-          <FilterSelect label="Attendance" value={attendanceFilter} options={attendanceOptions}
-            onChange={setAttendanceFilter} allValue="All rows" />
+          {placeFilters}
           {activeFilters > 0 && (
             <button onClick={clearFilters}
               className="hidden sm:inline-flex items-center justify-center gap-1.5 text-xs font-bold text-neutral-500 hover:text-red-600 dark:hover:text-red-400 cursor-pointer sm:ml-auto py-1.5">
@@ -523,6 +568,7 @@ function TodayView({ workDate, setWorkDate }) {
           )}
         </div>
       </div>
+      )}
 
       <ErrorNote error={error} />
 
@@ -933,31 +979,172 @@ export function ExceptionsView() {
   const { canAcrossBranches } = usePermissions();
   const canExportRegister = canAcrossBranches('report.read') || canAcrossBranches('attendance.read');
   const canExportPayroll = canAcrossBranches('report.read') || canAcrossBranches('payslip.read');
+  const phone = useMediaQuery('(max-width: 640px)');
+
+  const exceptionsList = (
+    <>
+    <div className="premium-card overflow-hidden">
+      {isLoading ? (
+        <SkeletonTable rows={6} columns={8} label="Loading attendance exceptions" />
+      ) : error ? null : matching.length === 0 ? (
+        <div className="p-10 text-center text-xs text-neutral-500">{search.trim() || issue !== 'All exceptions' ? 'No exceptions match your filters.' : 'No exceptions in this range.'}</div>
+      ) : (
+        <div className="table-scroll">
+          <table className="premium-table phone-rows w-full text-xs">
+            <thead>
+              <tr>
+                <th className="text-left">Date</th>
+                <th className="text-left">Employee</th>
+                <th className="text-left">Branch</th>
+                <th className="text-left">Issue</th>
+                <th className="text-left">First punch</th>
+                <th className="text-left">Latest punch</th>
+                <th className="text-left">Punches</th>
+                <th className="text-left">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {pager.slice.map((row) => {
+                // Ordered by how much somebody needs to act on it, not by column order: an
+                // absence is a question for a manager, a long break is only an explanation for
+                // why the overtime looks small.
+                const shortBy = row.shift?.full_day_minutes
+                  ? row.shift.full_day_minutes - (row.worked_minutes ?? 0)
+                  : null;
+                const issues = [
+                  row.status === 'Absent' ? 'Absent' : null,
+                  row.status === 'No Shift' ? 'No shift assigned' : null,
+                  row.is_missing_punch ? 'Missing punch' : null,
+                  // The headline exception on a flexible shift — left early, and nothing else
+                  // records it. Still paid in full by policy, which is why it needs saying.
+                  row.is_short_day
+                    ? `Short${shortBy > 0 ? ` by ${fmtMinutes(shortBy)}` : ''}`
+                    : null,
+                  row.breaks_incomplete ? 'Break punch missing' : null,
+                  row.is_long_break ? `Break ${row.break_minutes}m` : null,
+                  row.is_late ? `Late ${row.late_minutes}m` : null,
+                  row.is_early_exit ? `Early ${row.early_exit_minutes}m` : null,
+                ].filter(Boolean);
+
+                return (
+                  <tr key={row.id}>
+                    <td data-label="Date" className="font-mono">{row.work_date}</td>
+                    <td data-label="Employee">
+                      <div className="font-semibold text-neutral-800 dark:text-neutral-100"><EmployeeLink employee={row.employee} /></div>
+                      <div className="text-2xs text-neutral-400 font-mono">{row.employee?.employee_code ?? ''}</div>
+                    </td>
+                    <td data-label="Branch" className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
+                    <td data-label="Issue">
+                      <div className="flex flex-wrap gap-1">
+                        {issues.map((issue) => (
+                          <span key={issue} className="badge bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{issue}</span>
+                        ))}
+                      </div>
+                    </td>
+                    <td data-label="First punch" className="font-mono">{fmtTime(firstRecordedPunch(row))}</td>
+                    <td data-label="Latest punch" className="font-mono">{fmtTime(latestRecordedPunch(row))}</td>
+                    <td data-label="Punches"><PunchDetails row={row} /></td>
+                    <td data-label="Status">
+                      <AttendanceStatusControl
+                        row={row}
+                      />
+                      <div className="mt-1.5"><DayPunchCorrectionLink row={row} /></div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+    <Pagination {...pager} noun="attendance exceptions" />
+    </>
+  );
+  const recomputeButton = (
+    <button
+      onClick={() => recompute.mutate({ from, to }, { onSuccess: () => refetch() })}
+      disabled={recompute.isPending}
+      className={phone ? 'filter-sheet-button' : 'px-3 py-2 rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover text-xs font-bold flex items-center gap-1.5 disabled:opacity-50'}
+    >
+      {recompute.isPending ? <Loader2 size={phone ? 16 : 13} className="animate-spin" /> : <RefreshCw size={phone ? 16 : 13} />}
+      {phone ? 'Recompute' : 'Recompute range'}
+    </button>
+  );
+  const recomputeNotes = (
+    <>
+      {recompute.isError ? <ErrorNote error={recompute.error} /> : null}
+      {recompute.isSuccess ? (
+        <p className="text-xs text-emerald-600 dark:text-emerald-400">
+          {/* Ranges over 31 days come back as 202 {message} with no counts. */}
+          {recompute.data?.message ||
+            `Recomputed ${recompute.data?.rowsWritten ?? 0} rows across ${recompute.data?.employees ?? 0} employees.`}
+        </p>
+      ) : null}
+    </>
+  );
+  const issueFilter = (
+    <FilterSelect label="Issue" value={issue} onChange={setIssue} allValue="All exceptions"
+      options={['All exceptions', 'Absent', 'No shift assigned', 'Missing punch', 'Late arrivals', 'Early exits', 'Short days', 'Break issues']} />
+  );
+
+  // On a phone: search and Filters (dates, issue) in one row, then Recompute and the monthly
+  // exports — which sit behind a sheet of their own — instead of a tall card of controls.
+  if (phone) {
+    return (
+      <div className="space-y-3">
+        <div className="phone-filter-bar">
+          <PhoneSearch value={search} onChange={(e) => setSearch(e.target.value)} label="Search attendance exceptions" placeholder="Search exceptions…" />
+          <FilterSheet title="Filter exceptions" count={(issue !== 'All exceptions' ? 1 : 0) + (range.preset !== 'week' ? 1 : 0)}
+            onClear={() => { setIssue('All exceptions'); range.setPreset('week'); }}>
+            <SheetField label="Dates" group><DateRangeFilter {...range} /></SheetField>
+            {issueFilter}
+          </FilterSheet>
+        </div>
+        <div className="phone-tool-row">
+          {recomputeButton}
+          {canExportRegister || canExportPayroll ? (
+            <FilterSheet title="Monthly exports" label="Exports" icon={Download} foot={false}>
+              <SheetField label="Month">
+                <select value={month} onChange={(e) => setMonth(Number(e.target.value))}>
+                  {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                </select>
+              </SheetField>
+              <SheetField label="Year">
+                <input type="number" inputMode="numeric" value={year} onChange={(e) => setYear(Number(e.target.value))} />
+              </SheetField>
+              <div className="filter-sheet-actions">
+                {canExportRegister ? (
+                  <button type="button" className={btnClass('ghost')} onClick={() => exportRegister.mutate({ year, month })} disabled={exportRegister.isPending}>
+                    {exportRegister.isPending ? <Loader2 size={14} className="animate-spin" /> : <FileSpreadsheet size={14} />} Attendance register
+                  </button>
+                ) : null}
+                {canExportPayroll ? (
+                  <button type="button" className={btnClass('ghost')} onClick={() => exportPayroll.mutate({ year, month })} disabled={exportPayroll.isPending}>
+                    {exportPayroll.isPending ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />} Payroll export
+                  </button>
+                ) : null}
+              </div>
+              {exportRegister.isError || exportPayroll.isError ? <ErrorNote error={exportRegister.error || exportPayroll.error} /> : null}
+            </FilterSheet>
+          ) : null}
+        </div>
+        {recomputeNotes}
+        <ErrorNote error={error} />
+        {exceptionsList}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       <div className="premium-card space-y-3">
         <div className="mobile-toolbar flex flex-wrap items-center gap-3">
           <DateRangeFilter {...range} />
-
-          <button
-            onClick={() => recompute.mutate({ from, to }, { onSuccess: () => refetch() })}
-            disabled={recompute.isPending}
-            className="px-3 py-2 rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover text-xs font-bold flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {recompute.isPending ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            Recompute range
-          </button>
+          {recomputeButton}
         </div>
 
-        {recompute.isError ? <ErrorNote error={recompute.error} /> : null}
-        {recompute.isSuccess ? (
-          <p className="text-xs text-emerald-600 dark:text-emerald-400">
-            {/* Ranges over 31 days come back as 202 {message} with no counts. */}
-            {recompute.data?.message ||
-              `Recomputed ${recompute.data?.rowsWritten ?? 0} rows across ${recompute.data?.employees ?? 0} employees.`}
-          </p>
-        ) : null}
+        {recomputeNotes}
 
         {canExportRegister || canExportPayroll ? (
           <>
@@ -1010,86 +1197,10 @@ export function ExceptionsView() {
 
       <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto] gap-2">
         <ListSearch value={search} onChange={setSearch} label="Search attendance exceptions" placeholder="Search employee, code, branch or date…" />
-        <FilterSelect label="Issue" value={issue} onChange={setIssue} allValue="All exceptions"
-          options={['All exceptions', 'Absent', 'No shift assigned', 'Missing punch', 'Late arrivals', 'Early exits', 'Short days', 'Break issues']} />
+        {issueFilter}
       </div>
 
-      <div className="premium-card overflow-hidden">
-        {isLoading ? (
-          <SkeletonTable rows={6} columns={8} label="Loading attendance exceptions" />
-        ) : error ? null : matching.length === 0 ? (
-          <div className="p-10 text-center text-xs text-neutral-500">{search.trim() || issue !== 'All exceptions' ? 'No exceptions match your filters.' : 'No exceptions in this range.'}</div>
-        ) : (
-          <div className="table-scroll">
-            <table className="premium-table phone-rows w-full text-xs">
-              <thead>
-                <tr>
-                  <th className="text-left">Date</th>
-                  <th className="text-left">Employee</th>
-                  <th className="text-left">Branch</th>
-                  <th className="text-left">Issue</th>
-                  <th className="text-left">First punch</th>
-                  <th className="text-left">Latest punch</th>
-                  <th className="text-left">Punches</th>
-                  <th className="text-left">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pager.slice.map((row) => {
-                  // Ordered by how much somebody needs to act on it, not by column order: an
-                  // absence is a question for a manager, a long break is only an explanation for
-                  // why the overtime looks small.
-                  const shortBy = row.shift?.full_day_minutes
-                    ? row.shift.full_day_minutes - (row.worked_minutes ?? 0)
-                    : null;
-                  const issues = [
-                    row.status === 'Absent' ? 'Absent' : null,
-                    row.status === 'No Shift' ? 'No shift assigned' : null,
-                    row.is_missing_punch ? 'Missing punch' : null,
-                    // The headline exception on a flexible shift — left early, and nothing else
-                    // records it. Still paid in full by policy, which is why it needs saying.
-                    row.is_short_day
-                      ? `Short${shortBy > 0 ? ` by ${fmtMinutes(shortBy)}` : ''}`
-                      : null,
-                    row.breaks_incomplete ? 'Break punch missing' : null,
-                    row.is_long_break ? `Break ${row.break_minutes}m` : null,
-                    row.is_late ? `Late ${row.late_minutes}m` : null,
-                    row.is_early_exit ? `Early ${row.early_exit_minutes}m` : null,
-                  ].filter(Boolean);
-
-                  return (
-                    <tr key={row.id}>
-                      <td data-label="Date" className="font-mono">{row.work_date}</td>
-                      <td data-label="Employee">
-                        <div className="font-semibold text-neutral-800 dark:text-neutral-100"><EmployeeLink employee={row.employee} /></div>
-                        <div className="text-2xs text-neutral-400 font-mono">{row.employee?.employee_code ?? ''}</div>
-                      </td>
-                      <td data-label="Branch" className="text-neutral-500">{row.employee?.branch?.name ?? '—'}</td>
-                      <td data-label="Issue">
-                        <div className="flex flex-wrap gap-1">
-                          {issues.map((issue) => (
-                            <span key={issue} className="badge bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{issue}</span>
-                          ))}
-                        </div>
-                      </td>
-                      <td data-label="First punch" className="font-mono">{fmtTime(firstRecordedPunch(row))}</td>
-                      <td data-label="Latest punch" className="font-mono">{fmtTime(latestRecordedPunch(row))}</td>
-                      <td data-label="Punches"><PunchDetails row={row} /></td>
-                      <td data-label="Status">
-                        <AttendanceStatusControl
-                          row={row}
-                        />
-                        <div className="mt-1.5"><DayPunchCorrectionLink row={row} /></div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-      <Pagination {...pager} noun="attendance exceptions" />
+      {exceptionsList}
     </div>
   );
 }
@@ -1398,6 +1509,16 @@ export default function Attendance() {
   // exceptions and today's roster are separate views, not additional approval queues.
   const reviewBadge = reviewing ? navigationScreenCount('attendance', sectionCounts.data) : null;
   const showSourceNote = canAny('device.manage');
+  // On a phone the views join the section's pills in one row (see SectionTabs); self-service keeps
+  // its own layout.
+  const mergeViews = phone && !selfAttendanceMode;
+  const views = selfAttendanceMode ? undefined : {
+    // "By person" is a screen of this section already, so its view does not get a second pill.
+    items: visibleTabs.filter((t) => t.id !== 'person').map((t) => ({ id: t.id, label: t.label, shortLabel: t.id === 'regularizations' ? 'Corrections' : undefined,
+      badge: t.id === 'regularizations' ? reviewBadge : null })),
+    active: tab,
+    onSelect: setTab,
+  };
 
   return (
     <div className={`page-shell space-y-5 animate-slide-up py-3 ${selfAttendanceMode ? 'attendance-self-phone' : ''}`}>
@@ -1406,6 +1527,7 @@ export default function Attendance() {
         subtitle={showSourceNote
           ? 'Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes and each day is worked out against the assigned shift.'
           : undefined}
+        views={views}
       />
 
       {selfAttendanceMode ? (
@@ -1416,7 +1538,7 @@ export default function Attendance() {
         />
       ) : null}
 
-      <nav aria-label="Attendance views" className={`mobile-segmented mobile-segmented-dense attendance-views flex flex-wrap gap-1.5 ${tab === 'calendar' ? '' : 'is-elsewhere'}`}>
+      {!mergeViews && <nav aria-label="Attendance views" className={`mobile-segmented mobile-segmented-dense attendance-views flex flex-wrap gap-1.5 ${tab === 'calendar' ? '' : 'is-elsewhere'}`}>
         {visibleTabs.map((t) => {
           const Icon = t.icon;
           const label = selfAttendanceMode && t.id === 'regularizations' ? 'Fix attendance' : t.label;
@@ -1436,7 +1558,7 @@ export default function Attendance() {
             </button>
           );
         })}
-      </nav>
+      </nav>}
 
       {tab === 'today' ? (
         <TodayView workDate={workDate} setWorkDate={setWorkDate} />

@@ -1,0 +1,77 @@
+/* Documents (round 3). */
+
+/* Employee · Company as one two-way switch, both halves always in view. */
+.doc-scope-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .25rem;
+  max-width: 34rem;
+  padding: .25rem;
+  border-radius: .95rem;
+  background: var(--surface-muted);
+}
+.doc-scope-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  min-width: 0;
+  min-height: 2.5rem;
+  padding: 0 .75rem;
+  border-radius: .75rem;
+  color: var(--surface-text-soft);
+  font-size: .875rem;
+  font-weight: 600;
+  transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.doc-scope-switch button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.doc-scope-switch button > em {
+  flex: none;
+  min-width: 1.4rem;
+  padding: .05rem .4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-text) 8%, transparent);
+  font-size: .75rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.doc-scope-switch button[aria-pressed="true"] {
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+}
+.doc-scope-switch button[aria-pressed="true"] > svg { color: var(--coral); }
+.doc-scope-switch button[aria-pressed="true"] > em { background: var(--coral-soft); color: var(--coral-ink); }
+.doc-scope-switch button:focus-visible { outline: 2px solid var(--coral); outline-offset: 1px; }
+
+/* The privacy line: a footnote, not a grey box the size of the list. */
+.doc-privacy-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .45rem;
+  margin: 0;
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  line-height: 1.45;
+}
+.doc-privacy-note > svg { flex: none; margin-top: .1rem; }
+
+@media (max-width: 640px) {
+  .doc-scope-switch { max-width: none; }
+
+  /* One document per line with a hairline between, inside the library card. */
+  main .people-library-card .people-document-grid { gap: 0; }
+  main .people-library-card .people-document-card {
+    align-items: center;
+    padding: .7rem .1rem;
+    border: 0;
+    border-bottom: 1px solid var(--surface-border);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  main .people-library-card .people-document-card:last-child { border-bottom: 0; }
+  main .people-library-card .people-document-card .text-xs { font-size: .875rem; }
+  main .people-library-card .people-document-card .text-2xs { font-size: .75rem; }
+  main .people-library-card .people-empty-state.is-compact { padding-block: 1.25rem; }
+}

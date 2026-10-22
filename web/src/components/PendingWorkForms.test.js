@@ -18,6 +18,9 @@ const mutationStubs = names => names.map(name => `export const ${name} = () => g
 const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 7;';
 const stubs = {
   './ui/SearchSelect': SEARCH_SELECT_STUB,
+  './ui/MonthPicker': 'export default "test-month-picker";',
+  './ui/FilterSheet': 'export default "test-filter-sheet"; export const PhoneSearch = "test-phone-search", SheetField = "test-sheet-field";',
+  '../lib/useMediaQuery': 'export const useMediaQuery = () => false;',
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))}; export default React;
     export const useState = value => globalThis.pendingFormTest.useState(value);
     export const useRef = value => globalThis.pendingFormTest.useRef(value);

@@ -6461,7 +6461,8 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
     font-size: .6875rem;
   }
 
-  main .filter-select select {
+  main .filter-select select,
+  main .filter-select .search-select {
     min-height: 1.2rem;
     font-size: .72rem;
     padding-inline: 0;
@@ -6785,6 +6786,14 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
   main .asset-toolbar > .filter-select {
     flex: 1 1 100%;
   }
+
+  /* Lines with a hairline between them, not cards inside the register card. */
+  main .asset-list { gap: 0; }
+  main .asset-row { padding: .7rem .1rem; border: 0; border-bottom: 1px solid var(--surface-border); border-radius: 0; background: transparent; }
+  main .asset-list > li:last-child .asset-row { border-bottom: 0; }
+  main .asset-row-holder { display: flex; align-items: baseline; gap: .35rem; min-width: 0; }
+  main .asset-row-holder > strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  main .asset-row-holder > strong + em::before { content: '· '; }
 
   /* Title, then the two actions on their own line — side by side there is not enough width left
      for the file name to say anything useful. */
@@ -9132,7 +9141,13 @@ button.role-chip:hover,
   .ticket-row-copy { flex: 1 1 100% !important; }
   .ticket-row-copy p.whitespace-pre-wrap { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .ticket-row-controls { width: 100%; justify-content: space-between !important; }
-  .ticket-row-controls select { flex: 1 1 auto; min-width: 0; }
+  .ticket-row-controls select { flex: 0 1 auto; width: auto !important; min-width: 0; min-height: 2.25rem !important; padding-block: 0 !important; font-size: .8125rem !important; }
+  /* The queues read as the app's pills, the current one light coral, rather than coral buttons. */
+  main .ticket-desk [aria-label="Ticket queue"] > button { padding: 0 .85rem; border: 0; background: var(--surface-muted); color: var(--surface-text-soft); font-size: .8125rem; box-shadow: none; }
+  main .ticket-desk [aria-label="Ticket queue"] > button[aria-pressed="true"] { background: var(--chip-active-bg); color: var(--chip-active-fg); }
+  main .ticket-desk-bar > button:only-child { flex: 1 1 auto; }
+  /* The status dropdown already says the status, so the pill beside it steps aside. */
+  .ticket-row-controls > span:has(+ select) { display: none; }
   main .ticket-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
   main .ticket-filters > label:first-child { grid-column: 1 / -1; }
   main .ticket-filters > label > span { font-size: .75rem; }
@@ -9151,4 +9166,32 @@ button.role-chip:hover,
 @media (max-width: 640px) {
   main .reports-page .mobile-list-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   main .reports-page .mobile-list-actions > button { justify-content: center; min-width: 0; padding: .45rem .5rem; font-size: .8125rem; }
+}
+
+/* ---- Choice pills (round 3) ------------------------------------------------------------------
+   A set of toggles that filter or pick (Needs mapping · Ambiguous · All; Mon · Tue · Sun). They
+   were old "chip"s with a green ring on the chosen one, from before the redesign. */
+.choice-pills { display: flex; flex-wrap: wrap; gap: .4rem; }
+.choice-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 2rem;
+  padding: 0 .8rem;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--surface-text-soft);
+  font-size: .8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color .15s ease, color .15s ease;
+}
+.choice-pill:hover { color: var(--surface-text); }
+.choice-pill[aria-pressed="true"] { background: var(--chip-active-bg); color: var(--chip-active-fg); }
+.choice-pill:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+@media (max-width: 640px) {
+  /* A long set swipes sideways in one row rather than wrapping into three. */
+  .choice-pills { flex-wrap: nowrap; margin-inline: calc(var(--space-card) * -1); padding-inline: var(--space-card); overflow-x: auto; scrollbar-width: none; }
+  .choice-pills::-webkit-scrollbar { display: none; }
+  .choice-pill { flex: none; }
 }

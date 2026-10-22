@@ -484,6 +484,10 @@ main .page-header-title,
   .page-header-back:active { background: var(--surface-muted); }
   .page-header-back:focus-visible { outline: 2px solid var(--coral); outline-offset: 1px; }
   .page-header-back { flex: none; }
+  /* A "Back" button among a header's actions repeats the arrow / the section pills on a phone. */
+  .page-header-actions .page-back-button { display: none; }
+  /* A short title with one small action keeps them on one row (Help & support · Request exit). */
+  .page-header.page-header-inline-actions .page-header-actions { width: auto; }
   /* The title keeps at least half the row; buttons that do not fit beside it wrap underneath. */
   .page-header.has-back .page-header-copy { flex: 1 1 9rem; }
 

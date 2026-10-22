@@ -186,7 +186,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
           <>
             {exportButton}
             {onBack && (
-              <button onClick={onBack} className={btnClass('ghost')}>
+              <button onClick={onBack} className={`${btnClass('ghost')} page-back-button`}>
                 <ArrowLeft size={13} /> Back
               </button>
             )}
