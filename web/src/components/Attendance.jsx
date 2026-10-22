@@ -43,6 +43,7 @@ import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
 import { btnClass } from './ui/Btn';
+import MyDayPhone from './attendance/MyDayPhone';
 import PageHeader from './ui/PageHeader';
 import { StatCard, StatRow } from './ui/StatCard';
 import StatusPill from './ui/StatusPill';
@@ -229,7 +230,7 @@ function MyAttendanceHero({ employee, onOpenCalendar, onFixAttendance }) {
   })();
 
   return (
-    <section className="premium-card self-service-hero" data-tone={isLoading ? 'neutral' : state.tone}>
+    <section className="premium-card self-service-hero my-attendance-hero" data-tone={isLoading ? 'neutral' : state.tone}>
       <div className="self-service-hero-copy">
         <span className="self-service-eyebrow">My attendance</span>
         {isLoading ? (
@@ -1402,6 +1403,8 @@ export default function Attendance() {
       {tab === 'today' ? (
         <TodayView workDate={workDate} setWorkDate={setWorkDate} />
       ) : null}
+      {tab === 'calendar' && selfAttendanceMode && employee?.id
+        ? <MyDayPhone employeeId={employee.id} onFix={() => setTab('regularizations')} /> : null}
       {tab === 'calendar' ? <CalendarView employeeId={employee?.id} employeeName={employee?.full_name} /> : null}
       {tab === 'person' ? <PersonAttendanceView /> : null}
       {tab === 'overview' ? (

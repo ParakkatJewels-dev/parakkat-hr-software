@@ -1,0 +1,96 @@
+/* My day on a phone (round 2, after the reference phone kit). Computers keep the hero and the
+   month grid; this view exists only below 641px. */
+.my-day-phone { display: none; }
+
+@media (max-width: 640px) {
+  .my-day-phone { display: grid; gap: .75rem; }
+
+  .my-day-month {
+    display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+    padding: .25rem; border: 1px solid var(--surface-border); border-radius: 999px; background: var(--surface-elevated);
+  }
+  .my-day-month strong { color: var(--surface-text); font-size: .9375rem; font-weight: 650; }
+  .my-day-month button {
+    display: inline-flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem;
+    border-radius: 999px; color: var(--surface-text-soft);
+  }
+  .my-day-month button:active { background: var(--surface-muted); }
+
+  .my-day-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: .3rem; }
+  .my-day-weekday {
+    position: relative; display: flex; flex-direction: column; align-items: center; gap: .15rem;
+    min-height: 3.75rem; padding: .45rem 0 .55rem; border: 1px solid var(--surface-border); border-radius: .85rem;
+    background: var(--surface-elevated); color: var(--surface-text-soft);
+  }
+  .my-day-weekday span { font-size: .6875rem; font-weight: 600; }
+  .my-day-weekday strong { color: var(--surface-text); font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .my-day-weekday i { position: absolute; bottom: .3rem; width: .3rem; height: .3rem; border-radius: 999px; background: transparent; }
+  .my-day-weekday i[data-tone="success"] { background: var(--tone-green-fg); }
+  .my-day-weekday i[data-tone="warning"] { background: var(--tone-amber-fg); }
+  .my-day-weekday i[data-tone="danger"] { background: var(--tone-red-fg); }
+  .my-day-weekday i[data-tone="info"] { background: var(--tone-blue-fg); }
+  .my-day-weekday.is-today strong { color: var(--coral-ink); }
+  .my-day-weekday.is-selected {
+    border-color: transparent; background: linear-gradient(160deg, #ff6a33, #f24a17); color: rgba(255, 255, 255, .9);
+    box-shadow: 0 8px 18px rgba(255, 90, 39, .25);
+  }
+  .my-day-weekday.is-selected strong { color: #fff; }
+  .my-day-weekday.is-selected i:not([data-tone="none"]) { background: #fff; }
+
+  .my-day-ring-card {
+    display: grid; justify-items: center; gap: .85rem; padding: 1rem var(--space-card) var(--space-card);
+    border: 1px solid var(--surface-border); border-radius: var(--radius-card); background: var(--surface-elevated); box-shadow: var(--shadow-card);
+  }
+  .my-day-ring { position: relative; width: 11rem; height: 11rem; --ring: var(--surface-border-strong); }
+  .my-day-ring[data-tone="success"] { --ring: #16a34a; }
+  .my-day-ring[data-tone="warning"] { --ring: #d97706; }
+  .my-day-ring[data-tone="danger"] { --ring: #dc2626; }
+  .my-day-ring[data-tone="info"] { --ring: #2563eb; }
+  .my-day-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .my-day-ring-track { fill: none; stroke: var(--surface-muted); stroke-width: 7; }
+  .my-day-ring-fill { fill: none; stroke: var(--ring); stroke-width: 7; stroke-linecap: round; transition: stroke-dasharray .4s ease; }
+  .my-day-ring-copy {
+    position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .2rem; text-align: center;
+  }
+  .my-day-ring-copy > span { color: var(--surface-text-soft); font-size: .75rem; }
+  .my-day-ring-copy strong { color: var(--surface-text); font-size: 1.6rem; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .my-day-ring-copy small { color: var(--surface-text-soft); font-size: .75rem; }
+
+  .my-day-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; width: 100%; }
+  .my-day-facts > div {
+    display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .1rem .5rem; padding: .6rem .75rem;
+    border-radius: .85rem; background: var(--surface-subtle);
+  }
+  .my-day-facts svg { grid-row: span 2; color: var(--surface-text-soft); }
+  .my-day-facts span { color: var(--surface-text-soft); font-size: .6875rem; }
+  .my-day-facts strong { color: var(--surface-text); font-size: .875rem; font-weight: 700; }
+
+  .my-day-timeline {
+    padding: var(--space-card); border: 1px solid var(--surface-border); border-radius: var(--radius-card);
+    background: var(--surface-elevated); box-shadow: var(--shadow-card);
+  }
+  .my-day-timeline h3 { margin: 0 0 .6rem; color: var(--surface-text); font-size: .9375rem !important; font-weight: 700; }
+  .my-day-timeline ol { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+  .my-day-timeline li {
+    position: relative; display: grid; grid-template-columns: 5.25rem 1fr; align-items: center; min-height: 2.25rem;
+    padding-left: 1.25rem; color: var(--surface-text-soft); font-size: .8125rem;
+  }
+  .my-day-timeline li::before {
+    content: ''; position: absolute; left: .25rem; width: .55rem; height: .55rem; border-radius: 999px; background: var(--surface-border-strong);
+  }
+  .my-day-timeline li:not(:last-child)::after {
+    content: ''; position: absolute; left: calc(.25rem + .24rem); top: calc(50% + .4rem); bottom: calc(-50% + .4rem); width: 1px; background: var(--surface-border);
+  }
+  .my-day-timeline li[data-kind="in"]::before { background: #16a34a; }
+  .my-day-timeline li[data-kind="out"]::before { background: var(--coral); }
+  .my-day-timeline li[data-kind="pending"]::before { background: transparent; border: 1.5px dashed var(--surface-border-strong); }
+  .my-day-timeline time { color: var(--surface-text); font-weight: 650; font-variant-numeric: tabular-nums; }
+  .my-day-empty { margin: 0; color: var(--surface-text-soft); font-size: .8125rem; }
+  .my-day-fix {
+    display: flex; align-items: center; justify-content: center; gap: .5rem; width: 100%; min-height: 2.5rem; margin-top: .75rem;
+    border-radius: .85rem; background: var(--tone-amber-bg); color: var(--tone-amber-fg); font-size: .8125rem; font-weight: 650;
+  }
+
+  /* The computer hero steps aside for this view on a phone. */
+  .self-service-hero.my-attendance-hero { display: none; }
+}
