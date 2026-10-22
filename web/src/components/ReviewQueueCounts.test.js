@@ -47,6 +47,7 @@ const stubs = {
   './ui/PageHeader': 'export default "test-page-header";',
   './ui/StatCard': 'export const StatCard="test-stat-card", StatRow="test-stat-row";',
   './ui/StatusPill': 'export default "test-status-pill";',
+  './leave/LeaveBalanceCards': 'export default "test-leave-balances";',
   './ui/Avatar': 'export default "test-avatar"; export const initialsOf=()=>"", tintFor=()=>"";',
   './ui/ListSearch': 'export default "test-list-search";',
   './ui/PagedCollection': 'export default "test-paged-collection";',

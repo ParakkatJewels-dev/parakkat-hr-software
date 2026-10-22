@@ -1,0 +1,76 @@
+/* Leave balances on a phone (round 2). Computers keep the hero card above the requests. */
+.leave-balance-phone { display: none; }
+
+@media (max-width: 640px) {
+  .leave-balance-phone { display: grid; gap: .625rem; }
+  .leave-balance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .625rem; }
+  .leave-balance-card {
+    display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: .55rem .7rem;
+    padding: .8rem .85rem; border: 1px solid var(--surface-border); border-radius: var(--radius-card);
+    background: var(--surface-elevated); box-shadow: var(--shadow-card);
+    --tile-bg: var(--tone-green-bg); --tile-fg: var(--tone-green-fg);
+  }
+  .leave-balance-card[data-tone="amber"]  { --tile-bg: var(--tone-amber-bg);  --tile-fg: var(--tone-amber-fg); }
+  .leave-balance-card[data-tone="blue"]   { --tile-bg: var(--tone-blue-bg);   --tile-fg: var(--tone-blue-fg); }
+  .leave-balance-card[data-tone="violet"] { --tile-bg: var(--tone-violet-bg); --tile-fg: var(--tone-violet-fg); }
+  .leave-balance-icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem;
+    border-radius: .7rem; background: var(--tile-bg); color: var(--tile-fg);
+  }
+  .leave-balance-card.is-wide .leave-balance-icon { width: 2.6rem; height: 2.6rem; border-radius: .8rem; }
+  .leave-balance-copy { display: flex; min-width: 0; flex-direction: column; gap: .1rem; }
+  .leave-balance-copy span { overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+  .leave-balance-copy strong { color: var(--surface-text); font-size: 1.05rem; font-weight: 750; font-variant-numeric: tabular-nums; }
+  .leave-balance-card.is-wide .leave-balance-copy strong { font-size: 1.3rem; }
+  .leave-balance-bar { grid-column: 1 / -1; height: .4rem; overflow: hidden; border-radius: 999px; background: var(--surface-muted); }
+  .leave-balance-bar > span { display: block; height: 100%; border-radius: inherit; background: #16a34a; }
+  .leave-balance-bar[data-tone="blue"] > span { background: #3b82f6; }
+  .leave-balance-bar[data-tone="violet"] > span { background: #8b5cf6; }
+  .leave-balance-card small { grid-column: 1 / -1; margin-top: -.2rem; color: var(--surface-text-soft); font-size: .75rem; }
+  .leave-balance-apply {
+    display: flex; align-items: center; justify-content: center; gap: .6rem; width: 100%; min-height: 3rem;
+    border-radius: var(--radius-card); background: linear-gradient(120deg, #ff6a33, #f24a17); color: #fff;
+    font-size: .9375rem; font-weight: 700; box-shadow: 0 10px 22px rgba(255, 90, 39, .22);
+  }
+  .leave-balance-apply > span {
+    display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem;
+    border-radius: 999px; background: #fff; color: var(--coral);
+  }
+  .leave-balance-apply:focus-visible { outline: 2px solid var(--coral-ink); outline-offset: 2px; }
+
+  /* On a phone these cards replace the computer's hero, its duplicate figures and the header button. */
+  .leave-page.is-self .my-leave-hero,
+  .leave-page.is-self .employee-secondary-stats,
+  .leave-page.is-self .page-header-actions .leave-header-apply { display: none; }
+
+  /* Leave requests as phone rows, as on the boards: who, then type and dates under the name, the
+     status on the right. Your own list leaves out your name. */
+  .leave-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "person status" "type open";
+    gap: .2rem .6rem;
+    padding: .7rem .75rem;
+  }
+  .leave-row-person { grid-area: person; }
+  .leave-row-status { grid-area: status; align-items: flex-end; }
+  .leave-row-type { grid-area: type; grid-column: auto; padding-left: 3.2rem; }
+  .leave-row-days { display: none; }
+  .leave-row-open { grid-area: open; grid-row: auto; grid-column: auto; justify-self: end; min-height: 2rem; }
+  .leave-row-note { grid-area: note; }
+  /* The stage and reason are in the request's details; the row keeps who, what, when and status. */
+  .leave-row-stage, .leave-row-note, .leave-row-person .min-w-0 > span { display: none; }
+  .leave-row-open { width: 2rem; padding: 0; justify-content: center; font-size: 0; }
+  .leave-row-open svg { width: 18px; height: 18px; }
+  .leave-page.is-self .leave-row { grid-template-areas: "type status"; grid-template-columns: minmax(0, 1fr) auto auto; }
+  .leave-page.is-self .leave-row-open { grid-area: auto; }
+  .leave-page.is-self .leave-row-person { display: none; }
+  .leave-page.is-self .leave-row-type,
+  .leave-page.is-self .leave-row-note { padding-left: 0; }
+
+  /* Managers: the Mine / Everyone switch across the width, Apply leave under it. */
+  .leave-page:not(.is-self) .page-header-actions,
+  .leave-page:not(.is-self) .page-header-actions > div { width: 100%; flex-wrap: wrap; }
+  .leave-page:not(.is-self) .page-header-actions [role="group"] { display: flex; flex: 1 1 100%; }
+  .leave-page:not(.is-self) .page-header-actions [role="group"] > button { flex: 1; min-height: 2.5rem; }
+  .leave-page:not(.is-self) .leave-header-apply { flex: 1 1 100%; justify-content: center; }
+}

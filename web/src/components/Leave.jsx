@@ -20,6 +20,7 @@ import QueryError from './ui/QueryError';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
+import LeaveBalanceCards from './leave/LeaveBalanceCards';
 import PageHeader from './ui/PageHeader';
 
 /**
@@ -54,7 +55,7 @@ function MyLeaveHero({ balances, stats, canApply, onApply, onFilter }) {
     .sort((a, b) => Number(b.available || 0) - Number(a.available || 0))[0];
 
   return (
-    <section className="premium-card self-service-hero">
+    <section className="premium-card self-service-hero my-leave-hero">
       <div className="self-service-hero-copy">
         <span className="self-service-eyebrow">My leave</span>
         <h2>{available > 0 ? `${available} day${available === 1 ? '' : 's'} available` : 'Leave balance'}</h2>
@@ -201,7 +202,7 @@ export default function Leave() {
   const selected = scopedLeaves.find((row) => row.id === selectedId);
 
   return (
-    <div className="page-shell space-y-6 animate-slide-up">
+    <div className={`page-shell space-y-6 animate-slide-up leave-page ${selfServiceMode ? 'is-self' : ''}`}>
       <PageHeader
         title={selfServiceMode ? 'My leave' : 'Leave management'}
         subtitle={selfServiceMode
@@ -233,7 +234,7 @@ export default function Leave() {
         {canApply && !showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className={btnClass('primary')}
+            className={`${btnClass('primary')} leave-header-apply`}
           >
             <span>Apply Leave</span>
           </button>
@@ -260,9 +261,12 @@ export default function Leave() {
           onFilter={setStatusFilter}
         />
       ) : null}
+      {selfServiceMode && Array.isArray(balanceQuery.data) ? (
+        <LeaveBalanceCards balances={balances} canApply={canApply && !showForm} onApply={() => setShowForm(true)} />
+      ) : null}
 
       {/* stats from real data */}
-      {isLoading ? <SkeletonCards count={5} label="Loading leave totals" /> : hasLeaves && <StatRow label="Leave totals" className={selfServiceMode ? 'employee-secondary-stats' : ''}>
+      {isLoading ? <SkeletonCards count={5} label="Loading leave totals" /> : hasLeaves && <StatRow label="Leave totals" className={selfServiceMode ? 'employee-secondary-stats' : 'stat-row-mini'}>
         <Stat label="Total requests" sub="All leave requests" icon={ClipboardList} tone="slate" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="Pending" sub="Awaiting approval" icon={Clock} tone="amber" value={stats.pending} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
         <Stat label="On hold" sub="Requires attention" icon={PauseCircle} tone="blue" value={stats.onHold} active={statusFilter === 'On Hold'} onClick={() => setStatusFilter('On Hold')} />
@@ -350,7 +354,7 @@ export default function Leave() {
         </div>
 
         {/* right column: form or holidays */}
-        <div className="order-first lg:order-none lg:col-span-1">
+        <div className={`${showForm ? 'order-first' : ''} lg:order-none lg:col-span-1`}>
           {showForm && canApply ? (
             <FormSection title="Apply for Leave" onSubmit={submit} submitLabel="Submit leave" busyLabel="Submitting leave…"
               busy={apply.isPending} disabled={!typesReady || !form.start || !form.end || !form.reason.trim()}

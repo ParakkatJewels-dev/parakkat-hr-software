@@ -93,3 +93,16 @@
   .stat-card-value { font-size: 1.3rem; }
   .stat-card-sub { font-size: .6875rem; -webkit-line-clamp: 1; }
 }
+
+/* A row of five small figures on a phone (Leave totals on the boards): icon, number, label,
+   stacked and centred. */
+@media (max-width: 640px) {
+  .stat-row.stat-row-mini { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .4rem; }
+  .stat-row-mini .stat-card { flex-direction: column; align-items: center; gap: .3rem; padding: .55rem .2rem; text-align: center; }
+  .stat-row-mini .stat-card-icon { width: 1.875rem; height: 1.875rem; border-radius: .6rem; }
+  .stat-row-mini .stat-card-icon svg { width: 15px; height: 15px; }
+  .stat-row-mini .stat-card-copy { align-items: center; gap: 0; }
+  .stat-row-mini .stat-card-value { order: -1; font-size: 1.05rem; }
+  .stat-row-mini .stat-card-label { font-size: .625rem; }
+  .stat-row-mini .stat-card-sub { display: none; }
+}
