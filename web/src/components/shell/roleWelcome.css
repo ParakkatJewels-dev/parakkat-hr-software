@@ -1,0 +1,56 @@
+/* The role-switch welcome (round 2). The whole overlay lasts as long as ROLE_WELCOME_MS. */
+.role-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background:
+    radial-gradient(120% 80% at 50% 30%, rgba(255, 90, 39, .22), transparent 60%),
+    color-mix(in srgb, var(--forest) 88%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  animation: role-welcome-life 2.1s ease both;
+}
+.role-welcome-card {
+  display: grid;
+  justify-items: center;
+  gap: .4rem;
+  width: min(100%, 22rem);
+  padding: 1.75rem 1.5rem 1.4rem;
+  border-radius: 1.5rem;
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  text-align: center;
+  box-shadow: 0 30px 60px rgba(0, 0, 0, .25);
+  animation: role-welcome-card .5s cubic-bezier(.2, .9, .25, 1.15) both;
+}
+.role-welcome-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4rem;
+  height: 4rem;
+  margin-bottom: .35rem;
+  border-radius: 999px;
+  background: var(--forest);
+  color: #fff;
+  box-shadow: 0 0 0 6px var(--coral-soft);
+  animation: role-welcome-pop .6s .1s cubic-bezier(.2, .9, .25, 1.2) both;
+}
+.role-welcome-hello { margin: 0; color: var(--surface-text-soft); font-size: .875rem; font-weight: 600; }
+.role-welcome-title { margin: 0; color: var(--surface-text); font-size: 1.5rem !important; font-weight: 800 !important; letter-spacing: -.02em; }
+.role-welcome-sub { margin: 0; max-width: 18rem; color: var(--surface-text-soft); font-size: .8125rem; line-height: 1.5; }
+.role-welcome-bar { width: 100%; height: .3rem; margin-top: .9rem; overflow: hidden; border-radius: 999px; background: var(--surface-muted); }
+.role-welcome-bar > span { display: block; width: 100%; height: 100%; border-radius: inherit; background: var(--coral); transform-origin: left; animation: role-welcome-bar 1.8s .1s linear both; }
+
+@keyframes role-welcome-life { 0% { opacity: 0; } 10% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes role-welcome-card { from { opacity: 0; transform: translateY(14px) scale(.94); } to { opacity: 1; transform: none; } }
+@keyframes role-welcome-pop { from { transform: scale(.6); } to { transform: none; } }
+@keyframes role-welcome-bar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .role-welcome-card, .role-welcome-mark, .role-welcome-bar > span { animation: none; }
+}

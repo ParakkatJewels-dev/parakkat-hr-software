@@ -9,13 +9,14 @@ import { createServer } from 'vite';
 import { OVERSIGHT_NAV, OVERSIGHT_GROUPS, ESS_NAV, groupSections } from '../../lib/navMap.js';
 import { toneForStatus } from '../../lib/statusTone.js';
 
-let server, PageHeader, ShellNavContext, StatusPill, StatCard;
+let server, PageHeader, ShellNavContext, StatusPill, StatCard, RoleWelcome;
 before(async () => {
   server = await createServer({ server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   ({ default: PageHeader } = await server.ssrLoadModule('/src/components/ui/PageHeader.jsx'));
   ({ ShellNavContext } = await server.ssrLoadModule('/src/components/shell/shellNavContext.js'));
   ({ default: StatusPill } = await server.ssrLoadModule('/src/components/ui/StatusPill.jsx'));
   ({ StatCard } = await server.ssrLoadModule('/src/components/ui/StatCard.jsx'));
+  ({ default: RoleWelcome } = await server.ssrLoadModule('/src/components/shell/RoleWelcome.jsx'));
 });
 after(async () => { await server?.close(); });
 
@@ -121,4 +122,12 @@ test('a number card is a button only when it does something', () => {
   const clickable = renderToStaticMarkup(React.createElement(StatCard, { label: 'Late', value: 6, onClick() {}, active: true, tone: 'amber' }));
   assert.match(clickable, /^<button type="button" aria-pressed="true"/);
   assert.match(clickable, /data-tone="amber"/);
+});
+
+test('switching role greets you with the view you are now in, announced politely', () => {
+  const html = renderToStaticMarkup(React.createElement(RoleWelcome, { name: 'Asha', roleTitle: 'Dept Head', onDone() {} }));
+  assert.match(html, /role="status" aria-live="polite"/);
+  assert.match(html, /Welcome, Asha/);
+  assert.match(html, /Dept Head view/);
+  assert.match(renderToStaticMarkup(React.createElement(RoleWelcome, { name: '', roleTitle: 'Employee', onDone() {} })), />Welcome</);
 });

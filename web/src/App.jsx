@@ -44,6 +44,7 @@ import NotificationBell from './components/NotificationBell';
 import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
 import MobileTabBar from './components/shell/MobileTabBar';
+import RoleWelcome from './components/shell/RoleWelcome';
 import { NavigationCountBadge, NavigationCountStatus } from './components/ui/CountBadge';
 import Sidebar from './components/shell/Sidebar';
 import { ShellNavContext } from './components/shell/shellNavContext';
@@ -151,6 +152,14 @@ export default function App() {
   // asks the real permissions, so switching to Employee hides the oversight tree without pretending
   // the person cannot reach it.
   const [primaryRole, setViewRole] = useViewRole(trueRole, heldRoles);
+  // Switching role shows a short welcome to the new view (round 2).
+  const [roleWelcome, setRoleWelcome] = useState(null);
+  const switchRole = (role) => {
+    if (role === primaryRole) return;
+    setViewRole(role);
+    setRoleWelcome(role);
+  };
+  const closeRoleWelcome = useCallback(() => setRoleWelcome(null), []);
   const extraRoles = roleNames.filter((r) => r !== primaryRole && r !== 'employee').length;
   const roleLabel = isSuperAdmin
     ? 'Super Admin'
@@ -716,7 +725,7 @@ export default function App() {
               trueRole={trueRole}
               heldRoles={heldRoles}
               roleLabel={roleLabel}
-              onChange={setViewRole}
+              onChange={switchRole}
             />
 
             {/* Appearance toggle */}
@@ -971,6 +980,10 @@ export default function App() {
 
 
 
+      {roleWelcome && <RoleWelcome key={roleWelcome} onDone={closeRoleWelcome}
+        name={(employee?.full_name || '').trim().split(/\s+/)[0]}
+        roleTitle={isSuperAdmin && roleWelcome === trueRole ? 'Super Admin' : prettyRole(roleWelcome)} />}
+
       {mobileMenuOpen && (
         <div className="profile-navigation-sheet lg:hidden" role="presentation"
           onMouseDown={event => { if (event.target === event.currentTarget) setMobileMenuOpen(false); }}>
@@ -995,7 +1008,7 @@ export default function App() {
                 <div className="more-row profile-navigation-role">
                   <span className="more-row-icon" aria-hidden="true"><Shield size={19} /></span>
                   <span className="more-row-label">Switch role</span>
-                  <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={setViewRole} />
+                  <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={switchRole} />
                 </div>
               )}
               <label className="input-shell profile-navigation-search"><Search size={17} aria-hidden="true" />
