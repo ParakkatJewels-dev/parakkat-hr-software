@@ -14,6 +14,7 @@ import { btnClass } from './ui/Btn';
 import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import Pagination, { usePagination } from './ui/Pagination';
 import './developerSettings.css';
+import PageHeader from './ui/PageHeader';
 
 const dateLabel = value => {
   if (!value) return 'Never';
@@ -97,11 +98,7 @@ function DeveloperWorkspace() {
       {confirm.type === 'disable' ? <p>All integrations will stop reading HR data immediately. Your saved keys will work again when you enable access, if they have not expired or been revoked.</p> : <p><strong>{confirm.key.name}</strong> will stop working immediately. This cannot be undone; create a new key if this integration needs access again.</p>}
     </ConfirmDialog>);
   return <div className="page-shell developer-settings animate-fade-in">
-    <header className="developer-heading">
-      <p className="developer-eyebrow"><ShieldCheck size={13} /> Administration</p>
-      <h1>Developer Settings</h1>
-      <p>Connect your tools to HR data with scoped, read-only API keys, and control whether managers can connect an AI assistant.</p>
-    </header>
+    <PageHeader title="Developer Settings" subtitle="Connect your tools to HR data with scoped, read-only API keys, and control whether managers can connect an AI assistant." />
 
     <section className="premium-card developer-access" aria-labelledby="developer-access-title">
       <div className="developer-access-icon"><Code2 size={23} /></div>

@@ -25,6 +25,7 @@ import { useUrlTab } from '../lib/useUrlTab';
 import Pagination, { usePagination } from './ui/Pagination';
 import QueryError from './ui/QueryError';
 import { headcountByBranch, reportReady } from '../lib/reportRows';
+import PageHeader from './ui/PageHeader';
 
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
@@ -233,12 +234,10 @@ export default function ReportsAnalytics() {
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
-      <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Reports & Analytics</h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          Branch-wise operational reports, scoped to what you may see. Pick a month and branch, then export.
-        </p>
-      </div>
+      <PageHeader
+        title="Reports & Analytics"
+        subtitle="Branch-wise reports, scoped to what you may see. Pick a month and branch, then export."
+      />
 
       <QueryError error={orgQuery.error} title="Branch filters could not be loaded." onRetry={orgQuery.refetch} />
 

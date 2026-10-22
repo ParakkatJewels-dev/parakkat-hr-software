@@ -33,6 +33,7 @@ import { useClockFormat } from '../lib/timeFormat';
 import { CLOCK_FORMATS } from '../lib/clock';
 import { PRODUCT_NAME } from '../lib/appName';
 import './settings.css';
+import PageHeader from './ui/PageHeader';
 
 const inputClass =
   'w-full bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 px-3 py-1.5 rounded-xl text-neutral-805 dark:text-neutral-200 text-xs focus:outline-none focus:border-brand/50 disabled:bg-neutral-100 dark:disabled:bg-neutral-905 disabled:text-neutral-500 dark:disabled:text-neutral-400';
@@ -471,10 +472,7 @@ export default function SettingsPage({
 
   return (
     <div className="page-shell settings-page settings-organized">
-      <header className="settings-heading">
-        <h1>Settings</h1>
-        <p>Manage your account and make the app work for you.</p>
-      </header>
+      <PageHeader title="Settings" subtitle="Manage your account and make the app work for you." />
       <div className="settings-workspace">
         <nav className="settings-categories" role="tablist" aria-label="Settings sections" aria-orientation={verticalTabs ? 'vertical' : 'horizontal'}>
           {sections.map(({ id, label, description, icon: Icon }, index) => (

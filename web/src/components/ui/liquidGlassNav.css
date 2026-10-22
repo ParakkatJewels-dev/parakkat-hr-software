@@ -282,11 +282,11 @@
   }
 
   .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] {
-    color: var(--accent-strong);
+    color: var(--coral);
   }
 
   .dark .mobile-bottom-nav.liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] {
-    color: var(--accent-ink);
+    color: var(--coral);
   }
 
   .liquid-glass-nav[data-glass-dragging="true"] .mobile-bottom-nav-item[data-glass-preview="true"] svg {

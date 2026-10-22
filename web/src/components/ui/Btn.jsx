@@ -4,9 +4,8 @@
 // thirty-two slightly different paddings, radii and hovers. No single screen looked wrong; the
 // app looked messy because nothing matched. This is the one definition.
 //
-// Compact by default: this is a data-dense HR tool where a toolbar may carry six controls, so the
-// default height is 30px, not the 40px a marketing site would use. `size="lg"` exists for the one
-// or two places that genuinely need weight (an empty state's only call to action).
+// Sizes follow the 2026 redesign: 40px by default, 32px (`sm`) inside rows and tables, 44px (`lg`)
+// for a page's main action and an empty state's only call to action. Corners are 12px.
 //
 // COLOUR MEANS OUTCOME, NOT EMPHASIS
 // Every variant below is picked by what pressing it DOES, so the same answer is the same colour on
@@ -24,27 +23,26 @@ import React from 'react';
 import { Loader2 } from 'lucide-react';
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 font-bold rounded-lg cursor-pointer ' +
+  'inline-flex items-center justify-center gap-2 font-semibold rounded-xl cursor-pointer ' +
   'transition-colors select-none whitespace-normal sm:whitespace-nowrap ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 ' +
   'disabled:opacity-45 disabled:cursor-not-allowed';
 
 const VARIANT = {
-  // One branded primary per screen area: submit the form, open the composer, save the draft.
-  primary: 'bg-brand-action text-brand-on hover:bg-brand-action-hover',
+  // One coral primary per screen area: submit the form, open the composer, save the draft.
+  primary: 'bg-brand-action text-brand-on hover:bg-brand-action-hover shadow-sm',
   // The default for anything secondary — bordered, quiet, survives sitting in a row of six.
   // This is also what Cancel and Close use: dismissal is not an outcome worth a colour.
   ghost:
-    'border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-200 ' +
-    'hover:border-brand/45 hover:text-neutral-900 dark:hover:text-white',
+    'border border-neutral-300 dark:border-neutral-800 bg-white dark:bg-transparent text-neutral-800 dark:text-neutral-200 ' +
+    'hover:bg-neutral-50 hover:border-neutral-400 hover:text-neutral-900 dark:hover:bg-charcoal-800 dark:hover:text-white',
   // No border at all; for actions inside a row or card that should not compete.
   subtle: 'text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-charcoal-800',
 
   // POSITIVE — approve, accept, allocate, confirm-and-proceed. The affirmative half of a decision.
-  // Measurably darker than the brand green, not decoratively: white on #0ea971 is 3.03:1 and white
-  // on #0c8f60 is still only 4.11:1. #0a7d53 is 5.16:1, the first step that clears the 4.5:1 floor.
-  // Dark mode keeps the brand green, where the text on it is not white.
-  success: 'bg-brand-action text-brand-on hover:bg-brand-action-hover',
+  // Green, not the coral primary: approving is an outcome, and the redesign gives it its own colour.
+  // emerald-700 is 5.5:1 under white text.
+  success: 'bg-emerald-700 text-white hover:bg-emerald-800 shadow-sm',
   // Approve, but sitting in a row rather than being the one thing on screen.
   successGhost:
     'border border-brand/40 text-brand-ink dark:text-brand-ink ' +
@@ -68,13 +66,13 @@ const VARIANT = {
 };
 
 const SIZE = {
-  sm: 'h-7 px-2 text-xs',
-  md: 'h-[30px] px-2.5 text-sm',   // default — the app's working size
-  lg: 'h-9 px-4 text-base',
+  sm: 'h-8 px-3 text-xs',
+  md: 'h-10 px-4 text-sm',   // default — the app's working size
+  lg: 'h-11 px-5 text-base',
 };
 
 /** Square icon-only button. Sizes match SIZE so it lines up in a toolbar. */
-const ICON_SIZE = { sm: 'h-7 w-7', md: 'h-[30px] w-[30px]', lg: 'h-9 w-9' };
+const ICON_SIZE = { sm: 'h-8 w-8', md: 'h-10 w-10', lg: 'h-11 w-11' };
 
 /**
  * The same styles as a plain class string, for the many existing `className={BTN}` call sites.

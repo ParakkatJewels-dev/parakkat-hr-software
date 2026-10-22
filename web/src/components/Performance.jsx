@@ -5,7 +5,7 @@
 // `goals` table (migration 0043), scoped by RLS: you always see your own, managers with
 // performance.manage see and set their team's.
 import React, { useMemo, useState } from 'react';
-import { Target, Plus, Trash2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Check, X } from 'lucide-react';
 import { useGoals, useSaveGoal, useDeleteGoal } from '../data/goals';
 import { useAuth } from '../auth/AuthContext';
 import { usePermissions } from '../auth/usePermissions';
@@ -21,6 +21,7 @@ import { FormError } from './ui/FormSection';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
+import PageHeader from './ui/PageHeader';
 
 const INPUT =
   'w-full min-h-11 text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200';
@@ -82,18 +83,12 @@ export default function Performance() {
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-          <Target size={20} className="text-brand-ink" /> Goals &amp; KRAs
-        </h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          Track objectives and progress. {canManage ? "Set goals for your team and follow them through." : 'Update progress on your own goals.'}
-        </p>
-        </div>
-        {canManage && !formOpen && <button type="button" className={btnClass('primary')}
+      <PageHeader
+        title="Goals & KRAs"
+        subtitle={`Track objectives and progress. ${canManage ? 'Set goals for your team and follow them through.' : 'Update progress on your own goals.'}`}
+        actions={canManage && !formOpen && <button type="button" className={btnClass('primary')}
           onClick={() => { setCreated(null); setFormOpen(true); }}><Plus size={16} />Set a goal</button>}
-      </div>
+      />
 
       <QueryError error={error} title={hasData ? 'Goals could not be refreshed.' : 'Goals could not be loaded.'}
         onRetry={refetch} retrying={isFetching} hasData={hasData} />

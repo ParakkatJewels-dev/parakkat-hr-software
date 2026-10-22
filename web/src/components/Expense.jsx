@@ -14,6 +14,7 @@ import { todayIso } from '../data/attendance';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
+import PageHeader from './ui/PageHeader';
 
 const CATEGORIES = ['Local Conveyance', 'Travel Expenses', 'Telephone/Mobile Bills', 'Medical Claims', 'Office Supplies', 'Other'];
 const blankExpenseForm = () => ({ category: 'Local Conveyance', amount: '', expense_date: todayIso(), description: '' });
@@ -164,11 +165,7 @@ export default function Expense() {
         </FormSection>
       )}
 
-      <div className="mobile-list-row flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Expense Management</h1>
-          
-        </div>
+      <PageHeader title="Expense Management" subtitle="Claims, approvals and reimbursements in one place.">
         <div className="flex items-center gap-2">
           {/* A manager's list is their whole branch. Without this there is no way to answer "what
               did I claim?" — which is a question they have too, since 0080 gave every manager role
@@ -198,7 +195,7 @@ export default function Expense() {
             </button>
           )}
         </div>
-      </div>
+      </PageHeader>
 
       {/* A refused decision has to say so. The database rejects two of these outright — your own
           claim, and one you filed — and both used to arrive as a thrown error nothing rendered, so

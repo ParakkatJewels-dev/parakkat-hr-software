@@ -45,6 +45,7 @@ import {
   totalGrossComponentsDraft,
   totalGrossFromParts,
 } from '../lib/salaryDraft';
+import PageHeader from './ui/PageHeader';
 
 const initials = (name) =>
   (name || '')
@@ -587,8 +588,7 @@ export default function Directory() {
       )}
 
       {/* Header and Toolbar actions */}
-      <div className="directory-mobile-head flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <Header count={filtered.length} total={employees.length} />
+      <Header count={filtered.length} total={employees.length}>
         <div className="mobile-toolbar-actions directory-toolbar-actions flex flex-wrap items-center justify-between sm:justify-end gap-2.5 w-full sm:w-auto">
           {/* View toggle switcher */}
           <div className="directory-view-tools">
@@ -658,7 +658,7 @@ export default function Directory() {
             )}
           </div>
         </div>
-      </div>
+      </Header>
 
       <details className="directory-overview-disclosure" open={showOverviewByDefault}>
         <summary className="directory-overview-toggle">
@@ -2157,20 +2157,16 @@ function FormBlock({ step, title, hint, children }) {
   );
 }
 
-function Header({ count, total, status }) {
+function Header({ count, total, status, children }) {
   const filtered = total != null && count !== total;
   return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-brand-ink flex items-center gap-1.5">
-        <User size={12} /> People
-      </p>
-      <h1 className="text-xl font-bold text-neutral-900 dark:text-white font-sans mt-1">Directory</h1>
-      <p className="text-base text-neutral-500 dark:text-neutral-400 mt-0.5">
-        {status || (filtered
-          ? `${count} of ${total} people match your filters.`
-          : `${count} ${count === 1 ? 'person' : 'people'} visible to you — scoped by company hierarchy.`)}
-      </p>
-    </div>
+    <PageHeader
+      title="Employee Directory"
+      subtitle={status || (filtered
+        ? `${count} of ${total} people match your filters.`
+        : `${count} ${count === 1 ? 'person' : 'people'} visible to you — scoped by company hierarchy.`)}
+      actions={children}
+    />
   );
 }
 

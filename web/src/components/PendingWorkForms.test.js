@@ -53,6 +53,7 @@ const stubs = {
   './ui/PunchDetails': 'export default "test-punch-details";',
   './ui/DateRangeFilter': 'export default "test-dates"; export const useDateRange=()=>({});',
   './ui/FilterSelect': 'export default "test-filter";',
+  './ui/PageHeader': 'export default "test-page-header";',
   './ui/ListSearch': 'export default "test-search";',
   './ui/EmployeeLink': 'export default "test-employee";',
   './EmployeeAttendanceDetail': 'export default "test-attendance-detail";',

@@ -1,6 +1,6 @@
 import { Skeleton, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { ShieldCheck, X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Eye } from 'lucide-react';
+import { X, Plus, Loader2, AlertTriangle, Link2, KeyRound, Trash2, UserPlus, Pencil, Star, Lock, Eye } from 'lucide-react';
 import { useAuditLog } from '../data/audit';
 import { relativeTime } from '../lib/dates';
 import { useVisibleOrg, useScopeCoverage } from '../data/org';
@@ -22,6 +22,7 @@ import ManagePasswordDialog from './ManagePasswordDialog';
 import { MIN_LENGTH } from '../lib/passwordRules';
 import UsersDirectory from './UsersDirectory';
 import { paginationWindow } from '../lib/pagination';
+import PageHeader from './ui/PageHeader';
 
 const BTN = btnClass('primary');
 const BTN_GHOST = btnClass('ghost');
@@ -52,8 +53,8 @@ function canOfferRole(role, { includeSuperAdmin = false, isSuperAdmin = false, m
 
 const prettyRole = (key) => key.split('_').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ');
 
-// Each view is its own destination, so each gets its own <h1>. "Administration" moves to an
-// eyebrow above it: the section is context, the screen you are on is the heading.
+// Each view is its own destination, so each gets its own <h1>. "Administration" is the breadcrumb
+// above it: the section is context, the screen you are on is the heading.
 const VIEW_META = {
   users: {
     title: 'Users & Access',
@@ -86,15 +87,7 @@ export default function Administration({ view = 'users' }) {
 
 function AdminHeader({ view }) {
   const meta = VIEW_META[view] ?? VIEW_META.users;
-  return (
-    <div>
-      <p className="text-xs font-bold uppercase tracking-wider text-brand-ink flex items-center gap-1.5">
-        <ShieldCheck size={12} /> Administration
-      </p>
-      <h1 className="text-xl font-bold text-neutral-900 dark:text-white font-sans mt-1">{meta.title}</h1>
-      <p className="text-base text-neutral-500 dark:text-neutral-400 mt-0.5">{meta.blurb}</p>
-    </div>
-  );
+  return <PageHeader title={meta.title} subtitle={meta.blurb} />;
 }
 
 // ---------------------------------------------------------------- Users & Access

@@ -215,8 +215,8 @@ test('canSeeTab takes a Set or a plain array', () => {
 
 // ---- the phone's bottom bar --------------------------------------------------------------------
 //
-// The phone has direct destinations rather than whole desktop sections. Profile stays at the
-// right edge and opens the user's profile, where the full menu lives. Expectations use the
+// The phone has direct destinations rather than whole desktop sections. More stays at the right
+// edge and opens the full menu (2026 redesign); Profile lives in that menu and on the avatar. Expectations use the
 // database-replayed role grants, so changing a role's access cannot silently put a hidden screen
 // back on the bar as a replacement for another destination.
 const ROLE_MATRIX = JSON.parse(readFileSync(new URL('../test/standardRolePermissions.json', import.meta.url), 'utf8'));
@@ -234,17 +234,18 @@ function mobileSectionsFor(role, options = {}, permissions = mobileRolePermissio
 }
 
 for (const role of MOBILE_ROLES) {
-  test(`${role} gets Home, Work Ledger, Chat, Time and its own Profile on mobile`, () => {
+  test(`${role} gets Home, Work, Attendance, Chat and More on mobile`, () => {
     const sections = mobileSectionsFor(role);
     const destinations = mobilePrimarySections(sections, role);
-    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'ledger', 'messages', 'attendance', 'profile']);
+    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'ledger', 'attendance', 'messages', 'menu']);
     assert.equal(destinations.length, MOBILE_NAV_SLOTS);
     const allowed = new Set(sections.flatMap((section) => section.tabs.map((tab) => tab.id)));
-    for (const destination of destinations) {
+    for (const destination of destinations.slice(0, -1)) {
       assert.deepEqual(destination.tabs.map((tab) => tab.id), [destination.id], 'each button must open one specific screen');
       assert.ok(allowed.has(destination.id), `${destination.id} must already be allowed`);
     }
-    assert.deepEqual(destinations.at(-1).tabs.map((tab) => tab.id), ['profile'], 'Settings must not be a Profile destination');
+    assert.equal(destinations.at(-1).label, 'More');
+    assert.deepEqual(destinations.at(-1).tabs, [], 'More is a menu action, not a route');
   });
 }
 
@@ -254,18 +255,18 @@ test('mobile destinations do not depend on desktop section order', () => {
     const reordered = [...sections].reverse().map((section) => ({ ...section, tabs: [...section.tabs].reverse() }));
     assert.deepEqual(
       mobilePrimarySections(reordered, role).map((section) => section.id),
-      ['dashboard', 'ledger', 'messages', 'attendance', 'profile'],
+      ['dashboard', 'ledger', 'attendance', 'messages', 'menu'],
       role
     );
   }
 });
 
-test('unlinked accounts have no Chat destination and keep Profile last', () => {
+test('unlinked accounts have no Chat destination and keep More last', () => {
   for (const role of MOBILE_ROLES) {
     const sections = mobileSectionsFor(role, { hasEmployee: false });
     const destinations = mobilePrimarySections(sections, role);
     assert.ok(!destinations.some((section) => section.id === 'messages'), role);
-    assert.equal(destinations.at(-1).id, 'profile', role);
+    assert.equal(destinations.at(-1).id, 'menu', role);
     assert.ok(destinations.length <= MOBILE_NAV_SLOTS, role);
     assert.deepEqual(destinations.slice(0, 3).map((section) => section.id), ['dashboard', 'ledger', 'attendance']);
     assert.equal(destinations[3].id, role === 'employee' ? 'leave' : 'directory', 'replacement must be useful and allowed');
@@ -276,7 +277,7 @@ test('missing task access uses an allowed fallback and never restores the Work L
   const permissions = mobileRolePermissions('employee').filter((permission) => permission.permission !== 'task.read');
   const sections = mobileSectionsFor('employee', {}, permissions);
   const destinations = mobilePrimarySections(sections, 'employee');
-  assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'messages', 'attendance', 'leave', 'profile']);
+  assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'attendance', 'messages', 'leave', 'menu']);
 });
 
 test('hidden primary routes are excluded from fallback selection for every ordinary role', () => {
@@ -285,9 +286,9 @@ test('hidden primary routes are excluded from fallback selection for every ordin
     const destinations = mobilePrimarySections(sections, role);
     const allowed = new Set(sections.flatMap((section) => section.tabs.map((tab) => tab.id)));
     assert.equal(destinations[0].id, 'dashboard', role);
-    assert.equal(destinations.at(-1).id, 'profile', role);
+    assert.equal(destinations.at(-1).id, 'menu', role);
     assert.equal(new Set(destinations.map((section) => section.id)).size, destinations.length, role);
-    for (const destination of destinations) assert.ok(allowed.has(destination.id), `${role}: ${destination.id}`);
+    for (const destination of destinations.slice(0, -1)) assert.ok(allowed.has(destination.id), `${role}: ${destination.id}`);
     for (const hidden of ['ledger', 'messages', 'attendance']) assert.ok(!destinations.some((section) => section.id === hidden), `${role}: ${hidden}`);
   }
 });
@@ -296,8 +297,8 @@ test('a hidden Profile preserves the full menu as an action without an invented 
   for (const role of MOBILE_ROLES.filter((key) => key !== 'super_admin')) {
     const sections = mobileSectionsFor(role, { hiddenScreens: ['profile'] });
     const destinations = mobilePrimarySections(sections, role);
-    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'ledger', 'messages', 'attendance', 'menu'], role);
-    assert.equal(destinations.at(-1).label, 'Menu');
+    assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'ledger', 'attendance', 'messages', 'menu'], role);
+    assert.equal(destinations.at(-1).label, 'More');
     assert.deepEqual(destinations.at(-1).tabs, [], 'Menu is a dialog action, not a route');
     for (const route of ['profile', 'settings', 'notifications', 'menu']) {
       assert.equal(mobileSectionActive(destinations.at(-1), route), false);
@@ -308,7 +309,7 @@ test('a hidden Profile preserves the full menu as an action without an invented 
 test('restricted accounts keep a short useful bar without promoting account settings', () => {
   const sections = mobileSectionsFor('employee', { hasEmployee: false }, []);
   const destinations = mobilePrimarySections(sections, 'employee');
-  assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'profile']);
+  assert.deepEqual(destinations.map((section) => section.id), ['dashboard', 'menu']);
   assert.ok(!destinations.some((section) => ['settings', 'notifications'].includes(section.id)));
 });
 
@@ -319,16 +320,19 @@ test('a fully hidden account still has a Menu action and no forbidden destinatio
   assert.deepEqual(destinations[0].tabs, []);
 });
 
-test('Profile is current only on the actual Profile screen', () => {
+test('each bar destination is current only on its own screen, and More never is', () => {
   for (const role of MOBILE_ROLES) {
     const destinations = mobilePrimarySections(mobileSectionsFor(role), role);
-    for (const destination of destinations) {
+    for (const route of ['profile', 'settings', 'notifications', 'menu']) {
+      assert.equal(mobileSectionActive(destinations.at(-1), route), false, `${role}: More must not claim ${route}`);
+    }
+    for (const destination of destinations.slice(0, -1)) {
       assert.equal(mobileSectionActive(destination, destination.id), true, `${role}: ${destination.id}`);
       for (const unrelated of ['settings', 'notifications', 'directory', 'leave', 'unknown']) {
         assert.equal(mobileSectionActive(destination, unrelated), false, `${role}: ${destination.id} must not claim ${unrelated}`);
       }
     }
-    assert.equal(destinations.filter((destination) => mobileSectionActive(destination, 'profile')).length, 1, role);
+    assert.equal(destinations.filter((destination) => mobileSectionActive(destination, 'profile')).length, 0, role);
   }
 });
 

@@ -43,6 +43,7 @@ import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
 import { btnClass } from './ui/Btn';
+import PageHeader from './ui/PageHeader';
 
 /**
  * `scoped` means the tab is an OVERSIGHT view of other people, so it needs the permission held
@@ -1361,17 +1362,12 @@ export default function Attendance() {
 
   return (
     <div className="page-shell space-y-5 animate-slide-up py-3">
-      <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-          {selfAttendanceMode ? 'My Attendance' : 'Attendance'}
-        </h1>
-        {showSourceNote && (
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes
-            and the engine derives each day against the assigned shift.
-          </p>
-        )}
-      </div>
+      <PageHeader
+        title={selfAttendanceMode ? 'My Attendance' : 'Attendance'}
+        subtitle={showSourceNote
+          ? 'Sourced from the ZKTeco face terminals via BioTime. Punches sync every couple of minutes and each day is worked out against the assigned shift.'
+          : undefined}
+      />
 
       {selfAttendanceMode ? (
         <MyAttendanceHero

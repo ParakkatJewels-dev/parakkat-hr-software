@@ -14,6 +14,7 @@ import { humanDbError } from '../lib/dbErrors';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
+import PageHeader from './ui/PageHeader';
 
 export default function HelpdeskExit() {
   const { employee, user } = useAuth();
@@ -74,20 +75,15 @@ export default function HelpdeskExit() {
 
   return (
     <div className="page-shell space-y-6 animate-slide-up text-xs">
-      <div className="flex flex-wrap justify-between items-start gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Helpdesk &amp; Separation</h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">Raise support tickets and track exit clearances.</p>
-        </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          {canRequestExit && exitsReady && !showExitForm && !myOpenExit && (
-            <button onClick={() => setShowExitForm(true)} className={btnClass('ghost')}>
-              <DoorOpen size={12} /> Request Exit
-            </button>
-          )}
-
-        </div>
-      </div>
+      <PageHeader
+        title="Helpdesk & Separation"
+        subtitle="Raise support tickets and track exit clearances."
+        actions={canRequestExit && exitsReady && !showExitForm && !myOpenExit && (
+          <button type="button" onClick={() => setShowExitForm(true)} className={btnClass('ghost')}>
+            <DoorOpen size={15} /> Request Exit
+          </button>
+        )}
+      />
 
       <TicketDesk />
 

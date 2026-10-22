@@ -14,7 +14,7 @@
 // permission; for anybody else every query below simply returns nothing.
 import React, { useState, useMemo, useRef, useLayoutEffect } from 'react';
 import {
-  Search, Users, ChevronRight, ShieldAlert, ArrowLeft, FileText, Image as ImageIcon, Video, Mic,
+  Search, Users, ChevronRight, ArrowLeft, FileText, Image as ImageIcon, Video, Mic,
 } from 'lucide-react';
 import { useEmployees } from '../data/employees';
 import { useEmployeeConversations, useMessages, useMediaUrl } from '../data/messages';
@@ -26,6 +26,7 @@ import Pagination, { usePagination } from './ui/Pagination';
 import { btnClass } from './ui/Btn';
 import { ConversationSkeleton, MessageThreadSkeleton, MessageMediaSkeleton } from './messagingSkeletons';
 import './chatMonitor.css';
+import PageHeader from './ui/PageHeader';
 
 const clockOf = (iso) => {
   try { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }); }
@@ -90,14 +91,10 @@ export default function ChatMonitor() {
 
   return (
     <div className="page-shell chat-monitor">
-      <div>
-        <h1><ShieldAlert size={18} /> Chat Monitor</h1>
-        <p>
-          Every conversation in the company, read-only. Pick a person, then one of their
-          conversations. This is logged as an administrator action by nature of who can reach it —
-          use it for a dispute or an investigation, not for browsing.
-        </p>
-      </div>
+      <PageHeader
+        title="Chat Monitor"
+        subtitle="Every conversation in the company, read-only. Pick a person, then one of their conversations. Use it for a dispute or an investigation, not for browsing."
+      />
 
       <div className="chat-monitor-columns" data-step={conversation ? 'thread' : person ? 'conversations' : 'people'}>
         {/* ---- 1. everybody ---- */}

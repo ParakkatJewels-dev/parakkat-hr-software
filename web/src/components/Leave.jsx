@@ -17,6 +17,7 @@ import QueryError from './ui/QueryError';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
+import PageHeader from './ui/PageHeader';
 
 /**
  * The catalog decides what a leave is called — this file no longer does.
@@ -207,17 +208,12 @@ export default function Leave() {
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
-      <div className="mobile-list-row flex justify-between items-center">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-            {selfServiceMode ? 'My Leave' : 'Leave Management'}
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {selfServiceMode
-              ? 'Apply for time off and follow every request.'
-              : 'Department head review followed by HR sanction, with a record of every decision.'}
-          </p>
-        </div>
+      <PageHeader
+        title={selfServiceMode ? 'My Leave' : 'Leave Management'}
+        subtitle={selfServiceMode
+          ? 'Apply for time off and follow every request.'
+          : 'Department head review followed by HR sanction, with a record of every decision.'}
+      >
         <div className="flex items-center gap-2">
           {/* Their whole branch by default. A manager also takes leave, and 0080 gave them
               leave.create to request it — this is how they find their own requests in the list. */}
@@ -249,7 +245,7 @@ export default function Leave() {
           </button>
         )}
         </div>
-      </div>
+      </PageHeader>
 
       {selected && <LeaveReviewPanel key={selected.id} request={selected} onClose={() => setSelectedId(null)} />}
 

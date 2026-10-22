@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, KeyRound, Loader2 } from 'lucide-react';
+import { ArrowLeft, Info, Loader2, Mail } from 'lucide-react';
 import { supabase, isSupabaseConfigured } from '../lib/supabaseClient';
 import { passwordRecoveryRedirect, requestPasswordReset, RESET_REQUEST_MESSAGE } from '../lib/passwordRecovery';
-import { btnClass } from '../components/ui/Btn';
+import AuthLayout from './AuthLayout';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -26,29 +26,27 @@ export default function ForgotPassword() {
     }
   };
   return (
-    <main className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-charcoal-900 px-5 py-10">
-      <div className="w-full max-w-md space-y-5">
-        <div className="text-center space-y-2">
-          <KeyRound size={30} className="mx-auto text-brand-ink" />
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white">Reset your password</h1>
-          <p className="text-sm text-neutral-500 dark:text-neutral-400">Enter your sign-in email. We’ll request a link so you can choose a new password.</p>
-        </div>
-        <form onSubmit={submit} className="premium-card space-y-4">
-          <label className="block space-y-2 text-sm text-neutral-700 dark:text-neutral-200">
-            <span className="font-semibold">Email address</span>
-            <input type="email" required autoComplete="email" autoFocus value={email}
-              disabled={busy || sent} onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-3 py-3 text-base focus:outline-none focus:ring-2 focus:ring-brand/30" />
-          </label>
-          {sent && <p role="status" className="text-sm text-brand-ink">{RESET_REQUEST_MESSAGE}</p>}
-          {error && <p role="alert" className="text-sm text-red-600 dark:text-red-300">{error}</p>}
-          {!isSupabaseConfigured && <p role="alert" className="text-sm text-red-600">Authentication is not configured on this installation.</p>}
-          <button type="submit" disabled={busy || sent || !isSupabaseConfigured} className={btnClass('primary', 'lg') + ' w-full'}>
-            {busy && <Loader2 size={16} className="animate-spin" />}{sent ? 'Link requested' : 'Send reset link'}
-          </button>
-        </form>
-        <Link to="/login" className="flex justify-center items-center gap-2 text-sm font-semibold text-brand-ink"><ArrowLeft size={15} /> Back to sign in</Link>
-      </div>
-    </main>
+    <AuthLayout>
+      <Link to="/login" className="mb-6 inline-flex items-center gap-2 text-sm font-semibold text-neutral-600 hover:text-neutral-900 dark:text-neutral-300"><ArrowLeft size={16} /> Back to sign in</Link>
+      <h1>Reset your password</h1>
+      <p className="auth-lede">Enter your work email. We’ll send a link so you can choose a new password.</p>
+      <form onSubmit={submit}>
+        <label className="auth-field">
+          <span>Work email</span>
+          <span className="auth-input-wrap">
+            <Mail size={18} aria-hidden="true" />
+            <input type="email" required autoComplete="email" autoFocus value={email} placeholder="name@company.com"
+              disabled={busy || sent} onChange={(e) => setEmail(e.target.value)} className="auth-input" />
+          </span>
+        </label>
+        {sent && <p role="status" className="auth-status">{RESET_REQUEST_MESSAGE}</p>}
+        {error && <p role="alert" className="auth-alert">{error}</p>}
+        {!isSupabaseConfigured && <p role="alert" className="auth-alert">Authentication is not configured on this installation.</p>}
+        <button type="submit" disabled={busy || sent || !isSupabaseConfigured} className="auth-submit">
+          {busy && <Loader2 size={18} className="animate-spin" />}{sent ? 'Link requested' : 'Send reset link'}
+        </button>
+      </form>
+      <p className="auth-note"><Info size={17} aria-hidden="true" />The link goes to the email you enter, so check its inbox and spam folder.</p>
+    </AuthLayout>
   );
 }

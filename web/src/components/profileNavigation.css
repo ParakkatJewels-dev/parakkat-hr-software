@@ -2,7 +2,6 @@
   .app-header[data-profile-page="true"] { display: none; }
   .section-tabbar[data-profile-page="true"] { display: none; }
   .app-main[data-profile-page="true"] { padding-top: calc(.65rem + env(safe-area-inset-top)); }
-  .app-header .header-profile-trigger { display: none; }
   .app-header .app-header-title { min-width: 0; }
   .app-header .app-header-title-label { max-width: none; }
   .profile-navigation-sheet {
@@ -56,7 +55,7 @@
   .profile-navigation-identity { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
   .profile-navigation-avatar {
     display: grid; place-items: center; flex: none; width: 48px; height: 48px;
-    border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-size: 15px; font-weight: 700;
+    border-radius: 50%; background: var(--forest); color: #fff; font-size: 15px; font-weight: 700;
   }
   .profile-navigation-identity > div { min-width: 0; }
   .profile-navigation-identity strong { display: block; overflow-wrap: anywhere; color: var(--surface-text); font-size: 15px; font-weight: 650; }

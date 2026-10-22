@@ -34,6 +34,7 @@ import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
 import { paginationWindow } from '../lib/pagination';
+import PageHeader from './ui/PageHeader';
 
 const TABS = [
   { id: 'mapping', label: 'Devices & mapping', icon: Fingerprint, perm: 'device.manage' },
@@ -1163,12 +1164,7 @@ export default function AttendanceAdmin() {
 
   return (
     <div className="page-shell space-y-5 animate-slide-up py-3">
-      <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">Attendance setup</h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          Shifts, holidays, leave types, and the BioTime device connection.
-        </p>
-      </div>
+      <PageHeader title="Attendance setup" subtitle="Shifts, holidays, leave types, and the BioTime device connection." />
 
       <nav aria-label="Attendance setup views" className="mobile-segmented mobile-segmented-dense flex flex-wrap gap-1.5">
         {visible.map((t) => {

@@ -57,6 +57,9 @@ export const ESS_NAV = [
   },
 ];
 
+/** The sidebar's headings for the oversight tree, in order (2026 redesign). */
+export const OVERSIGHT_GROUPS = ['Workspace', 'Organization', 'Resources', 'Account'];
+
 /**
  * The oversight tree: eight destinations, each grouping the screens that belong to one job.
  *
@@ -71,12 +74,14 @@ export const ESS_NAV = [
 export const OVERSIGHT_NAV = [
   {
     id: 'home',
+    group: 'Workspace',
     label: 'Home',
     tabs: [{ id: 'dashboard', label: 'Dashboard', perm: null }],
   },
   // Daily work stays near the top of the full menu as well as on the mobile bar.
   {
     id: 'work',
+    group: 'Workspace',
     label: 'Work',
     tabs: [
       // The one place for work (0173), on Task Management's records. Tasks and Team ledgers are
@@ -88,6 +93,7 @@ export const OVERSIGHT_NAV = [
   },
   {
     id: 'time',
+    group: 'Workspace',
     label: 'Time & Attendance',
     tabs: [
       { id: 'attendance', label: 'Attendance', perm: 'attendance.read' },
@@ -98,11 +104,13 @@ export const OVERSIGHT_NAV = [
   },
   {
     id: 'messages',
+    group: 'Workspace',
     label: 'Messages',
     tabs: [{ id: 'messages', label: 'Messages', perm: null, needsEmployee: true }],
   },
   {
     id: 'people',
+    group: 'Organization',
     label: 'People',
     tabs: [
       { id: 'team', label: 'My Team', perm: 'employee.assign' },
@@ -116,6 +124,7 @@ export const OVERSIGHT_NAV = [
   },
   {
     id: 'pay',
+    group: 'Organization',
     label: 'Pay & Expenses',
     tabs: [
       { id: 'payroll', label: 'Payroll', selfLabel: 'My Payslips', perm: 'payslip.read' },
@@ -124,21 +133,25 @@ export const OVERSIGHT_NAV = [
   },
   {
     id: 'asset-management',
+    group: 'Organization',
     label: 'Asset Management',
     tabs: [{ id: 'assets', label: 'Assets', perm: 'asset.read', scoped: true }],
   },
   {
     id: 'support',
+    group: 'Resources',
     label: 'Support',
     tabs: [{ id: 'helpdesk', label: 'Helpdesk & Exits', perm: 'ticket.read' }],
   },
   {
     id: 'insights',
+    group: 'Resources',
     label: 'Reports',
     tabs: [{ id: 'reports', label: 'Reports', perm: 'report.read' }],
   },
   {
     id: 'account',
+    group: 'Account',
     label: 'My Profile',
     tabs: [
       { id: 'profile', label: 'Profile', perm: null },
@@ -148,6 +161,7 @@ export const OVERSIGHT_NAV = [
   },
   {
     id: 'admin',
+    group: 'Account',
     label: 'Administration',
     tabs: [
       // Standard-role access is limited by 0148 to super_admin, entity_admin and hr_manager.
@@ -242,11 +256,18 @@ export function visibleSections(primaryRole, predicates) {
     .filter((section) => section.tabs.length > 0);
 }
 
-/** Four daily destinations and a permanent profile/menu entry. */
+/** Sections in group order for the sidebar and the phone menu. An ungrouped section is still listed. */
+export function groupSections(sections, order) {
+  const named = order.map((title) => ({ title, sections: sections.filter((sec) => sec.group === title) }));
+  const rest = sections.filter((sec) => !order.includes(sec.group));
+  return [...named, ...(rest.length ? [{ title: null, sections: rest }] : [])].filter((group) => group.sections.length > 0);
+}
+
+/** Four daily destinations and a permanent More (menu) entry. */
 export const MOBILE_NAV_SLOTS = 5;
 export const MOBILE_PRIMARY_IDS = {
-  employee: ['dashboard', 'ledger', 'messages', 'attendance', 'profile'],
-  oversight: ['dashboard', 'ledger', 'messages', 'attendance', 'profile'],
+  employee: ['dashboard', 'ledger', 'attendance', 'messages'],
+  oversight: ['dashboard', 'ledger', 'attendance', 'messages'],
 };
 
 /** Arrange actual permitted screens, independent of desktop section grouping. */
@@ -266,8 +287,9 @@ export function mobilePrimarySections(sections, primaryRole) {
     if (seated.length >= MOBILE_NAV_SLOTS - 1) break;
     if (!['profile', 'settings', 'notifications'].includes(id)) add(id);
   }
-  const profile = tabs.find(tab => tab.id === 'profile');
-  seated.push(profile ?? { id: 'menu', label: 'Menu', tabs: [] });
+  // The fifth slot is always More: the full menu, with Profile, Settings and everything else in it
+  // (2026 redesign). Profile itself is also one tap away on the avatar in the top bar.
+  seated.push({ id: 'menu', label: 'More', tabs: [] });
   return seated;
 }
 

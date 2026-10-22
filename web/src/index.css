@@ -131,19 +131,44 @@
   --color-neutral-855: #090b09;
   --color-neutral-905: #050705;
 
-  /* One compact corner language across the application. Tailwind utilities such as
-     rounded-lg/rounded-xl resolve through these tokens, so older screens and new work both render
-     with the same `rounded-sm` radius. Circular avatars, dots and pill badges use rounded-full. */
-  --radius-xs: .25rem;
-  --radius-sm: .25rem;
-  --radius-md: .25rem;
-  --radius-lg: .25rem;
-  --radius-xl: .25rem;
-  --radius-2xl: .25rem;
-  --radius-3xl: .25rem;
-  --radius-4xl: .25rem;
-  --radius-card: var(--radius-sm);
-  --radius-control: var(--radius-sm);
+  /* Corner language from the 2026 redesign boards: soft, not square. Tailwind's rounded-* utilities
+     resolve through these, so every screen picks the new shape up without a call-site change —
+     controls (rounded-xl) at 12px, cards (rounded-2xl) at 18px, the floating sidebar at 24px.
+     Circular avatars, dots and pill badges still use rounded-full. */
+  --radius-xs: .375rem;
+  --radius-sm: .5rem;
+  --radius-md: .625rem;
+  --radius-lg: .625rem;
+  --radius-xl: .75rem;
+  --radius-2xl: 1.125rem;
+  --radius-3xl: 1.5rem;
+  --radius-4xl: 1.5rem;
+  --radius-card: 1.125rem;
+  --radius-control: .75rem;
+
+  /* Cool slate greys from the redesign (they were green-tinted). Tailwind's own neutral steps are
+     pinned here so the ~2,600 neutral-* utilities in the screens move with the boards. The text
+     steps (400/500, set in :root for contrast) stay at 6:1 or better on the canvas. */
+  --color-neutral-50: #f6f8fa;
+  --color-neutral-100: #f1f4f8;
+  --color-neutral-200: #e8ecf1;
+  --color-neutral-300: #dde2ea;
+  --color-neutral-600: #434b6b;
+  --color-neutral-700: #2f3650;
+  --color-neutral-950: #070b14;
+
+  /* The redesign's coral — buttons, the selected menu item, active tabs, the current page. The
+     exact board value was chosen on purpose (22 Oct 2026) over a deeper, higher-contrast shade. */
+  --color-coral-50: #fff4f0;
+  --color-coral-100: #ffede8;
+  --color-coral-500: #ff5a27;
+  --color-coral-600: #e84a18;
+  --color-coral-700: #c93d10;
+
+  /* The sidebar's forest green. */
+  --color-forest-700: #143b2f;
+  --color-forest-800: #0b3a2d;
+  --color-forest-900: #08291f;
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -161,14 +186,14 @@
 
 /* ---- Semantic surface variables ------------------------------------------ */
 :root {
-  --surface-bg: #f2f5f4;         /* soft mint-gray canvas */
+  --surface-bg: #f4f7fa;         /* pale grey-blue canvas (redesign) */
   --surface-elevated: #ffffff;    /* card body */
-  --surface-subtle: #f7faf9;      /* inset / muted panel */
-  --surface-muted: #eef2f0;       /* chips, hover fills */
-  --surface-text: #10201a;        /* deep forest text */
-  --surface-text-soft: #5a6f65;   /* muted sage text */
-  --surface-border: #e6ebe8;      /* hairline border */
-  --surface-border-strong: #d7ded9;
+  --surface-subtle: #f6f8fa;      /* table headers, inset panels */
+  --surface-muted: #eef1f5;       /* chips, hover fills */
+  --surface-text: #10201a;        /* overridden to black below */
+  --surface-text-soft: #5b6388;   /* blue-slate secondary text, 5.5:1 on the canvas */
+  --surface-border: #e8ecf1;      /* hairline border */
+  --surface-border-strong: #dde2ea;
   --accent: #0ea971;
   /* --accent-strong is the app's green TEXT colour (tabs, eyebrows, badges, active pills — ~65 rules)
      plus two hover fills under white text. At #0a8c5d it was 4.27:1 on a card and 3.84:1 on the
@@ -177,9 +202,26 @@
   --accent-strong: #08764f;
   --accent-soft: rgba(14, 169, 113, 0.10);
   --accent-ink: #08764f;
-  --accent-action: #0a7d53;
-  --accent-action-hover: #086b47;
+  /* Actions are coral in the redesign (primary buttons, selected states); green stays the brand,
+     success and link colour above. */
+  --accent-action: #ff5a27;
+  --accent-action-hover: #e84a18;
   --accent-on: #ffffff;
+  --coral: #ff5a27;
+  --coral-hover: #e84a18;
+  --coral-soft: #ffede8;
+  --coral-ink: #e8400e;
+  --forest: #0b3a2d;
+  --forest-raised: #143b2f;
+  --nav-heading: #a6dad7;
+  /* Pastel tones for number-card icon tiles and status pills (from the boards). */
+  --tone-green-bg: #e4fbf0;  --tone-green-fg: #0a8a4a;
+  --tone-blue-bg: #e3f0fd;   --tone-blue-fg: #1f64d6;
+  --tone-violet-bg: #f1ecfe; --tone-violet-fg: #7444e6;
+  --tone-amber-bg: #fef5d8;  --tone-amber-fg: #a85400;
+  --tone-red-bg: #feedf1;    --tone-red-fg: #c8102e;
+  --tone-coral-bg: #feeee3;  --tone-coral-fg: #d8461a;
+  --tone-slate-bg: #f1f4f8;  --tone-slate-fg: #41497f;
   /* One gap for every row of tab pills in the application.
      There were three, and they were close enough that nobody could name what was wrong while
      still being obviously uneven side by side: .mobile-segmented sat at .45rem, .tab-scroll at
@@ -191,10 +233,10 @@
   --tone-amber: #d97706;
   --tone-orange: #ea580c;
   --tone-red: #e11d48;
-  --sidebar-accent: #0ea971;
-  --shadow-card: 0 1px 2px rgba(16, 32, 26, 0.04), 0 2px 8px rgba(16, 32, 26, 0.05);
-  --shadow-card-hover: 0 2px 6px rgba(16, 32, 26, 0.07), 0 12px 28px rgba(16, 32, 26, 0.08);
-  --shadow-pop: 0 12px 40px rgba(16, 32, 26, 0.16);
+  --sidebar-accent: #ff5a27;
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.04), 0 6px 20px rgba(16, 24, 40, 0.04);
+  --shadow-card-hover: 0 2px 6px rgba(16, 24, 40, 0.06), 0 12px 28px rgba(16, 24, 40, 0.08);
+  --shadow-pop: 0 12px 40px rgba(16, 24, 40, 0.16);
 
   /* Text, corrected for contrast — and now corrected again, harder.
      The first pass got the muted tokens to 4.68:1, which clears WCAG AA and still read badly. AA's
@@ -205,8 +247,8 @@
      Retuning rule: measure against #f2f5f4, not #ffffff, and keep secondary text at 6:1 or better
      while the scale starts at 11.5px. No call site changes — ~570 text instances move because the
      TOKENS move. */
-  --color-neutral-400: #4a524b;  /* 7.4:1 on the page, 8.1:1 on a card */
-  --color-neutral-500: #525a53;  /* 6.5:1 on the page — was Tailwind's #737373 at 4.3:1 */
+  --color-neutral-400: #4c5876;  /* 6.9:1 on the page, 7.4:1 on a card (slate, redesign) */
+  --color-neutral-500: #535c7e;  /* 6.2:1 on the page, 6.6:1 on a card */
 
   /* Primary text is pure black, as asked. It was #171717/#262626 at 15-18:1, already comfortable,
      so this is a look decision more than a legibility one: it drops the deliberate green cast from
@@ -235,15 +277,28 @@
   --accent-strong: #34d399;
   --accent-soft: rgba(16, 185, 129, 0.14);
   --accent-ink: #6ee7b7;
-  --accent-action: #10b981;
-  --accent-action-hover: #34d399;
-  --accent-on: #05130d;
+  --accent-action: #ff5a27;
+  --accent-action-hover: #e84a18;
+  --accent-on: #ffffff;
+  --coral: #ff6a3a;
+  --coral-hover: #ff7f55;
+  --coral-soft: rgba(255, 90, 39, 0.16);
+  --coral-ink: #ff9a78;
+  --forest: #0b2f25;
+  --forest-raised: #123e31;
+  --tone-green-bg: rgba(16, 185, 129, .16);  --tone-green-fg: #6ee7b7;
+  --tone-blue-bg: rgba(96, 165, 250, .16);   --tone-blue-fg: #93c5fd;
+  --tone-violet-bg: rgba(167, 139, 250, .16); --tone-violet-fg: #c4b5fd;
+  --tone-amber-bg: rgba(251, 191, 36, .14);  --tone-amber-fg: #fcd34d;
+  --tone-red-bg: rgba(251, 113, 133, .15);   --tone-red-fg: #fda4af;
+  --tone-coral-bg: rgba(255, 106, 58, .16);  --tone-coral-fg: #ffab8f;
+  --tone-slate-bg: rgba(148, 163, 184, .14); --tone-slate-fg: #cbd5e1;
   --tone-blue: #60a5fa;
   --tone-violet: #a78bfa;
   --tone-amber: #fbbf24;
   --tone-orange: #fb923c;
   --tone-red: #fb7185;
-  --sidebar-accent: #10b981;
+  --sidebar-accent: #ff6a3a;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.22);
   --shadow-card-hover: 0 2px 6px rgba(0, 0, 0, 0.35), 0 18px 40px rgba(0, 0, 0, 0.34);
   --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.5);
@@ -467,6 +522,13 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
    Component classes — layered so per-element utilities always win.
    ========================================================================== */
 @layer components {
+  /* ---- Form controls: the redesign's 40px fields. Layered, so h-* utilities and dense grids
+     (which set their own heights) still win. Tables keep their compact inline editors. ---- */
+  .page-shell :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="range"]):not([type="color"]), select):not(:where(td *, .payroll-input-grid *, .ledger-table *)) {
+    min-height: 2.5rem;
+  }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--coral); }
+
   /* ---- Cards ---- */
   .premium-card {
     border-radius: var(--radius-card);
@@ -581,15 +643,16 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 
   /* ---- Tables ---- */
-  .premium-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .8125rem; }
+  /* Tables, 2026 redesign: a grey header row in sentence case, roomier rows. */
+  .premium-table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
   .premium-table th {
     border-bottom: 1px solid var(--surface-border);
-    padding: .625rem .75rem;
-    font-size: .6875rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .06em;
-    color: var(--surface-text-soft);
+    padding: .75rem .9rem;
+    font-size: .8125rem;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #4c5876;
     background: var(--surface-subtle);
     white-space: nowrap;
     /* Sticky against the nearest scrolling ancestor. Harmless on short tables; on a 120-row page
@@ -624,9 +687,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .premium-table.is-compact td { padding-block: .3rem; }
   .premium-table.is-compact td .avatar-cell { width: 1.5rem; height: 1.5rem; }
   .premium-table.is-compact td .row-sub { display: none; }
-  .premium-table td { border-bottom: 1px solid var(--surface-border); padding: var(--space-cell) .75rem; color: var(--surface-text); transition: background-color .15s ease; }
+  .premium-table td { border-bottom: 1px solid var(--surface-border); padding: calc(var(--space-cell) + .3rem) .9rem; color: var(--surface-text); transition: background-color .15s ease; }
   .premium-table tr:last-child td { border-bottom: none; }
-  .premium-table tbody tr:hover td { background: var(--surface-muted); }
+  .premium-table tbody tr:hover td { background: var(--surface-subtle); }
   .dark .premium-table th { color: var(--surface-text-soft); border-color: var(--surface-border); background: var(--surface-subtle); }
   .dark .premium-table td { color: #eef2f0; border-color: var(--surface-border); }
   .dark .premium-table tbody tr:hover td { background: var(--surface-muted); }
@@ -2876,20 +2939,29 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   /* ---- Profile drawer tabs ---- */
+  /* Second-level tabs inside a screen (2026 redesign): soft pills, the current one pale coral.
+     The section's own tabs sit above them as an underline row (see shell.css). */
   .drawer-tab {
-    border-bottom: 2px solid transparent;
-    padding-bottom: .5rem;
-    font-weight: 650;
-    font-size: .6875rem;
-    text-transform: uppercase;
-    letter-spacing: .05em;
+    min-height: 2.35rem;
+    padding: .45rem .9rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 999px;
+    background: var(--surface-elevated);
+    font-weight: 500;
+    font-size: .8125rem;
+    text-transform: none;
+    letter-spacing: 0;
     color: var(--surface-text-soft);
-    transition: all .2s ease;
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
     cursor: pointer;
   }
-  .drawer-tab:hover { color: var(--accent-ink); }
-  /* The underline keeps the bright green; the label uses the readable one (2.76:1 → 5:1). */
-  .drawer-tab-active { border-color: var(--sidebar-accent) !important; color: var(--accent-ink) !important; }
+  .drawer-tab:hover { color: var(--surface-text); border-color: var(--surface-border-strong); }
+  .drawer-tab-active {
+    border-color: color-mix(in srgb, var(--coral) 35%, transparent) !important;
+    background: var(--coral-soft) !important;
+    color: var(--coral-ink) !important;
+    font-weight: 600;
+  }
 
   /* ---- Employee profile — one scroll, sticky rail ------------------------
      The record used to be split across four tabs. It is one column now, with a rail that keeps
@@ -4430,26 +4502,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
    The ≤640px rule further down already states its own `padding` shorthand, which includes this
    value; it stays authoritative there because it also carries the mobile nav's bottom clearance. */
 .app-main { padding-inline: var(--space-shell); }
-.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
-.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: .75rem 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-card);
-  background: var(--surface-elevated);
-  color: var(--surface-text);
-  box-shadow: var(--shadow-card);
-}
-.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) h1,
-.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) h2 { margin: 0; }
-.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) p,
-.page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) p { max-width: 46rem; margin-top: .25rem; font-size: .8125rem !important; line-height: 1.5; color: var(--surface-text-soft); }
-.dark .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
-.dark .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) { background: var(--surface-elevated); border-color: var(--surface-border); }
+
+
+
+
 .page-shell .premium-card > h3,
 .page-shell .premium-card > div > h3 { color: #142720; }
 .dark .page-shell .premium-card > h3,
@@ -4886,80 +4942,21 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   --work-line: color-mix(in srgb, var(--surface-border-strong) 78%, transparent);
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
-  position: relative;
-  overflow: hidden;
-  align-items: flex-start;
-  border-color: color-mix(in srgb, var(--surface-border) 86%, transparent);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--surface-elevated) 94%, #dcfce7), var(--surface-elevated) 58%),
-    var(--surface-elevated);
-  box-shadow: 0 1px 2px rgba(16, 32, 26, .035);
-}
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1)::before,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2)::before {
-  content: '';
-  position: absolute;
-  inset-block: .85rem;
-  left: 0;
-  width: 3px;
-  border-radius: 999px;
-  background: linear-gradient(180deg, var(--accent), var(--tone-blue));
-}
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) h1,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) h2 {
-  display: flex;
-  align-items: center;
-  gap: .45rem;
-  font-weight: 800 !important;
-}
 
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) h1 svg,
-.page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) h2 svg {
-  width: 1.05rem;
-  height: 1.05rem;
-  color: var(--accent-strong);
-}
 
 .page-shell:not(.dashboard-shell):not(.people-page) > .grid:has(> .premium-card) {
   gap: .75rem;
 }
 
 .page-shell:not(.dashboard-shell):not(.people-page) .premium-card {
-  border-color: color-mix(in srgb, var(--surface-border) 88%, transparent);
-  box-shadow: 0 1px 2px rgba(16, 32, 26, .035);
+  border-color: var(--surface-border);
+  box-shadow: var(--shadow-card);
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:hover {
-  box-shadow: 0 4px 16px rgba(16, 32, 26, .06);
-}
 
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span),
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) {
-  position: relative;
-  min-height: 5.25rem;
-  overflow: hidden;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 58%),
-    var(--surface-elevated);
-}
 
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span)::after,
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"])::after {
-  content: '';
-  position: absolute;
-  right: .8rem;
-  bottom: .65rem;
-  width: 3.5rem;
-  height: 1.2rem;
-  border-bottom: 2px solid color-mix(in srgb, var(--accent) 34%, transparent);
-  border-left: 2px solid color-mix(in srgb, var(--accent) 18%, transparent);
-  border-radius: 0 0 0 var(--radius-sm);
-  opacity: .72;
-}
 
 .page-shell:not(.dashboard-shell):not(.people-page) .premium-card > h3,
 .page-shell:not(.dashboard-shell):not(.people-page) .premium-card > div > h3 {
@@ -4970,25 +4967,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   padding-bottom: .65rem;
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) form.premium-card,
-.page-shell:not(.dashboard-shell):not(.people-page) .form-section {
-  position: relative;
-  overflow: hidden;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 42%, transparent), transparent 46%),
-    var(--surface-elevated);
-}
 
-.page-shell:not(.dashboard-shell):not(.people-page) form.premium-card::before,
-.page-shell:not(.dashboard-shell):not(.people-page) .form-section::before {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  top: 0;
-  height: 2px;
-  background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--tone-blue) 70%, var(--accent)));
-  opacity: .82;
-}
 
 .page-shell:not(.dashboard-shell):not(.people-page) label {
   color: var(--surface-text-soft);
@@ -5002,8 +4981,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 .page-shell:not(.dashboard-shell):not(.people-page) input:not([type="checkbox"]):not([type="radio"]),
 .page-shell:not(.dashboard-shell):not(.people-page) select:not(.status-pill),
 .page-shell:not(.dashboard-shell):not(.people-page) textarea {
-  border-color: var(--surface-border);
-  background-color: color-mix(in srgb, var(--surface-subtle) 58%, var(--surface-elevated));
+  border-color: var(--surface-border-strong);
+  background-color: var(--surface-elevated);
 }
 
 .page-shell:not(.dashboard-shell):not(.people-page) input:not([type="checkbox"]):not([type="radio"]):focus,
@@ -5012,14 +4991,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   background-color: var(--surface-elevated);
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card.p-8,
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card.p-10,
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card.p-16,
-.page-shell:not(.dashboard-shell):not(.people-page) .premium-card[class*="text-center"] {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 60%, transparent), transparent),
-    var(--surface-elevated);
-}
 
 .page-shell:not(.dashboard-shell):not(.people-page) article.premium-card,
 .page-shell:not(.dashboard-shell):not(.people-page) .premium-card .mobile-list-row[class*="border"] {
@@ -5027,14 +4998,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   background: color-mix(in srgb, var(--surface-subtle) 54%, var(--surface-elevated));
 }
 
-.page-shell:not(.dashboard-shell):not(.people-page) article.premium-card {
-  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease, transform .18s ease;
-}
 
-.page-shell:not(.dashboard-shell):not(.people-page) article.premium-card:hover {
-  border-color: color-mix(in srgb, var(--accent) 24%, var(--surface-border));
-  transform: translateY(-1px);
-}
 
 .page-shell:not(.dashboard-shell):not(.people-page) .table-scroll {
   border: 1px solid var(--surface-border);
@@ -6107,9 +6071,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     transform-origin: center;
     border-radius: 999px;
     pointer-events: none;
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, .82), rgba(255, 255, 255, .4)),
-      color-mix(in srgb, var(--accent) 10%, transparent);
+    background: var(--coral-soft);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, .95),
       inset 0 -1px 0 rgba(255, 255, 255, .48),
@@ -6201,8 +6163,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   /* The moving surface carries the selected state while the icon and label add contrast. */
+  /* 2026 redesign: the current destination is coral. */
   .mobile-bottom-nav-item-active {
-    color: var(--accent-strong);
+    color: var(--coral);
   }
 
   .mobile-bottom-nav-item-active svg {
@@ -6215,8 +6178,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .mobile-bottom-nav-item-active .mobile-bottom-nav-avatar {
-    border-color: var(--accent-strong);
-    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: var(--coral);
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--coral) 22%, transparent);
   }
 
   .mobile-bottom-nav-item:focus-visible {
@@ -6500,47 +6463,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     grid-column: 1 / -1;
   }
 
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
-    padding: .7rem .8rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: .45rem;
-    background:
-      radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 12%, transparent), transparent 38%),
-      var(--surface-elevated);
-  }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
-    border-radius: var(--radius-sm);
-    background: var(--surface-elevated);
-    box-shadow: none;
-  }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1)::before,
-  main .page-shell:not(.dashboard-shell):not(.people-page) > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2)::before {
-    inset-block: .7rem;
-    width: 2px;
-  }
 
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) p,
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) p {
-    margin-top: .15rem;
-    font-size: .75rem !important;
-    line-height: 1.35;
-  }
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) > *,
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) > * {
-    min-width: 0;
-    width: 100%;
-  }
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) > button,
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1) > a,
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) > button,
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) > a {
-    justify-content: center;
-  }
+
+
   .page-header-actions {
     width: 100%;
     justify-content: flex-start;
@@ -6606,40 +6533,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     color: var(--accent-strong) !important;
   }
 
-  .section-tabbar {
-    padding: .45rem var(--space-shell);
-    background:
-      linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 92%, transparent), color-mix(in srgb, var(--surface-elevated) 78%, transparent)) !important;
-  }
-
-  .section-tab-scroll {
-    gap: var(--tab-gap) !important;
-    margin-bottom: 0 !important;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .section-tab-scroll::-webkit-scrollbar {
-    display: none;
-  }
-
-  .section-tab-button {
-    min-height: 2.2rem;
-    padding: .45rem .7rem !important;
-    border: 1px solid var(--surface-border) !important;
-    border-radius: 999px;
-    background: var(--surface-elevated);
-    font-size: .75rem !important;
-    line-height: 1;
-    box-shadow: 0 1px 2px rgba(16, 32, 26, .04);
-  }
-
-  .section-tab-button[aria-current="page"] {
-    background: var(--accent-soft);
-    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
-    color: var(--accent-strong) !important;
-  }
+  /* The section tabs' phone styles live with the page header now (shell/shell.css). */
 
   .mobile-segmented {
     width: 100%;
@@ -6671,9 +6565,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   .mobile-segmented > button[aria-current="page"],
   .mobile-segmented [role="tab"][aria-selected="true"],
   .mobile-segmented .drawer-tab-active {
-    background: var(--accent-soft) !important;
-    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
-    color: var(--accent-strong) !important;
+    background: var(--coral-soft) !important;
+    border-color: color-mix(in srgb, var(--coral) 35%, transparent) !important;
+    color: var(--coral-ink) !important;
   }
 
   /* Narrow screens need controls to use the available width instead of preserving desktop
@@ -6709,31 +6603,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     gap: .55rem !important;
   }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span),
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) {
-    min-height: 4.65rem;
-    padding: .72rem !important;
-  }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span)::after,
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"])::after {
-    right: .55rem;
-    bottom: .5rem;
-    width: 2.7rem;
-    height: .9rem;
-  }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span) > span:first-child,
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) > div:first-child {
-    font-size: .66rem !important;
-    line-height: 1.15;
-  }
 
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> span:first-child + span) > span:nth-child(2),
-  main .page-shell:not(.dashboard-shell):not(.people-page) .premium-card:has(> div:first-child + div[class*="text-2xl"]) > div:nth-child(2) {
-    font-size: 1.32rem !important;
-    line-height: 1;
-  }
 
   main .premium-card,
   main [class*="rounded-2xl"] {
@@ -7583,10 +7455,10 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   main .mobile-segmented .drawer-tab-active {
-    background: var(--accent-soft);
-    border-color: color-mix(in srgb, var(--accent) 42%, transparent) !important;
-    color: var(--accent-strong) !important;
-    box-shadow: 0 6px 16px color-mix(in srgb, var(--accent) 12%, transparent);
+    background: var(--coral-soft);
+    border-color: color-mix(in srgb, var(--coral) 35%, transparent) !important;
+    color: var(--coral-ink) !important;
+    box-shadow: none;
   }
 
   main .mobile-toolbar-actions {
@@ -8942,10 +8814,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     left: max(.45rem, calc(var(--mobile-nav-safe-left) + .2rem));
   }
 
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h1),
-  .page-shell > :first-child:not(.home-actions):not(.emp-profile):not(.profile-hero):has(h2) {
-    padding: .75rem;
-  }
 
   .user-profile-details {
     grid-template-columns: minmax(0, 1fr);
@@ -9142,8 +9010,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 .mobile-nav-section[aria-current="page"] {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: var(--coral-soft);
+  color: var(--coral-ink);
 }
 
 .mobile-nav-section[aria-current="page"] > svg { color: currentColor; }
@@ -9175,9 +9043,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 }
 
 .mobile-nav-screens > button.is-active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-weight: 800;
+  background: var(--coral-soft);
+  color: var(--coral-ink);
+  font-weight: 700;
 }
 
 .employee-more-nav {
@@ -9234,9 +9102,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
 
 .employee-more-tile:hover,
 .employee-more-tile[aria-current="page"] {
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--surface-border));
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  border-color: color-mix(in srgb, var(--coral) 35%, var(--surface-border));
+  background: var(--coral-soft);
+  color: var(--coral-ink);
   transform: translateY(-1px);
 }
 
@@ -9508,9 +9376,8 @@ button.role-chip:hover,
     flex-shrink: 0;
   }
 
-  .mobile-search-trigger,
-  .header-install-action,
-  .header-profile-trigger {
+  /* Phone top bar (2026 redesign): brand, search, role, bell and your avatar. */
+  .header-install-action {
     display: none !important;
   }
 
@@ -9733,12 +9600,9 @@ button.role-chip:hover,
 .settings-theme-switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 @media (max-width: 640px) {
+  /* Appearance lives in the More menu on a phone. */
   .header-theme-toggle {
-    display: inline-flex !important;
-    width: 2.75rem;
-    height: 2.75rem;
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    display: none !important;
   }
   .settings-theme-row { grid-template-columns: minmax(0, 1fr) auto; gap: .5rem; }
   .settings-theme-row .settings-row-action,

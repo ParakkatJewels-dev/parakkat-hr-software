@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import {
-  ESS_NAV, OVERSIGHT_NAV, canSeeTab, visibleSections as navSections,
-  mobilePrimarySections as pickMobilePrimary,
+  ESS_NAV, OVERSIGHT_NAV, OVERSIGHT_GROUPS, canSeeTab, visibleSections as navSections,
+  mobilePrimarySections as pickMobilePrimary, groupSections,
 } from './lib/navMap';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  LayoutDashboard, Users, Clock, Calendar, DollarSign, Receipt, HelpCircle, LogOut, Menu, X, Sun, Moon, FolderOpen, BarChart3, Shield, Settings, Terminal, Search, ChevronLeft, ChevronRight, ListChecks, Download, RefreshCw, WifiOff, Boxes, Target, UserRound, Bell, MessageSquare, NotebookPen,
+  House, Users, CalendarDays, Calendar, Wallet, Receipt, Headset, LogOut, X, Sun, Moon, FolderOpen, ChartColumn, Shield, Settings, Terminal, Search, ChevronRight, ClipboardList, Download, RefreshCw, WifiOff, Laptop, Target, UserRound, Bell, MessageSquare, Ellipsis,
 } from 'lucide-react';
 
 // Import components
@@ -44,7 +44,10 @@ import BrandMark from './components/ui/BrandMark';
 import RoleSwitcher from './components/ui/RoleSwitcher';
 import LiquidGlassNav from './components/ui/LiquidGlassNav';
 import { NavigationCountBadge, NavigationCountStatus } from './components/ui/CountBadge';
+import Sidebar from './components/shell/Sidebar';
+import { ShellNavContext } from './components/shell/shellNavContext';
 import './components/ui/liquidGlassNav.css';
+import './components/shell/shell.css';
 import { useAuth } from './auth/AuthContext';
 import { useEmployeeAvatars } from './data/documents';
 import './components/profileNavigation.css';
@@ -73,8 +76,8 @@ const prettyRole = (key) =>
 const MOBILE_NAV_LABELS = {
   dashboard: 'Home',
   directory: 'People',
-  menu: 'Menu',
-  attendance: 'Time',
+  menu: 'More',
+  attendance: 'Attendance',
   leave: 'Leave',
   payroll: 'Pay',
   tasks: 'Tasks',
@@ -463,14 +466,14 @@ export default function App() {
   // drift from this one within a release. Icons stay here: navMap is plain data so it can be
   // tested without pulling React in.
   const SECTION_ICONS = {
-    home: LayoutDashboard, messages: MessageSquare, people: Users, time: Clock, pay: DollarSign,
-    'asset-management': Boxes, work: ListChecks, support: HelpCircle,
-    insights: BarChart3, account: UserRound, admin: Shield,
+    home: House, messages: MessageSquare, people: Users, time: CalendarDays, pay: Wallet,
+    'asset-management': Laptop, work: ClipboardList, support: Headset,
+    insights: ChartColumn, account: UserRound, admin: Settings,
   };
   const ESS_ICONS = {
-    dashboard: LayoutDashboard, attendance: Clock, leave: Calendar, payroll: DollarSign,
-    tasks: ListChecks, messages: MessageSquare, performance: Target, ledger: NotebookPen, expense: Receipt, 'my-assets': Boxes,
-    documents: FolderOpen, helpdesk: HelpCircle, profile: UserRound, notifications: Bell,
+    dashboard: House, attendance: CalendarDays, leave: Calendar, payroll: Wallet,
+    tasks: ClipboardList, messages: MessageSquare, performance: Target, ledger: ClipboardList, expense: Receipt, 'my-assets': Laptop,
+    documents: FolderOpen, helpdesk: Headset, profile: UserRound, notifications: Bell,
     settings: Settings,
   };
 
@@ -490,7 +493,7 @@ export default function App() {
   // Sections the user may see at all, with their permitted screens, each carrying its icon.
   const visibleSections = navSections(primaryRole, navPredicates).map((sec) => ({
     ...sec,
-    icon: SECTION_ICONS[sec.id] ?? ESS_ICONS[sec.id] ?? LayoutDashboard,
+    icon: SECTION_ICONS[sec.id] ?? ESS_ICONS[sec.id] ?? House,
     tabs: sec.tabs.map((t) => ({ ...t, icon: t.icon ?? ESS_ICONS[t.id] })),
   }));
 
@@ -543,7 +546,6 @@ export default function App() {
     visibleSections.find((sec) => sec.tabs.some((t) => t.to === here))
     ?? visibleSections.find((sec) => sec.tabs.some((t) => t.id === activeTab))
     ?? visibleSections[0]);
-  const activeTabMeta = allTabs.find((t) => t.id === activeTab);
 
   const displayRole = namingRole === null ? null : primaryRole;
   const appName = appNameFor(displayRole);
@@ -557,7 +559,7 @@ export default function App() {
 
   const mobilePrimarySections = pickMobilePrimary(visibleSections, primaryRole).map(section => ({
     ...section,
-    icon: ESS_ICONS[section.id] ?? (section.id === 'menu' ? Menu : section.icon),
+    icon: ESS_ICONS[section.id] ?? (section.id === 'menu' ? Ellipsis : section.icon),
     label: MOBILE_NAV_LABELS[section.id] ?? section.label,
     avatarUrl: section.id === 'profile' ? avatarUrl : undefined,
     initials: displayInitials,
@@ -568,6 +570,11 @@ export default function App() {
     ...section,
     tabs: section.tabs.filter(tab => !needle || `${section.label} ${tab.label} ${MOBILE_NAV_LABELS[tab.id] || ''}`.toLowerCase().includes(needle)),
   })).filter(section => section.tabs.length);
+
+  // Where you are, for the page header's breadcrumb and section tabs (see ui/PageHeader).
+  const shellNav = {
+    section: activeSection, activeTab, screenBadge, navTarget, select: setActiveTab,
+  };
 
   // Open a section from the sidebar: land on the first screen the user may actually see.
   const openSection = (sec) => {
@@ -595,62 +602,6 @@ export default function App() {
   const filteredCommands = commandOptions.filter((cmd) =>
     cmd.label.toLowerCase().includes(commandSearch.toLowerCase())
   );
-
-  // Sidebar: one row per section. No group headings any more — eight destinations do not need
-  // sub-titles to be scannable, and removing them buys back vertical space.
-  // The desktop sidebar. The phone gets renderMobileNavTree below, which carries a second level
-  // the sidebar does not need — a desktop already shows the section's screens on a tab strip.
-  const renderNavLinks = () => {
-    const isCollapsedDesktop = isSidebarCollapsed;
-
-    return (
-      <div className="space-y-0.5">
-        {visibleSections.map((sec) => {
-          const Icon = sec.icon;
-          const isActive = activeSection?.id === sec.id;
-          const badge = sectionBadge(sec);
-          const label = navigationCountLabel(sec.label, badge);
-          return (
-            <button
-              key={sec.id}
-              onClick={() => {
-                openSection(sec);
-              }}
-              aria-current={isActive ? 'page' : undefined}
-              title={isCollapsedDesktop ? label : undefined}
-              aria-label={label}
-              className={`w-full flex items-center rounded-xl text-base font-semibold cursor-pointer transition-colors duration-200 group relative border border-transparent ${
-                isCollapsedDesktop ? 'justify-center p-2.5' : 'gap-3 px-3 py-2.5'
-              } ${
-                isActive
-                  ? 'nav-item-active'
-                  : 'text-neutral-500 dark:text-warm-gray-400 hover:bg-neutral-50 dark:hover:bg-charcoal-800/80 hover:text-neutral-900 dark:hover:text-warm-gray-100'
-              }`}
-            >
-              <span className="nav-message-icon" aria-hidden="true"><Icon
-                size={isCollapsedDesktop ? 18 : 16}
-                className={`shrink-0 ${
-                  isActive
-                    ? 'text-black dark:text-brand-ink'
-                    : 'text-neutral-400 dark:text-neutral-500 group-hover:text-neutral-850 dark:group-hover:text-warm-gray-100'
-                }`}
-              />
-              {isCollapsedDesktop && <NavigationCountBadge badge={badge} corner />}
-              </span>
-              {!isCollapsedDesktop && <span className="truncate">{sec.label}</span>}
-              {!isCollapsedDesktop && <NavigationCountBadge badge={badge} />}
-
-              {isCollapsedDesktop && (
-                <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 absolute left-full ml-4 px-2.5 py-1.5 bg-neutral-900/95 dark:bg-white text-white dark:text-charcoal-900 text-base font-bold rounded-lg shadow-xl transition-opacity duration-200 whitespace-nowrap z-50 pointer-events-none">
-                  {label}
-                </div>
-              )}
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
 
   /**
    * The menu opened from Profile contains the complete permitted navigation tree.
@@ -718,7 +669,10 @@ export default function App() {
 
     return (
       <div className="mobile-nav-tree">
-        {menuSections.map((sec) => {
+        {groupSections(menuSections, OVERSIGHT_GROUPS).map((group) => (
+        <div key={group.title ?? 'more'} className="mobile-nav-block">
+        {group.title && <p className="mobile-nav-heading">{group.title}</p>}
+        {group.sections.map((sec) => {
         const single = sec.tabs.length === 1 ? sec.tabs[0] : null;
         const Icon = single?.icon ?? sec.icon;
         const sectionActive = !isNotFound && (single ? single.id === activeTab : activeSection?.id === sec.id);
@@ -762,6 +716,8 @@ export default function App() {
           </div>
         );
       })}
+        </div>
+        ))}
       </div>
     );
   };
@@ -774,120 +730,41 @@ export default function App() {
         document.getElementById('main-content')?.focus({ preventScroll: true });
       }}>Skip to content</a>
 
-      {/* Sidebar - Desktop */}
-      <aside inert={mobileMenuOpen || undefined} aria-hidden={mobileMenuOpen || undefined} className={`hidden lg:flex h-dvh flex-col bg-white dark:bg-charcoal-900 border-r border-neutral-200 dark:border-neutral-800 shrink-0 select-none transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-64'
-        }`}>
-        {/* Logo area */}
-        <div className={`p-4 flex items-center justify-between border-b border-neutral-100 dark:border-charcoal-800/80 transition-all duration-300 ${isSidebarCollapsed ? 'flex-col space-y-4 px-2' : 'flex-row'
-          }`}>
-          {!isSidebarCollapsed ? (
-            <>
-              <div className="flex items-center space-x-2.5 min-w-0">
-                <div className="p-2 bg-brand-action text-brand-on rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center shrink-0">
-                  <BrandMark size={15} />
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="font-extrabold text-xs leading-tight text-neutral-900 dark:text-warm-gray-100">{appName}</span>
-
-                </div>
-              </div>
-              <button
-                onClick={() => setIsSidebarCollapsed(true)}
-                className="p-1.5 hover:bg-neutral-100 dark:hover:bg-charcoal-800/80 rounded-lg text-neutral-455 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-warm-gray-200 transition-colors"
-                title="Collapse Sidebar" aria-label="Collapse Sidebar"
-              >
-                <ChevronLeft size={14} />
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="p-2 bg-brand-action text-brand-on rounded-xl shadow-[0_0_18px_rgba(14,169,113,.2)] flex items-center justify-center">
-                <BrandMark size={16} />
-              </div>
-              <button
-                onClick={() => setIsSidebarCollapsed(false)}
-                className="p-1.5 hover:bg-neutral-100 dark:hover:bg-charcoal-800/80 rounded-lg text-neutral-455 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-warm-gray-200 transition-colors"
-                title="Expand Sidebar" aria-label="Expand Sidebar"
-              >
-                <ChevronRight size={14} />
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Grouped Links Navigation */}
-        <nav className="flex-1 py-3 px-2.5 space-y-3 overflow-y-auto max-h-[calc(100vh-140px)]">
-          {renderNavLinks()}
-          <NavigationCountStatus {...countStatus} compact={isSidebarCollapsed} />
-        </nav>
-
-        {/* Footer profile metadata */}
-        <div className={`p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-charcoal-900 flex transition-colors duration-300 ${isSidebarCollapsed ? 'flex-col items-center space-y-3 px-2' : 'items-center justify-between'
-          }`}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('profile')}
-            className="flex items-center space-x-2.5 min-w-0 text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-            title="Open my profile"
-            aria-label="Open my profile"
-          >
-            <div className="w-9 h-9 rounded-xl bg-brand-action text-brand-on flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
-              {displayInitials}
-            </div>
-            {!isSidebarCollapsed && (
-              <div className="min-w-0">
-                <span className="block text-xs font-bold text-neutral-800 dark:text-warm-gray-100 truncate">{displayName}</span>
-                <span className="block text-2xs text-neutral-455 dark:text-neutral-500 truncate">{displaySubtitle}</span>
-              </div>
-            )}
-          </button>
-          <button
-            onClick={signOut}
-            className={`p-1.5 bg-neutral-105 dark:bg-neutral-900 hover:bg-neutral-200 dark:hover:bg-neutral-800 text-neutral-505 dark:text-neutral-455 hover:text-neutral-900 dark:hover:text-neutral-200 rounded-lg cursor-pointer transition-colors ${isSidebarCollapsed ? 'w-8 h-8 flex items-center justify-center' : ''
-              }`}
-            title="Sign Out" aria-label="Sign Out"
-          >
-            <LogOut size={13} />
-          </button>
-        </div>
-      </aside>
+      <Sidebar
+        groups={groupSections(visibleSections, primaryRole === 'employee' ? ESS_NAV.map((group) => group.title) : OVERSIGHT_GROUPS)}
+        activeSectionId={activeSection?.id}
+        collapsed={isSidebarCollapsed}
+        onCollapsedChange={setIsSidebarCollapsed}
+        sectionBadge={sectionBadge}
+        onOpenSection={openSection}
+        countStatus={countStatus}
+        identity={{ name: displayName, subtitle: roleLabel, initials: displayInitials, avatarUrl }}
+        onOpenProfile={() => setActiveTab('profile')}
+        onSignOut={signOut}
+        hidden={mobileMenuOpen}
+      />
 
       {/* Main Panel Content Area */}
       <div inert={mobileMenuOpen || undefined} aria-hidden={mobileMenuOpen || undefined} className="app-content flex-1 flex min-h-0 flex-col min-w-0">
 
-        {/* Header toolbar */}
-        <header data-profile-page={!isNotFound && activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined} className="app-header border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-charcoal-900/85 backdrop-blur-md flex justify-between items-center px-4 sm:px-6 sticky top-0 z-35 transition-colors duration-200">
-          {/* Mobile menu toggle & Title */}
-          <div className="app-header-title flex items-center gap-3.5">
-            <span className="app-header-title-label font-semibold text-xs sm:text-sm text-neutral-800 dark:text-neutral-200 truncate max-w-[145px] sm:max-w-none">
-              {isNotFound ? 'Page not found' : activeTab === 'dashboard' ? appName : activeSection?.label || appName}
-              {activeSection && activeSection.tabs.length > 1 && activeTabMeta && (
-                <span className="hidden sm:inline text-neutral-400 dark:text-neutral-500 font-normal">
-                  {' · '}{activeTabMeta.label}
-                </span>
-              )}
+        {/* Top bar: brand on phones, search on larger screens, then the account controls. */}
+        <header data-profile-page={!isNotFound && activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined} className="app-header">
+          <div className="app-header-start">
+            <span className="app-header-brand lg:hidden">
+              <span className="app-header-logo" aria-hidden="true"><BrandMark size={20} /></span>
+              <span className="app-header-wordmark"><strong>PARAKKAT</strong><span>HRMS</span></span>
             </span>
+            <button type="button" onClick={() => setShowCommandPalette(true)} className="app-header-search hidden md:flex">
+              <Search size={17} className="shrink-0" aria-hidden="true" />
+              <span className="truncate">Search screens and actions…</span>
+              <kbd>⌘K</kbd>
+            </button>
           </div>
 
-          {/* Quick options */}
-          <div className="app-header-actions flex items-center gap-1.5 sm:gap-4">
-
-            {/* Ctrl + K search bar */}
-            <button
-              onClick={() => setShowCommandPalette(true)}
-              className="hidden md:flex items-center gap-2 w-56 lg:w-72 px-3 py-2 bg-neutral-100 dark:bg-charcoal-800/60 border border-neutral-200/85 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-brand/25 text-neutral-500 dark:text-neutral-400 rounded-xl text-xs cursor-pointer transition-all"
-            >
-              <Search size={14} className="shrink-0" />
-              <span className="truncate">Search anything…</span>
-              <span className="ml-auto shrink-0 text-2xs font-mono px-1.5 py-0.5 bg-white dark:bg-charcoal-900 text-neutral-500 dark:text-neutral-400 rounded-md border border-neutral-200 dark:border-neutral-800">⌘K</span>
-            </button>
-
-            {/* Mobile search icon */}
-            <button
-              onClick={() => setShowCommandPalette(true)}
-              className="mobile-search-trigger md:hidden p-2 hover:bg-neutral-100 dark:hover:bg-charcoal-800/80 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
-            >
-              <Search size={16} />
+          <div className="app-header-actions">
+            <button type="button" onClick={() => setShowCommandPalette(true)} aria-label="Search"
+              className="mobile-search-trigger app-header-icon md:hidden">
+              <Search size={18} />
             </button>
 
             {/* Which role you are working as — and, when you hold more than one, the way to change
@@ -942,7 +819,7 @@ export default function App() {
               type="button"
               onClick={toggleTheme}
               aria-pressed={theme === 'dark'}
-              className="header-theme-toggle inline-flex items-center justify-center min-h-11 min-w-11 p-2 hover:bg-neutral-100 dark:hover:bg-neutral-900 rounded-xl text-neutral-550 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors cursor-pointer"
+              className="header-theme-toggle app-header-icon"
               title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             >
               {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
@@ -951,23 +828,18 @@ export default function App() {
             {/* Notification trigger */}
             <NotificationBell onNavigate={setActiveTab} />
 
-            {/* User chip */}
+            {/* Account */}
             <button
               type="button"
               onClick={() => setActiveTab('profile')}
-              className="header-profile-trigger flex min-h-11 min-w-11 sm:min-w-0 items-center justify-center gap-2.5 pl-0 sm:pl-3 ml-0.5 sm:border-l border-neutral-200 dark:border-neutral-800 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
-              title="Open my profile"
+              className="header-profile-trigger"
+              title={`${displayName} · ${roleLabel}`}
               aria-label="Open my profile"
             >
-              <div className="w-8 h-8 rounded-xl bg-brand-action text-brand-on flex items-center justify-center font-bold text-xs shrink-0 font-mono shadow-sm">
-                {displayInitials}
-              </div>
-              <div className="hidden lg:flex flex-col leading-none min-w-0 max-w-[130px]">
-                <span className="text-xs font-bold text-neutral-800 dark:text-warm-gray-100 truncate">{displayName}</span>
-                <span className="text-2xs text-neutral-455 dark:text-neutral-500 truncate mt-0.5">{roleLabel}</span>
-              </div>
+              <span className="header-profile-avatar" aria-hidden="true">
+                {avatarUrl ? <img src={avatarUrl} alt="" /> : displayInitials}
+              </span>
             </button>
-
           </div>
         </header>
 
@@ -1012,39 +884,6 @@ export default function App() {
           </div>
         )}
 
-        {/* Content main body */}
-        {/* Second level: only shown when a section actually holds more than one screen, so
-            single-screen sections stay one click deep. */}
-        {activeSection && activeSection.tabs.length > 1 && (
-          <nav
-            aria-label={`${activeSection.label} sections`}
-            data-profile-page={!isNotFound && activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
-            className="section-tabbar shrink-0 border-b border-neutral-200 dark:border-neutral-850 bg-white/70 dark:bg-charcoal-900/60 backdrop-blur-sm px-4 sm:px-6"
-          >
-            <div className="section-tab-scroll tab-scroll flex gap-5 -mb-px">
-              {activeSection.tabs.map((t) => {
-                const on = activeTab === t.id;
-                const badge = screenBadge(t.id);
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => setActiveTab(navTarget(t))}
-                    aria-current={on ? 'page' : undefined}
-                    aria-label={navigationCountLabel(t.label, badge)}
-                    className={`section-tab-button shrink-0 whitespace-nowrap py-2.5 text-base font-semibold border-b-2 cursor-pointer transition-colors ${
-                      on
-                        ? 'border-brand text-brand-ink'
-                        : 'border-transparent text-neutral-500 hover:text-neutral-900 dark:hover:text-white'
-                    }`}
-                  >
-                    {t.label}<NavigationCountBadge badge={badge} />
-                  </button>
-                );
-              })}
-            </div>
-          </nav>
-        )}
-
         <main
           id="main-content"
           data-profile-page={!isNotFound && activeTab === 'profile' && canViewTab('profile') ? 'true' : undefined}
@@ -1072,6 +911,7 @@ export default function App() {
             </strong>
           </div>
           <div ref={routeStageRef} className="route-stage" data-route={location.pathname}>
+            <ShellNavContext.Provider value={shellNav}>
             <Suspense fallback={<SkeletonPage />}>
             {(() => {
               if (ledgerTarget) return <SkeletonPage />;
@@ -1157,6 +997,7 @@ export default function App() {
               }
             })()}
             </Suspense>
+            </ShellNavContext.Provider>
           </div>
         </main>
 

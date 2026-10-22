@@ -1,0 +1,83 @@
+/* Number cards (2026 redesign). Tones come from the --tone-* tokens in index.css. */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: .9rem;
+}
+
+.stat-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: .9rem;
+  min-width: 0;
+  padding: 1.05rem 1.1rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-card);
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  text-align: left;
+  box-shadow: var(--shadow-card);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+  --tile-bg: var(--tone-green-bg);
+  --tile-fg: var(--tone-green-fg);
+}
+.stat-card[data-tone="blue"]   { --tile-bg: var(--tone-blue-bg);   --tile-fg: var(--tone-blue-fg); }
+.stat-card[data-tone="violet"] { --tile-bg: var(--tone-violet-bg); --tile-fg: var(--tone-violet-fg); }
+.stat-card[data-tone="amber"]  { --tile-bg: var(--tone-amber-bg);  --tile-fg: var(--tone-amber-fg); }
+.stat-card[data-tone="red"]    { --tile-bg: var(--tone-red-bg);    --tile-fg: var(--tone-red-fg); }
+.stat-card[data-tone="coral"]  { --tile-bg: var(--tone-coral-bg);  --tile-fg: var(--tone-coral-fg); }
+.stat-card[data-tone="slate"]  { --tile-bg: var(--tone-slate-bg);  --tile-fg: var(--tone-slate-fg); }
+
+.stat-card.is-clickable { cursor: pointer; }
+.stat-card.is-clickable:hover { border-color: var(--surface-border-strong); box-shadow: var(--shadow-card-hover); }
+.stat-card.is-clickable:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.stat-card.is-active { border-color: color-mix(in srgb, var(--coral) 55%, transparent); box-shadow: 0 0 0 3px var(--coral-soft); }
+
+.stat-card-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: .875rem;
+  background: var(--tile-bg);
+  color: var(--tile-fg);
+}
+.stat-card-copy { display: flex; min-width: 0; flex-direction: column; gap: .15rem; }
+.stat-card-label {
+  overflow: hidden;
+  color: var(--surface-text-soft);
+  font-size: .8125rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-card-value {
+  color: var(--surface-text);
+  font-size: 1.6rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  letter-spacing: -.01em;
+}
+.stat-card-skeleton { width: 3.5rem; height: 1.6rem; }
+.stat-card-sub {
+  overflow: hidden;
+  color: var(--surface-text-soft);
+  font-size: .75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stat-card-sub[data-tone="good"] { color: var(--tone-green-fg); font-weight: 600; }
+.stat-card-sub[data-tone="bad"]  { color: var(--tone-red-fg); font-weight: 600; }
+.stat-card-sub[data-tone="warn"] { color: var(--tone-amber-fg); font-weight: 600; }
+
+@media (max-width: 640px) {
+  .stat-row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+  .stat-card { gap: .65rem; padding: .8rem .85rem; }
+  .stat-card-icon { width: 2.5rem; height: 2.5rem; border-radius: .75rem; }
+  .stat-card-icon svg { width: 19px; height: 19px; }
+  .stat-card-value { font-size: 1.3rem; }
+}

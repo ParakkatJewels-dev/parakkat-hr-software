@@ -23,6 +23,8 @@ import Pagination from './ui/Pagination';
 import { paginationWindow } from '../lib/pagination';
 import { humanDbError } from '../lib/dbErrors';
 import { Skeleton, SkeletonRows } from './ui/Skeleton';
+import PageHeader from './ui/PageHeader';
+import { btnClass } from './ui/Btn';
 
 /** Midnight-based buckets: "today" has to mean the calendar day, not the last 24 hours. */
 function bucketOf(iso) {
@@ -67,22 +69,15 @@ export default function Notifications({ onNavigate }) {
 
   return (
     <div className="page-shell space-y-4 animate-fade-in">
-      <div className="mobile-list-row flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans">Notifications</h1>
-          {isLoading ? <Skeleton className="h-3 w-52 mt-1.5" /> : <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            {unreadCount > 0 ? `${unreadCount} unread` : 'Everything here has been read.'} · {pager.count} notifications
-          </p>}
-        </div>
-        {unreadCount > 0 && (
-          <button
-            onClick={() => markAllRead.mutate()}
-            className="flex items-center gap-1.5 text-2xs font-bold text-neutral-600 dark:text-neutral-300 hover:text-black dark:hover:text-brand-ink px-2.5 py-1.5 bg-neutral-100 dark:bg-charcoal-800 rounded-xl transition-colors cursor-pointer shrink-0"
-          >
-            <CheckCheck size={12} /> Mark all read
+      <PageHeader
+        title="Notifications"
+        subtitle={isLoading ? <Skeleton className="h-3 w-52 mt-1.5" /> : `${unreadCount > 0 ? `${unreadCount} unread` : 'Everything here has been read.'} · ${pager.count} notifications`}
+        actions={unreadCount > 0 && (
+          <button type="button" onClick={() => markAllRead.mutate()} className={btnClass('ghost')}>
+            <CheckCheck size={15} /> Mark all read
           </button>
         )}
-      </div>
+      />
 
       {/* A mark-read that reached no row now says so instead of leaving the badge stuck. This is
           the only one of the three surfaces with room to show it. */}

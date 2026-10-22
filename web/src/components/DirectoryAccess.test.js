@@ -37,6 +37,7 @@ const stubs = {
   './LoginHandoverNotice': 'export default "login-handover";',
   './ui/Skeleton': 'export const SkeletonForm = "skeleton-form", SkeletonRows = "skeleton-rows";',
   './ui/FilterSelect': 'export default "filter-select";',
+  './ui/PageHeader': 'export default "page-header";',
   './ui/Btn': 'export const btnClass = () => "button";',
   './ui/Pagination': 'export default "pagination";',
   './ui/PagedCollection': 'export default "paged-collection";',

@@ -13,12 +13,10 @@ before(async () => {
 });
 after(async () => { await server?.close(); });
 
-test('primary and positive actions share the app palette in both themes', () => {
-  for (const variant of ['primary', 'success']) {
-    const classes = btnClass(variant);
-    assert.match(classes, /bg-brand-action text-brand-on hover:bg-brand-action-hover/);
-    assert.doesNotMatch(classes, /bg-black|bg-neutral-900|bg-\[#/);
-  }
+test('primary actions are the coral action colour and approvals are green, in both themes', () => {
+  assert.match(btnClass('primary'), /bg-brand-action text-brand-on hover:bg-brand-action-hover/);
+  assert.match(btnClass('success'), /bg-emerald-700 text-white hover:bg-emerald-800/);
+  for (const variant of ['primary', 'success']) assert.doesNotMatch(btnClass(variant), /bg-black|bg-neutral-900|bg-\[#/);
 });
 
 test('danger and caution remain distinct from the brand; dismissals stay neutral', () => {
@@ -27,10 +25,10 @@ test('danger and caution remain distinct from the brand; dismissals stay neutral
   assert.doesNotMatch(btnClass('ghost'), /bg-brand-action|bg-red-/);
 });
 
-test('avatars use stable brand tints rather than a separate colour palette', () => {
+test('avatars use stable pastel tints with same-hue text in both themes', () => {
   for (const name of ['Anjali', 'Arjun', 'Sushil', 'Sample Person', '', 'Parakkat']) {
     assert.equal(tintFor(name), tintFor(name));
-    assert.match(tintFor(name), /bg-brand\/\d+ text-brand-ink/);
+    assert.match(tintFor(name), /^bg-(\w+)-100 text-\1-[78]00 dark:bg-\1-950\/60 dark:text-\1-200$/);
   }
 });
 
@@ -46,11 +44,15 @@ const luminance = (hex) => hex.slice(1).match(/../g)
   .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
 const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + .05) / (Math.min(luminance(a), luminance(b)) + .05);
 
-test('brand text and action labels meet 4.5:1 contrast in light and dark themes', () => {
+test('brand text meets 4.5:1 and action labels stay on the chosen coral in light and dark themes', () => {
   for (const selector of [':root', '\\.dark']) {
     const theme = palette(selector);
+    // The action colour is the redesign's exact coral (#ff5a27) with white text, about 3:1. A deeper,
+    // 4.5:1 shade was offered and the owner chose the exact board colour on 22 Oct 2026, so this
+    // pins that choice (and stops it drifting lighter) instead of the 4.5:1 floor.
+    assert.equal(theme['--accent-action'], '#ff5a27', `${selector} action colour`);
     for (const background of ['--accent-action', '--accent-action-hover']) {
-      assert.ok(contrast(theme['--accent-on'], theme[background]) >= 4.5, `${selector} action text on ${background}`);
+      assert.ok(contrast(theme['--accent-on'], theme[background]) >= 2.9, `${selector} action text on ${background}`);
     }
     for (const background of ['--surface-elevated', '--surface-subtle', '--surface-muted']) {
       assert.ok(contrast(theme['--accent-ink'], theme[background]) >= 4.5, `${selector} brand text on ${background}`);

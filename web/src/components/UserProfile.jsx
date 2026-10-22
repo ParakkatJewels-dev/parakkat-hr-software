@@ -23,6 +23,7 @@ import { useEmployeeAssets } from '../data/assets';
 import { useUpdateMyProfile } from '../data/settings';
 import PagedCollection from './ui/PagedCollection';
 import './profileMenu.css';
+import PageHeader from './ui/PageHeader';
 
 const initials = (name) =>
   (name || '')
@@ -228,6 +229,7 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings, on
   return (
     <div className="page-shell user-profile animate-fade-in">
       <ProfileMenuHeader onOpenMenu={onOpenMenu} menuOpen={menuOpen} />
+      <PageHeader className="profile-page-header" title="My Profile" subtitle="Your details as the company holds them." />
       <header className="profile-hero">
         <div className="profile-hero-main">
           <div className="profile-avatar">
@@ -239,7 +241,7 @@ export default function UserProfile({ roleLabel = 'Employee', onOpenSettings, on
           </div>
 
           <div className="profile-identity">
-            <h1>{displayName}</h1>
+            <h2>{displayName}</h2>
             <p>{record?.designation?.title || roleLabel}</p>
             <div className="profile-chips">
               {record?.status && (

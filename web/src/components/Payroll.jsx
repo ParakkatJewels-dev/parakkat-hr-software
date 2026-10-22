@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { hasAnyPayrollSessionChanges } from '../lib/usePayrollSessionState';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  DollarSign, FileText, Loader2, AlertTriangle, Play, Plus, Trash2, X,
+  FileText, Loader2, AlertTriangle, Play, Plus, Trash2, X,
   Settings2, Users, History,
 } from 'lucide-react';
 import {
@@ -33,6 +33,7 @@ import PayrollWorksheet from './PayrollWorksheet';
 import PayrollSalarySetup from './PayrollSalarySetup';
 import PayrollHistory from './PayrollHistory';
 import PayrollCalculationDetail from './PayrollCalculationDetail';
+import PageHeader from './ui/PageHeader';
 
 const money = (n) =>
   n == null
@@ -94,16 +95,12 @@ export default function Payroll() {
 
   return (
     <div className="page-shell space-y-5 animate-fade-in">
-      <div>
-        <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-          <DollarSign size={20} className="text-brand-ink" /> Payroll
-        </h1>
-        <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-          {canManage
-            ? 'Run each month in three steps. Keep salary setup and past payroll in one place.'
-            : 'Your payslips.'}
-        </p>
-      </div>
+      <PageHeader
+        title={canManage ? 'Payroll' : 'My Payslips'}
+        subtitle={canManage
+          ? 'Prepare, review and publish each month. Salary setup and past payroll live here too.'
+          : 'Your payslips.'}
+      />
 
       {TABS.length > 1 && (
         <nav aria-label="Payroll views" className="mobile-segmented mobile-segmented-dense tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">

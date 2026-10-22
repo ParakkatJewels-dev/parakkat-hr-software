@@ -13,7 +13,7 @@ import { SkeletonPage, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useDeferredValue, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Users, UserPlus, UserMinus, Search, AlertTriangle, History, X, Building2, ChevronRight,
+  UserPlus, UserMinus, Search, AlertTriangle, History, X, Building2, ChevronRight,
 } from 'lucide-react';
 import { usePermissions } from '../auth/usePermissions';
 import {
@@ -28,6 +28,7 @@ import Avatar from './ui/Avatar';
 import ListSearch from './ui/ListSearch';
 import { useRevealOnOpen } from '../lib/useRevealOnOpen';
 import { relativeTime } from '../lib/dates';
+import PageHeader from './ui/PageHeader';
 
 const INPUT =
   'w-full text-sm rounded-xl px-3 py-2 bg-neutral-50 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-850 text-neutral-800 dark:text-neutral-200 focus:outline-none focus:border-brand transition-colors';
@@ -100,25 +101,18 @@ export default function Team() {
 
   return (
     <div className="page-shell space-y-6 animate-slide-up">
-      <div className="flex flex-wrap justify-between items-center gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-            <Users size={20} className="text-brand-ink" /> My Team
-          </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Who works in your department. Changes here stay in this app — nothing is written back to
-            the attendance terminal.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button onClick={() => setShowHistory((v) => !v)} className={btnClass('ghost')}>
-            <History size={13} /> <span>{showHistory ? 'Hide changes' : 'Recent changes'}</span>
+      <PageHeader
+        title="My Team"
+        subtitle="Who works in your department. Changes here stay in this app — nothing is written back to the attendance terminal."
+        actions={<>
+          <button type="button" onClick={() => setShowHistory((v) => !v)} className={btnClass('ghost')}>
+            <History size={15} /> <span>{showHistory ? 'Hide changes' : 'Recent changes'}</span>
           </button>
-          <button onClick={() => setAdding(true)} className={btnClass('primary')}>
-            <UserPlus size={14} /> <span>Add someone</span>
+          <button type="button" onClick={() => setAdding(true)} className={btnClass('primary')}>
+            <UserPlus size={15} /> <span>Add someone</span>
           </button>
-        </div>
-      </div>
+        </>}
+      />
 
       {/* Only worth a picker when they run more than one. Styled like every other picker in the
           app — Performance, Reports, Payroll all use the soft accent for the selected one. This

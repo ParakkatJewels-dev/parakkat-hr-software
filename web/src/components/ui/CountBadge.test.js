@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createServer } from 'vite';
 import { NAVIGATION_COUNT_KEYS, navigationScreenCount } from '../../lib/navigationCounts.js';
 
-let server, CountBadge, LiquidGlassNav, App, AuthContext, originalWindow, originalStorage;
+let server, CountBadge, LiquidGlassNav, App, AuthContext, SectionTabs, ShellNavContext, originalWindow, originalStorage;
 let collapsed = false;
 before(async () => {
   originalWindow = globalThis.window;
@@ -18,6 +18,8 @@ before(async () => {
   ({ default: LiquidGlassNav } = await server.ssrLoadModule('/src/components/ui/LiquidGlassNav.jsx'));
   ({ default: App } = await server.ssrLoadModule('/src/App.jsx'));
   ({ AuthContext } = await server.ssrLoadModule('/src/auth/AuthContext.jsx'));
+  ({ default: SectionTabs } = await server.ssrLoadModule('/src/components/shell/SectionTabs.jsx'));
+  ({ ShellNavContext } = await server.ssrLoadModule('/src/components/shell/shellNavContext.js'));
   globalThis.localStorage = storage;
   globalThis.window = { localStorage: storage, navigator: { standalone: false }, matchMedia: () => ({ matches: false }), addEventListener() {}, removeEventListener() {} };
 });
@@ -76,20 +78,32 @@ test('LiquidGlassNav exposes exact action and unread counts without changing cur
   assert.doesNotMatch(empty, /class="count-badge/);
 });
 
-test('expanded and collapsed sidebars show visible section totals, tab counts, and unread messages', () => {
+test('expanded and collapsed sidebars show visible section totals and unread messages', () => {
   for (const value of [false, true]) {
     collapsed = value;
     const html = renderApp();
     assert.match(html, /aria-label="Time &amp; Attendance, 7 items needing action"/);
     assert.match(html, /aria-label="Work, 127 items needing action"/);
     assert.match(html, /aria-label="Support, 2 unresolved tickets"/);
-    assert.match(html, /aria-label="Attendance, 3 attendance requests to review"/);
-    assert.match(html, /aria-label="Leave, 4 leave requests to review"/);
     assert.match(html, /aria-label="Messages, 205 unread messages"/);
     assert.match(html, /aria-label="Chat, 205 unread messages"/);
     if (value) assert.match(html, /title="Work, 127 items needing action"/);
   }
   collapsed = false;
+});
+
+test('section tabs under the page title carry each screen\'s count', () => {
+  const section = { id: 'time', label: 'Time & Attendance', tabs: [
+    { id: 'attendance', label: 'Attendance' }, { id: 'leave', label: 'Leave' }, { id: 'attendance-admin', label: 'Shifts & Devices' },
+  ] };
+  const nav = { section, activeTab: 'attendance', screenBadge: id => navigationScreenCount(id, counts), navTarget: tab => tab.id, select() {} };
+  const html = renderToStaticMarkup(React.createElement(ShellNavContext.Provider, { value: nav }, React.createElement(SectionTabs)));
+  assert.match(html, /aria-label="Attendance, 3 attendance requests to review" class="section-tab-button is-active"|aria-current="page" aria-label="Attendance, 3 attendance requests to review"/);
+  assert.match(html, /aria-label="Leave, 4 leave requests to review"/);
+  assert.match(html, /aria-label="Shifts &amp; Devices"/);
+  assert.equal((html.match(/aria-current="page"/g) ?? []).length, 1);
+  const single = renderToStaticMarkup(React.createElement(ShellNavContext.Provider, { value: { ...nav, section: { ...section, tabs: section.tabs.slice(0, 1) } } }, React.createElement(SectionTabs)));
+  assert.equal(single, '', 'a one-screen section has no tab row');
 });
 
 test('a failed count refresh retains cached counts and an initial failure does not invent empty queues', () => {

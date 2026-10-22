@@ -6,7 +6,7 @@
 // creative team (departments a super admin chooses) also gets shared Campaigns, Ideas and Library.
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  BarChart3, BookOpen, CheckSquare, FileText, HandHelping, Home, Lightbulb, Megaphone, NotebookPen, Plus, Search, Settings, Trash2, Users,
+  BarChart3, BookOpen, CheckSquare, FileText, HandHelping, Home, Lightbulb, Megaphone, Plus, Search, Settings, Trash2, Users,
 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
@@ -36,6 +36,7 @@ import TaskManagement from './TaskManagement';
 import { NavigationCountBadge } from './ui/CountBadge';
 import { btnClass } from './ui/Btn';
 import './ledger/ledger.css';
+import PageHeader from './ui/PageHeader';
 
 // Recharts is large; only Insights needs it.
 const LedgerInsights = lazy(() => import('./ledger/LedgerInsights'));
@@ -184,22 +185,16 @@ export default function WorkLedger() {
   return (
     <LedgerContext.Provider value={context}>
       <div className="page-shell space-y-5 animate-fade-in ledger-page">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-neutral-900 dark:text-white leading-tight font-sans flex items-center gap-2">
-              <NotebookPen size={20} className="text-brand-ink" /> Work Ledger
-            </h1>
-            <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-              {[employee?.full_name, canTeam ? 'your work and your team’s' : 'your tasks, notes, help given and reports'].filter(Boolean).join(' · ')}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
+        <PageHeader
+          title="Work Ledger"
+          subtitle={[employee?.full_name, canTeam ? 'your work and your team’s' : 'your tasks, notes, help given and reports'].filter(Boolean).join(' · ')}
+          actions={<>
             <button type="button" className={btnClass('ghost')} onClick={() => setCommand('')} aria-keyshortcuts="/">
-              <Search size={14} /> Search or add <kbd className="ledger-kbd">/</kbd></button>
+              <Search size={15} /> Search or add <kbd className="ledger-kbd">/</kbd></button>
             <button type="button" className={btnClass('ghost')} onClick={() => setDrawer({ kind: 'help' })} aria-keyshortcuts="H">Log help</button>
             <button type="button" className={btnClass('primary')} onClick={() => setNewTask({})} aria-keyshortcuts="N"><Plus size={16} /> New task</button>
-          </div>
-        </div>
+          </>}
+        />
         <nav role="tablist" aria-label="Work Ledger sections"
           className="mobile-segmented mobile-segmented-dense tab-scroll flex border-b border-neutral-200 dark:border-neutral-900 space-x-5 text-xs">
           {tabs.map((item, index) => {
