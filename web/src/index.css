@@ -1039,15 +1039,6 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     border-color: color-mix(in srgb, var(--accent) 28%, var(--surface-border));
   }
 
-  .dashboard-widget::before {
-    content: '';
-    position: absolute;
-    inset-inline: 0;
-    top: 0;
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent), var(--tone-blue), var(--tone-amber));
-    opacity: .86;
-  }
 
   .dashboard-widget-head {
     padding-top: .25rem;
@@ -7598,23 +7589,9 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     min-width: 0;
   }
 
-  main .dashboard-widget {
-    padding: .75rem;
-  }
 
-  main .dashboard-widget-head {
-    margin-bottom: .55rem !important;
-  }
 
-  main .dashboard-widget-head h3 {
-    font-size: .68rem;
-    letter-spacing: .04em;
-  }
 
-  main .dashboard-widget-action {
-    font-size: .6875rem;
-    padding: .25rem .5rem;
-  }
 
   main .dashboard-alert-strip {
     padding: .65rem .75rem;
@@ -7685,20 +7662,7 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     line-height: 1.1;
   }
 
-  main .dashboard-widget > p {
-    padding-block: .75rem;
-    font-size: .72rem;
-    line-height: 1.25;
-  }
 
-  main .dashboard-widget p,
-  main .dashboard-widget em {
-    max-width: 100%;
-    overflow: hidden;
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-  }
 
   main .directory-overview {
     grid-template-columns: 1fr;

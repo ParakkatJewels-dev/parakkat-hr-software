@@ -241,10 +241,10 @@ for (const key of KEYS) {
     const total = leaves + punches + expenses;
     for (const Kpis of [TeamKpis, ZonalKpis]) {
       const html = render(Kpis, auth, seeds);
-      assert.match(html, new RegExp(`Pending Approvals<\\/span><\\/div><div class="dashboard-kpi-body"><p>${total}<\\/p>`));
+      assert.match(html, new RegExp(`stat-card-label">Pending Approvals<\\/span><span class="stat-card-value">${total}<\\/span>`));
     }
     for (const Kpis of [HrKpis, EntityKpis]) {
-      assert.match(render(Kpis, auth, seeds), new RegExp(`Pending Leaves<\\/span><\\/div><div class="dashboard-kpi-body"><p>${leaves}<\\/p>`));
+      assert.match(render(Kpis, auth, seeds), new RegExp(`stat-card-label">Pending Leaves<\\/span><span class="stat-card-value">${leaves}<\\/span>`));
     }
     const inbox = render(ApprovalsQueue, auth, seeds);
     if (key === 'employee') assert.equal(inbox, '');
@@ -406,5 +406,5 @@ test('HR dashboard month-to-date joiners exclude hires after today', () => {
   const html = render(HrKpis, actor('hr_manager'), [[['employees'], [
     { ...people[0], join_date: istToday() }, { ...people[1], join_date: '2099-12-31' },
   ]]]);
-  assert.match(html, /Joiners \(MTD\)<\/span><\/div><div class="dashboard-kpi-body"><p>1<\/p>/);
+  assert.match(html, /stat-card-label">Joiners \(MTD\)<\/span><span class="stat-card-value">1<\/span>/);
 });

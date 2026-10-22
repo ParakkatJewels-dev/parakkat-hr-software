@@ -25,7 +25,7 @@ export const ESS_NAV = [
   {
     title: 'Work',
     items: [
-      { id: 'dashboard', label: 'Dashboard', perm: null },
+      { id: 'dashboard', label: 'Home', perm: null },
       // The Work Ledger replaced Task Management; old /tasks links redirect to it (tasksToLedger).
       { id: 'ledger', label: 'Work Ledger', perm: 'task.read' },
       { id: 'tasks', label: 'My Tasks', perm: 'task.read', retired: true },
@@ -76,7 +76,7 @@ export const OVERSIGHT_NAV = [
     id: 'home',
     group: 'Workspace',
     label: 'Home',
-    tabs: [{ id: 'dashboard', label: 'Dashboard', perm: null }],
+    tabs: [{ id: 'dashboard', label: 'Home', perm: null }],
   },
   // Daily work stays near the top of the full menu as well as on the mobile bar.
   {

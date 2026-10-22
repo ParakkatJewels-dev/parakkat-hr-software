@@ -5,7 +5,7 @@ import React from 'react';
 import { SkeletonForm } from '../ui/Skeleton';
 import {
   Activity, UserPlus, DoorOpen, Briefcase, ReceiptText, FolderOpen,
-  Fingerprint, ShieldCheck, ScrollText, Building2, Network, HandHelping, ArrowRight, Clock3,
+  Fingerprint, ShieldCheck, ScrollText, Building2, HandHelping, ArrowRight, Clock3,
 } from 'lucide-react';
 import { useEmployees } from '../../data/employees';
 import { usePermissions } from '../../auth/usePermissions';
@@ -31,47 +31,49 @@ import { Widget, EmptyNote, StatPill, StatusBadge, fmtDay, inr, relTime } from '
 const monthStart = () => `${todayIso().slice(0, 7)}-01`;
 const pct = (value, total) => (total > 0 ? Math.max(0, Math.min(100, Math.round((value / total) * 100))) : 0);
 
-function ComparisonMetric({ label, value, tone = 'neutral' }) {
-  const tones = {
-    neutral: 'text-neutral-500 dark:text-neutral-400',
-    green: 'text-emerald-600 dark:text-emerald-400',
-    amber: 'text-amber-600 dark:text-amber-400',
-    red: 'text-rose-500',
-    blue: 'text-blue-500',
-  };
+/**
+ * Branches or companies side by side (2026 redesign): one row each with today's figures and an
+ * attendance bar. Rows open the related screen.
+ */
+function ComparisonTable({ nameLabel, rows, metrics, onOpen }) {
   return (
-    <span className="dashboard-comparison-metric">
-      <strong className={tones[tone]}>{value}</strong>
-      <span>{label}</span>
-    </span>
-  );
-}
-
-function ComparisonRow({ label, total, present = 0, late = 0, absent = 0, pending = 0, onLeave = 0, onClick }) {
-  const presentPct = pct(present, total);
-  const absentPct = pct(absent, total);
-  const leavePct = pct(onLeave, total);
-
-  return (
-    <button type="button" onClick={onClick} className="dashboard-comparison-row">
-      <div className="dashboard-comparison-main">
-        <span className="dashboard-comparison-code">{label}</span>
-        <span className="dashboard-comparison-sub">{presentPct}% present today</span>
-      </div>
-      <div className="dashboard-comparison-rail" aria-hidden="true">
-        <span className="is-present" style={{ width: `${presentPct}%` }} />
-        <span className="is-leave" style={{ width: `${leavePct}%` }} />
-        <span className="is-absent" style={{ width: `${absentPct}%` }} />
-      </div>
-      <div className="dashboard-comparison-metrics">
-        <ComparisonMetric label="staff" value={total} />
-        <ComparisonMetric label="in" value={present} tone="green" />
-        {late != null && <ComparisonMetric label="late" value={late} tone={late ? 'amber' : 'neutral'} />}
-        <ComparisonMetric label="absent" value={absent} tone={absent ? 'red' : 'neutral'} />
-        {pending != null && <ComparisonMetric label="pending" value={pending} tone={pending ? 'amber' : 'neutral'} />}
-        {onLeave != null && <ComparisonMetric label="leave" value={onLeave} tone="blue" />}
-      </div>
-    </button>
+    <div className="table-scroll comparison-table-wrap">
+      <table className="premium-table comparison-table">
+        <thead>
+          <tr>
+            <th scope="col">{nameLabel}</th>
+            <th scope="col">Employees</th>
+            {metrics.map((m) => <th key={m.key} scope="col">{m.label}</th>)}
+            <th scope="col">Attendance</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const share = pct(row.present, row.headcount);
+            return (
+              <tr key={row.code}>
+                <th scope="row" data-label={nameLabel}>
+                  <button type="button" className="comparison-name" onClick={onOpen}>
+                    <span aria-hidden="true"><Building2 size={15} /></span>
+                    <span className="min-w-0"><strong>{row.name || row.code}</strong>{row.name && row.name !== row.code && <small>{row.code}</small>}</span>
+                  </button>
+                </th>
+                <td data-label="Employees">{row.headcount}</td>
+                {metrics.map((m) => (
+                  <td key={m.key} data-label={m.label} data-tone={row[m.key] > 0 ? m.tone : undefined}>{row[m.key]}</td>
+                ))}
+                <td data-label="Attendance">
+                  <span className="comparison-attendance">
+                    <span className="comparison-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+                    <strong>{share}%</strong>
+                  </span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -97,37 +99,33 @@ export function AttendanceHealthCard({ onNavigate }) {
   const blockers = missing + pendingRegs.length + pendingLeaves + noShift;
 
   return (
-    <Widget title="Attendance Health · Payroll Readiness" icon={Activity} action="Reports" onAction={() => onNavigate?.('reports')}>
-      <div className="mb-3 flex items-center justify-between rounded-xl border px-3 py-2.5 border-neutral-200/70 dark:border-neutral-850">
-        <span className="text-base font-bold text-neutral-700 dark:text-warm-gray-200">
-          Current cycle ({fmtDay(monthStart())} – today)
+    <Widget title="Attendance health & payroll readiness" action="Reports" onAction={() => onNavigate?.('reports')}>
+      <p className="health-cycle">
+        Current cycle · {fmtDay(monthStart())} – today
+        <span data-tone={!canJudgeReadiness ? 'neutral' : blockers === 0 ? 'good' : 'warn'}>
+          {!canJudgeReadiness ? 'Overview only' : blockers === 0 ? 'Ready for payroll' : `${blockers} to resolve`}
         </span>
-        <span
-          className={`text-2xs font-mono font-bold px-2 py-1 rounded-lg ${
-            !canJudgeReadiness
-              ? 'bg-neutral-500/10 text-neutral-500'
-              : blockers === 0
-                ? 'bg-emerald-500/10 text-emerald-500'
-                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-          }`}
-        >
-          {!canJudgeReadiness
-            ? 'Overview only'
-            : blockers === 0
-              ? 'Ready for payroll'
-              : `${blockers} items to resolve`}
-        </span>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-        <StatPill label="Missing punches" value={missing} tone="violet" onClick={() => onNavigate?.('attendance')} />
-        {canJudgeReadiness && (
-          <StatPill label="Pending corrections" value={pendingRegs.length} tone="amber" onClick={() => onNavigate?.('attendance')} />
-        )}
-        <StatPill label="Undecided leaves" value={pendingLeaves} tone="amber" onClick={() => onNavigate?.('leave')} />
-        <StatPill label="Late marks" value={late} tone="neutral" onClick={() => onNavigate?.('attendance')} />
-        <StatPill label="Absences" value={absent} tone="red" onClick={() => onNavigate?.('attendance')} />
-        <StatPill label="No shift assigned" value={noShift} tone="blue" onClick={() => onNavigate?.('attendance-admin')} />
-      </div>
+      </p>
+      <ul className="health-rows">
+        {[
+          { label: 'Missing punches', value: missing, icon: Clock3, tone: 'red', tab: 'attendance/exceptions', note: 'Needs follow-up' },
+          canJudgeReadiness && { label: 'Attendance corrections', value: pendingRegs.length, icon: ScrollText, tone: 'amber', tab: 'attendance/regularizations', note: 'Review required' },
+          { label: 'Undecided leaves', value: pendingLeaves, icon: Activity, tone: 'blue', tab: 'leave', note: 'Action needed' },
+        ].filter(Boolean).map(({ label, value, icon: Icon, tone, tab, note }) => (
+          <li key={label}>
+            <button type="button" className="health-row" data-tone={tone} onClick={() => onNavigate?.(tab)}>
+              <span className="health-row-icon" aria-hidden="true"><Icon size={19} /></span>
+              <span className="health-row-copy"><strong>{value}</strong><span>{label}</span></span>
+              {value > 0 && <span className="health-row-note"><span aria-hidden="true" />{note}</span>}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <p className="health-more">
+        <button type="button" onClick={() => onNavigate?.('attendance/exceptions')}>{late} late marks</button>
+        <button type="button" onClick={() => onNavigate?.('attendance/exceptions')}>{absent} absences</button>
+        <button type="button" onClick={() => onNavigate?.('attendance-admin')}>{noShift} without a shift</button>
+      </p>
     </Widget>
   );
 }
@@ -432,11 +430,11 @@ export function BranchComparison({ onNavigate }) {
   const { data: leaves = [] } = useLeaves();
 
   const branches = {};
-  const bucket = (code) =>
-    (branches[code] ||= { code, headcount: 0, present: 0, late: 0, absent: 0, pending: 0 });
+  const bucket = (code, name) =>
+    (branches[code] ||= { code, name, headcount: 0, present: 0, late: 0, absent: 0, pending: 0 });
 
   employees.forEach((e) => {
-    if (e.status === 'Active') bucket(e.branch?.code || '—').headcount += 1;
+    if (e.status === 'Active') bucket(e.branch?.code || '—', e.branch?.name).headcount += 1;
   });
   dayRows.forEach((r) => {
     const b = bucket(r.employee?.branch?.code || '—');
@@ -451,25 +449,21 @@ export function BranchComparison({ onNavigate }) {
   const rows = Object.values(branches).sort((a, b) => b.headcount - a.headcount).slice(0, 10);
 
   return (
-    <Widget title="Branch Comparison" icon={Building2} action="Directory" onAction={() => onNavigate?.('directory')}>
+    <Widget title="Branch comparison (today)" action="Directory" onAction={() => onNavigate?.('directory')}>
       {rows.length === 0 ? (
         <EmptyNote>No branch data in your scope.</EmptyNote>
       ) : (
-        <div className="dashboard-comparison-list">
-          {rows.map((b) => (
-            <ComparisonRow
-              key={b.code}
-              label={b.code}
-              total={b.headcount}
-              present={b.present}
-              late={b.late}
-              absent={b.absent}
-              pending={b.pending}
-              onLeave={null}
-              onClick={() => onNavigate?.('attendance')}
-            />
-          ))}
-        </div>
+        <ComparisonTable
+          nameLabel="Branch"
+          rows={rows}
+          metrics={[
+            { key: 'present', label: 'Checked in' },
+            { key: 'late', label: 'Late', tone: 'warn' },
+            { key: 'absent', label: 'Absent', tone: 'bad' },
+            { key: 'pending', label: 'Leave pending', tone: 'warn' },
+          ]}
+          onOpen={() => onNavigate?.('attendance')}
+        />
       )}
     </Widget>
   );
@@ -481,10 +475,10 @@ export function EntityComparison({ onNavigate }) {
   const { data: dayRows = [] } = useDayAttendance(todayIso());
 
   const entities = {};
-  const bucket = (code) => (entities[code] ||= { code, headcount: 0, present: 0, absent: 0, onLeave: 0 });
+  const bucket = (code, name) => (entities[code] ||= { code, name, headcount: 0, present: 0, absent: 0, onLeave: 0 });
 
   employees.forEach((e) => {
-    if (e.status === 'Active') bucket(e.entity?.code || '—').headcount += 1;
+    if (e.status === 'Active') bucket(e.entity?.code || '—', e.entity?.name).headcount += 1;
   });
   dayRows.forEach((r) => {
     // Attendance rows don't join the entity, so resolve it through the employee list.
@@ -498,25 +492,20 @@ export function EntityComparison({ onNavigate }) {
   const rows = Object.values(entities).sort((a, b) => b.headcount - a.headcount);
 
   return (
-    <Widget title="Entities at a Glance" icon={Network} action={onNavigate ? "Org" : null} onAction={() => onNavigate?.('organization')}>
+    <Widget title="Companies at a glance" action={onNavigate ? 'Structure' : null} onAction={() => onNavigate?.('organization')}>
       {rows.length === 0 ? (
         <EmptyNote>No entities visible.</EmptyNote>
       ) : (
-        <div className="dashboard-comparison-list">
-          {rows.map((e) => (
-            <ComparisonRow
-              key={e.code}
-              label={e.code}
-              total={e.headcount}
-              present={e.present}
-              late={null}
-              absent={e.absent}
-              pending={null}
-              onLeave={e.onLeave}
-              onClick={() => onNavigate?.('organization')}
-            />
-          ))}
-        </div>
+        <ComparisonTable
+          nameLabel="Company"
+          rows={rows}
+          metrics={[
+            { key: 'present', label: 'Checked in' },
+            { key: 'onLeave', label: 'On leave' },
+            { key: 'absent', label: 'Absent', tone: 'bad' },
+          ]}
+          onOpen={() => onNavigate?.('organization')}
+        />
       )}
     </Widget>
   );

@@ -4,6 +4,8 @@
 import React from 'react';
 import { ArrowRight, CalendarHeart, PartyPopper } from 'lucide-react';
 import { useHolidays } from '../../data/holidays';
+import { StatCard, StatRow } from '../ui/StatCard';
+import StatusPill from '../ui/StatusPill';
 import { useEmployees } from '../../data/employees';
 import { todayIso } from '../../data/attendance';
 
@@ -61,71 +63,6 @@ const inferTone = (className = '') => {
   return 'green';
 };
 
-function MiniChart({ values }) {
-  const clean = (values ?? []).map((v) => Number(v) || 0);
-  if (clean.length < 2) return null;
-  const max = Math.max(...clean);
-  const min = Math.min(...clean);
-  const range = max - min || 1;
-  // Full bleed: the first and last points sit ON the edges of the viewBox rather than inset by 4,
-  // so the curve has no terminus inside the card. Combined with the edge fade in CSS it reads as
-  // something passing through the tile instead of a graphic dropped into it.
-  const step = 92 / Math.max(clean.length - 1, 1);
-  // Baseline at the very bottom of the viewBox, amplitude filling most of the height — so the wash
-  // under the curve meets the card's bottom edge rather than stopping short of it.
-  const coords = clean.map((v, i) => {
-    const x = i * step;
-    const y = 40 - ((v - min) / range) * 30;
-    return { x, y };
-  });
-  const line = coords
-    .map((p, i) => {
-      if (i === 0) return `M ${p.x} ${p.y}`;
-      const prev = coords[i - 1];
-      const cx = (prev.x + p.x) / 2;
-      return `C ${cx} ${prev.y}, ${cx} ${p.y}, ${p.x} ${p.y}`;
-    })
-    .join(' ');
-  const area = `${line} L ${coords.at(-1).x} 44 L ${coords[0].x} 44 Z`;
-
-  // The curve is drawn twice: solid up to the second-to-last point, dotted from there on. The
-  // marker sits on the join — the last reading we actually have — so the dotted run reads as the
-  // period still in progress rather than as more measured data.
-  const seg = (from, to) => coords.slice(from, to)
-    .map((p, i) => {
-      if (i === 0) return `M ${p.x} ${p.y}`;
-      const prev = coords[from + i - 1];
-      const cx = (prev.x + p.x) / 2;
-      return `C ${cx} ${prev.y}, ${cx} ${p.y}, ${p.x} ${p.y}`;
-    })
-    .join(' ');
-
-  const markIndex = Math.max(coords.length - 2, 0);
-  const solid = seg(0, markIndex + 1);
-  const trail = coords.length > 1 ? seg(markIndex, coords.length) : '';
-  const mark = coords[markIndex];
-
-  return (
-    // preserveAspectRatio="none" so the curve stretches to fill the whole card rather than being
-    // fitted and centred — the default (xMidYMid meet) letterboxes a 92:44 box inside a wider tile,
-    // which is what pushed the chart into the middle. non-scaling-stroke keeps the line 2px through
-    // that stretch instead of smearing it into a wedge.
-    <svg
-      className="dashboard-mini-chart"
-      viewBox="0 0 92 44"
-      preserveAspectRatio="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path className="dashboard-mini-chart-area" d={area} />
-      <path className="dashboard-mini-chart-drop" d={`M ${mark.x} ${mark.y} V 44`} vectorEffect="non-scaling-stroke" />
-      <path className="dashboard-mini-chart-line" d={solid} vectorEffect="non-scaling-stroke" />
-      {trail && <path className="dashboard-mini-chart-trail" d={trail} vectorEffect="non-scaling-stroke" />}
-      <circle className="dashboard-mini-chart-dot" cx={mark.x} cy={mark.y} r="2.6" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
-}
-
 /** Standard widget card shell: title row with icon, optional count badge and "view" action. */
 export function Widget({ title, icon: Icon, badge, action, onAction, children, className = '' }) {
   const actionable = Boolean(action && onAction);
@@ -141,14 +78,10 @@ export function Widget({ title, icon: Icon, badge, action, onAction, children, c
       onClick={openFromCard}
       className={`premium-card dashboard-widget ${actionable ? 'dashboard-widget-clickable' : ''} ${className}`}
     >
-      <div className="mobile-list-row dashboard-widget-head mb-3 flex items-center justify-between gap-2">
+      <div className="mobile-list-row dashboard-widget-head flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
-          {Icon && (
-            <span className="dashboard-widget-icon">
-              <Icon size={14} />
-            </span>
-          )}
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400 truncate">
+          {Icon && <Icon size={17} className="dashboard-widget-title-icon" aria-hidden="true" />}
+          <h3 className="dashboard-widget-title">
             {title}
           </h3>
           {badge != null && (
@@ -163,7 +96,7 @@ export function Widget({ title, icon: Icon, badge, action, onAction, children, c
             onClick={onAction}
             className="dashboard-widget-action"
           >
-            {action} <ArrowRight size={10} />
+            {action} <ArrowRight size={14} />
           </button>
         )}
       </div>
@@ -172,45 +105,33 @@ export function Widget({ title, icon: Icon, badge, action, onAction, children, c
   );
 }
 
+// Tailwind-era tones on the KPI definitions, mapped onto the redesign's StatCard tones.
+const STAT_TONE = { red: 'red', amber: 'amber', orange: 'coral', blue: 'blue', violet: 'violet', green: 'green' };
+
 /** KPI tile. Renders as a button when `tab` is set, so the number is a way into the detail. */
-export function KpiCard({ label, value, badgeClass, subtext, tab, onNavigate, trend }) {
+export function KpiCard({ label, value, icon, badgeClass, subtext, tab, onNavigate }) {
   const clickable = Boolean(tab && onNavigate);
-  const Tag = clickable ? 'button' : 'article';
-  const tone = inferTone(badgeClass);
   return (
-    <Tag
-      {...(clickable ? { onClick: () => onNavigate(tab), type: 'button', title: `Open ${label}` } : {})}
-      data-tone={tone}
-      className={`premium-card dashboard-kpi text-left w-full ${clickable ? 'cursor-pointer' : ''}`}
-    >
-      <div className="mobile-list-row flex items-start justify-between gap-2">
-        <span className="dashboard-kpi-label">{label}</span>
-      </div>
-      <div className="dashboard-kpi-body">
-        <p>{value}</p>
-        {subtext && (
-          <span>
-            {subtext}
-          </span>
-        )}
-      </div>
-      <MiniChart values={trend} />
-    </Tag>
+    <StatCard
+      label={label}
+      value={value}
+      sub={subtext}
+      icon={icon}
+      tone={STAT_TONE[inferTone(badgeClass)] ?? 'green'}
+      onClick={clickable ? () => onNavigate(tab) : undefined}
+      title={clickable ? `Open ${label}` : undefined}
+    />
   );
 }
 
-// Tailwind needs literal class names, so pick the xl column count from a static map.
-const KPI_COLS = { 3: 'xl:grid-cols-3', 4: 'xl:grid-cols-4', 5: 'xl:grid-cols-5', 6: 'xl:grid-cols-6' };
-
 export function KpiRow({ kpis, onNavigate }) {
   const items = kpis.filter(Boolean);
-  const cols = KPI_COLS[Math.min(Math.max(items.length, 3), 6)];
   return (
-    <section className={`dashboard-kpi-row grid grid-cols-2 sm:grid-cols-3 gap-3 ${cols}`} data-count={items.length}>
+    <StatRow label="Key figures">
       {items.map((k) => (
         <KpiCard key={k.label} {...k} onNavigate={onNavigate} />
       ))}
-    </section>
+    </StatRow>
   );
 }
 
@@ -248,26 +169,9 @@ export function StatPill({ label, value, tone = 'neutral', onClick }) {
   );
 }
 
-export const STATUS_BADGE = {
-  Pending: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  Approved: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-  Rejected: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
-  Open: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  'In Progress': 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/20',
-  Resolved: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-  Paid: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
-};
-
+/** A request or record status, as the shared pill (green done, amber waiting, red refused…). */
 export function StatusBadge({ status }) {
-  return (
-    <span
-      className={`text-2xs font-mono font-bold px-1.5 py-0.5 rounded border leading-none shrink-0 ${
-        STATUS_BADGE[status] || 'bg-neutral-500/10 text-neutral-500 border-neutral-500/20'
-      }`}
-    >
-      {status}
-    </span>
-  );
+  return <StatusPill status={status} className="shrink-0" />;
 }
 
 /** Upcoming holidays for everyone; work anniversaries only when the viewer can see other people. */
@@ -336,29 +240,26 @@ export function HolidaysCard({ showAnniversaries, onNavigate }) {
   );
 }
 
-/** Quick-action button grid, same look as the original dashboard. */
+const ACTION_TONES = ['green', 'blue', 'violet', 'coral', 'amber', 'slate'];
+
+/** Quick actions: tiles with a tinted icon, a name and a one-line hint (2026 redesign). */
 export function QuickActions({ actions, onNavigate }) {
-  const items = actions.filter(Boolean).slice(0, 8);
+  const items = actions.filter(Boolean).slice(0, 6);
   if (items.length === 0) return null;
   return (
-    <section className="premium-card dashboard-quick-actions">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
-        Quick Actions
-      </h3>
-      <div className="quick-actions-grid grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-        {items.map(({ label, tab, icon: Icon }) => (
-          <button
-            key={label}
-            onClick={() => onNavigate?.(tab)}
-            className="mobile-list-row dashboard-action-tile flex items-center justify-between rounded-xl border border-neutral-200/80 bg-neutral-50/50 px-3.5 py-2.5 text-left text-xs font-semibold text-neutral-700 hover:text-neutral-900 hover:border-neutral-350 dark:border-neutral-855 dark:bg-charcoal-900/40 dark:text-warm-gray-350 dark:hover:text-white dark:hover:border-brand/30 transition-all duration-200 hover:-translate-y-0.5 cursor-pointer shadow-sm group"
-          >
-            <span className="flex items-center gap-2.5">
-              <div className="dashboard-action-icon p-1 bg-neutral-100 dark:bg-charcoal-800 rounded-lg group-hover:bg-neutral-250 dark:group-hover:bg-charcoal-700 transition-colors">
-                <Icon size={12} className="text-neutral-500 dark:text-brand-ink" />
-              </div>
-              <span>{label}</span>
+    <section className="premium-card dashboard-widget dashboard-quick-actions">
+      <div className="dashboard-widget-head">
+        <h3 className="dashboard-widget-title">Quick actions</h3>
+      </div>
+      <div className="quick-actions-grid">
+        {items.map(({ label, hint, tab, icon: Icon }, index) => (
+          <button key={label} type="button" onClick={() => onNavigate?.(tab)} className="quick-action-tile" data-tone={ACTION_TONES[index % ACTION_TONES.length]}>
+            <span className="quick-action-icon" aria-hidden="true"><Icon size={19} /></span>
+            <span className="quick-action-copy">
+              <strong>{label}</strong>
+              {hint && <span>{hint}</span>}
             </span>
-            <ArrowRight size={12} className="text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors" />
+            <ArrowRight size={16} className="quick-action-arrow" aria-hidden="true" />
           </button>
         ))}
       </div>

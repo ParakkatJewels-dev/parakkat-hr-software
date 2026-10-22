@@ -5,13 +5,16 @@
 // through the same hooks — so every widget here ALSO filters client-side to the signed-in
 // employee. That filter is presentational, not a security boundary.
 import React, { useState } from 'react';
-import { Skeleton, SkeletonForm, SkeletonRows } from '../ui/Skeleton';
+import { Skeleton, SkeletonRows } from '../ui/Skeleton';
 import {
-  Clock, CalendarDays, ReceiptText, LifeBuoy, ListChecks, Wallet, CheckCircle2,
-  ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Fingerprint, Check, Loader2 } from 'lucide-react';
+  Clock, CalendarDays, ReceiptText, LifeBuoy, ListChecks, Wallet,
+  ChevronDown, ChevronRight, UserRound, CalendarCheck2, ArrowRight, Check, Loader2,
+  Umbrella, ShieldPlus, CalendarHeart, IdCard, Building2, MapPin, Mail, Phone } from 'lucide-react';
+import { useEmployee } from '../../data/employees';
+import { initialsOf } from '../ui/Avatar';
 import { useAuth } from '../../auth/AuthContext';
 import { usePermissions } from '../../auth/usePermissions';
-import { useDayAttendance, useMonthlyAttendance, todayIso, fmtTime, fmtMinutes, STATUS_STYLES } from '../../data/attendance';
+import { useDayAttendance, useMonthlyAttendance, todayIso, fmtTime, fmtMinutes } from '../../data/attendance';
 import { useLeaveBalances } from '../../data/leaveTypes';
 import { useLeaves } from '../../data/leaves';
 import { useExpenses } from '../../data/expenses';
@@ -37,148 +40,77 @@ const isMine = (row, me) => {
   return emp.full_name === me.full_name;
 };
 
-/** The employee landing panel: one glance, the next useful action, and no admin noise. */
-export function EmployeeTodayHero({ onNavigate }) {
-  const { employee } = useAuth();
-  const today = todayIso();
-  const { data: rows = [], isLoading } = useDayAttendance(today);
-  const { data: balances = [] } = useLeaveBalances(employee?.id, Number(today.slice(0, 4)));
-  const { data: tasks = [] } = useTasks();
-  const { data: payslips = [] } = usePayslips(employee?.id, { enabled: Boolean(employee?.id) });
-
-  const row = rows.find((r) => r.employee?.id === employee?.id);
-  const openTasks = tasks.filter((t) => isAssignedTo(t, employee?.id) && t.status !== 'Done' && t.status !== 'Cancelled').length;
-  const availableLeave = balances.reduce((n, b) => n + Number(b.available || 0), 0);
-  const latestPayslip = payslips.filter((p) => isMine(p, employee))[0];
-  const dateLabel = new Date().toLocaleDateString('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
-
-  const punchState = (() => {
-    if (isLoading) return { tone: 'neutral', action: 'Open attendance' };
-    if (!row) return { title: 'Ready to start', detail: 'No attendance record for today yet.', tone: 'amber', action: 'Open attendance' };
-    if (row.is_missing_punch) return { title: 'Punch needs attention', detail: 'One punch looks incomplete today.', tone: 'amber', action: 'Regularize' };
-    if (row.check_in && !row.check_out) return { title: 'You are checked in', detail: `Started at ${fmtTime(row.check_in)}.`, tone: 'green', action: 'View day' };
-    if (row.check_out) return { title: 'Day recorded', detail: `Worked ${fmtMinutes(row.worked_minutes)} today.`, tone: 'green', action: 'View day' };
-    return { title: row.status || 'Today', detail: 'Attendance is being computed.', tone: 'neutral', action: 'Open attendance' };
-  })();
-
-  const metrics = [
-    { label: 'Check-in', value: row?.check_in ? fmtTime(row.check_in) : '—', tab: 'attendance' },
-    { label: 'Worked', value: row?.worked_minutes ? fmtMinutes(row.worked_minutes) : '—', tab: 'attendance' },
-    { label: 'Leave left', value: availableLeave, tab: 'leave' },
-    { label: 'Tasks', value: openTasks, tab: 'tasks' },
-  ];
-
-  const actions = [
-    { label: punchState.action, tab: 'attendance', icon: Fingerprint, primary: true },
-    { label: 'Apply leave', tab: 'leave', icon: CalendarDays },
-    { label: latestPayslip ? 'Payslip' : 'Pay', tab: 'payroll', icon: Wallet },
-    { label: 'Help', tab: 'helpdesk', icon: LifeBuoy },
-  ];
-
-  return (
-    <section className="premium-card employee-today-hero" data-tone={punchState.tone}>
-      <div className="employee-today-copy">
-        <div className="employee-today-meta">
-          <span>My workspace</span>
-          <span>{dateLabel}</span>
-        </div>
-        {isLoading ? (
-          <div className="space-y-3" role="status" aria-label="Loading today’s attendance">
-            <Skeleton className="h-8 w-3/4" />
-            <Skeleton className="h-4 w-5/6" />
-            <span className="sr-only">Loading today’s attendance…</span>
-          </div>
-        ) : <>
-          <h2>{punchState.title}</h2>
-          <p>{punchState.detail}</p>
-        </>}
-      </div>
-
-      <div className="employee-today-metrics">
-        {metrics.map((m) => (
-          <button key={m.label} type="button" onClick={() => onNavigate?.(m.tab)}>
-            <span>{m.label}</span>
-            {isLoading && (m.label === 'Check-in' || m.label === 'Worked')
-              ? <Skeleton as="span" className="block h-6 w-4/5" />
-              : <strong>{m.value}</strong>}
-          </button>
-        ))}
-      </div>
-
-      <div className="employee-today-actions">
-        {actions.map(({ label, tab, icon: Icon, primary }) => (
-          <button
-            key={label}
-            type="button"
-            data-primary={primary ? 'true' : 'false'}
-            onClick={() => onNavigate?.(tab)}
-          >
-            <Icon size={15} />
-            <span>{label}</span>
-            {primary && <ArrowRight size={13} />}
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-/** Today's punch status: check-in/out, shift, worked time, late flag. */
-export function PunchCard({ onNavigate }) {
+/**
+ * Today at work (2026 redesign): the coral card that opens the self-service home — where today's
+ * attendance stands, the time you checked in, and the way to the full record.
+ */
+export function TodayAtWork({ onNavigate }) {
   const { employee } = useAuth();
   const { data: rows = [], isLoading } = useDayAttendance(todayIso());
   const row = rows.find((r) => r.employee?.id === employee?.id);
 
+  const state = (() => {
+    if (!row) return { chip: 'Not checked in', label: 'No punch recorded yet', time: '—', action: 'View attendance', tab: 'attendance' };
+    if (row.is_missing_punch) return { chip: 'Needs attention', label: 'A punch looks incomplete', time: fmtTime(row.check_in), action: 'Fix attendance', tab: 'attendance/regularizations' };
+    if (row.check_out) return { chip: 'Day recorded', label: `Worked ${fmtMinutes(row.worked_minutes)}`, time: fmtTime(row.check_in), action: 'View attendance', tab: 'attendance', good: true };
+    if (row.check_in) return { chip: 'Checked in', label: 'Checked in at', time: fmtTime(row.check_in), action: 'View attendance', tab: 'attendance', good: true };
+    return { chip: row.status || 'Today', label: 'Attendance is being worked out', time: '—', action: 'View attendance', tab: 'attendance' };
+  })();
+  const where = [row?.shift?.name, 'Today'].filter(Boolean).join(' · ');
+
   return (
-    <Widget title="Today" icon={Clock} action="Attendance" onAction={() => onNavigate?.('attendance')}>
-      {isLoading ? (
-        <SkeletonForm fields={3} label="Loading today’s attendance" />
-      ) : !row ? (
-        <EmptyNote>No attendance record for today yet.</EmptyNote>
-      ) : (
-        <div className="space-y-3">
-          <div className="mobile-list-row flex items-center justify-between">
-            <span className={`text-2xs font-bold px-2 py-1 rounded-lg ${STATUS_STYLES[row.status] || 'bg-neutral-150 text-neutral-600'}`}>
-              {row.status}
-            </span>
-            {row.shift && (
-              <span className="text-2xs font-mono text-neutral-500 dark:text-neutral-400">
-                {row.shift.name} · {String(row.shift.start_time).slice(0, 5)}–{String(row.shift.end_time).slice(0, 5)}
-              </span>
-            )}
+    <section className="today-at-work" aria-label="Today at work">
+      <header>
+        <h3>Today at work</h3>
+        {!isLoading && <span className="today-at-work-chip" data-good={state.good ? 'true' : 'false'}><span aria-hidden="true" />{state.chip}</span>}
+      </header>
+      <div className="today-at-work-main">
+        <span className="today-at-work-clock" aria-hidden="true"><Clock size={34} strokeWidth={2.2} /></span>
+        {isLoading ? <Skeleton className="h-12 w-40 bg-white/30" /> : (
+          <div className="today-at-work-time">
+            <span>{state.label}</span>
+            <strong>{state.time}</strong>
+            <small>{where}</small>
           </div>
-          <div className="home-punch-values">
-            {[
-              { label: 'Check-in', value: fmtTime(row.check_in) },
-              { label: 'Check-out', value: fmtTime(row.check_out) },
-              { label: 'Worked', value: fmtMinutes(row.worked_minutes) },
-            ].map(({ label, value }) => (
-              <div key={label} className="home-punch-value">
-                <strong>{value}</strong>
-                <small>{label}</small>
-              </div>
-            ))}
-          </div>
-          {(row.is_late || row.is_missing_punch) && (
-            <div className="mobile-list-row flex items-center justify-between gap-2 rounded-lg bg-amber-500/10 px-2.5 py-1.5">
-              <span className="text-2xs font-semibold text-amber-600 dark:text-amber-400">
-                {row.is_missing_punch ? 'Missing punch today' : `Late by ${fmtMinutes(row.late_minutes)}`}
-              </span>
-              <button
-                onClick={() => onNavigate?.('attendance')}
-                className="text-2xs font-bold text-amber-700 dark:text-amber-300 hover:underline cursor-pointer shrink-0"
-              >
-                Regularize
-              </button>
-            </div>
-          )}
+        )}
+      </div>
+      <button type="button" className="today-at-work-action" onClick={() => onNavigate?.(state.tab)}>
+        {state.action} <ArrowRight size={16} aria-hidden="true" />
+      </button>
+    </section>
+  );
+}
+
+/** My profile at a glance, from the employee record (2026 redesign). */
+export function MyProfileCard({ onNavigate }) {
+  const { employee, user } = useAuth();
+  const { data: record } = useEmployee(employee?.id, { enabled: Boolean(employee?.id) });
+  const person = record ?? employee;
+  if (!person) return null;
+  const rows = [
+    [IdCard, 'Employee ID', person.employee_code],
+    [Building2, 'Department', record?.department?.name],
+    [MapPin, 'Location', record?.branch?.name || record?.branch?.code],
+    [Mail, 'Work email', person.email || user?.email],
+    [Phone, 'Phone', record?.phone],
+  ].filter(([, , value]) => value);
+  return (
+    <Widget title="My profile" action="View profile" onAction={() => onNavigate?.('profile')}>
+      <div className="my-profile-head">
+        <span className="my-profile-avatar" aria-hidden="true">{initialsOf(person.full_name)}</span>
+        <div className="min-w-0">
+          <p className="my-profile-name">{person.full_name}</p>
+          <p className="my-profile-role">{record?.designation?.title || record?.designation?.name || 'Employee'}</p>
         </div>
-      )}
+      </div>
+      <dl className="my-profile-rows">
+        {rows.map(([Icon, label, value]) => (
+          <div key={label}>
+            <dt><Icon size={15} aria-hidden="true" />{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
     </Widget>
   );
 }
@@ -221,46 +153,41 @@ export function MyMonthCard({ onNavigate }) {
   );
 }
 
-/** Leave balance per type with an apply shortcut. */
+const LEAVE_TILE = [
+  { tone: 'green', icon: Umbrella }, { tone: 'blue', icon: ShieldPlus }, { tone: 'red', icon: CalendarHeart },
+  { tone: 'violet', icon: CalendarDays },
+];
+
+/** Leave balance per type as tiles, with an apply shortcut (2026 redesign). */
 export function MyLeaveBalances({ onNavigate }) {
   const { employee } = useAuth();
   const year = Number(todayIso().slice(0, 4));
   const { data: balances = [] } = useLeaveBalances(employee?.id, year);
 
   return (
-    <Widget title="Leave Balances" icon={CalendarDays} action="Apply" onAction={() => onNavigate?.('leave')}>
+    <Widget title="Leave balance" action="View all" onAction={() => onNavigate?.('leave')}>
       {balances.length === 0 ? (
         <EmptyNote>No balances set up for {year} yet.</EmptyNote>
       ) : (
-        <div className="space-y-1.5">
-          {balances.map((b) => {
+        <div className="leave-tiles">
+          {balances.slice(0, 3).map((b, i) => {
             const total = Number(b.entitled) + Number(b.carried_forward || 0);
-            const pct = total > 0 ? Math.max(0, Math.min(100, (Number(b.available) / total) * 100)) : 0;
+            const { tone, icon: Icon } = LEAVE_TILE[i % LEAVE_TILE.length];
             return (
-              <button
-                key={b.id}
-                onClick={() => onNavigate?.('leave')}
-                className="w-full text-left rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-2 cursor-pointer hover:border-brand/40 transition-colors"
-              >
-                <div className="mobile-list-row flex items-center justify-between">
-                  <span className="text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">
-                    {b.leave_type?.name || b.leave_type?.code}
-                  </span>
-                  <span className="text-2xs font-mono font-bold text-neutral-600 dark:text-neutral-300 shrink-0">
-                    {b.available}/{total}
-                  </span>
-                </div>
-                <div className="mt-1.5 h-1 rounded-full bg-neutral-150 dark:bg-charcoal-800 overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${pct}%`, backgroundColor: b.leave_type?.colour || '#0ea971' }}
-                  />
-                </div>
+              <button key={b.id} type="button" onClick={() => onNavigate?.('leave')} className="leave-tile" data-tone={tone}>
+                <Icon size={22} aria-hidden="true" />
+                <span className="leave-tile-name">{b.leave_type?.name || b.leave_type?.code}</span>
+                <strong>{b.available}</strong>
+                <span className="leave-tile-left">days left</span>
+                <span className="leave-tile-of">of {total} days</span>
               </button>
             );
           })}
         </div>
       )}
+      <button type="button" className="leave-apply" onClick={() => onNavigate?.('leave')}>
+        <CalendarDays size={17} aria-hidden="true" /> Apply for leave <ArrowRight size={16} aria-hidden="true" />
+      </button>
     </Widget>
   );
 }
@@ -296,23 +223,20 @@ export function MyRequests({ onNavigate }) {
     .slice(0, 6);
 
   return (
-    <Widget title="My Requests" icon={ListChecks} action="Requests" onAction={() => onNavigate?.('leave')}>
+    <Widget title="My requests" action="View all" onAction={() => onNavigate?.('leave')}>
       {items.length === 0 ? (
         <EmptyNote>Nothing raised yet — leaves, expenses and tickets will show up here.</EmptyNote>
       ) : (
         <div className="space-y-1.5">
           {items.map(({ key, icon: Icon, tab, status, label, sub }) => (
-            <button
-              key={key}
-              onClick={() => onNavigate?.(tab)}
-              className="w-full flex items-center gap-2.5 rounded-lg border border-neutral-200/60 dark:border-neutral-850 px-2.5 py-1.5 text-left hover:border-neutral-350 dark:hover:border-neutral-800 transition-colors cursor-pointer"
-            >
-              <Icon size={12} className="text-neutral-400 shrink-0" />
-              <span className="min-w-0 flex-1">
-                <span className="block text-base font-semibold text-neutral-700 dark:text-warm-gray-200 truncate">{label}</span>
-                <span className="block text-2xs text-neutral-450 dark:text-neutral-500 truncate">{sub}</span>
+            <button key={key} type="button" onClick={() => onNavigate?.(tab)} className="home-list-row">
+              <span className="home-list-icon" aria-hidden="true"><Icon size={18} /></span>
+              <span className="home-list-copy">
+                <strong>{label}</strong>
+                <span>{sub}</span>
               </span>
               <StatusBadge status={status} />
+              <ChevronRight size={16} className="home-list-chevron" aria-hidden="true" />
             </button>
           ))}
         </div>
@@ -335,7 +259,7 @@ export function MyTasks({ onNavigate }) {
   const openTasks = () => onNavigate?.('tasks/todo');
 
   return (
-    <Widget title="My Tasks" className="home-work-widget" icon={CheckCircle2} badge={mine.length || null} action="All tasks" onAction={openTasks}>
+    <Widget title="My tasks" className="home-work-widget" badge={mine.length || null} action="View all" onAction={openTasks}>
       {(error || updateTask.error) && <p role="alert" className="home-work-error">{humanDbError(updateTask.error || error, 'tasks')}</p>}
       {isLoading ? <SkeletonRows rows={3} compact avatar={false} label="Loading your tasks" /> : mine.length === 0 && !error ? (
         <EmptyNote>No open tasks. Enjoy the calm.</EmptyNote>
@@ -486,7 +410,7 @@ export function EssSection({ onNavigate }) {
       </button>
       {open && (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:grid-cols-4 animate-fade-in">
-          <PunchCard onNavigate={onNavigate} />
+          <TodayAtWork onNavigate={onNavigate} />
           <MyLeaveBalances onNavigate={onNavigate} />
           <MyRequests onNavigate={onNavigate} />
           <MyTasks onNavigate={onNavigate} />

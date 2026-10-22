@@ -23,14 +23,15 @@ import { useJobs } from '../data/recruitment';
 import { useExits } from '../data/exits';
 import { useRegularizations } from '../data/regularizations';
 import { useManagedUsers } from '../data/admin';
-import { useAttendanceSummary, useMonthlyAttendance, todayIso } from '../data/attendance';
-import { useLeaveBalances } from '../data/leaveTypes';
+import { useAttendanceSummary, todayIso } from '../data/attendance';
 import { KpiRow, HolidaysCard, QuickActions, inr } from './dashboard/shared';
 import { useActionableApprovals } from './dashboard/useActionableApprovals';
 import ActionCenter from './dashboard/ActionCenter';
 import {
-  EmployeeTodayHero, PunchCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, MyRoutineToday, EssSection,
+  TodayAtWork, MyProfileCard, MyMonthCard, MyLeaveBalances, MyRequests, MyTasks, MyPayslip, MyRoutineToday, EssSection,
 } from './dashboard/selfWidgets';
+import PageHeader from './ui/PageHeader';
+import './dashboard/home.css';
 import {
   TeamAttendanceToday, ApprovalsQueue, OnLeaveThisWeek, TeamTickets, TeamAssets, TeamTasksBoard,
 } from './dashboard/teamWidgets';
@@ -69,13 +70,6 @@ const employeeStatusSeries = (employees) =>
 const attendanceSummarySeries = (summary) =>
   [summary.checkedIn, summary.stillIn, summary.late, summary.absent, summary.onLeave, summary.missingPunch];
 
-const attendanceDaySeries = (rows, predicate) =>
-  rows
-    .slice()
-    .sort((a, b) => (a.work_date || '').localeCompare(b.work_date || ''))
-    .map((row) => (predicate(row) ? 1 : 0))
-    .slice(-10);
-
 const datedCountSeries = (rows, dateField, predicate = () => true) => {
   const map = new Map();
   for (const row of rows ?? []) {
@@ -88,40 +82,6 @@ const datedCountSeries = (rows, dateField, predicate = () => true) => {
 };
 
 const queueSeries = (...counts) => validSeries(counts);
-
-function EssKpis({ onNavigate }) {
-  const { employee } = useAuth();
-  const today = todayIso();
-  const [year, month] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
-  const { data: monthRows = [] } = useMonthlyAttendance(employee?.id, year, month);
-  const { data: balances = [] } = useLeaveBalances(employee?.id, year);
-  const { data: leaves = [] } = useLeaves();
-  const { data: expenses = [] } = useExpenses();
-
-  const present = monthRows.filter((r) => r.status === 'Present' || r.status === 'Half Day').length;
-  const late = monthRows.filter((r) => r.is_late).length;
-  const available = balances.reduce((n, b) => n + Number(b.available || 0), 0);
-  // MY pending requests. Every sibling KPI on this row already filters by employee?.id; this one did
-  // not, so on the employee dashboard it showed the whole company's approval backlog under the
-  // heading "Awaiting approval" — for an HR manager working as an employee, a number in the dozens
-  // where the true answer was nought or one.
-  const myLeaves = leaves.filter((l) => l.employee_id === employee?.id);
-  const myExpenses = expenses.filter((e) => e.employee_id === employee?.id);
-  const pending = myLeaves.filter((l) => l.status === 'Pending').length
-    + myExpenses.filter((e) => e.status === 'Pending').length;
-
-  return (
-    <KpiRow
-      onNavigate={onNavigate}
-      kpis={[
-        { label: 'Days Present', value: present, icon: CalendarCheck2, badgeClass: 'bg-brand/10 text-brand-ink', subtext: 'This month', tab: 'attendance', trend: attendanceDaySeries(monthRows, (r) => r.status === 'Present' || r.status === 'Half Day') },
-        { label: 'Late Marks', value: late, icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-500', subtext: 'This month', tab: 'attendance', trend: attendanceDaySeries(monthRows, (r) => r.is_late) },
-        { label: 'Leave Available', value: available, icon: CalendarDays, badgeClass: 'bg-brand-soft text-brand-ink', subtext: 'Across all types', tab: 'leave', trend: balances.map((b) => Number(b.available || 0)) },
-        { label: 'Pending Requests', value: pending, icon: ListChecks, badgeClass: 'bg-orange-500/10 text-orange-500', subtext: 'Awaiting approval', tab: 'leave', trend: queueSeries(myLeaves.filter((l) => l.status === 'Pending').length, myExpenses.filter((e) => e.status === 'Pending').length) },
-      ]}
-    />
-  );
-}
 
 export function TeamKpis({ onNavigate }) {
   const { data: employees = [] } = useEmployees();
@@ -251,24 +211,58 @@ function SuperKpis({ onNavigate }) {
 }
 
 /* ---------------------------------- role presets ---------------------------------- */
+// Laid out like the 2026 redesign boards: number cards, then three working cards (your actions,
+// routines, attendance health), then a wide table beside quick actions, then the rest in pairs.
+// Each widget gates itself and renders nothing when it does not apply; the rows reflow around it.
+
+const Row3 = ({ children }) => <div className="home-row home-row-3">{children}</div>;
+const Row2 = ({ children }) => <div className="home-row home-row-2">{children}</div>;
+const Split = ({ children }) => <div className="home-row home-row-split">{children}</div>;
+
+const SELF_LINKS = [
+  { label: 'My overview', tab: null },
+  { label: 'My attendance', tab: 'attendance' },
+  { label: 'My leave', tab: 'leave' },
+  { label: 'My payslips', tab: 'payroll' },
+  { label: 'My tasks', tab: 'ledger' },
+];
+
+function SelfServiceLinks({ onNavigate }) {
+  return (
+    <nav aria-label="My self-service" className="home-self-links mobile-segmented">
+      {SELF_LINKS.map(({ label, tab }) => (
+        <button key={label} type="button" aria-current={tab ? undefined : 'page'}
+          className={`drawer-tab ${tab ? '' : 'drawer-tab-active'}`} onClick={() => tab && onNavigate?.(tab)}>
+          {label}
+        </button>
+      ))}
+    </nav>
+  );
+}
 
 function EmployeeDashboard({ onNavigate, actions }) {
   return (
     <>
-      <EmployeeTodayHero onNavigate={onNavigate} />
-      <MyRoutineToday onNavigate={onNavigate} />
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <MyTasks onNavigate={onNavigate} />
-        <MyRequests onNavigate={onNavigate} />
-      </div>
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <PunchCard onNavigate={onNavigate} />
+      <SelfServiceLinks onNavigate={onNavigate} />
+      <Row3>
+        <TodayAtWork onNavigate={onNavigate} />
         <MyLeaveBalances onNavigate={onNavigate} />
+        <MyProfileCard onNavigate={onNavigate} />
+      </Row3>
+      <ActionCenter onNavigate={onNavigate} />
+      <Row2>
+        <MyRequests onNavigate={onNavigate} />
+        <MyTasks onNavigate={onNavigate} />
+      </Row2>
+      <MyRoutineToday onNavigate={onNavigate} />
+      <Row2>
+        <MyMonthCard onNavigate={onNavigate} />
         <MyPayslip onNavigate={onNavigate} />
-      </div>
-      <MyMonthCard onNavigate={onNavigate} />
-      <QuickActions actions={actions} onNavigate={onNavigate} />
-      <HolidaysCard showAnniversaries={false} onNavigate={onNavigate} />
+      </Row2>
+      <Split>
+        <QuickActions actions={actions} onNavigate={onNavigate} />
+        <HolidaysCard showAnniversaries={false} onNavigate={onNavigate} />
+      </Split>
     </>
   );
 }
@@ -277,21 +271,24 @@ function BranchManagerDashboard({ onNavigate, actions }) {
   return (
     <>
       <TeamKpis onNavigate={onNavigate} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-8">
-          <TeamAttendanceToday onNavigate={onNavigate} />
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <OnLeaveThisWeek onNavigate={onNavigate} />
-            <TeamTickets onNavigate={onNavigate} />
-          </div>
-          <QuickActions actions={actions} onNavigate={onNavigate} />
-        </div>
-        <aside className="space-y-4 xl:col-span-4">
-          <ApprovalsQueue onNavigate={onNavigate} />
-          <TeamAssets onNavigate={onNavigate} />
-          <HolidaysCard showAnniversaries onNavigate={onNavigate} />
-        </aside>
-      </div>
+      <Row3>
+        <ActionCenter onNavigate={onNavigate} />
+        <MyRoutineToday onNavigate={onNavigate} />
+        <RoutineOverview onNavigate={onNavigate} />
+        <ApprovalsQueue onNavigate={onNavigate} />
+      </Row3>
+      <Split>
+        <TeamAttendanceToday onNavigate={onNavigate} />
+        <QuickActions actions={actions} onNavigate={onNavigate} />
+      </Split>
+      <Row2>
+        <OnLeaveThisWeek onNavigate={onNavigate} />
+        <TeamTickets onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <TeamAssets onNavigate={onNavigate} />
+        <HolidaysCard showAnniversaries onNavigate={onNavigate} />
+      </Row2>
       <EssSection onNavigate={onNavigate} />
     </>
   );
@@ -301,20 +298,21 @@ function DeptHeadDashboard({ onNavigate, actions }) {
   return (
     <>
       <TeamKpis onNavigate={onNavigate} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-8">
-          <TeamAttendanceToday onNavigate={onNavigate} />
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <TeamTasksBoard onNavigate={onNavigate} />
-            <OnLeaveThisWeek onNavigate={onNavigate} />
-          </div>
-          <QuickActions actions={actions} onNavigate={onNavigate} />
-        </div>
-        <aside className="space-y-4 xl:col-span-4">
-          <ApprovalsQueue onNavigate={onNavigate} />
-          <HolidaysCard showAnniversaries onNavigate={onNavigate} />
-        </aside>
-      </div>
+      <Row3>
+        <ActionCenter onNavigate={onNavigate} />
+        <MyRoutineToday onNavigate={onNavigate} />
+        <RoutineOverview onNavigate={onNavigate} />
+        <ApprovalsQueue onNavigate={onNavigate} />
+      </Row3>
+      <Split>
+        <TeamAttendanceToday onNavigate={onNavigate} />
+        <QuickActions actions={actions} onNavigate={onNavigate} />
+      </Split>
+      <Row2>
+        <TeamTasksBoard onNavigate={onNavigate} />
+        <OnLeaveThisWeek onNavigate={onNavigate} />
+      </Row2>
+      <HolidaysCard showAnniversaries onNavigate={onNavigate} />
       <EssSection onNavigate={onNavigate} />
     </>
   );
@@ -324,18 +322,21 @@ function ZonalManagerDashboard({ onNavigate, actions }) {
   return (
     <>
       <ZonalKpis onNavigate={onNavigate} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-8">
-          <BranchComparison onNavigate={onNavigate} />
-          <AttendanceHealthCard onNavigate={onNavigate} />
-          <QuickActions actions={actions} onNavigate={onNavigate} />
-        </div>
-        <aside className="space-y-4 xl:col-span-4">
-          <ApprovalsQueue onNavigate={onNavigate} />
-          <TeamTickets onNavigate={onNavigate} />
-          <HolidaysCard showAnniversaries onNavigate={onNavigate} />
-        </aside>
-      </div>
+      <Row3>
+        <ActionCenter onNavigate={onNavigate} />
+        <MyRoutineToday onNavigate={onNavigate} />
+        <RoutineOverview onNavigate={onNavigate} />
+        <AttendanceHealthCard onNavigate={onNavigate} />
+      </Row3>
+      <Split>
+        <BranchComparison onNavigate={onNavigate} />
+        <QuickActions actions={actions} onNavigate={onNavigate} />
+      </Split>
+      <Row2>
+        <ApprovalsQueue onNavigate={onNavigate} />
+        <TeamTickets onNavigate={onNavigate} />
+      </Row2>
+      <HolidaysCard showAnniversaries onNavigate={onNavigate} />
       <EssSection onNavigate={onNavigate} />
     </>
   );
@@ -345,25 +346,32 @@ function HrManagerDashboard({ onNavigate, actions }) {
   return (
     <>
       <HrKpis onNavigate={onNavigate} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-8">
-          <TeamAttendanceToday onNavigate={onNavigate} />
-          <AttendanceHealthCard onNavigate={onNavigate} />
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <OnboardingPipeline onNavigate={onNavigate} />
-            <ExitPipeline onNavigate={onNavigate} />
-          </div>
-          <CrossDeptRequests onNavigate={onNavigate} />
-          <HeadcountChart groupBy="branch" onNavigate={onNavigate} />
-          <QuickActions actions={actions} onNavigate={onNavigate} />
-        </div>
-        <aside className="space-y-4 xl:col-span-4">
-          <ApprovalsQueue onNavigate={onNavigate} />
-          <TeamTickets onNavigate={onNavigate} />
-          <DocumentsSnapshot onNavigate={onNavigate} />
-          <HolidaysCard showAnniversaries onNavigate={onNavigate} />
-        </aside>
-      </div>
+      <Row3>
+        <ActionCenter onNavigate={onNavigate} />
+        <MyRoutineToday onNavigate={onNavigate} />
+        <RoutineOverview onNavigate={onNavigate} />
+        <AttendanceHealthCard onNavigate={onNavigate} />
+      </Row3>
+      <Split>
+        <TeamAttendanceToday onNavigate={onNavigate} />
+        <QuickActions actions={actions} onNavigate={onNavigate} />
+      </Split>
+      <Row2>
+        <ApprovalsQueue onNavigate={onNavigate} />
+        <TeamTickets onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <OnboardingPipeline onNavigate={onNavigate} />
+        <ExitPipeline onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <CrossDeptRequests onNavigate={onNavigate} />
+        <DocumentsSnapshot onNavigate={onNavigate} />
+      </Row2>
+      <Split>
+        <HeadcountChart groupBy="branch" onNavigate={onNavigate} />
+        <HolidaysCard showAnniversaries onNavigate={onNavigate} />
+      </Split>
       <EssSection onNavigate={onNavigate} />
     </>
   );
@@ -373,32 +381,39 @@ function EntityAdminDashboard({ onNavigate, actions }) {
   return (
     <>
       <EntityKpis onNavigate={onNavigate} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-8">
-          <BranchComparison onNavigate={onNavigate} />
-          <AttendanceHealthCard onNavigate={onNavigate} />
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <OnboardingPipeline onNavigate={onNavigate} />
-            <ExitPipeline onNavigate={onNavigate} />
-          </div>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <RecruitmentOverview onNavigate={onNavigate} />
-            <ExpenseSpend onNavigate={onNavigate} />
-          </div>
-          {/* Who is leaning on whom. Only an administrator sees this — a head's own two ends are
-              already on their Requests tab, and help_requests_select gives them nothing wider. */}
-          <CrossDeptRequests onNavigate={onNavigate} />
-          <HeadcountChart groupBy="branch" onNavigate={onNavigate} />
-          <QuickActions actions={actions} onNavigate={onNavigate} />
-        </div>
-        <aside className="space-y-4 xl:col-span-4">
-          <ApprovalsQueue onNavigate={onNavigate} />
-          <UserAccessPanel onNavigate={onNavigate} />
-          <DeviceHealth onNavigate={onNavigate} />
-          <AuditFeed onNavigate={onNavigate} />
-          <HolidaysCard showAnniversaries onNavigate={onNavigate} />
-        </aside>
-      </div>
+      <Row3>
+        <ActionCenter onNavigate={onNavigate} />
+        <MyRoutineToday onNavigate={onNavigate} />
+        <RoutineOverview onNavigate={onNavigate} />
+        <AttendanceHealthCard onNavigate={onNavigate} />
+      </Row3>
+      <Split>
+        <BranchComparison onNavigate={onNavigate} />
+        <QuickActions actions={actions} onNavigate={onNavigate} />
+      </Split>
+      <Row2>
+        <DeviceHealth onNavigate={onNavigate} />
+        <ApprovalsQueue onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <OnboardingPipeline onNavigate={onNavigate} />
+        <ExitPipeline onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <RecruitmentOverview onNavigate={onNavigate} />
+        <ExpenseSpend onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <UserAccessPanel onNavigate={onNavigate} />
+        <AuditFeed onNavigate={onNavigate} />
+      </Row2>
+      {/* Who is leaning on whom. Only an administrator sees this — a head's own two ends are
+          already on their Requests tab, and help_requests_select gives them nothing wider. */}
+      <CrossDeptRequests onNavigate={onNavigate} />
+      <Split>
+        <HeadcountChart groupBy="branch" onNavigate={onNavigate} />
+        <HolidaysCard showAnniversaries onNavigate={onNavigate} />
+      </Split>
       <EssSection onNavigate={onNavigate} />
     </>
   );
@@ -408,23 +423,32 @@ function SuperAdminDashboard({ onNavigate, actions }) {
   return (
     <>
       <SuperKpis onNavigate={onNavigate} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-8">
-          <EntityComparison onNavigate={onNavigate} />
-          <BranchComparison onNavigate={onNavigate} />
-          <AttendanceHealthCard onNavigate={onNavigate} />
-          <CrossDeptRequests onNavigate={onNavigate} />
-          <HeadcountChart groupBy="entity" onNavigate={onNavigate} />
-          <QuickActions actions={actions} onNavigate={onNavigate} />
-        </div>
-        <aside className="space-y-4 xl:col-span-4">
-          <UserAccessPanel onNavigate={onNavigate} />
-          <DeviceHealth onNavigate={onNavigate} />
-          <ApprovalsQueue onNavigate={onNavigate} />
-          <AuditFeed onNavigate={onNavigate} />
-          <HolidaysCard showAnniversaries onNavigate={onNavigate} />
-        </aside>
-      </div>
+      <Row3>
+        <ActionCenter onNavigate={onNavigate} />
+        <MyRoutineToday onNavigate={onNavigate} />
+        <RoutineOverview onNavigate={onNavigate} />
+        <AttendanceHealthCard onNavigate={onNavigate} />
+      </Row3>
+      <Split>
+        <BranchComparison onNavigate={onNavigate} />
+        <QuickActions actions={actions} onNavigate={onNavigate} />
+      </Split>
+      <Row2>
+        <DeviceHealth onNavigate={onNavigate} />
+        <ApprovalsQueue onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <EntityComparison onNavigate={onNavigate} />
+        <UserAccessPanel onNavigate={onNavigate} />
+      </Row2>
+      <Row2>
+        <CrossDeptRequests onNavigate={onNavigate} />
+        <AuditFeed onNavigate={onNavigate} />
+      </Row2>
+      <Split>
+        <HeadcountChart groupBy="entity" onNavigate={onNavigate} />
+        <HolidaysCard showAnniversaries onNavigate={onNavigate} />
+      </Split>
       <EssSection onNavigate={onNavigate} />
     </>
   );
@@ -444,24 +468,24 @@ const PRESETS = {
 function useQuickActions(role) {
   const { canAny, canBeyondSelf } = usePermissions();
   const all = {
-    reviewLeaves: canAny('leave.approve') && { label: 'Review Leaves', tab: 'leave', icon: CalendarDays },
-    reviewExpenses: canAny('expense.approve') && { label: 'Review Expenses', tab: 'expense', icon: ReceiptText },
-    directory: canBeyondSelf('employee.read') && { label: 'Employee Directory', tab: 'directory', icon: Users },
-    org: canAny('org.manage') && { label: 'Org Hierarchy', tab: 'organization', icon: Network },
-    applyLeave: canAny('leave.create') && { label: 'Apply for Leave', tab: 'leave', icon: CalendarDays },
-    submitExpense: canAny('expense.create') && { label: 'Submit Expense', tab: 'expense', icon: ReceiptText },
-    raiseTicket: canAny('ticket.create') && { label: 'Help Request', tab: 'helpdesk', icon: LifeBuoy },
-    tasks: canAny('task.read') && { label: 'My Tasks', tab: 'tasks', icon: ListChecks },
-    attendance: canAny('attendance.read') && { label: 'My Attendance', tab: 'attendance', icon: Clock },
-    payroll: canAny('payslip.read') && { label: 'My Payslips', tab: 'payroll', icon: DollarSign },
-    myAssets: canAny('asset.read') && { label: 'My Assets', tab: 'my-assets', icon: Boxes },
-    documents: canAny('document.read') && { label: 'My Documents', tab: 'documents', icon: FolderOpen },
-    reports: canAny('report.read') && { label: 'Reports & Analytics', tab: 'reports', icon: BarChart3 },
-    performance: canAny('performance.manage') && { label: 'PMS Performance', tab: 'performance', icon: Target },
-    recruitment: canAny('recruitment.manage') && { label: 'Recruit Hub', tab: 'recruitment', icon: Briefcase },
-    onboarding: canAny('onboarding.manage') && { label: 'Onboarding Board', tab: 'onboarding', icon: UserCheck },
-    admin: canAny('rbac.manage') && { label: 'Administration', tab: 'administration', icon: Shield },
-    devices: canAny('device.manage') && { label: 'Attendance Setup', tab: 'attendance-admin', icon: Fingerprint },
+    reviewLeaves: canAny('leave.approve') && { label: 'Review leaves', hint: 'Pending approvals', tab: 'leave', icon: CalendarDays },
+    reviewExpenses: canAny('expense.approve') && { label: 'Review expenses', hint: 'Claims waiting for you', tab: 'expense', icon: ReceiptText },
+    directory: canBeyondSelf('employee.read') && { label: 'Employee directory', hint: 'Search and view profiles', tab: 'directory', icon: Users },
+    org: canAny('org.manage') && { label: 'Organisation', hint: 'Companies, branches, teams', tab: 'organization', icon: Network },
+    applyLeave: canAny('leave.create') && { label: 'Apply for leave', hint: 'Request time off', tab: 'leave', icon: CalendarDays },
+    submitExpense: canAny('expense.create') && { label: 'Submit an expense', hint: 'Claim a reimbursement', tab: 'expense', icon: ReceiptText },
+    raiseTicket: canAny('ticket.create') && { label: 'Get help', hint: 'Ask HR or IT for help', tab: 'helpdesk', icon: LifeBuoy },
+    tasks: canAny('task.read') && { label: 'My tasks', hint: 'Your open work', tab: 'ledger', icon: ListChecks },
+    attendance: canAny('attendance.read') && { label: 'My attendance', hint: 'Punches and calendar', tab: 'attendance', icon: Clock },
+    payroll: canAny('payslip.read') && { label: 'My payslips', hint: 'Download and review', tab: 'payroll', icon: DollarSign },
+    myAssets: canAny('asset.read') && { label: 'My assets', hint: 'Company property you hold', tab: 'my-assets', icon: Boxes },
+    documents: canAny('document.read') && { label: 'My documents', hint: 'Your files', tab: 'documents', icon: FolderOpen },
+    reports: canAny('report.read') && { label: 'Reports', hint: 'Attendance, leave and more', tab: 'reports', icon: BarChart3 },
+    performance: canAny('performance.manage') && { label: 'Goals', hint: 'Goals and reviews', tab: 'performance', icon: Target },
+    recruitment: canAny('recruitment.manage') && { label: 'Hiring', hint: 'Openings and candidates', tab: 'recruitment', icon: Briefcase },
+    onboarding: canAny('onboarding.manage') && { label: 'Onboarding', hint: 'New joiner checklists', tab: 'onboarding', icon: UserCheck },
+    admin: canAny('rbac.manage') && { label: 'Administration', hint: 'Users, roles and access', tab: 'administration', icon: Shield },
+    devices: canAny('device.manage') && { label: 'Attendance setup', hint: 'Manage shifts and rules', tab: 'attendance-admin', icon: Fingerprint },
   };
 
   const order = {
@@ -477,6 +501,25 @@ function useQuickActions(role) {
   return (order[role] || order.employee).map((k) => all[k]).filter(Boolean);
 }
 
+/** "Good morning" in India time — the app's working day. */
+function greeting(date = new Date()) {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Kolkata' }).format(date));
+  return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+}
+
+function HomeGreeting({ selfService }) {
+  const { employee, user } = useAuth();
+  const first = (employee?.full_name || '').trim().split(/\s+/)[0] || (user?.email || '').split('@')[0] || 'there';
+  const date = new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  return (
+    <PageHeader
+      title={`${greeting()}, ${first}`}
+      subtitle={selfService ? 'Here’s your self-service overview for today.' : 'Here’s what’s happening across Parakkat HRMS today.'}
+      meta={<span className="home-date">{date}</span>}
+    />
+  );
+}
+
 export default function Dashboard({ onNavigate, viewRole }) {
   const { assignments, isSuperAdmin } = useAuth();
   // `viewRole` is the role the person chose to work as (Settings -> Switch view). It falls back to
@@ -487,12 +530,8 @@ export default function Dashboard({ onNavigate, viewRole }) {
   const Preset = PRESETS[role];
 
   return (
-    <div className="page-shell dashboard-shell space-y-5 animate-slide-up py-3" data-dashboard-role={role}>
-      {/* Every other screen opens with its own title; Home's is for screen readers and the outline. */}
-      <h1 className="sr-only">Home</h1>
-      <ActionCenter onNavigate={onNavigate} />
-      {role !== 'employee' && <MyRoutineToday onNavigate={onNavigate} />}
-      <RoutineOverview onNavigate={onNavigate} />
+    <div className="page-shell dashboard-shell home-page animate-slide-up" data-dashboard-role={role}>
+      <HomeGreeting selfService={role === 'employee'} />
       <Preset onNavigate={onNavigate} actions={actions} />
     </div>
   );
