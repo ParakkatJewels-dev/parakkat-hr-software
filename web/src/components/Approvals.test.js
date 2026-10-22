@@ -16,7 +16,9 @@ test('a request says how long it has been waiting', () => {
 });
 
 test('leave buttons open the review panel; corrections and expenses decide in place', () => {
-  assert.match(source, /if \(tab\.id === 'leave'\) setReviewLeaveId\(row\.id\)/);
+  // Leave opens the review panel with the pressed button's decision already chosen.
+  assert.match(source, /if \(tab\.id === 'leave'\) \{ setReviewIntent\(approve \? 'Approved' : 'Rejected'\); setReviewLeaveId\(row\.id\); \}/);
+  assert.match(source, /initialDecision=\{reviewIntent\}/);
   assert.match(source, /setExpenseStatus\.mutate\(\{ id: row\.id, status: approve \? 'Approved' : 'Rejected', approverEmployeeId: employee\?\.id \}\)/);
   assert.match(source, /decideReg\.mutate\(\{ id: row\.id, decision: approve \? 'Approved' : 'Rejected' \}\)/);
 });

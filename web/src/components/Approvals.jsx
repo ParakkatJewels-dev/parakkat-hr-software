@@ -38,6 +38,8 @@ export default function Approvals() {
   const setExpenseStatus = useSetExpenseStatus();
   const decideReg = useDecideRegularization();
   const [reviewLeaveId, setReviewLeaveId] = useState(null);
+  // Which button opened the review, so Reject opens it with Reject already chosen.
+  const [reviewIntent, setReviewIntent] = useState(null);
   const approvals = useActionableApprovals({ leaves: leaveQuery.data ?? [], expenses: expenseQuery.data ?? [], regs: regQuery.data ?? [] });
 
   const tabs = [
@@ -56,7 +58,7 @@ export default function Approvals() {
   const decide = (row, approve) => {
     setExpenseStatus.reset();
     decideReg.reset();
-    if (tab.id === 'leave') setReviewLeaveId(row.id);
+    if (tab.id === 'leave') { setReviewIntent(approve ? 'Approved' : 'Rejected'); setReviewLeaveId(row.id); }
     else if (tab.id === 'expense') setExpenseStatus.mutate({ id: row.id, status: approve ? 'Approved' : 'Rejected', approverEmployeeId: employee?.id });
     else decideReg.mutate({ id: row.id, decision: approve ? 'Approved' : 'Rejected' });
   };
@@ -70,7 +72,7 @@ export default function Approvals() {
   return (
     <div className="page-shell space-y-5 animate-slide-up approvals-page">
       <PageHeader title="Approvals" subtitle="Requests waiting for your decision." />
-      {reviewLeave && <LeaveReviewPanel key={reviewLeave.id} request={reviewLeave} onClose={() => setReviewLeaveId(null)} />}
+      {reviewLeave && <LeaveReviewPanel key={`${reviewLeave.id}:${reviewIntent}`} request={reviewLeave} initialDecision={reviewIntent} onClose={() => setReviewLeaveId(null)} />}
 
       {tabs.length === 0 ? (
         <p className="premium-card p-8 text-center text-sm text-neutral-500">You have no approvals to make.</p>

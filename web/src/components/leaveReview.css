@@ -1,0 +1,115 @@
+/* Leave review (round 3): an inline card on a computer, a sheet from the bottom on a phone. */
+.leave-review {
+  --review-approve: #087a41;
+  --review-reject: #c8102e;
+  --review-hold: #a85400;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-card, 1rem);
+  background: var(--surface-elevated);
+  color: var(--surface-text);
+  box-shadow: 0 1px 2px rgba(16, 32, 26, .05);
+  animation: leave-review-in .16s ease-out both;
+}
+.leave-review-head { display: flex; align-items: center; gap: .75rem; padding: 1rem 1rem .75rem; }
+.leave-review-who { flex: 1; min-width: 0; }
+.leave-review-who h3 { margin: 0; overflow: hidden; font-size: 1rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.leave-review-who p { margin: .1rem 0 0; color: var(--surface-text-soft); font-size: .8125rem; }
+.leave-review-close {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2.25rem; height: 2.25rem;
+  border-radius: 999px; background: var(--surface-muted); color: var(--surface-text);
+}
+.leave-review-body { display: grid; gap: 1rem; min-height: 0; padding: 0 1rem 1rem; }
+
+.leave-review-request { display: grid; gap: .45rem; padding: .8rem .9rem; border-radius: .85rem; background: var(--surface-subtle); }
+.leave-review-stage {
+  justify-self: start; padding: .15rem .6rem; border-radius: 999px; background: var(--tone-amber-bg); color: var(--tone-amber-fg);
+  font-size: .75rem; font-weight: 650;
+}
+.leave-review-reason { margin: 0; font-size: .9375rem; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-wrap; }
+.leave-review-note { margin: 0; color: var(--surface-text-soft); font-size: .75rem; }
+.leave-review-warn { margin: 0; color: var(--tone-amber-fg); font-size: .75rem; }
+
+/* The decision: one big button per choice, tinted in its own colour once chosen. */
+.leave-review-choices { min-width: 0; margin: 0; padding: 0; border: 0; }
+.leave-review-choices legend,
+.leave-review-remarks > label { margin-bottom: .45rem; color: var(--surface-text-soft); font-size: .8125rem; font-weight: 600; }
+.leave-review-remarks > label span { color: var(--tone-red-fg); }
+.leave-review-choices [role="radiogroup"] { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; }
+.leave-review-choices [role="radio"] {
+  display: flex; align-items: center; gap: .55rem; min-height: 3rem; padding: .55rem .8rem;
+  border: 1.5px solid var(--surface-border); border-radius: .85rem; background: var(--surface-elevated);
+  color: var(--surface-text); font-size: .875rem; font-weight: 600; text-align: left;
+  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+}
+.leave-review-choices [role="radio"] > svg { flex: none; color: var(--surface-text-soft); }
+.leave-review-choices [role="radio"][aria-checked="true"][data-tone="approve"] { border-color: var(--review-approve); background: var(--tone-green-bg); color: var(--tone-green-fg); }
+.leave-review-choices [role="radio"][aria-checked="true"][data-tone="reject"] { border-color: var(--review-reject); background: var(--tone-red-bg); color: var(--tone-red-fg); }
+.leave-review-choices [role="radio"][aria-checked="true"][data-tone="hold"] { border-color: var(--review-hold); background: var(--tone-amber-bg); color: var(--tone-amber-fg); }
+.leave-review-choices [role="radio"][aria-checked="true"][data-tone="neutral"] { border-color: var(--coral); background: var(--coral-soft); color: var(--coral-ink); }
+.leave-review-choices [role="radio"][aria-checked="true"] > svg { color: currentColor; }
+.leave-review-choices [role="radio"]:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+.leave-review-remarks { display: grid; }
+.leave-review-remarks textarea {
+  width: 100%; min-height: 5.5rem; padding: .7rem .85rem; resize: vertical;
+  border: 1px solid var(--surface-border); border-radius: .85rem; background: var(--surface-subtle);
+  color: var(--surface-text); font-size: .9375rem; line-height: 1.45;
+}
+.leave-review-remarks textarea:focus { border-color: var(--coral); outline: none; box-shadow: 0 0 0 3px var(--coral-soft); }
+.leave-review-phrases { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .55rem; }
+.leave-review-phrases button {
+  min-height: 2rem; padding: .3rem .75rem; border-radius: 999px; background: var(--surface-muted);
+  color: var(--surface-text); font-size: .8125rem; font-weight: 500; text-align: left;
+}
+.leave-review-phrases button:hover { background: color-mix(in srgb, var(--surface-text) 10%, var(--surface-muted)); }
+.leave-review-hint { margin: .5rem 0 0; color: var(--surface-text-soft); font-size: .75rem; }
+.leave-review-error { margin: 0; padding: .6rem .75rem; border-radius: .75rem; background: var(--tone-red-bg); color: var(--tone-red-fg); font-size: .8125rem; }
+
+.leave-review-history { border-top: 1px solid var(--surface-border); padding-top: .75rem; }
+.leave-review-history summary {
+  display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none;
+  color: var(--surface-text); font-size: .875rem; font-weight: 600;
+}
+.leave-review-history summary::-webkit-details-marker { display: none; }
+.leave-review-history summary svg { color: var(--surface-text-soft); transition: transform .15s ease; }
+.leave-review-history[open] summary svg { transform: rotate(180deg); }
+.leave-review-entry { display: grid; gap: .15rem; padding: .6rem .75rem; border-radius: .75rem; background: var(--surface-subtle); font-size: .8125rem; }
+.leave-review-entry span { color: var(--surface-text-soft); font-size: .75rem; }
+.leave-review-entry p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+
+/* Cancel and the decision side by side; the decision button wears its colour. */
+.leave-review-foot { display: flex; justify-content: flex-end; gap: .6rem; padding: .75rem 1rem; border-top: 1px solid var(--surface-border); }
+.leave-review-foot button {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem; min-height: 2.75rem; padding: 0 1.1rem;
+  border-radius: .85rem; font-size: .9375rem; font-weight: 650; white-space: nowrap;
+}
+.leave-review-cancel { border: 1px solid var(--surface-border); background: var(--surface-elevated); color: var(--surface-text); }
+.leave-review-submit { background: var(--coral); color: #fff; }
+.leave-review-submit[data-tone="approve"] { background: var(--review-approve); }
+.leave-review-submit[data-tone="reject"] { background: var(--review-reject); }
+.leave-review-submit[data-tone="hold"] { background: var(--review-hold); }
+.leave-review-submit:disabled { opacity: .45; cursor: not-allowed; }
+.leave-review-foot button:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+/* Phones: a sheet with the decision button pinned at the bottom. */
+.leave-review-layer { position: fixed; inset: 0; z-index: 140; }
+.leave-review-backdrop { position: absolute; inset: 0; width: 100%; border: 0; background: rgb(12 20 17 / .42); animation: leave-review-fade .16s ease both; }
+.leave-review-layer .leave-review {
+  position: absolute; inset: auto 0 0 0; max-height: 92dvh; border: 0; border-radius: 1.25rem 1.25rem 0 0;
+  box-shadow: 0 -18px 40px rgb(12 20 17 / .2); animation: leave-review-up .22s cubic-bezier(.2, .8, .2, 1) both;
+}
+.leave-review-layer .leave-review-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; }
+.leave-review-layer .leave-review-choices [role="radiogroup"] { grid-template-columns: minmax(0, 1fr); }
+.leave-review-layer .leave-review-choices [role="radiogroup"][data-count="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.leave-review-layer .leave-review-remarks textarea { font-size: 16px; }
+.leave-review-layer .leave-review-foot { padding-bottom: calc(.75rem + env(safe-area-inset-bottom)); }
+.leave-review-layer .leave-review-cancel { flex: 0 0 auto; }
+.leave-review-layer .leave-review-submit { flex: 1 1 auto; min-width: 0; }
+.leave-review-layer .leave-review-submit { overflow: hidden; text-overflow: ellipsis; }
+
+@keyframes leave-review-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes leave-review-up { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes leave-review-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .leave-review, .leave-review-layer .leave-review, .leave-review-backdrop { animation: none; } }
