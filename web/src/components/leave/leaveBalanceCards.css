@@ -47,25 +47,23 @@
      status on the right. Your own list leaves out your name. */
   .leave-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "person open" "type status";
+    grid-template-areas: none;
     gap: .2rem .6rem;
     padding: .7rem .75rem;
   }
-  .leave-row-person { grid-area: person; }
-  .leave-row-status { grid-area: status; align-items: flex-end; align-self: end; }
-  .leave-row-type { grid-area: type; grid-column: auto; padding-left: 3.2rem; }
-  .leave-row-days { display: none; }
-  .leave-row-open { grid-area: open; grid-row: auto; grid-column: auto; justify-self: end; min-height: 2rem; }
-  .leave-row-note { grid-area: note; }
-  /* The stage and reason are in the request's details; the row keeps who, what, when and status. */
-  .leave-row-stage, .leave-row-note, .leave-row-person .min-w-0 > span { display: none; }
-  .leave-row-open { width: 2rem; padding: 0; justify-content: center; font-size: 0; }
+  /* The status spans the row so the arrow alone sizes the right column and the name keeps the
+     width; type and dates sit under the name, the status at the end of that line. */
+  .leave-row-person { grid-column: 1; grid-row: 1; }
+  .leave-row-open { grid-column: 2; grid-row: 1; justify-self: end; min-height: 2rem; width: 2rem; padding: 0; justify-content: center; font-size: 0; }
   .leave-row-open svg { width: 18px; height: 18px; }
-  .leave-page.is-self .leave-row { grid-template-areas: "type status"; grid-template-columns: minmax(0, 1fr) auto auto; }
-  .leave-page.is-self .leave-row-open { grid-area: auto; }
+  .leave-row-type { grid-column: 1; grid-row: 2; padding-left: 3.2rem; padding-right: 5.5rem; }
+  .leave-row-status { grid-column: 1 / -1; grid-row: 2; justify-self: end; align-self: end; align-items: flex-end; }
+  .leave-row-days, .leave-row-stage, .leave-row-note, .leave-row-person .min-w-0 > span { display: none; }
+  .leave-page.is-self .leave-row { grid-template-columns: minmax(0, 1fr) auto auto; }
   .leave-page.is-self .leave-row-person { display: none; }
-  .leave-page.is-self .leave-row-type,
-  .leave-page.is-self .leave-row-note { padding-left: 0; }
+  .leave-page.is-self .leave-row-type { grid-row: 1; padding: 0; }
+  .leave-page.is-self .leave-row-status { grid-column: 2; grid-row: 1; align-self: center; }
+  .leave-page.is-self .leave-row-open { grid-column: 3; }
 
   /* Managers: the Mine / Everyone switch across the width, Apply leave under it. */
   .leave-page:not(.is-self) .page-header-actions,
