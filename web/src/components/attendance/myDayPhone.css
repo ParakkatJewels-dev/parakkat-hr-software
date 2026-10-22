@@ -1,3 +1,7 @@
+/* The correction form's styles ride along with the attendance screen's (Attendance.jsx imports
+   MyDayPhone, and through it this file). */
+@import './correction.css';
+
 /* My day on a phone (round 2, after the reference phone kit). Computers keep the hero and the
    month grid; this view exists only below 641px. */
 .my-day-phone, .month-record-list { display: none; }
@@ -61,6 +65,7 @@
   }
   .my-day-ring-copy > span { color: var(--surface-text-soft); font-size: .75rem; }
   .my-day-ring-copy strong { color: var(--surface-text); font-size: 1.6rem; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .my-day-ring-copy strong.is-pending { font-size: 1.05rem; }
   .my-day-ring-copy small { color: var(--surface-text-soft); font-size: .75rem; }
 
   .my-day-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; width: 100%; }

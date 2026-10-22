@@ -2769,10 +2769,12 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     transition: background-color .18s ease, color .18s ease;
   }
 
-  .people-part-button:hover,
+  /* The chosen part wears the app's light coral, like every other picker (round 3; it was the
+     pre-redesign green). */
+  .people-part-button:hover { background: var(--surface-muted); color: var(--surface-text); }
   .people-part-button.is-active {
-    background: var(--accent-soft);
-    color: var(--accent-strong);
+    background: var(--chip-active-bg);
+    color: var(--chip-active-fg);
   }
 
   .people-part-count {
@@ -2783,14 +2785,14 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
     color: var(--surface-text-soft);
     padding: .14rem .45rem;
     text-align: center;
-    font-family: var(--font-mono);
     font-size: .6875rem;
-    font-weight: 850;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
 
   .people-part-button.is-active .people-part-count {
-    background: color-mix(in srgb, var(--accent) 15%, var(--surface-elevated));
-    color: var(--accent-strong);
+    background: color-mix(in srgb, var(--coral) 18%, transparent);
+    color: var(--chip-active-fg);
   }
 
   .onboarding-hire-card {
@@ -2800,8 +2802,8 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .onboarding-hire-card.is-active {
-    border-color: color-mix(in srgb, var(--accent) 42%, transparent);
-    background: color-mix(in srgb, var(--accent) 6%, var(--surface-elevated));
+    border-color: color-mix(in srgb, var(--coral) 45%, transparent);
+    background: color-mix(in srgb, var(--coral) 5%, var(--surface-elevated));
   }
 
   .onboarding-progress,
@@ -7528,10 +7530,17 @@ main .space-y-6 > :not(:last-child) { margin-block-end: var(--section-gap); }
     flex: 0 0 auto;
   }
 
+  /* On a phone the parts are a row of pills on the page, not buttons in a sticky card. */
+  main .people-part-rail { position: static; padding: 0; border: 0; background: transparent; box-shadow: none; }
+  main .people-part-rail ul { gap: .4rem !important; }
   main .people-part-button {
-    min-width: 8.5rem;
-    min-height: 2.35rem;
+    min-width: 0;
+    min-height: 2.125rem;
+    padding: 0 .85rem;
+    border-radius: 999px;
+    background: var(--surface-muted);
   }
+  main .people-part-button > span:first-child { font-size: .8125rem !important; font-weight: 600 !important; }
 
   main .onboarding-hire-card {
     padding: .72rem;
@@ -9189,9 +9198,39 @@ button.role-chip:hover,
 .choice-pill:hover { color: var(--surface-text); }
 .choice-pill[aria-pressed="true"] { background: var(--chip-active-bg); color: var(--chip-active-fg); }
 .choice-pill:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.choice-pill-count {
+  min-width: 1.25rem; padding: .05rem .4rem; border-radius: 999px; background: color-mix(in srgb, var(--surface-text) 8%, transparent);
+  font-size: .6875rem; font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center;
+}
+.choice-pill[aria-pressed="true"] .choice-pill-count { background: color-mix(in srgb, var(--coral) 18%, transparent); }
 @media (max-width: 640px) {
   /* A long set swipes sideways in one row rather than wrapping into three. */
   .choice-pills { flex-wrap: nowrap; margin-inline: calc(var(--space-card) * -1); padding-inline: var(--space-card); overflow-x: auto; scrollbar-width: none; }
   .choice-pills::-webkit-scrollbar { display: none; }
   .choice-pill { flex: none; }
+}
+
+/* Structure lists on a phone (round 3): one line per branch / department — the name with its
+   edit buttons, then the other columns as small "City · Zone" text — instead of a boxed card of
+   uppercase label/value pairs. */
+@media (max-width: 640px) {
+  main .premium-table tbody:has(> tr.org-row) { gap: 0; }
+  main .premium-table tr.org-row {
+    display: flex; flex-wrap: wrap; align-items: center; column-gap: .6rem; row-gap: .15rem;
+    padding: .7rem .15rem; border: 0; border-bottom: 1px solid var(--surface-border); border-radius: 0; background: transparent; box-shadow: none;
+  }
+  main .premium-table tr.org-row:last-child { border-bottom: 0; }
+  main .premium-table tr.org-row::after { content: ''; order: 2; flex: 0 0 100%; height: 0; }
+  main .premium-table tr.org-row > td {
+    display: block !important; width: auto !important; min-width: 0; padding: 0 !important; border: 0 !important;
+    color: var(--surface-text-soft); font-size: .75rem !important; line-height: 1.4;
+  }
+  main .premium-table tr.org-row > td::before { display: none; }
+  main .premium-table tr.org-row > td:first-child { order: 0; flex: 1 1 0; color: var(--surface-text); font-size: .875rem !important; font-weight: 600; }
+  main .premium-table tr.org-row > td[data-label="Actions"] { order: 1; flex: none; margin-left: auto; }
+  main .premium-table tr.org-row > td:not(:first-child):not([data-label="Actions"]) { order: 3; }
+  main .premium-table tr.org-row > td:not(:first-child):not([data-label="Actions"])::before {
+    content: attr(data-label) ' '; display: inline; color: var(--surface-text-soft); font-size: inherit; font-weight: 500; letter-spacing: 0; text-transform: none;
+  }
+  main .premium-table tr.org-row > td:not(:first-child):not([data-label="Actions"]) ~ td:not([data-label="Actions"])::before { content: '· ' attr(data-label) ' '; }
 }

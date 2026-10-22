@@ -120,31 +120,20 @@ export default function Team() {
           different product. The headcount is a badge rather than a bare digit trailing the name,
           which looked like part of the department. */}
       {departments.length > 1 && (
-        <div className="mobile-segmented mobile-segmented-dense flex flex-wrap items-center gap-1.5">
+        <div className="choice-pills" role="group" aria-label="Departments">
           {departments.map((d) => {
             const on = d.id === departmentId;
             return (
               <button
                 key={d.id}
+                type="button"
                 onClick={() => { setSelectedId(d.id); setMemberSearch(''); setRemoving(null); }}
                 aria-current={on ? 'page' : undefined}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-base font-bold cursor-pointer transition-colors ${
-                  on
-                    ? 'bg-brand/15 text-brand-ink dark:text-brand-ink border border-brand/25'
-                    : 'bg-neutral-100 dark:bg-charcoal-800 text-neutral-500 dark:text-neutral-400 border border-transparent hover:text-neutral-800 dark:hover:text-warm-gray-200'
-                }`}
+                aria-pressed={on}
+                className="choice-pill"
               >
                 <span className="truncate">{d.name}</span>
-                <span
-                  className={`font-mono text-2xs font-bold px-1.5 py-0.5 rounded-full shrink-0 ${
-                    on
-                      ? 'bg-brand/20 text-brand-ink dark:text-brand-ink'
-                      : 'bg-neutral-200/70 dark:bg-neutral-800 text-neutral-500'
-                  }`}
-                  aria-label={`${d.headcount} ${d.headcount === 1 ? 'person' : 'people'}`}
-                >
-                  {d.headcount}
-                </span>
+                {Number.isFinite(d.headcount) && <em className="choice-pill-count" aria-label={`${d.headcount} ${d.headcount === 1 ? 'person' : 'people'}`}>{d.headcount}</em>}
               </button>
             );
           })}
@@ -197,7 +186,7 @@ export default function Team() {
                       <Avatar name={m.full_name} />
                       <div className="min-w-0">
                         <span className="block text-md font-bold text-neutral-900 dark:text-white truncate">{m.full_name}</span>
-                        <span className="block text-2xs font-mono text-neutral-500">
+                        <span className="block text-xs text-neutral-500 truncate">
                           {m.employee_code}
                           {m.designation?.title ? ` · ${m.designation.title}` : ''}
                           {m.branch?.code ? ` · ${m.branch.code}` : ''}
@@ -316,14 +305,14 @@ export function AddToTeam({ department, busy, onClose, onPick }) {
                 <Avatar name={c.full_name} />
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{c.full_name}</span>
-                  <span className="block text-2xs font-mono text-neutral-500">
+                  <span className="block text-xs text-neutral-500 truncate">
                     {c.employee_code}
                     {c.branch_code ? ` · ${c.branch_code}` : ''}
                   </span>
                 </span>
               </span>
               {/* Where they are now, so nobody is moved off another team by accident. */}
-              <span className={`max-w-full break-words text-2xs font-mono ${c.department_name ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-400'}`}>
+              <span className={`max-w-full break-words text-xs ${c.department_name ? 'text-amber-600 dark:text-amber-300' : 'text-neutral-400'}`}>
                 {c.department_name ? `now in ${c.department_name}` : 'no department'}
               </span>
             </button>

@@ -1,7 +1,7 @@
 import { SkeletonPage } from './ui/Skeleton';
 import React, { useState, useMemo } from 'react';
 import {
-  Plus, Pencil, Power, Loader2, Network, X, Search, Trash2,
+  Plus, Pencil, Power, Loader2, Network, X, Search, Trash2, Users, Building2, BadgeCheck,
 } from 'lucide-react';
 import { useOrgAll, useOrgMutation, useQuickSetup } from '../data/org';
 import FormSection, { Field, FIELD } from './ui/FormSection';
@@ -11,6 +11,7 @@ import { btnClass } from './ui/Btn';
 import { usePermissions } from '../auth/usePermissions';
 import { useEmployees } from '../data/employees';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
 import Pagination, { usePagination } from './ui/Pagination';
 
 import SearchSelect from './ui/SearchSelect';
@@ -149,10 +150,10 @@ export default function Organization() {
   };
   const activePeopleCount = allEmployees.filter((x) => x.entity_id === activeEntityId).length;
   const structureStats = [
-    { label: 'People', value: activePeopleCount, sub: activeEntity?.code || 'Selected company', tone: 'green' },
-    { label: 'Branches', value: branches.length, sub: 'Work locations', tone: 'blue' },
-    { label: 'Departments', value: departments.length, sub: 'Teams mapped', tone: 'amber' },
-    { label: 'Designations', value: designations.length, sub: `${zones.length} zones`, tone: 'violet' },
+    { label: 'People', icon: Users, value: activePeopleCount, sub: activeEntity?.code || 'Selected company', tone: 'green' },
+    { label: 'Branches', icon: Building2, value: branches.length, sub: 'Work locations', tone: 'blue' },
+    { label: 'Departments', icon: Network, value: departments.length, sub: 'Teams mapped', tone: 'amber' },
+    { label: 'Designations', icon: BadgeCheck, value: designations.length, sub: `${zones.length} zones`, tone: 'violet' },
   ];
 
   const zoneName = (id) => (id ? labelOf(zones.find((z) => z.id === id)) : '—');
@@ -348,15 +349,7 @@ export default function Organization() {
             })}
           </div>
 
-          <section className="people-insight-grid">
-            {structureStats.map((stat) => (
-              <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-                <em>{stat.sub}</em>
-              </div>
-            ))}
-          </section>
+          <StatRow label="Summary">{structureStats.map((stat) => <StatCard key={stat.label} icon={stat.icon} tone={stat.tone ?? 'green'} label={stat.label} value={stat.value} sub={stat.sub} />)}</StatRow>
 
           {/* What this company is made of, in one line. Four stacked lists give no sense of scale
               until you scroll all of them; this answers "how big is this?" up front and keeps the
@@ -836,7 +829,7 @@ function StructureSection({ section, rows, columns, canEditRow, canAdd, fields, 
                     submitLabel="Save changes"
                   />
                 ) : (
-                <tr key={r.id} className={`group transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/30 ${r.is_active ? '' : 'opacity-55'}`}>
+                <tr key={r.id} className={`org-row group transition-colors hover:bg-neutral-50 dark:hover:bg-neutral-900/30 ${r.is_active ? '' : 'opacity-55'}`}>
                   {columns.map((col, ci) => (
                     <td key={col.h} data-label={col.h} className="py-2.5 text-base">
                       {col.c(r)}

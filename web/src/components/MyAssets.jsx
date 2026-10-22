@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../auth/AuthContext';
 import { useAssetPhotos, useEmployeeAssets } from '../data/assets';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
 import Pagination, { usePagination } from './ui/Pagination';
 
 const categoryIcon = (asset) => {
@@ -45,8 +46,8 @@ export default function MyAssets() {
   const stats = useMemo(() => {
     const categories = new Set(assets.map((asset) => asset.category).filter(Boolean));
     return [
-      { label: 'Holding', value: assets.length, sub: assets.length === 1 ? 'asset assigned' : 'assets assigned' },
-      { label: 'Categories', value: categories.size, sub: 'types of company property' },
+      { label: 'Holding', icon: Package, value: assets.length, sub: assets.length === 1 ? 'asset assigned' : 'assets assigned' },
+      { label: 'Categories', icon: Monitor, tone: 'blue', value: categories.size, sub: 'types of company property' },
     ];
   }, [assets]);
 
@@ -79,15 +80,7 @@ export default function MyAssets() {
         </div>
       ) : (
         <>
-          <section className="people-insight-grid">
-            {stats.map((stat) => (
-              <div key={stat.label} className="people-insight-card" data-tone="green">
-                <span>{stat.label}</span>
-                <strong>{stat.value}</strong>
-                <em>{stat.sub}</em>
-              </div>
-            ))}
-          </section>
+          <StatRow label="Summary">{stats.map((stat) => <StatCard key={stat.label} icon={stat.icon} tone={stat.tone ?? 'green'} label={stat.label} value={stat.value} sub={stat.sub} />)}</StatRow>
 
           <ul className="my-assets-list">
             {pager.slice.map((asset) => {

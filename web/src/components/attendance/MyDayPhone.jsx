@@ -1,17 +1,16 @@
 // My attendance for one day, on a phone (round 2, after the reference phone kit): the month and
-// a swipeable strip of its days, a ring with the first punch and the day's status, hours worked
-// and breaks, then the punches as a timeline. The chosen day is shared with the month calendar
+// a swipeable strip of its days, a ring with the day's total work time and status, the check-in
+// and the last check-out under it (round 3), then the punches as a timeline. The chosen day is shared with the month calendar
 // and month list below it, so a day picked anywhere shows here. The face machines record the
 // punches, so there are no check-in or break buttons — a day that looks wrong goes to Fix
 // attendance instead.
 import React, { useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Clock, Coffee, Fingerprint, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Fingerprint, LogIn, LogOut, TrendingUp } from 'lucide-react';
 import { useMonthlyAttendance, todayIso, fmtTime, fmtMinutes } from '../../data/attendance';
 import { attendanceTimeline } from '../../lib/attendanceTimeline';
-import { firstRecordedPunch } from '../../lib/recordedPunches';
+import { firstRecordedPunch, latestRecordedPunch } from '../../lib/recordedPunches';
 import { toneForStatus } from '../../lib/statusTone';
 import { monthDays, shiftMonth, punchSteps } from '../../lib/weekStrip';
-import { segments } from '../ui/PunchTimeline';
 import StatusPill from '../ui/StatusPill';
 import { Skeleton } from '../ui/Skeleton';
 import './myDayPhone.css';
@@ -36,8 +35,10 @@ export default function MyDayPhone({ employeeId, day, onDay, onFix, onOverview }
   const first = firstRecordedPunch(row);
   const timeline = row ? attendanceTimeline(row) : [];
   const steps = punchSteps(timeline);
-  const breaks = segments(timeline).filter((s) => s.away).length;
   const stillIn = day === today && timeline.length % 2 === 1;
+  // The last punch is a check-out once the day has an even number of them (in, out, in, out…).
+  const lastOut = timeline.length >= 2 && timeline.length % 2 === 0 ? latestRecordedPunch(row) : null;
+  const worked = row?.worked_minutes ? fmtMinutes(row.worked_minutes) : null;
 
   // Keep the chosen day in the middle of the strip, however it was chosen.
   const strip = useRef(null);
@@ -77,16 +78,16 @@ export default function MyDayPhone({ employeeId, day, onDay, onFix, onOverview }
           </svg>
           <div className="my-day-ring-copy">
             {isLoading ? <Skeleton className="h-8 w-24" /> : <>
-              <span>{first ? 'Checked in' : day > today ? 'Coming up' : 'No punch'}</span>
-              <strong>{first ? fmtTime(first) : '--:--'}</strong>
+              <span>{first ? (stillIn ? 'Worked so far' : 'Total work time') : day > today ? 'Coming up' : 'No punch'}</span>
+              <strong className={first && !worked ? 'is-pending' : ''}>{worked ?? (first ? (stillIn ? 'In progress' : '—') : '--:--')}</strong>
               <small>{day === today ? 'Today' : label(day, { weekday: 'short', day: 'numeric', month: 'short' })}</small>
               {status && <StatusPill status={status} />}
             </>}
           </div>
         </div>
         <div className="my-day-facts">
-          <div><Clock size={16} aria-hidden="true" /><span>Worked</span><strong>{row?.worked_minutes ? fmtMinutes(row.worked_minutes) : stillIn ? 'In progress' : '—'}</strong></div>
-          <div><Coffee size={16} aria-hidden="true" /><span>Breaks</span><strong>{timeline.length >= 4 ? `${breaks} · ${row.break_minutes ?? 0}m` : '—'}</strong></div>
+          <div><LogIn size={16} aria-hidden="true" /><span>Check in</span><strong>{first ? fmtTime(first) : '—'}</strong></div>
+          <div><LogOut size={16} aria-hidden="true" /><span>Last check-out</span><strong>{lastOut ? fmtTime(lastOut) : stillIn ? 'Still in' : '—'}</strong></div>
         </div>
       </div>
 

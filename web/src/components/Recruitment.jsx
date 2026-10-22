@@ -5,6 +5,7 @@ import { useJobs, useCandidates, useAddJob, useSetCandidateStage } from '../data
 import { useVisibleOrg } from '../data/org';
 import { usePermissions } from '../auth/usePermissions';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
 import PagedCollection from './ui/PagedCollection';
 import ListSearch from './ui/ListSearch';
 import QueryError from './ui/QueryError';
@@ -52,10 +53,10 @@ export default function Recruitment() {
       ? Math.round(scored.reduce((sum, c) => sum + Number(c.match_score || 0), 0) / scored.length)
       : 0;
     return [
-      { label: 'Open roles', value: hasJobs ? openJobs : jobsError ? 'Unavailable' : 'Loading…', sub: hasJobs ? `${jobs.length} total postings` : 'Job postings', tone: 'green' },
-      { label: 'Candidates', value: hasCandidates ? candidates.length : candidatesError ? 'Unavailable' : 'Loading…', sub: 'Across pipeline and history', tone: 'blue' },
-      { label: 'Offers', value: hasCandidates ? offered : candidatesError ? 'Unavailable' : 'Loading…', sub: 'Offer stage', tone: 'amber' },
-      { label: 'Avg match', value: hasCandidates ? avgMatch ? `${avgMatch}%` : '—' : candidatesError ? 'Unavailable' : 'Loading…', sub: hasCandidates ? scored.length ? `${scored.length} scored` : 'No scores yet' : 'Candidate match', tone: 'violet' },
+      { label: 'Open roles', icon: Briefcase, value: hasJobs ? openJobs : jobsError ? 'Unavailable' : 'Loading…', sub: hasJobs ? `${jobs.length} total postings` : 'Job postings', tone: 'green' },
+      { label: 'Candidates', icon: Users, value: hasCandidates ? candidates.length : candidatesError ? 'Unavailable' : 'Loading…', sub: 'Across pipeline and history', tone: 'blue' },
+      { label: 'Offers', icon: Award, value: hasCandidates ? offered : candidatesError ? 'Unavailable' : 'Loading…', sub: 'Offer stage', tone: 'amber' },
+      { label: 'Avg match', icon: User, value: hasCandidates ? avgMatch ? `${avgMatch}%` : '—' : candidatesError ? 'Unavailable' : 'Loading…', sub: hasCandidates ? scored.length ? `${scored.length} scored` : 'No scores yet' : 'Candidate match', tone: 'violet' },
     ];
   }, [jobs, candidates, hasJobs, hasCandidates, jobsError, candidatesError]);
 
@@ -85,15 +86,7 @@ export default function Recruitment() {
         )}
       />
 
-      <section className="people-insight-grid">
-        {pipelineStats.map((stat) => (
-          <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
-            <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
-            <em>{stat.sub}</em>
-          </div>
-        ))}
-      </section>
+      <StatRow label="Summary">{pipelineStats.map((stat) => <StatCard key={stat.label} icon={stat.icon} tone={stat.tone ?? 'green'} label={stat.label} value={stat.value} sub={stat.sub} />)}</StatRow>
 
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_15rem] gap-3">
         <ListSearch value={search} onChange={setSearch} label="Search hiring" placeholder="Search candidates, jobs or company…" />

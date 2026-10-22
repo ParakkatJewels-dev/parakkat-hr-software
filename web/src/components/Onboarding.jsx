@@ -3,13 +3,13 @@ import React, { useMemo, useState } from 'react';
 import { UserCheck, Clock, Calendar, AlertTriangle, CheckCircle2, Users } from 'lucide-react';
 import { useOnboarding, useUpdateOnboarding } from '../data/onboarding';
 import PageHeader from './ui/PageHeader';
+import { StatCard, StatRow } from './ui/StatCard';
 import Pagination, { usePagination } from './ui/Pagination';
 import ListSearch from './ui/ListSearch';
 import { useSectionCounts } from '../data/sectionCounts';
 import { usePermissions } from '../auth/usePermissions';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
 import { NavigationCountBadge } from './ui/CountBadge';
-import { btnClass } from './ui/Btn';
 
 export default function Onboarding() {
   const { data: list = [], isLoading, error } = useOnboarding();
@@ -31,10 +31,10 @@ export default function Onboarding() {
       : 0;
     const joiningSoon = list.filter((c) => c.progress !== 100).length;
     return [
-      { label: 'Incoming hires', value: list.length, sub: 'Visible in scope', tone: 'green' },
-      { label: 'Ready', value: complete, sub: 'All steps complete', tone: 'blue' },
-      { label: 'In progress', value: joiningSoon, sub: 'Needs follow-up', tone: 'amber' },
-      { label: 'Avg progress', value: list.length ? `${avg}%` : '—', sub: 'Across checklists', tone: 'violet' },
+      { label: 'Incoming hires', icon: Users, value: list.length, sub: 'Visible in scope', tone: 'green' },
+      { label: 'Ready', icon: CheckCircle2, value: complete, sub: 'All steps complete', tone: 'blue' },
+      { label: 'In progress', icon: Clock, value: joiningSoon, sub: 'Needs follow-up', tone: 'amber' },
+      { label: 'Avg progress', icon: UserCheck, value: list.length ? `${avg}%` : '—', sub: 'Across checklists', tone: 'violet' },
     ];
   }, [list]);
 
@@ -99,15 +99,7 @@ export default function Onboarding() {
         </div>
       ) : (
         <>
-        <section className="people-insight-grid">
-          {stats.map((stat) => (
-            <div key={stat.label} className="people-insight-card" data-tone={stat.tone}>
-              <span>{stat.label}</span>
-              <strong>{stat.value}</strong>
-              <em>{stat.sub}</em>
-            </div>
-          ))}
-        </section>
+        <StatRow label="Summary">{stats.map((stat) => <StatCard key={stat.label} icon={stat.icon} tone={stat.tone ?? 'green'} label={stat.label} value={stat.value} sub={stat.sub} />)}</StatRow>
 
         <div className="people-workspace grid grid-cols-1 lg:grid-cols-3 gap-5">
           <div className="lg:col-span-1">
@@ -116,10 +108,10 @@ export default function Onboarding() {
                 <span aria-label={navigationCountLabel('Incoming hires', incompleteBadge)}><UserCheck size={15} /> Incoming hires <NavigationCountBadge badge={incompleteBadge} /></span>
                 <em>{shown.length} of {list.length} records</em>
               </div>
-              <div className="flex flex-wrap gap-2" role="group" aria-label="Onboarding checklist filters">
-                <button type="button" className={btnClass(!inProgressOnly ? 'primary' : 'ghost')} aria-pressed={!inProgressOnly}
+              <div className="choice-pills" role="group" aria-label="Onboarding checklist filters">
+                <button type="button" className="choice-pill" aria-pressed={!inProgressOnly}
                   onClick={() => { setInProgressOnly(false); setSearch(''); }}>All hires</button>
-                <button type="button" className={btnClass(inProgressOnly ? 'primary' : 'ghost')} aria-pressed={inProgressOnly}
+                <button type="button" className="choice-pill" aria-pressed={inProgressOnly}
                   aria-label={navigationCountLabel('In progress', incompleteBadge)}
                   onClick={() => { setInProgressOnly(true); setSearch(''); }}>In progress <NavigationCountBadge badge={incompleteBadge} /></button>
               </div>
@@ -129,11 +121,11 @@ export default function Onboarding() {
                   <button key={c.id} type="button" onClick={() => setSelectedId(c.id)} className={`onboarding-hire-card ${selected?.id === c.id ? 'is-active' : ''}`}>
                     <div className="mobile-list-row flex justify-between items-start">
                       <h4 className="font-bold text-xs text-neutral-800 dark:text-slate-200">{c.name}</h4>
-                      <span className="text-2xs text-neutral-500 font-mono">{c.entity?.code}{c.branch?.code ? `·${c.branch.code}` : ''}</span>
+                      <span className="text-2xs text-neutral-500">{c.entity?.code}{c.branch?.code ? `·${c.branch.code}` : ''}</span>
                     </div>
                     <span className="text-2xs text-neutral-500 block mt-0.5">{c.job_title || '—'}</span>
                     <div className="mt-3 space-y-1">
-                      <div className="flex justify-between text-2xs text-neutral-500 font-mono"><span>Milestones</span><span className="font-bold">{c.progress || 0}%</span></div>
+                      <div className="flex justify-between text-2xs text-neutral-500"><span>Milestones</span><span className="font-bold">{c.progress || 0}%</span></div>
                       <div className="onboarding-progress"><span style={{ width: `${c.progress || 0}%` }} /></div>
                     </div>
                     <div className="flex justify-between text-2xs text-neutral-450 pt-2.5 mt-3 border-t border-neutral-100 dark:border-neutral-900/40"><span className="flex items-center"><Calendar size={10} className="mr-1" /> {c.join_date || '—'}</span></div>

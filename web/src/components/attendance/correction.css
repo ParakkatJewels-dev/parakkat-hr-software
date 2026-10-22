@@ -1,0 +1,35 @@
+/* Raise a correction (round 3): sentence-case labels over full-height fields, the day's current
+   times as a small summary, and check in / check out side by side at every width. */
+.correction-title { margin-top: 0; color: var(--surface-text); font-size: 1rem; font-weight: 700; }
+.correction-intro { margin-top: 0; color: var(--surface-text-soft); font-size: .8125rem; line-height: 1.45; }
+.correction-field { display: grid; gap: .35rem; min-width: 0; }
+.correction-field > span { color: var(--surface-text-soft); font-size: .8125rem; font-weight: 600; }
+.correction-input,
+.correction-form .correction-field .search-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: .55rem .8rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .8rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text);
+  font-size: .875rem;
+}
+.correction-input:focus { border-color: var(--coral); outline: none; box-shadow: 0 0 0 3px var(--coral-soft); }
+textarea.correction-input { min-height: 4.5rem; resize: vertical; line-height: 1.45; }
+.correction-times { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; }
+.correction-times input[type="time"] { padding-inline: .6rem; }
+.correction-current { display: grid; gap: .35rem; margin-top: 0; margin-inline: 0; padding: .65rem .8rem; border-radius: .8rem; background: var(--surface-subtle); }
+.correction-current > div { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.correction-current dt { color: var(--surface-text-soft); font-size: .75rem; }
+.correction-current dd { margin: 0; color: var(--surface-text); font-size: .8125rem; font-weight: 650; font-variant-numeric: tabular-nums; text-align: right; }
+.correction-check { display: flex; align-items: center; gap: .55rem; color: var(--surface-text); font-size: .875rem; }
+.correction-check input { width: 1.1rem; height: 1.1rem; accent-color: var(--coral); }
+.correction-hint { margin-top: 0; color: var(--surface-text-soft); font-size: .75rem; line-height: 1.45; }
+.correction-submit { min-height: 2.875rem; font-size: .9375rem; }
+
+@media (max-width: 640px) {
+  /* 16px keeps iOS from zooming into the field on focus. */
+  .correction-input { font-size: 16px; }
+}

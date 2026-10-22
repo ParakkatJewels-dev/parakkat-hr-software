@@ -488,6 +488,7 @@ main .page-header-title,
   .page-header-actions .page-back-button { display: none; }
   /* A short title with one small action keeps them on one row (Help & support · Request exit). */
   .page-header.page-header-inline-actions .page-header-actions { width: auto; }
+  .page-header.page-header-inline-actions .page-header-copy { flex: 1 1 0; min-width: 0; }
   /* The title keeps at least half the row; buttons that do not fit beside it wrap underneath. */
   .page-header.has-back .page-header-copy { flex: 1 1 9rem; }
 

@@ -1301,17 +1301,15 @@ export function RegularizationsView({ employee, canApprove }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <div className="lg:col-span-1 space-y-4">
-        <form onSubmit={submit} className="premium-card space-y-3" aria-busy={create.isPending}>
+        <form onSubmit={submit} className="premium-card correction-form space-y-3" aria-busy={create.isPending}>
           <fieldset disabled={create.isPending} className="min-w-0 space-y-3">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-200">
-            Raise a correction
-          </h3>
-          <p className="text-xs text-neutral-500">
+          <h3 className="correction-title">Raise a correction</h3>
+          <p className="correction-intro">
             {onBehalf ? 'File corrected times for an employee in your scope. Another reviewer must approve a request you file. Original device punches stay unchanged.' : 'Request a correction for a missed punch. Once approved, your attendance for that date is updated.'}
           </p>
 
-          {onBehalf && <label className="block text-2xs uppercase tracking-wider text-neutral-500">Employee
-            <SearchSelect aria-label="Correction employee" value={target?.id ?? ''} disabled={people.isLoading || Boolean(people.error)} onChange={event => { setSelectedId(event.target.value); setForm(current => ({ ...current, checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' })); setFormError(''); create.reset(); }} className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-2 rounded-xl text-xs">
+          {onBehalf && <label className="correction-field"><span>Employee</span>
+            <SearchSelect aria-label="Correction employee" value={target?.id ?? ''} disabled={people.isLoading || Boolean(people.error)} onChange={event => { setSelectedId(event.target.value); setForm(current => ({ ...current, checkIn: '', checkOut: '', checkOutNextDay: false, reason: '' })); setFormError(''); create.reset(); }} className="correction-input">
               <option value="">Choose an employee…</option>
               {eligible.map(person => <option key={person.id} value={person.id}>{person.full_name} · {person.employee_code}</option>)}
             </SearchSelect>
@@ -1319,52 +1317,54 @@ export function RegularizationsView({ employee, canApprove }) {
           {onBehalf && people.error && <ErrorNote error={people.error} />}
           {onBehalf && selectedId && !target && !people.isLoading && !people.error && <p role="alert" className="text-xs text-amber-700">This employee is not available in your correction scope.</p>}
 
-          <label className="block text-2xs uppercase tracking-wider text-neutral-500">
-            Date
+          <label className="correction-field">
+            <span>Date</span>
             <input type="date" aria-label="Correction date" required max={todayIso()} value={form.workDate}
               onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, workDate: value })); }}
-              className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
+              className="correction-input" />
           </label>
 
-          {currentDay && <div className="text-xs text-neutral-500 space-y-1">
-            <p>Recorded punches: {fmtTime(firstRecordedPunch(currentDay))} – {fmtTime(latestRecordedPunch(currentDay))}</p>
-            <p>Current attendance: {fmtTime(currentDay.check_in)} – {fmtTime(currentDay.check_out)}{correctionDateLabel(currentDay.check_out, form.workDate)}</p>
-          </div>}
+          {/* What the day holds now, as two short lines beside each other's label. */}
+          {currentDay && <dl className="correction-current">
+            <div><dt>Recorded punches</dt><dd>{fmtTime(firstRecordedPunch(currentDay))} – {fmtTime(latestRecordedPunch(currentDay))}</dd></div>
+            <div><dt>Current attendance</dt><dd>{fmtTime(currentDay.check_in)} – {fmtTime(currentDay.check_out)}{correctionDateLabel(currentDay.check_out, form.workDate)}</dd></div>
+          </dl>}
           {locked && <p role="alert" className="text-xs text-amber-700">This day is locked by published payroll. Its punch times cannot be corrected here.</p>}
           {dayQuery.error && <ErrorNote error={dayQuery.error} />}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <label className="block text-2xs uppercase tracking-wider text-neutral-500">
-              Check in
+          {/* Check in and check out side by side at every width — they are one pair of times. */}
+          <div className="correction-times">
+            <label className="correction-field">
+              <span>Check in</span>
               <input type="time" aria-label="Corrected check-in" value={form.checkIn} disabled={locked || dayReadBlocked}
                 onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, checkIn: value })); }}
-                className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
+                className="correction-input" />
             </label>
-            <label className="block text-2xs uppercase tracking-wider text-neutral-500">
-              Check out
+            <label className="correction-field">
+              <span>Check out</span>
               <input type="time" aria-label="Corrected check-out" value={form.checkOut} disabled={locked || dayReadBlocked}
                 onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, checkOut: value })); }}
-                className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-2 py-1.5 rounded-xl text-xs" />
+                className="correction-input" />
             </label>
           </div>
 
-          <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+          <label className="correction-check">
             <input type="checkbox" aria-label="Check-out is next day" checked={form.checkOutNextDay} disabled={!form.checkOut || locked || dayReadBlocked}
               onChange={(e) => { const value = e.target.checked; setForm(current => ({ ...current, checkOutNextDay: value })); }} />
             Check-out is next day
           </label>
-          <p className="text-2xs text-neutral-500">Times are in IST. Select next day for a shift ending after midnight, including a check-out-only correction.</p>
+          <p className="correction-hint">Times are in IST. Select next day for a shift ending after midnight, including a check-out-only correction.</p>
 
-          <label className="block text-2xs uppercase tracking-wider text-neutral-500">
-            Reason
+          <label className="correction-field">
+            <span>Reason</span>
             <textarea aria-label="Correction reason" required rows={2} value={form.reason} disabled={locked || dayReadBlocked}
               onChange={(e) => { const value = e.target.value; setForm(current => ({ ...current, reason: value })); }}
               placeholder="Face reader did not register on exit"
-              className="block w-full mt-1 bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 px-3 py-1.5 rounded-xl text-xs" />
+              className="correction-input" />
           </label>
 
           <button type="submit" disabled={createBlocked}
-            className="w-full py-2 rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover text-xs font-bold disabled:opacity-50">
+            className="correction-submit w-full rounded-xl bg-brand-action text-brand-on hover:bg-brand-action-hover font-bold disabled:opacity-50">
             {create.isPending ? 'Submitting…' : 'Submit for approval'}
           </button>
           </fieldset>

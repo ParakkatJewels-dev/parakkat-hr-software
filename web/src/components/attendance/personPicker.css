@@ -1,0 +1,54 @@
+/* Find a person (round 3): a search box with its icon inside it, and results as rows with a
+   face, the name and one line of who they are. */
+.person-picker { display: grid; gap: .5rem; }
+.person-picker-label { color: var(--surface-text-soft); font-size: .8125rem; font-weight: 600; }
+.person-picker-search {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  max-width: 32rem;
+  height: 2.75rem;
+  padding: 0 .85rem;
+  border: 1px solid var(--surface-border);
+  border-radius: .85rem;
+  background: var(--surface-subtle);
+  color: var(--surface-text-soft);
+}
+.person-picker-search:focus-within { border-color: var(--coral); box-shadow: 0 0 0 3px var(--coral-soft); }
+.person-picker-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--surface-text);
+  font-size: .9375rem;
+  outline: none;
+}
+.person-picker-results { max-width: 32rem; overflow: hidden; border: 1px solid var(--surface-border); border-radius: .85rem; }
+.person-picker-results ul { margin: 0; padding: 0; list-style: none; }
+.person-picker-results li + li { border-top: 1px solid var(--surface-border); }
+.person-picker-results li > button {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  width: 100%;
+  padding: .6rem .75rem;
+  text-align: left;
+}
+.person-picker-results li > button:hover { background: var(--surface-subtle); }
+.person-picker-results li > button > svg { flex: none; color: var(--surface-text-soft); }
+.person-picker-who { display: grid; flex: 1; min-width: 0; }
+.person-picker-who strong { overflow: hidden; color: var(--surface-text); font-size: .875rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.person-picker-who em { overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.person-picker-results .pagination,
+.person-picker-results nav { border-top: 1px solid var(--surface-border); }
+
+@media (max-width: 640px) {
+  .person-picker-search,
+  .person-picker-results { max-width: none; }
+  .person-picker-search input { font-size: 16px; }
+}

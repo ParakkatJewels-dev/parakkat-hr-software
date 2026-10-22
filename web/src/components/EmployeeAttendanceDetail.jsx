@@ -9,7 +9,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search,
+  CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search, ChevronRight,
 } from 'lucide-react';
 import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
 import { fmtMinutes, fmtTime, monthRange, todayIso } from '../data/attendance';
@@ -29,6 +29,10 @@ import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import PageHeader from './ui/PageHeader';
+import Avatar from './ui/Avatar';
+import FilterSheet from './ui/FilterSheet';
+import { useMediaQuery } from '../lib/useMediaQuery';
+import './attendance/personPicker.css';
 import { btnClass } from './ui/Btn';
 import { SkeletonRows } from './ui/Skeleton';
 
@@ -81,6 +85,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   // "Show" answers what happened; this answers what the day was scored as. They are not the same
   // question — Half Day, Missing Punch and Weekly Off have no entry in SHOW and were unreachable.
   const [status, setStatus] = useState('All statuses');
+  const phone = useMediaQuery('(max-width: 640px)');
 
   const person = fixedEmployee ?? employees.find((e) => e.id === employeeId) ?? null;
   const canCorrect = Boolean(person && can('regularization.create', { entityId: person.entity_id,
@@ -175,6 +180,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
       ) : <PageHeader
         eyebrow="Time & Attendance"
         icon={CalendarDays}
+        className="page-header-inline-actions"
         title={person ? person.full_name : 'Attendance detail'}
         subtitle={
           person
@@ -196,40 +202,45 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
 
       {/* ---- who ---------------------------------------------------------------------- */}
       {!lockedId && (
-        <div className="premium-card">
-          <label htmlFor="att-person" className="block text-2xs font-bold uppercase tracking-wider text-neutral-450 mb-1">
-            Person
-          </label>
-          <div className="relative max-w-md">
-            <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-neutral-400" />
+        // The search box and its results as one picker (round 3). The search icon used to sit in the
+        // middle of the results list, because one wrapper held both the box and the list.
+        <div className="premium-card person-picker">
+          <label htmlFor="att-person" className="person-picker-label">Find a person</label>
+          <div className="person-picker-search">
+            <Search size={16} aria-hidden="true" />
             <input
               id="att-person"
+              type="search"
               value={q}
               onChange={(e) => setQ(e.target.value)}
               disabled={correctionBusy}
-              placeholder="Search by name or employee code…"
-              className="w-full text-sm rounded-lg pl-8 pr-3 py-2 bg-neutral-50 dark:bg-charcoal-900 border border-neutral-200 dark:border-neutral-800 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20"
+              autoComplete="off"
+              placeholder="Name or employee code…"
             />
-            {matches.length > 0 && (
-              <div className="mt-2 w-full rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-charcoal-900 paged-collection overflow-hidden">
+          </div>
+          {matches.length > 0 && (
+            <div className="person-picker-results paged-collection">
               <ul>
                 {peoplePager.slice.map((e) => (
                   <li key={e.id}>
                     <button
+                      type="button"
                       onClick={() => { if (correctionBusy) return; setEmployeeId(e.id); setQ(''); setCorrectionDate(null); }}
                       disabled={correctionBusy}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-neutral-100 dark:hover:bg-charcoal-800 flex justify-between gap-2 cursor-pointer"
                     >
-                      <span className="font-semibold truncate">{e.full_name}</span>
-                      <span className="text-2xs font-mono text-neutral-450 shrink-0">{e.employee_code}</span>
+                      <Avatar name={e.full_name} size="md" />
+                      <span className="person-picker-who">
+                        <strong>{e.full_name}</strong>
+                        <em>{[e.employee_code, e.designation?.title, e.branch?.code || e.branch?.name].filter(Boolean).join(' · ')}</em>
+                      </span>
+                      <ChevronRight size={16} aria-hidden="true" />
                     </button>
                   </li>
                 ))}
               </ul>
               <Pagination {...peoplePager} noun="matching people" sizes={[8, 25, 50]} />
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -242,18 +253,37 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
         <>
           {/* ---- when and what ---------------------------------------------------------- */}
           <div className="premium-card space-y-2.5">
-            <div className="mobile-toolbar flex flex-wrap items-center gap-1.5">
-              {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
-              {canEditPunches ? <button type="button" className={btnClass('ghost', 'sm')} disabled={Boolean(correctionDate)} onClick={() => setCorrectionDate(filtered.find(row => row.work_date <= todayIso() && !row.is_locked)?.work_date || (from > todayIso() ? todayIso() : from))}>Edit punches</button> : showRequestCorrection && <Link className="text-xs text-brand-ink underline" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(from > todayIso() ? todayIso() : from)}`}>Request a punch correction</Link>}
-              <span className="sm:ml-auto">
-                <FilterSelect label="Show" value={SHOW.find(option => option.key === show)?.label} options={SHOW.map(option => option.label)} allValue="Every day"
-                  onChange={label => setShow(SHOW.find(option => option.label === label)?.key || 'all')} />
-              </span>
-              <span>
-                <FilterSelect label="Status" value={status} options={statusOptions}
-                  onChange={setStatus} allValue="All statuses" />
-              </span>
-            </div>
+            {(() => {
+              const showSelect = <FilterSelect label="Show" value={SHOW.find(option => option.key === show)?.label} options={SHOW.map(option => option.label)} allValue="Every day"
+                onChange={label => setShow(SHOW.find(option => option.label === label)?.key || 'all')} />;
+              const statusSelect = <FilterSelect label="Status" value={status} options={statusOptions} onChange={setStatus} allValue="All statuses" />;
+              const fix = canEditPunches
+                ? <button type="button" className={btnClass('ghost', 'sm')} disabled={Boolean(correctionDate)} onClick={() => setCorrectionDate(filtered.find(row => row.work_date <= todayIso() && !row.is_locked)?.work_date || (from > todayIso() ? todayIso() : from))}>Edit punches</button>
+                : showRequestCorrection && <Link className={phone ? btnClass('ghost', 'sm') : 'text-xs text-brand-ink underline'} to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(from > todayIso() ? todayIso() : from)}`}>{phone ? 'Request a correction' : 'Request a punch correction'}</Link>;
+              // A phone: the dates on top, then Filters (show, status) beside the correction action
+              // — the two dropdowns used to stack under the dates in different sizes.
+              if (phone) return (
+                <div className="space-y-2.5">
+                  {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
+                  <div className="phone-tool-row">
+                    <FilterSheet title="Filter days" count={(show !== 'all' ? 1 : 0) + (status !== 'All statuses' ? 1 : 0)}
+                      onClear={() => { setShow('all'); setStatus('All statuses'); }}>
+                      {showSelect}
+                      {statusSelect}
+                    </FilterSheet>
+                    {fix}
+                  </div>
+                </div>
+              );
+              return (
+                <div className="mobile-toolbar flex flex-wrap items-center gap-1.5">
+                  {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
+                  {fix}
+                  <span className="sm:ml-auto">{showSelect}</span>
+                  <span>{statusSelect}</span>
+                </div>
+              );
+            })()}
             {show === 'issues' && <p className="text-xs text-neutral-500">{issueCount} {issueCount === 1 ? 'date needs' : 'dates need'} review. Showing missing punches, incomplete breaks, missing shifts, invalid credits and unprocessed attendance.</p>}
             {fromPayroll && !canEditPunches && <p className="text-xs text-amber-700 dark:text-amber-300">{person?.id === signedInEmployee?.id
               ? 'Another HR manager must correct your own attendance.'

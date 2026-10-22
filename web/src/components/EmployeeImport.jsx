@@ -140,7 +140,7 @@ export default function EmployeeImport({ onDone }) {
         subtitle="Load a roster from Excel or CSV. Nothing is saved until you review it."
         actions={
           onDone && (
-            <button onClick={onDone} className="people-action-button people-action-button-secondary">
+            <button onClick={onDone} className="people-action-button people-action-button-secondary page-back-button">
               <ArrowLeft size={13} /> Back to directory
             </button>
           )
