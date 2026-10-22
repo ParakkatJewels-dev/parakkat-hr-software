@@ -147,7 +147,7 @@ function DayPunchCorrectionLink({ row }) {
   if (viewingAsEmployee || employee?.id === row.employee_id || !can('attendance.manage', scope)) return null;
   if (row.is_locked) return <span className="text-2xs text-neutral-500">Published · locked</span>;
   if (row.work_date > todayIso()) return null;
-  return <Link className="text-xs text-brand-ink underline whitespace-nowrap"
+  return <Link className="inline-flex min-h-6 items-center text-xs text-brand-ink underline whitespace-nowrap"
     to={`/attendance/person?employee=${encodeURIComponent(row.employee_id)}&period=${encodeURIComponent(row.work_date.slice(0, 7))}&correctDate=${encodeURIComponent(row.work_date)}`}>Edit punches</Link>;
 }
 

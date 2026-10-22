@@ -216,12 +216,12 @@
   --nav-heading: #a6dad7;
   --link: #1f55b5;            /* "View all →" style links (redesign) */
   /* Pastel tones for number-card icon tiles and status pills (from the boards). */
-  --tone-green-bg: #e4fbf0;  --tone-green-fg: #0a8a4a;
+  --tone-green-bg: #e4fbf0;  --tone-green-fg: #087a41;
   --tone-blue-bg: #e3f0fd;   --tone-blue-fg: #1f64d6;
   --tone-violet-bg: #f1ecfe; --tone-violet-fg: #7444e6;
   --tone-amber-bg: #fef5d8;  --tone-amber-fg: #a85400;
   --tone-red-bg: #feedf1;    --tone-red-fg: #c8102e;
-  --tone-coral-bg: #feeee3;  --tone-coral-fg: #d8461a;
+  --tone-coral-bg: #feeee3;  --tone-coral-fg: #bf3b10;
   --tone-slate-bg: #f1f4f8;  --tone-slate-fg: #41497f;
   /* One gap for every row of tab pills in the application.
      There were three, and they were close enough that nobody could name what was wrong while
@@ -6217,11 +6217,11 @@ main .text-\[9px\].uppercase, main .text-\[10px\].uppercase { letter-spacing: .0
   }
 
   .dark .mobile-bottom-nav-item-active {
-    color: var(--accent-ink);
+    color: var(--coral);
   }
 
   .dark .mobile-bottom-nav-item-active .mobile-bottom-nav-avatar {
-    border-color: var(--accent-ink);
+    border-color: var(--coral);
   }
 
   @media (hover: hover) and (pointer: fine) {

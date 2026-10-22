@@ -25,7 +25,7 @@ function Chart({ title, note, data, bars, format }) {
             <XAxis dataKey="label" {...axis} />
             <YAxis allowDecimals={false} {...axis} tickFormatter={format} width={format ? 64 : 40} />
             <Tooltip {...tooltip} formatter={format ? (value) => format(value) : undefined} />
-            {bars.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} />}
+            {bars.length > 1 && <Legend wrapperStyle={{ fontSize: 12 }} formatter={(value) => <span style={{ color: 'var(--surface-text-soft)' }}>{value}</span>} />}
             {bars.map(([key, name, colour]) => <Bar key={key} dataKey={key} name={name} fill={colour} radius={[6, 6, 0, 0]} maxBarSize={36} />)}
           </BarChart>
         </ResponsiveContainer>

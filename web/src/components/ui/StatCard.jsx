@@ -30,8 +30,10 @@ export function StatCard({
 }
 
 export function StatRow({ children, className = '', label }) {
+  // The count lets the CSS keep rows even (six cards: six, three or two across, never five and one).
+  const count = React.Children.toArray(children).filter(Boolean).length;
   return (
-    <section className={`stat-row ${className}`} aria-label={label}>
+    <section className={`stat-row ${className}`} aria-label={label} data-count={count}>
       {children}
     </section>
   );

@@ -293,6 +293,15 @@ export function mobilePrimarySections(sections, primaryRole) {
   return seated;
 }
 
+/** The phone-bar button to light: the screen's own, else one from the same section, so Leave lights
+ *  Attendance and Goals lights Work. Only the light moves; aria-current stays on exact matches, and
+ *  More never lights (see mobileSectionActive). */
+export function mobileLitId(items, activeTab) {
+  if (items.some(item => item.id === activeTab && item.id !== 'menu')) return activeTab;
+  const home = OVERSIGHT_NAV.find(section => section.tabs.some(tab => tab.id === activeTab));
+  return items.find(item => item.id !== 'menu' && home?.tabs.some(tab => tab.id === item.id))?.id ?? '';
+}
+
 /** A menu or parent section is not the page itself; only exact destinations are current. */
 export function mobileSectionActive(section, activeTab) {
   return section.tabs.some(tab => tab.id === activeTab);

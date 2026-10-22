@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Suspense, lazy } from 'react';
 import {
   ESS_NAV, OVERSIGHT_NAV, OVERSIGHT_GROUPS, canSeeTab, visibleSections as navSections,
-  mobilePrimarySections as pickMobilePrimary, groupSections,
+  mobilePrimarySections as pickMobilePrimary, mobileLitId, groupSections,
 } from './lib/navMap';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
@@ -102,7 +102,7 @@ function AccessDenied() {
   return (
     <div className="page-shell flex flex-col items-center justify-center py-20 text-center animate-fade-in">
       <Shield size={28} className="text-neutral-400 dark:text-brand-ink mb-3" />
-      <h2 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">Access restricted</h2>
+      <h1 className="text-base font-bold text-neutral-800 dark:text-warm-gray-100">Access restricted</h1>
       <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm">
         You don't have permission to view this section. If you believe this is a mistake, contact your
         HR administrator.
@@ -1025,7 +1025,8 @@ export default function App() {
 
         <LiquidGlassNav
           items={mobilePrimarySections}
-          activeId={isNotFound ? '' : activeTab}
+          activeId={isNotFound ? '' : mobileLitId(mobilePrimarySections, activeTab)}
+          currentId={isNotFound ? '' : activeTab}
           menuOpen={mobileMenuOpen}
           isPwaInstalled={isPwaInstalled}
           countStatus={countStatus}

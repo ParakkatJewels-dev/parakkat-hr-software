@@ -362,7 +362,7 @@
 .page-header-crumbs { margin: 0 0 .45rem; color: var(--surface-text-soft); font-size: .8125rem; }
 .page-header-crumbs ol { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin: 0; padding: 0; list-style: none; }
 .page-header-crumbs li { display: inline-flex; align-items: center; gap: .35rem; }
-.page-header-crumbs button { border-radius: .35rem; color: var(--surface-text-soft); }
+.page-header-crumbs button { display: inline-flex; align-items: center; min-height: 1.5rem; padding: 0 .15rem; border-radius: .35rem; color: var(--surface-text-soft); }
 .page-header-crumbs button:hover { color: var(--surface-text); text-decoration: underline; }
 .page-header-crumbs [aria-current="page"] { color: var(--surface-text); font-weight: 600; }
 .page-header-eyebrow { font-weight: 600; }
@@ -435,8 +435,10 @@ main .page-header-title,
 
 /* ---- Below the desktop breakpoint ------------------------------------------- */
 @media (max-width: 1023px) {
-  /* The profile page keeps its own phone layout (hero + menu), so its desktop header steps aside. */
-  .profile-page-header { display: none; }
+  /* The profile page keeps its own phone layout (hero + menu), so its desktop header steps aside,
+     staying in the page only as its heading for screen readers. */
+  .profile-page-header { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .profile-page-header .page-header-crumbs, .profile-page-header .section-tabbar { display: none; }
   .app-header {
     min-height: calc(3.9rem + env(safe-area-inset-top));
     padding-left: max(1rem, env(safe-area-inset-left));

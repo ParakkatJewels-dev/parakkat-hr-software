@@ -4,7 +4,7 @@ import { NavigationCountBadge, NavigationCountStatus } from './CountBadge';
 import { navigationCountLabel, navigationScreenCount } from '../../lib/navigationCounts';
 
 /** A small DOM-only spring: motion never rerenders the application or samples its content. */
-export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = false, isPwaInstalled = false, countStatus = null }) {
+export default function LiquidGlassNav({ items, activeId, currentId = activeId, onSelect, menuOpen = false, isPwaInstalled = false, countStatus = null }) {
   const navRef = useRef(null);
   const lensRef = useRef(null);
   const buttonsRef = useRef(new Map());
@@ -288,7 +288,7 @@ export default function LiquidGlassNav({ items, activeId, onSelect, menuOpen = f
       return <button key={item.id} ref={node => { if (node) buttonsRef.current.set(item.id, node); else buttonsRef.current.delete(item.id); }}
         type="button" className={`mobile-bottom-nav-item${active ? ' mobile-bottom-nav-item-active' : ''}`}
         data-glass-destination={item.id} disabled={item.disabled}
-        aria-label={navigationCountLabel(item.label, badge)} aria-current={active ? 'page' : undefined}
+        aria-label={navigationCountLabel(item.label, badge)} aria-current={active && item.id === currentId ? 'page' : undefined}
         aria-haspopup={item.id === 'menu' ? 'dialog' : undefined}
         aria-controls={item.id === 'menu' ? 'mobile-navigation' : undefined}
         aria-expanded={item.id === 'menu' ? menuOpen : undefined}

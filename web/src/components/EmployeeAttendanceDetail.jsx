@@ -467,7 +467,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                             {showCorrection && <td data-label="Correction">{r.is_locked
                               ? <span className="text-xs text-neutral-500">Published · locked</span>
                               : r.work_date <= todayIso() && (canEditPunches
-                                ? <button type="button" disabled={correctionBusy} onClick={event => { event.stopPropagation(); if (!correctionBusy) setCorrectionDate(r.work_date); }} className="text-xs text-brand-ink underline whitespace-nowrap disabled:opacity-50">Edit punches</button>
+                                ? <button type="button" disabled={correctionBusy} onClick={event => { event.stopPropagation(); if (!correctionBusy) setCorrectionDate(r.work_date); }} className="inline-flex min-h-6 items-center text-xs text-brand-ink underline whitespace-nowrap disabled:opacity-50">Edit punches</button>
                                 : <Link onClick={event => event.stopPropagation()} className="text-xs text-brand-ink underline whitespace-nowrap" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>Correct times</Link>)}</td>}
                           </tr>
                           {open && (
