@@ -991,6 +991,13 @@ export default function App() {
                 <span className="profile-navigation-identity-copy"><strong>{displayName}</strong><span>{displaySubtitle}</span></span>
                 {canViewTab('profile') && <ChevronRight size={17} className="more-row-chevron" aria-hidden="true" />}
               </button>
+              {heldRoles.length > 1 && (
+                <div className="more-row profile-navigation-role">
+                  <span className="more-row-icon" aria-hidden="true"><Shield size={19} /></span>
+                  <span className="more-row-label">Switch role</span>
+                  <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={setViewRole} />
+                </div>
+              )}
               <label className="input-shell profile-navigation-search"><Search size={17} aria-hidden="true" />
                 <input type="search" aria-label="Search menu" placeholder="Search menu" value={menuSearch} onChange={event => setMenuSearch(event.target.value)} />
               </label>
@@ -1012,12 +1019,6 @@ export default function App() {
                     <span className="more-row-label">Dark appearance</span>
                     <span className={`more-switch ${theme === 'dark' ? 'is-on' : ''}`} aria-hidden="true"><span /></span>
                   </button>
-                  {heldRoles.length > 1 && (
-                    <div className="more-row profile-navigation-role">
-                      <span className="more-row-label">Workspace view</span>
-                      <RoleSwitcher viewRole={primaryRole} trueRole={trueRole} heldRoles={heldRoles} roleLabel={roleLabel} onChange={setViewRole} />
-                    </div>
-                  )}
                 </div>
               </section>
               <button type="button" className="profile-navigation-signout" onClick={signOut}><LogOut size={18} aria-hidden="true" />Sign out</button>

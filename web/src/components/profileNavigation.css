@@ -105,7 +105,8 @@
   .more-switch.is-on > span { transform: translateX(16px); }
   .profile-navigation-role { cursor: default; }
   .profile-navigation-role .role-chip-label { display: inline !important; }
-  .profile-navigation-role .role-chip { display: inline-flex !important; min-height: 36px; padding-inline: 10px; }
+  .profile-navigation-role .role-chip { display: inline-flex !important; max-width: none; min-height: 36px; padding-inline: 10px; }
+  .profile-navigation-role { margin-bottom: 14px; border: 1px solid var(--surface-border); border-radius: var(--radius-card); background: var(--surface-elevated); box-shadow: var(--shadow-card); }
   .profile-navigation-role .role-menu { max-width: min(280px, calc(100vw - 44px)); }
 
   .profile-navigation-signout {

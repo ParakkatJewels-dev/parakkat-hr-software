@@ -85,6 +85,8 @@
    right corner, two cards to a row. */
 @media (max-width: 640px) {
   .stat-row, .stat-row[data-count="6"] { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .625rem; }
+  /* An odd last card takes the whole row rather than leaving a hole. */
+  .stat-row:not(.stat-row-mini) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   .stat-card { flex-direction: row-reverse; align-items: flex-start; justify-content: space-between; gap: .5rem; padding: .75rem .8rem; }
   .stat-card-icon { width: 2.125rem; height: 2.125rem; border-radius: .65rem; }
   .stat-card-icon svg { width: 17px; height: 17px; }

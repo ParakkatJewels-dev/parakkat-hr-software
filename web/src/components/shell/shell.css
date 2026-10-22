@@ -448,11 +448,15 @@ main .page-header-title,
     box-shadow: none;
   }
   .app-header-actions { gap: .45rem; }
+  /* The role switch keeps its place in the phone bar, drawn like the buttons beside it. */
+  .app-header .role-chip {
+    min-height: 2.375rem; border: 1px solid var(--surface-border); background: var(--surface-elevated);
+    color: var(--surface-text);
+  }
   .app-header-icon,
   .header-notifications > button,
   .header-profile-avatar { width: 2.375rem; height: 2.375rem; min-height: 2.375rem !important; }
-  /* Switching role lives in More on phones and tablets. */
-  .app-header .role-chip { display: none; }
+
 }
 
 @media (max-width: 640px) {
