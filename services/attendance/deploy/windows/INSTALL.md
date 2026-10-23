@@ -53,7 +53,13 @@ a single afternoon — re-applying a half-day rule that had been removed, and de
 40-minute break on every day instead of only the minutes over the allowance. Both cut people's
 hours, and nothing on screen said why.
 
-Two steps.
+**Easiest: the download.** In the HR dashboard open Attendance setup → Sync status → **Download**,
+unzip it anywhere and double-click **Install.bat**. If the service is already installed from
+another folder, the installer copies that folder's settings (`.env`) across and moves the Windows
+service to the new folder; the old folder is left as it was. It then asks for the database
+password (press Enter to keep the saved one).
+
+Or by hand, in two steps.
 
 **1. Get the new code onto the machine.**
 

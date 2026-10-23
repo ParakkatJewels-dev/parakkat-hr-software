@@ -4,8 +4,9 @@
 #   powershell -ExecutionPolicy Bypass -File deploy\windows\setup.ps1
 #
 # What it does, in order:
-#   1. Verifies Node.js 20+ is installed (points you to the download if not)
-#   2. Asks for the Easy Time Pro login and writes it into .env (first run only)
+#   1. Verifies Node.js 20+ is installed (points you to the download if not), and notices an
+#      install in another folder - its settings come here and the service moves here in step 4
+#   2. Asks for the Easy Time Pro login (first run only) and the database password
 #   3. Installs dependencies, builds, and runs the connection doctor
 #   4. Registers it as a Windows Service that starts automatically at boot
 #
@@ -31,6 +32,39 @@ if ([int]($nodeVersion.Split('.')[0]) -lt 20) {
   exit 1
 }
 Write-Host "Node.js $nodeVersion  OK" -ForegroundColor Green
+
+# --- 1b. An install in another folder ---------------------------------------
+# node-windows registers the service against the folder it was installed from. Installing again
+# from a different folder (a fresh download unzipped somewhere new) used to leave Windows running
+# the OLD folder, with its old settings, while this copy never started. So find the folder the
+# installed service runs from; if it is another one, bring its settings here now and move the
+# service across in step 4. The old folder itself is left untouched.
+$MoveFrom = $null
+$OldService = Get-CimInstance Win32_Service -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -eq 'parakkatattendancesync.exe' -or $_.DisplayName -like '*Parakkat Attendance*' } |
+  Select-Object -First 1
+if ($OldService -and $OldService.PathName) {
+  # PathName is the service wrapper, e.g. "D:\...\attendance\dist\daemon\parakkatattendancesync.exe"
+  $exe = $OldService.PathName.Trim()
+  if ($exe.StartsWith('"')) { $exe = $exe.Substring(1, $exe.IndexOf('"', 1) - 1) }
+  elseif ($exe -match '^(.+?\.exe)') { $exe = $Matches[1] }
+  $oldRoot = Split-Path $exe -Parent
+  while ($oldRoot -and -not (Test-Path (Join-Path $oldRoot 'package.json'))) { $oldRoot = Split-Path $oldRoot -Parent }
+  if ($oldRoot) {
+    $here = [IO.Path]::GetFullPath($ServiceRoot.Path).TrimEnd('\')
+    $there = [IO.Path]::GetFullPath($oldRoot).TrimEnd('\')
+    if ($here -ne $there) {
+      $MoveFrom = $there
+      Write-Host 'The sync service is installed from another folder:' -ForegroundColor Yellow
+      Write-Host "  $there"
+      Write-Host 'It will be moved to this folder (the old folder is left as it is).' -ForegroundColor Yellow
+      if (-not (Test-Path '.env') -and (Test-Path (Join-Path $there '.env'))) {
+        Copy-Item (Join-Path $there '.env') '.env'
+        Write-Host 'Settings (.env) copied from the old folder  OK' -ForegroundColor Green
+      }
+    }
+  }
+}
 
 # --- 2. .env ---------------------------------------------------------------
 # A fresh download from the HR dashboard has no .env, only the template (no passwords in it).
@@ -267,6 +301,26 @@ npm install node-windows --no-save --no-audit --no-fund
 if ($LASTEXITCODE -ne 0) {
   Write-Host 'Could not install node-windows - check the error above.' -ForegroundColor Red
   exit 1
+}
+
+# Moving from another folder: drop the old registration first, or Windows keeps starting the
+# old folder and node-windows here finds the name taken.
+if ($MoveFrom) {
+  Write-Host "Removing the old service registration ($MoveFrom)..." -ForegroundColor Cyan
+  & sc.exe stop $OldService.Name | Out-Null
+  Start-Sleep -Seconds 2
+  & sc.exe delete $OldService.Name | Out-Null
+  $gone = $false
+  for ($i = 0; $i -lt 30; $i++) {
+    if (-not (Get-Service -Name $OldService.Name -ErrorAction SilentlyContinue)) { $gone = $true; break }
+    Start-Sleep -Seconds 1
+  }
+  if (-not $gone) {
+    Write-Host 'Windows has not finished removing the old service yet.' -ForegroundColor Yellow
+    Write-Host 'Close the Services window (services.msc) if it is open, then run Install.bat again.' -ForegroundColor Yellow
+    exit 1
+  }
+  Write-Host 'Old service registration removed  OK' -ForegroundColor Green
 }
 
 node "deploy\windows\service.cjs" install
