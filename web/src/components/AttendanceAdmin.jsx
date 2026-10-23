@@ -37,6 +37,7 @@ import { NavigationCountBadge } from './ui/CountBadge';
 import { paginationWindow } from '../lib/pagination';
 import PageHeader from './ui/PageHeader';
 import { StatCard } from './ui/StatCard';
+import SyncServiceDownload from './attendance/SyncServiceDownload';
 
 import SearchSelect from './ui/SearchSelect';
 const TABS = [
@@ -979,6 +980,8 @@ export function SyncTab() {
         <StatCard icon={Fingerprint} tone="blue" label="Punches today" value={health?.punchesToday ?? '—'} />
         <StatCard icon={AlertTriangle} tone={health?.punchesUnmapped ? 'amber' : 'green'} label="Unmapped punches" value={health?.punchesUnmapped ?? '—'} />
       </div>
+
+      <SyncServiceDownload />
 
       {statusError?.status === 403 ? (
         <div className="premium-card text-xs text-neutral-600 dark:text-neutral-300" role="status">

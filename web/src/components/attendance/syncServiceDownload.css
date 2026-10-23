@@ -1,0 +1,16 @@
+/* The sync program download (Attendance setup -> Sync status). */
+.sync-download { display: grid; gap: .85rem; }
+.sync-download-head { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; }
+.sync-download-head > .min-w-0 { flex: 1 1 16rem; }
+.sync-download-icon {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2.75rem; height: 2.75rem;
+  border-radius: .85rem; background: var(--coral-soft); color: var(--coral-ink);
+}
+.sync-download h3 { margin: 0; color: var(--surface-text); font-size: 1rem; font-weight: 700; }
+.sync-download-head p { margin: .15rem 0 0; color: var(--surface-text-soft); font-size: .8125rem; }
+.sync-download-steps { display: grid; gap: .45rem; margin: 0; padding-left: 1.25rem; list-style: decimal; color: var(--surface-text); font-size: .8125rem; line-height: 1.5; }
+.sync-download-steps code { padding: .05rem .35rem; border-radius: .35rem; background: var(--surface-muted); font-size: .75rem; overflow-wrap: anywhere; }
+.sync-download-note { margin: 0; padding: .6rem .75rem; border-radius: .75rem; background: var(--surface-subtle); color: var(--surface-text-soft); font-size: .75rem; line-height: 1.5; }
+@media (max-width: 640px) {
+  .sync-download-head > a { flex: 1 1 100%; justify-content: center; }
+}
