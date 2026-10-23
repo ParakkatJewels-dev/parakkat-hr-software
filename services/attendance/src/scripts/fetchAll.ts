@@ -22,9 +22,15 @@
 // take the terminal server down during business hours. Each week is a separate request and a
 // separate sync_runs row, so an interrupted run resumes from where it stopped rather than
 // restarting.
+//
+// A dropped connection is waited out, not counted as a failure. The first install on the HR
+// machine lost the line to the database for a few seconds in week 1, and with no wait every one
+// of the other 79 weeks failed in the same second. Now each week retries for a few minutes; if
+// the database is still out of reach after that, the run stops and says to resume.
 import { biotime } from '../biotime/client';
 import { prisma } from '../lib/db';
 import { logger } from '../lib/logger';
+import { isRetryable, withRetry } from '../lib/retry';
 import { runTransactionSync } from '../sync/syncTransactions';
 import { syncEmployees, refreshSuggestions } from '../sync/syncEmployees';
 import { recompute } from '../engine/recompute';
@@ -34,6 +40,21 @@ import { parseArgs, flag } from './args';
 import { earliestPunchDate } from '../sync/earliest';
 
 const CHUNK_DAYS = 7;
+
+/** Prisma's codes for "could not connect", "timed out", "server closed the connection". */
+const DROP_CODES = new Set(['P1001', 'P1002', 'P1008', 'P1017', 'P2024']);
+const DROP_TEXT = /can't reach database server|server has closed the connection|connection (was )?(reset|forcibly closed|terminated)|ECONNRESET|ETIMEDOUT/i;
+
+/** The database, or the line to it, dropped - as opposed to a bad record that fails every time. */
+export function isConnectionDrop(err: unknown): boolean {
+  const e = err as { code?: string; message?: string } | null;
+  if (e?.code && DROP_CODES.has(e.code)) return true;
+  if (isRetryable(err)) return true;
+  return DROP_TEXT.test(e?.message ?? String(err));
+}
+
+/** About four minutes in all (5-10s, 10-20s, 20-40s, 40-80s, 60-120s), then give up. */
+const WAIT_OUT_DROPS = { retries: 5, baseDelayMs: 10_000, maxDelayMs: 120_000, shouldRetry: isConnectionDrop };
 
 const TIMETABLE_PATHS = [
   '/att/api/timeIntervals/', '/att/api/timeinterval/', '/att/api/shifts/', '/att/api/shift/',
@@ -151,36 +172,51 @@ async function main(): Promise<void> {
   let failures = 0;
 
   for (const [i, w] of chunks.entries()) {
-    if (resume && !dry) {
-      // A week already collected is one where a backfill run covering it finished successfully.
-      const done = await prisma.$queryRaw<Array<{ n: bigint }>>`
-        select count(*) as n from public.sync_runs
-         where kind = 'backfill' and status = 'success'
-           and (cursor_before->>'startTime')::date <= ${w.from}::date
-           and (cursor_before->>'endTime')::date   >= ${w.to}::date
-      `;
-      if (Number(done[0]?.n ?? 0) > 0) {
+    if (dry) {
+      process.stdout.write(`\r        ${i + 1}/${chunks.length}  ${w.from} .. ${w.to}                    `);
+      continue;
+    }
+
+    try {
+      const r = await withRetry(async () => {
+        if (resume) {
+          // A week already collected is one where a backfill run covering it finished successfully.
+          const done = await prisma.$queryRaw<Array<{ n: bigint }>>`
+            select count(*) as n from public.sync_runs
+             where kind = 'backfill' and status = 'success'
+               and (cursor_before->>'startTime')::date <= ${w.from}::date
+               and (cursor_before->>'endTime')::date   >= ${w.to}::date
+          `;
+          if (Number(done[0]?.n ?? 0) > 0) return null;
+        }
+        process.stdout.write(`\r        ${i + 1}/${chunks.length}  ${w.from} .. ${w.to}                    `);
+        return runTransactionSync({
+          kind: 'backfill',
+          source: 'backfill',
+          startTime: new Date(`${w.from}T00:00:00+05:30`),
+          endTime: new Date(`${w.to}T23:59:59+05:30`),
+          // A backfill of last March must never drag the live cursor backwards and make the
+          // incremental poll re-read four months.
+          advanceCursorAfter: false,
+        });
+      }, { ...WAIT_OUT_DROPS, label: `week ${w.from}` });
+
+      if (!r) {
         process.stdout.write(`\r        ${i + 1}/${chunks.length}  ${w.from}  already collected            `);
         continue;
       }
-    }
-
-    process.stdout.write(`\r        ${i + 1}/${chunks.length}  ${w.from} .. ${w.to}                    `);
-    if (dry) continue;
-
-    try {
-      const r = await runTransactionSync({
-        kind: 'backfill',
-        source: 'backfill',
-        startTime: new Date(`${w.from}T00:00:00+05:30`),
-        endTime: new Date(`${w.to}T23:59:59+05:30`),
-        // A backfill of last March must never drag the live cursor backwards and make the
-        // incremental poll re-read four months.
-        advanceCursorAfter: false,
-      });
       fetched += r.fetched;
       inserted += r.inserted;
     } catch (err) {
+      if (isConnectionDrop(err)) {
+        // Still unreachable after minutes of waiting: every later week would fail the same way.
+        console.log(`\n\n  Stopped at week ${i + 1} of ${chunks.length} (${w.from}): the database could not be reached`);
+        console.log('  for several minutes. Check this machine\'s internet, then continue with:');
+        console.log('    npm run fetch:all -- --resume');
+        console.log(`  The ${inserted} punches collected so far are kept; resume skips the finished weeks.\n`);
+        process.exitCode = 1;
+        return;
+      }
       failures += 1;
       logger.warn({ week: w, err: err instanceof Error ? err.message : String(err) }, 'chunk failed');
       process.stdout.write(`\r        ${i + 1}/${chunks.length}  ${w.from} FAILED — continuing        \n`);
@@ -197,7 +233,7 @@ async function main(): Promise<void> {
 
   // --- 4. join dates ----------------------------------------------------------------------
   console.log('  [4/5] Join dates from first punch');
-  const jd = await deriveJoinDates(false);
+  const jd = await withRetry(() => deriveJoinDates(false), { ...WAIT_OUT_DROPS, label: 'join dates' });
   console.log(`        set ${jd.set}, still unknown ${jd.unknown} (no punches at all)`);
   if (jd.floor) {
     console.log(`        earliest punch in the data is ${jd.floor} — anyone whose join date`);
@@ -207,7 +243,7 @@ async function main(): Promise<void> {
 
   // --- 5. attendance ----------------------------------------------------------------------
   console.log('  [5/5] Building attendance across the range (this is the slow part)');
-  const summary = await recompute({ from, to });
+  const summary = await withRetry(() => recompute({ from, to }), { ...WAIT_OUT_DROPS, label: 'attendance' });
   console.log(`        ${summary.rowsWritten} day-rows for ${summary.employees} employees over ${summary.dates} dates\n`);
 
   console.log('  Done.');

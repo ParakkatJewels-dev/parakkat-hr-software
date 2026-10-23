@@ -7,7 +7,7 @@
 // were already collected, doubling the load for nothing.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { weeks } from './fetchAll';
+import { weeks, isConnectionDrop } from './fetchAll';
 
 const days = (from: string, to: string) =>
   Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
@@ -66,4 +66,14 @@ test('the range spans a leap day without losing it', () => {
   assert.ok(w.length >= 1);
   assert.equal(all[0], '2028-02-25');
   assert.equal(all[all.length - 1], '2028-03-03');
+});
+
+test('a dropped database connection is waited out; a bad record is not', () => {
+  // What the HR machine printed on its first install, week 1 and then every week after.
+  assert.equal(isConnectionDrop(Object.assign(new Error('Invalid `prisma.$executeRaw()` invocation:\n\nServer has closed the connection.'), { code: 'P1017' })), true);
+  assert.equal(isConnectionDrop(new Error("Can't reach database server at `aws-1-ap-south-1.pooler.supabase.com:5432`")), true);
+  assert.equal(isConnectionDrop(Object.assign(new Error('x'), { code: 'P1001' })), true);
+  assert.equal(isConnectionDrop(Object.assign(new Error('socket hang up'), { code: 'ECONNRESET' })), true);
+  assert.equal(isConnectionDrop(new Error('BioTime returned 3 malformed transaction(s); cursor preserved for recovery')), false);
+  assert.equal(isConnectionDrop(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })), false);
 });
