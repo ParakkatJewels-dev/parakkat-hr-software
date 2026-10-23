@@ -32,3 +32,15 @@ test('unprocessed dates use the payroll employment window, stop at today and rem
   assert.deepEqual(attendanceReviewRows([], { ...options, payrollAttendance: { ...options.payrollAttendance, employment_to: '2026-07-31' } }).map(row => row.work_date),
     ['2026-07-17', '2026-07-16', '2026-07-15', '2026-07-14']);
 });
+
+test('a correction is offered only on a day whose punches need one', async () => {
+  const { needsPunchFix } = await import('./attendanceIssues.js');
+  const today = '2026-10-23';
+  const day = (punches, extra = {}) => ({ work_date: '2026-10-22', punches, ...extra });
+  assert.equal(needsPunchFix(day(['2026-10-22T09:30:00+05:30', '2026-10-22T18:00:00+05:30']), today), false, 'in and out');
+  assert.equal(needsPunchFix(day(['2026-10-22T09:30:00+05:30']), today), true, 'no punch out');
+  assert.equal(needsPunchFix({ ...day(['2026-10-23T09:30:00+05:30']), work_date: today }, today), false, 'still at work today');
+  assert.equal(needsPunchFix(day([], { is_missing_punch: true }), today), true, 'flagged by the engine');
+  assert.equal(needsPunchFix(day(['a', 'b'], { breaks_incomplete: true }), today), true, 'an unfinished break');
+  assert.equal(needsPunchFix(day([]), today), false, 'no punches at all is an absence, not a correction');
+});

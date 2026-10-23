@@ -24,7 +24,7 @@ import PunchTimeline, { BreakSummary } from './ui/PunchTimeline';
 import PunchDetails from './ui/PunchDetails';
 import { recordedPunches, firstRecordedPunch, latestRecordedPunch, punchDate } from '../lib/recordedPunches';
 import { attendanceTimeline } from '../lib/attendanceTimeline';
-import { attendanceIssueReasons, attendanceReviewRows } from '../lib/attendanceIssues';
+import { attendanceIssueReasons, attendanceReviewRows, needsPunchFix } from '../lib/attendanceIssues';
 import Pagination, { usePagination } from './ui/Pagination';
 import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
@@ -99,6 +99,10 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
       branchId: person.branch_id, deptId: person.department_id, employeeId: person.id }));
   const showRequestCorrection = canCorrect && !fromPayroll;
   const showCorrection = showRequestCorrection || canEditPunches;
+  // A correction is offered on a day only when its punches need one (no punch out, a flagged
+  // missing punch) or, reviewing payroll issues, when the day is one of them. Everything else is
+  // done from Attendance -> Regularizations.
+  const dayNeedsFix = (r) => r.work_date <= todayIso() && (needsPunchFix(r, todayIso()) || (show === 'issues' && attendanceIssueReasons(r).length > 0));
   const correctionStateChange = value => { setCorrectionBusy(value); onCorrectionStateChange?.(value); };
   const { data: rows = [], isLoading, error, refetch, isFetching, summary } = useEmployeeAttendanceSummary(employeeId, from, to);
   const reviewRows = useMemo(() => attendanceReviewRows(rows, { employeeId, from, to, today: todayIso(), payrollAttendance }),
@@ -261,9 +265,6 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
               const showSelect = <FilterSelect label="Show" value={SHOW.find(option => option.key === show)?.label} options={SHOW.map(option => option.label)} allValue="Every day"
                 onChange={label => setShow(SHOW.find(option => option.label === label)?.key || 'all')} />;
               const statusSelect = <FilterSelect label="Status" value={status} options={statusOptions} onChange={setStatus} allValue="All statuses" />;
-              const fix = canEditPunches
-                ? <button type="button" className={btnClass('ghost', 'sm')} disabled={Boolean(correctionDate)} onClick={() => setCorrectionDate(filtered.find(row => row.work_date <= todayIso() && !row.is_locked)?.work_date || (from > todayIso() ? todayIso() : from))}>Edit punches</button>
-                : showRequestCorrection && <Link className={phone ? btnClass('ghost', 'sm') : 'text-xs text-brand-ink underline'} to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(from > todayIso() ? todayIso() : from)}`}>{phone ? 'Request a correction' : 'Request a punch correction'}</Link>;
               // A phone: the dates on top, then Filters (show, status) beside the correction action
               // — the two dropdowns used to stack under the dates in different sizes.
               // A phone: the period as one button (quick ranges and dates in a sheet) beside Filters,
@@ -284,14 +285,12 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                         {statusSelect}
                       </FilterSheet>
                     </div>
-                    {fix && <div className="att-period-fix">{fix}</div>}
                   </div>
                 );
               }
               return (
                 <div className="mobile-toolbar flex flex-wrap items-center gap-1.5">
                   {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
-                  {fix}
                   <span className="sm:ml-auto">{showSelect}</span>
                   <span>{statusSelect}</span>
                 </div>
@@ -334,7 +333,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                     100% for everyone forever. What is owed there is the daily hours, so that is
                     what gets measured. */}
                 {summary.flexible ? (
-                  <Stat label="Hours completed" icon={Hourglass} value={summary.hoursMetRate != null ? `${summary.hoursMetRate}%` : '—'}
+                  <Stat label="Hours completed" value={summary.hoursMetRate != null ? `${summary.hoursMetRate}%` : '—'}
                     sub={`${summary.shortDays} short of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
                     tone={summary.hoursMetRate != null && summary.hoursMetRate < 85 ? 'amber' : 'green'} icon={Clock} />
                 ) : (
@@ -427,8 +426,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                     const open = openDay === r.id;
                     const first = firstRecordedPunch(r);
                     const last = latestRecordedPunch(r);
-                    const canCorrectDay = showCorrection && !r.is_locked && r.work_date <= todayIso();
-                    const expandable = punches.length > 0 || canCorrectDay || r.is_locked;
+                    const needsFix = dayNeedsFix(r);
+                    const canCorrectDay = showCorrection && !r.is_locked && needsFix;
+                    const expandable = punches.length > 0 || canCorrectDay;
                     const facts = [
                       r.worked_minutes ? `Worked ${asHoursMinutes(r.worked_minutes)}` : null,
                       r.late_minutes ? `Late ${r.late_minutes}m` : null,
@@ -446,7 +446,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                           <span className="att-day-main">
                             <strong>{first ? `${fmtTime(first)} – ${last && last !== first ? fmtTime(last) : '…'}` : 'No punches'}</strong>
                             <em>{facts.length ? facts.join(' · ') : fmtDate(r.work_date)}</em>
-                            {r.is_missing_punch && <span className="att-day-flag">Review punches</span>}
+                            {needsFix && <span className="att-day-flag">{r.breaks_incomplete && !r.is_missing_punch ? 'Break punch missing' : 'No punch out - needs a fix'}</span>}
                             {show === 'issues' && <span className="att-day-flag">{attendanceIssueReasons(r).join(' · ')}</span>}
                           </span>
                           <StatusPill status={r.is_late && r.status === 'Present' ? 'Late' : r.status} />
@@ -461,7 +461,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                                 <DayBreakdown row={r} />
                               </details>
                             )}
-                            {r.is_locked ? <p className="att-day-note">Published payroll · this day is locked</p>
+                            {r.is_locked && needsFix ? <p className="att-day-note">Published payroll · this day is locked</p>
                               : canCorrectDay && (canEditPunches
                                 ? <button type="button" className="att-day-fix" disabled={correctionBusy} onClick={() => { if (!correctionBusy) setCorrectionDate(r.work_date); }}>
                                     <Pencil size={15} aria-hidden="true" /> Edit punches for {fmtDate(r.work_date)}
@@ -575,9 +575,9 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                             <td data-label="OT" className="hidden md:table-cell tabular-nums text-brand-ink dark:text-brand-ink">
                               {r.ot_minutes ? `${r.ot_minutes}m` : '—'}
                             </td>
-                            {showCorrection && <td data-label="Correction">{r.is_locked
+                            {showCorrection && <td data-label="Correction">{!dayNeedsFix(r) ? <span className="text-neutral-400">—</span> : r.is_locked
                               ? <span className="text-xs text-neutral-500">Published · locked</span>
-                              : r.work_date <= todayIso() && (canEditPunches
+                              : (canEditPunches
                                 ? <button type="button" disabled={correctionBusy} onClick={event => { event.stopPropagation(); if (!correctionBusy) setCorrectionDate(r.work_date); }} className="inline-flex min-h-6 items-center text-xs text-brand-ink underline whitespace-nowrap disabled:opacity-50">Edit punches</button>
                                 : <Link onClick={event => event.stopPropagation()} className="text-xs text-brand-ink underline whitespace-nowrap" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>Correct times</Link>)}</td>}
                           </tr>

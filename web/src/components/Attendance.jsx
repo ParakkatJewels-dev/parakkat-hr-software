@@ -40,6 +40,7 @@ import { useFocusRow } from '../lib/useFocusRow';
 import EmployeeAttendanceDetail from './EmployeeAttendanceDetail';
 import { humanDbError } from '../lib/dbErrors';
 import { correctionDateLabel, regularizationTimes } from '../lib/regularizationTimes';
+import { needsPunchFix } from '../lib/attendanceIssues';
 import { attendanceTimeline } from '../lib/attendanceTimeline';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
@@ -152,10 +153,13 @@ function DayPunchCorrectionLink({ row }) {
   const scope = { entityId: row.entity_id, zoneId: row.zone_id, branchId: row.branch_id,
     deptId: row.department_id, employeeId: row.employee_id };
   if (viewingAsEmployee || employee?.id === row.employee_id || !can('attendance.manage', scope)) return null;
+  // Only on a day whose punches need it (no punch out, a flagged missing punch); every other
+  // change is made from Regularizations.
+  if (!needsPunchFix(row, todayIso())) return null;
   if (row.is_locked) return <span className="text-2xs text-neutral-500">Published · locked</span>;
   if (row.work_date > todayIso()) return null;
   return <Link className="inline-flex min-h-6 items-center text-xs font-semibold text-coral-700 dark:text-coral-500 hover:underline whitespace-nowrap"
-    to={`/attendance/person?employee=${encodeURIComponent(row.employee_id)}&period=${encodeURIComponent(row.work_date.slice(0, 7))}&correctDate=${encodeURIComponent(row.work_date)}`}>Edit punches</Link>;
+    to={`/attendance/person?employee=${encodeURIComponent(row.employee_id)}&period=${encodeURIComponent(row.work_date.slice(0, 7))}&correctDate=${encodeURIComponent(row.work_date)}`}>Fix missing punch</Link>;
 }
 
 // Attendance statuses in the redesign's one colour language.

@@ -1,3 +1,16 @@
+import { recordedPunches } from './recordedPunches.js';
+
+/**
+ * Does this day's punches need correcting? Only then is a correction offered on the day itself;
+ * anything else is done from Attendance -> Regularizations. True when the engine flagged a missing
+ * punch or an unfinished break, or a past day ends on a check-in - no punch out.
+ */
+export function needsPunchFix(row, today) {
+  if (!row) return false;
+  if (row.is_missing_punch || row.status === 'Missing Punch' || row.breaks_incomplete) return true;
+  return Boolean(today && row.work_date < today && recordedPunches(row).length % 2 === 1);
+}
+
 // Match the blockers used by payroll_attendance_metrics. A late arrival, overtime or a
 // recorded absence is not by itself a missing/invalid attendance record.
 export function attendanceIssueReasons(row) {

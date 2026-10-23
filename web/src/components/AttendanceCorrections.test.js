@@ -99,13 +99,18 @@ test('an HR filer cannot approve their own on-behalf request; independent review
   assert.match(render({ requests: [request] }), />Approve<\/button>/);
 });
 
-test('payroll employee-month route opens that month and offers daily corrections only for unlocked days', () => {
+// A day that ends on a check-in - no punch out - is the one that needs a correction.
+const noPunchOut = { ...row, check_out: null, punches: [`${workDate}T09:30:00+05:30`] };
+
+test('payroll employee-month route opens that month and offers a correction only on a day missing its punch out', () => {
   const route = '/attendance/person?employee=worker&period=2026-07';
-  const html = render({ route });
-  assert.match(html, /2026-07-01 to 2026-07-31/);
+  const complete = render({ route });
+  assert.match(complete, /2026-07-01 to 2026-07-31/);
+  assert.doesNotMatch(complete, /Correct times/, 'a complete day is corrected from Regularizations, not from the day');
+  const html = render({ route, attendanceRows: [noPunchOut] });
   assert.match(html, /attendance\/regularizations\?employee=worker&amp;date=2026-07-15/);
   assert.match(html, /Correct times/);
-  const locked = render({ route, locked: true });
+  const locked = render({ route, attendanceRows: [{ ...noPunchOut, is_locked: true }] });
   assert.match(locked, /Published · locked/);
   assert.doesNotMatch(locked, /Correct times/);
 });
@@ -121,14 +126,15 @@ test('person deep links do not disclose an employee outside attendance scope', (
 
 test('HR gets direct Edit punches from the employee day and date links open the inline editor', () => {
   const route = '/attendance/person?employee=worker&period=2026-07';
-  const html = render({ route, manage: true });
+  const html = render({ route, manage: true, attendanceRows: [noPunchOut] });
   assert.match(html, /Edit punches/);
   assert.doesNotMatch(html, /Correct times|Request a punch correction/);
+  assert.doesNotMatch(render({ route, manage: true }), /Edit punches/, 'not on a complete day');
   const editing = render({ route: `${route}&correctDate=2026-07-15`, manage: true });
   assert.match(editing, /Punch correction date/);
   assert.match(editing, /Save punch correction/);
   assert.match(editing, /EasyTime Pro and original device punches stay unchanged/);
-  const locked = render({ route, manage: true, locked: true });
+  const locked = render({ route, manage: true, attendanceRows: [{ ...noPunchOut, is_locked: true }] });
   assert.match(locked, /Published · locked/);
 });
 
