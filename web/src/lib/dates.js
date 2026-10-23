@@ -36,3 +36,11 @@ export function windowStartIso(days) {
   d.setUTCDate(d.getUTCDate() - days);
   return d.toISOString().slice(0, 10);
 }
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "22 Oct" for 2026-10-22 (the year only when it is not this one); '—' for nothing. */
+export function dayMonth(iso, now = new Date()) {
+  const [y, m, d] = String(iso ?? '').slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return '—';
+  return `${d} ${MONTHS_SHORT[m - 1]}${y !== now.getFullYear() ? ` ${y}` : ''}`;
+}

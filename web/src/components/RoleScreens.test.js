@@ -211,7 +211,7 @@ for (const key of KEYS) {
     assert.equal(count(leave, /aria-label="Review leave for /g), expectedLeave);
     assert.doesNotMatch(leave, /aria-label="Review leave for Self Worker"/);
     const expenses = render(Expense, auth, [[['expenses'], records('expense')]], '/expense');
-    assert.equal(count(expenses, /aria-label="Approve"/g), expectedExpense);
+    assert.equal(count(expenses, /aria-label="Approve [^"]* claim of /g), expectedExpense);
     const corrections = render(RegularizationsView, auth, [
       [['regularizations', key === 'employee' ? 'all' : 'Pending', key === 'employee' ? 'self' : 'everyone'], records('correction')],
       [['regularizations', 'mine', 'self'], []],
@@ -373,7 +373,7 @@ test('combined HR and department roles retain both scopes without acquiring comp
   const leave = render(Leave, combined, [[['leaves'], combinedLeaves]], '/leave');
   assert.equal(count(leave, /aria-label="Review leave for /g), 2);
   const expense = render(Expense, combined, [[['expenses'], records('expense')]], '/expense');
-  assert.equal(count(expense, /aria-label="Approve"/g), 1);
+  assert.equal(count(expense, /aria-label="Approve [^"]* claim of /g), 1);
   const inbox = render(ApprovalsQueue, combined, [[['leaves'], combinedLeaves], [['expenses'], records('expense')],
     [['regularizations', 'Pending', 'everyone'], records('correction')]]);
   assert.match(inbox, /Leaves · 2</);

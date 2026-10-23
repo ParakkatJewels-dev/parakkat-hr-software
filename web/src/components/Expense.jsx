@@ -1,6 +1,6 @@
 import { SkeletonCards, SkeletonRows } from './ui/Skeleton';
 import React, { useState, useMemo, useCallback } from 'react';
-import { FileText, Check, Ban, Plus, ReceiptText, Clock, CheckCircle2 } from 'lucide-react';
+import { FileText, Check, Ban, Plus, ReceiptText, Clock, CheckCircle2, Car, Plane, Smartphone, HeartPulse, Package } from 'lucide-react';
 import { useExpenses, useAddExpense, useSetExpenseStatus } from '../data/expenses';
 import { useAuth } from '../auth/AuthContext';
 import FormSection, { Field, FIELD, FormError } from './ui/FormSection';
@@ -17,11 +17,24 @@ import { NavigationCountBadge } from './ui/CountBadge';
 import PageHeader from './ui/PageHeader';
 import { StatCard, StatRow } from './ui/StatCard';
 import StatusPill from './ui/StatusPill';
+import { dayMonth } from '../lib/dates';
+import './expense.css';
 
 const CATEGORIES = ['Local Conveyance', 'Travel Expenses', 'Telephone/Mobile Bills', 'Medical Claims', 'Office Supplies', 'Other'];
 const blankExpenseForm = () => ({ category: 'Local Conveyance', amount: '', expense_date: todayIso(), description: '' });
 
 const EXPENSE_TONE = { Approved: 'success', Paid: 'success', Rejected: 'danger', Pending: 'warning' };
+
+/** An icon for a claim's category, so a list of claims can be scanned by kind. */
+const categoryIcon = (category = '') => {
+  const c = category.toLowerCase();
+  if (/convey|taxi|auto|fuel/.test(c)) return Car;
+  if (/travel|outstation|flight|train/.test(c)) return Plane;
+  if (/phone|mobile|broadband|internet/.test(c)) return Smartphone;
+  if (/medic|health/.test(c)) return HeartPulse;
+  if (/office|supplies|stationery/.test(c)) return Package;
+  return ReceiptText;
+};
 
 export default function Expense() {
   const expensesQuery = useExpenses();
@@ -69,6 +82,17 @@ export default function Expense() {
     return scoped.filter((e) => e.status === statusFilter);
   }, [expenses, statusFilter, mineOnly, employee?.id, canDecide]);
 
+  // How many claims each filter pill holds, from the same Mine / Everyone scope as the list.
+  const counts = useMemo(() => {
+    const scoped = mineOnly ? expenses.filter((e) => e.employee_id === employee?.id) : expenses;
+    return {
+      all: scoped.length,
+      pending: scoped.filter((e) => e.status === 'Pending').length,
+      approved: scoped.filter((e) => e.status === 'Approved' || e.status === 'Paid').length,
+      rejected: scoped.filter((e) => e.status === 'Rejected').length,
+    };
+  }, [expenses, mineOnly, employee?.id]);
+
   const totals = useMemo(() => {
     // Over the visible rows, not the whole scope — see the same fix in Leave.
     const sum = (pred) => visibleExpenses.filter(pred).reduce((a, e) => a + Number(e.amount || 0), 0);
@@ -101,7 +125,7 @@ export default function Expense() {
   const pager = usePagination(visibleExpenses, 25, focusId, `${statusFilter}:${mineOnly}`);
 
   return (
-    <div className="page-shell space-y-6 animate-fade-in">
+    <div className={`page-shell space-y-6 animate-fade-in expense-page ${canPickWhose ? '' : 'is-self'}`}>
       {showForm && canClaim && (
         <FormSection
           title="Claim reimbursement"
@@ -162,7 +186,8 @@ export default function Expense() {
         </FormSection>
       )}
 
-      <PageHeader title="Expense Management" subtitle="Claims, approvals and reimbursements in one place.">
+      <PageHeader title={canPickWhose ? 'Expense Management' : 'My expenses'}
+        subtitle={canPickWhose ? 'Claims, approvals and reimbursements in one place.' : 'Claim what you spent for work and follow each claim.'}>
         <div className="flex items-center gap-2">
           {/* A manager's list is their whole branch. Without this there is no way to answer "what
               did I claim?" — which is a question they have too, since 0080 gave every manager role
@@ -213,12 +238,25 @@ export default function Expense() {
             <h3 className="font-bold text-xs uppercase tracking-wider text-neutral-800 dark:text-neutral-100 border-b border-neutral-100 dark:border-neutral-900 pb-2.5 flex items-center">
               <FileText size={16} className="mr-2 text-neutral-600 dark:text-neutral-400" /> Claim History
             </h3>
-            {canReviewQueue && <button type="button"
-              className={btnClass(statusFilter === 'My review queue' ? 'primary' : 'ghost')}
-              aria-pressed={statusFilter === 'My review queue'} aria-label={navigationCountLabel('My review queue', reviewBadge)}
-              onClick={() => { setMineOnly(false); setStatusFilter('My review queue'); }}>
-              My review queue <NavigationCountBadge badge={reviewBadge} />
-            </button>}
+            {/* What to show, with how many: the review queue sits among the states instead of
+                being a lone button above the list (round 3). */}
+            <div className="choice-pills expense-filter-pills" role="group" aria-label="Show claims">
+              {[
+                ['All', counts.all],
+                canReviewQueue && ['My review queue', reviewBadge?.count],
+                ['Pending', counts.pending],
+                ['Approved', counts.approved],
+                ['Rejected', counts.rejected],
+              ].filter(Boolean).map(([filter, count]) => (
+                <button key={filter} type="button" className="choice-pill" aria-pressed={statusFilter === filter}
+                  aria-label={filter === 'My review queue' ? navigationCountLabel('My review queue', reviewBadge) : undefined}
+                  onClick={() => { if (filter === 'My review queue') setMineOnly(false); setStatusFilter(filter); }}>
+                  {filter === 'My review queue' ? 'To review' : filter}
+                  {filter === 'My review queue' ? <NavigationCountBadge badge={reviewBadge} />
+                    : Number.isFinite(count) && count > 0 && <em className="choice-pill-count">{count}</em>}
+                </button>
+              ))}
+            </div>
             {isLoading ? (
               <SkeletonRows rows={4} avatar={false} label="Loading expense claims" />
             ) : visibleExpenses.length === 0 ? error ? null : (
@@ -227,31 +265,39 @@ export default function Expense() {
                   : `No ${statusFilter === 'All' ? '' : `${statusFilter.toLowerCase()} `}expense claims visible to you yet.`}
               </p>
             ) : (
-              <div className="space-y-3 max-h-[440px] overflow-y-auto pr-1">
-                {pager.slice.map((exp) => (
-                  <div key={exp.id} {...rowProps(exp.id)} className="mobile-list-row p-3.5 bg-neutral-50 dark:bg-neutral-950/20 border border-neutral-200 dark:border-neutral-900 rounded-xl flex items-center justify-between gap-3 hover:border-neutral-300 dark:hover:border-neutral-800">
-                    <div className="space-y-1 min-w-0">
-                      <span className="font-semibold text-xs text-neutral-800 dark:text-slate-200">{exp.category}</span>
-                      <span className="text-2xs text-neutral-500 block truncate">
-                        {exp.expense_date || '—'} · {exp.employee?.full_name || 'Unknown'}
-                        {exp.employee?.branch?.code ? ` (${exp.employee.branch.code})` : ''}
-                      </span>
-                      {exp.description && <p className="text-2xs text-neutral-450 italic truncate">"{exp.description}"</p>}
-                    </div>
-                    <div className="mobile-list-actions text-right flex flex-col items-end gap-1.5 shrink-0">
-                      <span className="font-mono font-bold text-neutral-800 dark:text-slate-100 text-sm">₹{Number(exp.amount).toLocaleString()}</span>
-                      <div className="flex items-center gap-1.5">
-                        <StatusPill status={exp.status} tone={EXPENSE_TONE[exp.status] ?? 'warning'} />
-                        {canDecide(exp) && exp.status === 'Pending' && (
-                          <>
-                            <button disabled={setStatus.isPending} onClick={() => { if (!setStatus.isPending) setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id }); }} title="Approve" aria-label="Approve" className="p-1.5 rounded-lg bg-brand/10 dark:bg-brand/15 text-brand-ink dark:text-brand-ink hover:bg-brand/20 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"><Check size={13} /></button>
-                            <button disabled={setStatus.isPending} onClick={() => { if (!setStatus.isPending) setStatus.mutate({ id: exp.id, status: 'Rejected', approverEmployeeId: employee?.id }); }} title="Reject" aria-label="Reject" className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-950/50 cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed"><Ban size={13} /></button>
-                          </>
-                        )}
+              <div className="expense-list">
+                {pager.slice.map((exp) => {
+                  const Icon = categoryIcon(exp.category);
+                  const own = exp.employee_id === employee?.id;
+                  const decide = canDecide(exp) && exp.status === 'Pending';
+                  const meta = [dayMonth(exp.expense_date), !own || canPickWhose ? exp.employee?.full_name : null, exp.employee?.branch?.code].filter(Boolean);
+                  return (
+                    <div key={exp.id} {...rowProps(exp.id)} className="expense-row">
+                      <span className="expense-row-icon" aria-hidden="true"><Icon size={18} /></span>
+                      <div className="expense-row-main">
+                        <div className="expense-row-top">
+                          <strong>{exp.category}</strong>
+                          <span className="expense-row-amount">₹{Number(exp.amount).toLocaleString('en-IN')}</span>
+                        </div>
+                        <span className="expense-row-meta">{meta.join(' · ')}</span>
+                        {exp.description && <p className="expense-row-note">{exp.description}</p>}
+                        <div className="expense-row-foot">
+                          <StatusPill status={exp.status} tone={EXPENSE_TONE[exp.status] ?? 'warning'} />
+                          {decide && (
+                            <div className="expense-row-decide">
+                              <button type="button" className="is-reject" disabled={setStatus.isPending}
+                                onClick={() => { if (!setStatus.isPending) setStatus.mutate({ id: exp.id, status: 'Rejected', approverEmployeeId: employee?.id }); }}
+                                aria-label={`Reject ${exp.category} claim of ₹${exp.amount}`}><Ban size={14} aria-hidden="true" /> Reject</button>
+                              <button type="button" className="is-approve" disabled={setStatus.isPending}
+                                onClick={() => { if (!setStatus.isPending) setStatus.mutate({ id: exp.id, status: 'Approved', approverEmployeeId: employee?.id }); }}
+                                aria-label={`Approve ${exp.category} claim of ₹${exp.amount}`}><Check size={14} aria-hidden="true" /> Approve</button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

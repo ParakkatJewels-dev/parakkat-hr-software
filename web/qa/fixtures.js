@@ -120,6 +120,20 @@ export const tables = {
     subject: ['Laptop will not connect to the office Wi-Fi', 'Payslip shows the wrong bank account', 'Need access to the shared drive'][i],
     description: 'Synthetic ticket for layout checks.', category: ['IT', 'Payroll', 'IT'][i], priority: ['High', 'Medium', 'Low'][i],
     status: ['Open', 'In Progress', 'Resolved'][i], created_at: stamp, updated_at: stamp, can_manage: true }));
+  // Round 3: expense claims in each state, so the expense screen has rows to lay out.
+  const claim = (i, e, category, amount, days, status, description) => ({
+    id: `qa-expense-${i}`, category, amount, expense_date: new Date(Date.now() - days * 86400000).toISOString().slice(0, 10),
+    description, status, created_at: stamp, entity_id: e.entity_id, zone_id: e.zone_id, branch_id: e.branch_id,
+    department_id: e.department_id, employee_id: e.id, created_by: e.id, approver_id: null,
+    employee: { id: e.id, full_name: e.full_name, employee_code: e.employee_code, branch_id: e.branch_id, branch: e.branch },
+  });
+  tables.expenses = [
+    claim(1, a, 'Local Conveyance', 640, 1, 'Pending', 'Auto fare to the Chalakudy branch for the stock audit'),
+    claim(2, b, 'Broadband / Mobile', 1499, 3, 'Pending', 'October mobile bill'),
+    claim(3, a, 'Medical', 2350, 6, 'Approved', 'Clinic visit and medicines'),
+    claim(4, c, 'Outstation Travel', 8420, 9, 'Paid', 'Train and hotel for the Kochi exhibition'),
+    claim(5, b, 'Local Conveyance', 310, 12, 'Rejected', 'Taxi without a receipt'),
+  ];
 }
 
 if (goalsFixtures) {

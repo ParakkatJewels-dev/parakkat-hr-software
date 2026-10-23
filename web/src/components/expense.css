@@ -1,0 +1,57 @@
+/* Expenses (round 3). */
+
+/* A claim: its kind as an icon, the category with the amount, when and whose, the note, then
+   the status and - for someone who decides it - Reject / Approve. */
+.expense-list { display: grid; gap: .55rem; }
+.expense-row {
+  display: flex; align-items: flex-start; gap: .75rem; padding: .8rem .85rem;
+  border: 1px solid var(--surface-border); border-radius: .9rem; background: var(--surface-elevated);
+}
+.expense-row:hover { border-color: var(--surface-border-strong); }
+.expense-row-icon {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 2.4rem; height: 2.4rem;
+  border-radius: .75rem; background: var(--coral-soft); color: var(--coral-ink);
+}
+.expense-row-main { display: grid; flex: 1; min-width: 0; gap: .15rem; }
+.expense-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem; }
+.expense-row-top strong { min-width: 0; overflow: hidden; color: var(--surface-text); font-size: .9rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.expense-row-amount { flex: none; color: var(--surface-text); font-size: .9375rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.expense-row-meta { overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }
+.expense-row-note { display: -webkit-box; margin: .1rem 0 0; overflow: hidden; color: var(--surface-text-soft); font-size: .8125rem; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow-wrap: anywhere; }
+.expense-row-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .4rem; }
+.expense-row-decide { display: flex; gap: .4rem; }
+.expense-row-decide button {
+  display: inline-flex; align-items: center; gap: .3rem; min-height: 2.25rem; padding: 0 .8rem; border-radius: .7rem;
+  font-size: .8125rem; font-weight: 650;
+}
+.expense-row-decide .is-reject { background: var(--tone-red-bg); color: var(--tone-red-fg); }
+.expense-row-decide .is-approve { background: var(--tone-green-bg); color: var(--tone-green-fg); }
+.expense-row-decide button:disabled { opacity: .45; cursor: not-allowed; }
+.expense-filter-pills { margin-top: -.25rem; }
+
+@media (max-width: 640px) {
+  /* Mine / Everyone and Submit claim on one row (as on Leave). */
+  .expense-page:not(.is-self) .page-header-actions { width: 100%; }
+  .expense-page .page-header-actions > div { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
+  .expense-page.is-self .page-header-actions > div { justify-content: flex-end; }
+  .expense-page .page-header-actions [role="group"] { display: inline-flex; flex: none; padding: .2rem; border: 0 !important; border-radius: .8rem !important; background: var(--surface-muted); }
+  .expense-page .page-header-actions [role="group"] > button {
+    min-height: 2.125rem; padding: 0 .9rem !important; border-radius: .65rem !important; background: transparent !important;
+    color: var(--surface-text-soft) !important; font-size: .8125rem !important; font-weight: 600 !important;
+  }
+  .expense-page .page-header-actions [role="group"] > button[aria-pressed="true"] { background: var(--surface-elevated) !important; color: var(--surface-text) !important; box-shadow: 0 1px 3px rgba(15, 23, 42, .12); }
+
+  /* The three totals as three small figures across. */
+  .expense-page .stat-row { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: .45rem; }
+  .expense-page .stat-row > * { grid-column: auto !important; min-width: 0; }
+  .expense-page .stat-card { flex-direction: column; align-items: flex-start; gap: .35rem; padding: .65rem .7rem; }
+  .expense-page .stat-card-icon { width: 1.9rem; height: 1.9rem; }
+  .expense-page .stat-card-icon svg { width: 16px; height: 16px; }
+  .expense-page .stat-card-value { font-size: 1.05rem !important; }
+  .expense-page .stat-card-sub { display: none; }
+  .expense-page .stat-card-label { font-size: .72rem; }
+
+  .expense-row { padding: .75rem; }
+  .expense-row-decide { flex: 1 1 100%; }
+  .expense-row-decide button { flex: 1; justify-content: center; min-height: 2.5rem; }
+}

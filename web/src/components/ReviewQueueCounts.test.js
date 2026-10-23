@@ -18,6 +18,7 @@ const SEARCH_SELECT_STUB = 'export default "select"; export const SEARCH_FROM = 
 const stubs = {
   './ui/SearchSelect': SEARCH_SELECT_STUB,
   '../lib/useMediaQuery': 'export const useMediaQuery = () => false;',
+  './expense.css': 'export default {};',
   react: `import React from ${JSON.stringify(import.meta.resolve('react'))}; export default React;
     export const useState = value => globalThis.reviewQueueTest.state(value);
     export const useMemo = fn => fn(), useCallback = fn => fn, useEffect = () => {};`,
@@ -100,7 +101,10 @@ function mount(Component) {
   };
   const render = () => { cursor = 0; globalThis.reviewQueueTest = harness; return Component(); };
   const find = predicate => findAll(render(), predicate)[0];
-  const button = label => find(node => node.type === 'button' && textOf(node).trim() === label);
+  // By its words, or by its accessible name when the words are shorter (the expense pill reads
+  // "To review" and is named "My review queue, 127 expenses to review").
+  const button = label => find(node => node.type === 'button' && (textOf(node).trim() === label
+    || node.props['aria-label'] === label || String(node.props['aria-label'] ?? '').startsWith(`${label},`)));
   return { harness, render, find, button,
     rows: () => findAll(render(), node => Boolean(node.props['data-row-id'])).map(node => node.props['data-row-id']),
   };
