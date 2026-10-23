@@ -43,32 +43,55 @@
   .leave-page.is-self .employee-secondary-stats,
   .leave-page.is-self .page-header-actions .leave-header-apply { display: none; }
 
-  /* Leave requests as phone rows, as on the boards: who, then type and dates under the name, the
-     status on the right. Your own list leaves out your name. */
+  /* Leave requests as phone rows (round 3): face, name, "Casual Leave · 23 Oct" under it, the
+     status and the days on the right, and the whole row opens the request. */
   .leave-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.5rem minmax(0, 1fr) auto;
     grid-template-areas: none;
-    gap: .2rem .6rem;
-    padding: .7rem .75rem;
+    align-items: center;
+    gap: .1rem .7rem;
+    padding: .75rem .8rem;
   }
-  /* The status spans the row so the arrow alone sizes the right column and the name keeps the
-     width; type and dates sit under the name, the status at the end of that line. */
-  .leave-row-person { grid-column: 1; grid-row: 1; }
-  .leave-row-open { grid-column: 2; grid-row: 1; justify-self: end; min-height: 2rem; width: 2rem; padding: 0; justify-content: center; font-size: 0; }
-  .leave-row-open svg { width: 18px; height: 18px; }
-  .leave-row-type { grid-column: 1; grid-row: 2; padding-left: 3.2rem; padding-right: 5.5rem; }
-  .leave-row-status { grid-column: 1 / -1; grid-row: 2; justify-self: end; align-self: end; align-items: flex-end; }
-  .leave-row-days, .leave-row-stage, .leave-row-note, .leave-row-person .min-w-0 > span { display: none; }
-  .leave-page.is-self .leave-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .leave-row-person { display: contents; }
+  .leave-row-person > :first-child { grid-column: 1; grid-row: 1 / span 2; width: 2.5rem; height: 2.5rem; }
+  .leave-row-person .min-w-0 { grid-column: 2; grid-row: 1; min-width: 0; }
+  .leave-row-person .min-w-0 > strong { display: block; overflow: hidden; font-size: .9375rem; text-overflow: ellipsis; white-space: nowrap; }
+  .leave-row-person .min-w-0 > span { display: none; }
+  .leave-row-type { grid-column: 2; grid-row: 2; display: flex; min-width: 0; gap: .3rem; padding: 0; color: var(--surface-text-soft); font-size: .8125rem; }
+  .leave-row-type > strong { overflow: hidden; color: inherit; font-size: inherit; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+  .leave-row-type > strong::after { content: ' ·'; }
+  .leave-row-type > span { flex: none; color: inherit; font-size: inherit; }
+  .leave-row-status { grid-column: 3; grid-row: 1; justify-self: end; align-self: center; align-items: flex-end; min-width: 0; width: auto; padding: 0; }
+  .leave-row-days { display: block; grid-column: 3; grid-row: 2; justify-self: end; min-width: 0; width: auto; padding: 0; color: var(--surface-text-soft); font-size: .75rem; font-weight: 600; text-align: right; }
+  .leave-row-stage, .leave-row-note { display: none; }
+  /* The open button covers the row: a tap anywhere opens the request. */
+  .leave-row-open { position: absolute; inset: 0; width: auto; min-height: 0; padding: 0; border: 0; border-radius: inherit; background: transparent; font-size: 0; }
+  .leave-row-open svg { display: none; }
+  .leave-row-open:focus-visible { outline: 2px solid var(--coral); outline-offset: -2px; }
+  /* Your own list: no face or name, the type on top and the dates under it. */
+  .leave-page.is-self .leave-row { grid-template-columns: minmax(0, 1fr) auto; }
   .leave-page.is-self .leave-row-person { display: none; }
-  .leave-page.is-self .leave-row-type { grid-row: 1; padding: 0; }
-  .leave-page.is-self .leave-row-status { grid-column: 2; grid-row: 1; align-self: center; }
-  .leave-page.is-self .leave-row-open { grid-column: 3; }
+  .leave-page.is-self .leave-row-type { grid-column: 1; grid-row: 1 / span 2; flex-direction: column; gap: .1rem; }
+  .leave-page.is-self .leave-row-type > strong { color: var(--surface-text); font-size: .9375rem; font-weight: 650; }
+  .leave-page.is-self .leave-row-type > strong::after { content: none; }
+  .leave-page.is-self .leave-row-status, .leave-page.is-self .leave-row-days { grid-column: 2; }
 
-  /* Managers: the Mine / Everyone switch across the width, Apply leave under it. */
-  .leave-page:not(.is-self) .page-header-actions,
-  .leave-page:not(.is-self) .page-header-actions > div { width: 100%; flex-wrap: wrap; }
-  .leave-page:not(.is-self) .page-header-actions [role="group"] { display: flex; flex: 1 1 100%; }
-  .leave-page:not(.is-self) .page-header-actions [role="group"] > button { flex: 1; min-height: 2.5rem; }
-  .leave-page:not(.is-self) .leave-header-apply { flex: 1 1 100%; justify-content: center; }
+  /* Managers: Mine / Everyone and Apply on one row - a quiet switch and a compact button - rather
+     than two full-width bars above the page. */
+  .leave-page:not(.is-self) .page-header-actions { width: 100%; }
+  .leave-page:not(.is-self) .page-header-actions > div { width: 100%; justify-content: space-between; flex-wrap: nowrap; }
+  .leave-page:not(.is-self) .page-header-actions [role="group"] {
+    display: inline-flex; flex: none; padding: .2rem; border: 0 !important; border-radius: .8rem !important; background: var(--surface-muted);
+  }
+  .leave-page:not(.is-self) .page-header-actions [role="group"] > button {
+    min-height: 2.125rem; padding: 0 .9rem !important; border-radius: .65rem !important; background: transparent !important;
+    color: var(--surface-text-soft) !important; font-size: .8125rem !important; font-weight: 600 !important;
+  }
+  .leave-page:not(.is-self) .page-header-actions [role="group"] > button[aria-pressed="true"] {
+    background: var(--surface-elevated) !important; color: var(--surface-text) !important; box-shadow: 0 1px 3px rgba(15, 23, 42, .12);
+  }
+  .leave-page:not(.is-self) .leave-header-apply { flex: none; min-height: 2.5rem; padding-inline: 1rem; }
+  .leave-filter-pills { margin-top: -.25rem; }
 }

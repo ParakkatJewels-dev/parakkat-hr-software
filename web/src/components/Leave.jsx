@@ -22,6 +22,7 @@ import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCo
 import { NavigationCountBadge } from './ui/CountBadge';
 import LeaveBalanceCards from './leave/LeaveBalanceCards';
 import PageHeader from './ui/PageHeader';
+import { useMediaQuery } from '../lib/useMediaQuery';
 
 import SearchSelect from './ui/SearchSelect';
 /**
@@ -41,6 +42,21 @@ const FALLBACK_TYPE_NAMES = {
 const LEAVE_FILTERS = ['All', 'My review queue', 'Department review', 'HR sanction', 'Pending', 'On Hold', 'Approved', 'Rejected', 'Cancelled'];
 
 const LEAVE_TONE = { Pending: 'warning', 'On Hold': 'info', Approved: 'success', Rejected: 'danger', Cancelled: 'neutral' };
+
+// "23 Oct" / "23 – 25 Oct" / "30 Oct – 2 Nov", rather than 2026-10-23 – 2026-10-25.
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function leaveDates(start, end) {
+  const [sy, sm, sd] = String(start).split('-').map(Number);
+  if (!sy || !sm || !sd) return start ?? '';
+  const one = (m, d) => `${d} ${MONTHS_SHORT[m - 1]}`;
+  if (!end || end === start) return one(sm, sd);
+  const [ey, em, ed] = String(end).split('-').map(Number);
+  if (sy === ey && sm === em) return `${sd} – ${one(em, ed)}`;
+  return `${one(sm, sd)} – ${one(em, ed)}${sy !== ey ? ` ${ey}` : ''}`;
+}
+
+// The phone's filter pills: shorter words for the long filter names.
+const PILL_LABEL = { 'My review queue': 'To review', 'Department review': 'Dept review', 'On Hold': 'On hold' };
 
 function daysBetween(a, b) {
   const d1 = new Date(a), d2 = new Date(b);
@@ -139,6 +155,7 @@ export default function Leave() {
   // manager who switched to the employee view — usePermissions narrows the grants, this follows.
   const [mineOnly, setMineOnly, canPickWhose] = useMineOnly(canBeyondSelf('leave.read'));
   const canReviewQueue = !viewingAsEmployee && canPickWhose && canBeyondSelf('leave.approve');
+  const phone = useMediaQuery('(max-width: 640px)');
   const chooseFilter = (filter) => {
     if (filter === 'My review queue') setMineOnly(false);
     setStatusFilter(filter);
@@ -267,7 +284,8 @@ export default function Leave() {
       ) : null}
 
       {/* stats from real data */}
-      {isLoading ? <SkeletonCards count={5} label="Loading leave totals" /> : hasLeaves && <StatRow label="Leave totals" className={selfServiceMode ? 'employee-secondary-stats' : 'stat-row-mini'}>
+      {/* On a phone a manager gets these counts on the filter pills instead (see below). */}
+      {phone && !selfServiceMode ? null : isLoading ? <SkeletonCards count={5} label="Loading leave totals" /> : hasLeaves && <StatRow label="Leave totals" className={selfServiceMode ? 'employee-secondary-stats' : 'stat-row-mini'}>
         <Stat label="Total requests" sub="All leave requests" icon={ClipboardList} tone="slate" value={stats.total} active={statusFilter === 'All'} onClick={() => setStatusFilter('All')} />
         <Stat label="Pending" sub="Awaiting approval" icon={Clock} tone="amber" value={stats.pending} active={statusFilter === 'Pending'} onClick={() => setStatusFilter('Pending')} />
         <Stat label="On hold" sub="Requires attention" icon={PauseCircle} tone="blue" value={stats.onHold} active={statusFilter === 'On Hold'} onClick={() => setStatusFilter('On Hold')} />
@@ -282,6 +300,25 @@ export default function Leave() {
             <h3 className="card-title">
               {selfServiceMode ? 'My requests' : 'Leave requests'} <span className="card-title-count">({visibleLeaves.length})</span>
             </h3>
+            {/* A phone: every filter as a pill you swipe through, with its count where there is
+                one - instead of five small number cards, a review-queue button and a dropdown. */}
+            {phone ? (
+              <div className="choice-pills leave-filter-pills" role="group" aria-label="Show requests">
+                {LEAVE_FILTERS.filter((filter) => (filter !== 'My review queue' || canReviewQueue)
+                  && !(selfServiceMode && (filter === 'Department review' || filter === 'HR sanction'))).map((filter) => {
+                  const count = { All: stats.total, Pending: stats.pending, 'On Hold': stats.onHold, Approved: stats.approved, Rejected: stats.rejected,
+                    'My review queue': reviewBadge?.count }[filter];
+                  return (
+                    <button key={filter} type="button" className="choice-pill" aria-pressed={statusFilter === filter}
+                      aria-label={filter === 'My review queue' ? navigationCountLabel('My review queue', reviewBadge) : undefined}
+                      onClick={() => chooseFilter(filter)}>
+                      {PILL_LABEL[filter] ?? filter}
+                      {Number.isFinite(count) && count > 0 && <em className="choice-pill-count">{count}</em>}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
             <div className="flex flex-wrap items-center gap-2">
               {canReviewQueue && <button type="button"
                 className={btnClass(statusFilter === 'My review queue' ? 'primary' : 'ghost')}
@@ -299,6 +336,7 @@ export default function Leave() {
                 </select>
               </label>
             </div>
+            )}
 
             {isLoading ? (
               <SkeletonRows rows={4} avatar={false} label="Loading leave requests" />
@@ -320,7 +358,7 @@ export default function Leave() {
                     </div>
                     <div className="leave-row-type">
                       <strong>{typeName(req.type)}</strong>
-                      <span>{req.start_date === req.end_date ? req.start_date : `${req.start_date} – ${req.end_date}`}</span>
+                      <span>{leaveDates(req.start_date, req.end_date)}</span>
                     </div>
                     <span className="leave-row-days">{req.days} day{Number(req.days) === 1 ? '' : 's'}</span>
                     <div className="leave-row-status">
