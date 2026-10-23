@@ -112,6 +112,10 @@ function AccessDenied() {
   );
 }
 
+
+// The command palette opens on Ctrl+K or ⌘K (see the keydown handler); the hint says the one this
+// computer uses.
+const SEARCH_SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '') ? '⌘K' : 'Ctrl K';
 export default function App() {
   const { employee, user, isSuperAdmin, signOut, assignments, permissions, hiddenScreens } = useAuth();
   const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
@@ -705,8 +709,11 @@ export default function App() {
             </span>
             <button type="button" onClick={() => setShowCommandPalette(true)} className="app-header-search hidden md:flex">
               <Search size={17} className="shrink-0" aria-hidden="true" />
-              <span className="truncate">Search screens and actions…</span>
-              <kbd>⌘K</kbd>
+              {/* The long wording where there is room, "Search…" where the bar is crowded. */}
+              <span className="truncate app-header-search-long">Search screens and actions…</span>
+              <span className="truncate app-header-search-short" aria-hidden="true">Search…</span>
+              {/* Most of the office is on Windows, where the shortcut is Ctrl K, not ⌘K. */}
+              <kbd>{SEARCH_SHORTCUT}</kbd>
             </button>
           </div>
 

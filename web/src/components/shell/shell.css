@@ -268,6 +268,8 @@
 /* Display is set here, not by utilities: this unlayered sheet beats Tailwind's layered ones. */
 .app-header-brand { display: inline-flex; min-width: 0; align-items: center; gap: .6rem; }
 @media (min-width: 1024px) { .app-header-brand { display: none; } }
+/* Tablets show the brand and the search box side by side; keep the wordmark off the box. */
+@media (min-width: 768px) and (max-width: 1023px) { .app-header-brand { flex: none; margin-right: .5rem; } }
 .app-header-logo {
   display: inline-flex;
   flex: none;
@@ -285,7 +287,11 @@
 .app-header-search {
   align-items: center;
   gap: .65rem;
-  width: min(28rem, 42vw);
+  /* Fills the free space in the bar up to a size that suits the screen (round 3): it gives way to
+     the buttons on the right when the bar is crowded instead of pushing them off the edge. */
+  flex: 0 1 clamp(16rem, 30vw, 36rem);
+  min-width: 9rem;
+  width: auto;
   height: 2.5rem;
   padding: 0 .9rem;
   border: 1px solid var(--surface-border);
@@ -298,7 +304,9 @@
   transition: border-color .15s ease, box-shadow .15s ease;
 }
 .app-header-search:hover { border-color: var(--surface-border-strong); box-shadow: 0 2px 8px rgba(16, 24, 40, .06); }
+.app-header-search-short { display: none; }
 .app-header-search kbd {
+  flex: none;
   margin-left: auto;
   padding: .1rem .4rem;
   border: 1px solid var(--surface-border);
@@ -310,6 +318,15 @@
 }
 .app-header-actions { display: flex; flex: none; align-items: center; gap: .6rem; }
 @media (min-width: 768px) { .app-header .mobile-search-trigger { display: none; } }
+/* Tablets and small laptops: the shorter wording, no shortcut hint (nobody presses Ctrl K on a
+   touch screen, and the room goes to the role chip and the bell). */
+@media (max-width: 1199px) {
+  .app-header-search-long { display: none; }
+  .app-header-search-short { display: inline; }
+  .app-header-search kbd { display: none; }
+}
+/* Wide monitors: a little taller to match the larger type there. */
+@media (min-width: 1600px) { .app-header-search { height: 2.75rem; font-size: .9375rem; } }
 .app-header-icon,
 .header-notifications > button {
   display: inline-flex;
