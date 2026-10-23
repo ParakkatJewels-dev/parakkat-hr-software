@@ -52,3 +52,26 @@
   .person-picker-results { max-width: none; }
   .person-picker-search input { font-size: 16px; }
 }
+
+/* The days of one person's period on a phone (round 3): a line per day, details on a tap. */
+.att-days { margin: 0; padding: .25rem .9rem !important; list-style: none; }
+.att-day + .att-day { border-top: 1px solid var(--surface-border); }
+.att-day-row { display: flex; align-items: center; gap: .7rem; width: 100%; padding: .7rem 0; text-align: left; }
+.att-day-date {
+  display: inline-flex; flex: none; flex-direction: column; align-items: center; justify-content: center;
+  width: 2.75rem; height: 2.9rem; border-radius: .75rem; background: var(--surface-muted); color: var(--surface-text);
+}
+.att-day-date em { color: var(--surface-text-soft); font-size: .625rem; font-style: normal; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.att-day-date strong { font-size: 1.05rem; font-weight: 750; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.att-day-date[data-today] { background: var(--coral); color: #fff; }
+.att-day-date[data-today] em { color: rgba(255, 255, 255, .85); }
+.att-day-main { display: grid; flex: 1; min-width: 0; gap: .1rem; }
+.att-day-main strong { color: var(--surface-text); font-size: .9375rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.att-day-main em { overflow: hidden; color: var(--surface-text-soft); font-size: .75rem; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.att-day-flag { color: var(--tone-amber-fg); font-size: .6875rem; font-weight: 600; }
+.att-day-caret { flex: none; color: var(--surface-text-soft); transition: transform .15s ease; }
+.att-day.is-open .att-day-caret { transform: rotate(180deg); }
+.att-day-more { display: grid; gap: .6rem; margin: 0 0 .8rem 3.45rem; padding: .7rem .8rem; border-radius: .8rem; background: var(--surface-subtle); }
+.att-day-more > :is(button, a) { justify-self: start; }
+.att-day-note { margin: 0; color: var(--surface-text-soft); font-size: .75rem; }
+.att-day-empty { padding: 1.5rem 0; color: var(--surface-text-soft); font-size: .8125rem; text-align: center; }

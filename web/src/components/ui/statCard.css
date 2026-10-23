@@ -48,7 +48,7 @@
   background: var(--tile-bg);
   color: var(--tile-fg);
 }
-.stat-card-copy { display: flex; min-width: 0; flex-direction: column; gap: .15rem; }
+.stat-card-copy { display: flex; flex: 1 1 auto; min-width: 0; flex-direction: column; gap: .15rem; }
 .stat-card-label {
   display: -webkit-box;
   overflow: hidden;

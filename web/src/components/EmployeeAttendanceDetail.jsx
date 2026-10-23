@@ -9,7 +9,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search, ChevronRight,
+  CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search, ChevronRight, ChevronDown, LogIn, Timer, Hourglass, Building2,
 } from 'lucide-react';
 import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
 import { fmtMinutes, fmtTime, monthRange, todayIso } from '../data/attendance';
@@ -30,6 +30,8 @@ import FilterSelect from './ui/FilterSelect';
 import DateRangeFilter, { useDateRange } from './ui/DateRangeFilter';
 import PageHeader from './ui/PageHeader';
 import Avatar from './ui/Avatar';
+import { StatCard } from './ui/StatCard';
+import StatusPill from './ui/StatusPill';
 import FilterSheet from './ui/FilterSheet';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import './attendance/personPicker.css';
@@ -321,7 +323,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                     100% for everyone forever. What is owed there is the daily hours, so that is
                     what gets measured. */}
                 {summary.flexible ? (
-                  <Stat label="Hours completed" value={summary.hoursMetRate != null ? `${summary.hoursMetRate}%` : '—'}
+                  <Stat label="Hours completed" icon={Hourglass} value={summary.hoursMetRate != null ? `${summary.hoursMetRate}%` : '—'}
                     sub={`${summary.shortDays} short of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
                     tone={summary.hoursMetRate != null && summary.hoursMetRate < 85 ? 'amber' : 'green'} icon={Clock} />
                 ) : (
@@ -329,7 +331,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                     sub={`${summary.lateDays} late of ${summary.attended} ${summary.attended === 1 ? 'day' : 'days'} attended`}
                     tone={summary.punctualityRate != null && summary.punctualityRate < 85 ? 'amber' : 'green'} icon={Clock} />
                 )}
-                <Stat label="Avg arrival" value={formatMinutesOfDay(summary.avgArrival, hour12)}
+                <Stat label="Avg arrival" icon={LogIn} value={formatMinutesOfDay(summary.avgArrival, hour12)}
                   sub={summary.flexible
                     ? 'no fixed start on this shift'
                     : summary.avgLatePerLateDay ? `${summary.avgLatePerLateDay} min late when late` : 'on time'} />
@@ -337,11 +339,11 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                     "Total hours, of which some is overtime" kept reading as though the overtime
                     was extra on top. Regular and Overtime are disjoint, Total is their sum, and
                     nobody has to work out which contains which. */}
-                <Stat label="Regular hours" value={fmtMinutes(summary.normalMinutes)}
+                <Stat label="Regular hours" icon={Clock} value={fmtMinutes(summary.normalMinutes)}
                   sub="not counting overtime" />
                 {/* "plus N h on days off" was accurate only while the total excluded them. Now
                     that it does not, "plus" would read as extra on top and count Sunday twice. */}
-                <Stat label="Overtime" value={fmtMinutes(summary.otMinutes)}
+                <Stat label="Overtime" icon={Timer} value={fmtMinutes(summary.otMinutes)}
                   sub={summary.offDayOtHours
                     ? `includes ${fmtMinutes(summary.offDayOtMinutes)} worked on days off`
                     : 'beyond a full day'}
@@ -351,14 +353,14 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                     day spent inside for 8 hours with an hour's lunch is credited 8h40m. "Inside"
                     is what the clock actually saw. Showing only the payable number left "how long
                     was I really here" unanswerable without adding up the punches by hand. */}
-                <Stat label="Total hours" value={fmtMinutes(summary.workedMinutes)}
+                <Stat label="Total hours" icon={Hourglass} value={fmtMinutes(summary.workedMinutes)}
                   sub={`${fmtMinutes(summary.normalMinutes)} + ${fmtMinutes(summary.otMinutes)}`} tone="green" />
                 {/* The sub-line must never be workedHours - insideHours. Those two are totalled over
                     different sets of days whenever anything is unmeasurable, and the difference then
                     reads as break allowance that nobody took — 90.8 h of it for a person whose every
                     day was single-punch. summarise() now derives the allowance over the measured days
                     only, and counts the rest so the tile can admit what it cannot see. */}
-                <Stat label="Inside" value={`${summary.insideHours} h`}
+                <Stat label="Inside" icon={Building2} value={`${summary.insideHours} h`}
                   sub={
                     summary.unmeasuredDays > 0
                       ? `${summary.unmeasuredDays} day${summary.unmeasuredDays === 1 ? '' : 's'} not measurable`
@@ -404,6 +406,65 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
               </>}
 
               {/* ---- the days ------------------------------------------------------------ */}
+              {/* A phone: one line per day (round 3) - the date as a tile, in and out with what
+                  the day added up to, and the status - and a tap for the punches, the arithmetic
+                  and the correction. It was a 13-row label/value card per day. */}
+              {phone ? (
+                <ul className="premium-card att-days" aria-label="Days">
+                  {pager.slice.map((r) => {
+                    const punches = attendanceTimeline(r);
+                    const open = openDay === r.id;
+                    const first = firstRecordedPunch(r);
+                    const last = latestRecordedPunch(r);
+                    const canCorrectDay = showCorrection && !r.is_locked && r.work_date <= todayIso();
+                    const expandable = punches.length > 0 || canCorrectDay || r.is_locked;
+                    const facts = [
+                      r.worked_minutes ? `Worked ${asHoursMinutes(r.worked_minutes)}` : null,
+                      r.late_minutes ? `Late ${r.late_minutes}m` : null,
+                      r.ot_minutes ? `OT ${r.ot_minutes}m` : null,
+                      r.leave_type || null,
+                    ].filter(Boolean);
+                    return (
+                      <li key={r.id} className={`att-day ${open ? 'is-open' : ''}`}>
+                        <button type="button" className="att-day-row" aria-expanded={expandable ? open : undefined}
+                          onClick={expandable ? () => setOpenDay(open ? null : r.id) : undefined}>
+                          <span className="att-day-date" data-today={r.work_date === todayIso() || undefined}>
+                            <em>{DOW[new Date(`${r.work_date}T00:00:00`).getDay()]}</em>
+                            <strong>{Number(r.work_date.slice(8))}</strong>
+                          </span>
+                          <span className="att-day-main">
+                            <strong>{first ? `${fmtTime(first)} – ${last && last !== first ? fmtTime(last) : '…'}` : 'No punches'}</strong>
+                            <em>{facts.length ? facts.join(' · ') : fmtDate(r.work_date)}</em>
+                            {r.is_missing_punch && <span className="att-day-flag">Review punches</span>}
+                            {show === 'issues' && <span className="att-day-flag">{attendanceIssueReasons(r).join(' · ')}</span>}
+                          </span>
+                          <StatusPill status={r.is_late && r.status === 'Present' ? 'Late' : r.status} />
+                          {expandable && <ChevronDown size={16} className="att-day-caret" aria-hidden="true" />}
+                        </button>
+                        {open && (
+                          <div className="att-day-more">
+                            {punches.length > 0 && <PunchTimeline punches={punches} breakMinutes={r.break_minutes} incomplete={r.breaks_incomplete} />}
+                            <DayBreakdown row={r} />
+                            {r.is_locked ? <p className="att-day-note">Published · locked</p>
+                              : canCorrectDay && (canEditPunches
+                                ? <button type="button" className={btnClass('ghost', 'sm')} disabled={correctionBusy} onClick={() => { if (!correctionBusy) setCorrectionDate(r.work_date); }}>Edit punches</button>
+                                : <Link className={btnClass('ghost', 'sm')} to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>Correct times</Link>)}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                  {filtered.length === 0 && (
+                    <li className="att-day-empty">
+                      {show === 'issues'
+                        ? (status === 'All statuses' ? 'No issue dates in this range.' : 'No issue dates match this status.')
+                        : reviewRows.length === 0
+                        ? 'No attendance recorded in this range.'
+                        : `No ${SHOW.find((s) => s.key === show)?.label.toLowerCase()} in this range.`}
+                    </li>
+                  )}
+                </ul>
+              ) : (
               <div className="premium-card p-0 overflow-hidden">
                 <div className="table-scroll">
                   <table className="premium-table">
@@ -508,44 +569,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                                   breakMinutes={r.break_minutes}
                                   incomplete={r.breaks_incomplete}
                                 />
-                                {/* The subtraction, spelled out. A day reading "in 09:37, out 18:51,
-                                    overtime 5m" is arithmetically right and impossible to check:
-                                    the 79 minutes of break that account for the difference are
-                                    nowhere on the row. */}
-                                {(() => {
-                                  const x = explainDay(r, r.shift);
-                                  if (!x) return null;
-                                  return (
-                                    <div className="mt-3 pt-2.5 border-t border-neutral-200 dark:border-neutral-800">
-                                      <dl className="max-w-md space-y-0.5">
-                                        {x.lines.map((l, i) => (
-                                          <div
-                                            key={i}
-                                            className={`flex items-baseline justify-between gap-3 text-2xs ${
-                                              l.total ? 'font-semibold text-neutral-900 dark:text-white pt-0.5' : ''
-                                            } ${l.muted ? 'text-neutral-450' : 'text-neutral-600 dark:text-neutral-300'}`}
-                                          >
-                                            <dt className={l.total ? 'border-t border-neutral-200 dark:border-neutral-800 pt-1 flex-1' : 'flex-1'}>
-                                              {l.label}
-                                            </dt>
-                                            <dd className={`tabular-nums shrink-0 ${l.total ? 'border-t border-neutral-200 dark:border-neutral-800 pt-1' : ''}`}>
-                                              {l.minutes === null ? '?' : asHoursMinutes(l.minutes)}
-                                            </dd>
-                                          </div>
-                                        ))}
-                                      </dl>
-                                      {x.note && (
-                                        <p className={`mt-1.5 text-2xs max-w-md ${
-                                          x.incomplete
-                                            ? 'text-amber-700 dark:text-amber-400 font-medium'
-                                            : 'text-amber-700 dark:text-amber-400'
-                                        }`}>
-                                          {x.note}
-                                        </p>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
+                                <DayBreakdown row={r} />
                               </td>
                             </tr>
                           )}
@@ -567,6 +591,7 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                   </table>
                 </div>
               </div>
+              )}
 
               <Pagination {...pager} noun="days" sizes={[31, 62, 93, 366]} />
             </>
@@ -577,18 +602,47 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   );
 }
 
-function Stat({ label, value, sub, tone, icon: Icon }) {
-  const toneCls = tone === 'green' ? 'text-brand-ink dark:text-brand-ink'
-    : tone === 'amber' ? 'text-amber-600 dark:text-amber-400'
-    : 'text-neutral-900 dark:text-white';
+
+/** The subtraction, spelled out. A day reading "in 09:37, out 18:51, overtime 5m" is arithmetically
+ *  right and impossible to check: the 79 minutes of break that account for the difference are
+ *  nowhere on the row. */
+function DayBreakdown({ row: r }) {
+  const x = explainDay(r, r.shift);
+  if (!x) return null;
   return (
-    <div className="premium-card">
-      <div className="flex items-center gap-1.5">
-        {Icon && <Icon size={12} className="text-neutral-400" />}
-        <p className="text-2xs font-bold uppercase tracking-wider text-neutral-450">{label}</p>
-      </div>
-      <p className={`text-xl font-bold tabular-nums mt-1 ${toneCls}`}>{value}</p>
-      {sub && <p className="text-2xs text-neutral-500 mt-0.5">{sub}</p>}
+    <div className="mt-3 pt-2.5 border-t border-neutral-200 dark:border-neutral-800">
+      <dl className="max-w-md space-y-0.5">
+        {x.lines.map((l, i) => (
+          <div
+            key={i}
+            className={`flex items-baseline justify-between gap-3 text-2xs ${
+              l.total ? 'font-semibold text-neutral-900 dark:text-white pt-0.5' : ''
+            } ${l.muted ? 'text-neutral-450' : 'text-neutral-600 dark:text-neutral-300'}`}
+          >
+            <dt className={l.total ? 'border-t border-neutral-200 dark:border-neutral-800 pt-1 flex-1' : 'flex-1'}>
+              {l.label}
+            </dt>
+            <dd className={`tabular-nums shrink-0 ${l.total ? 'border-t border-neutral-200 dark:border-neutral-800 pt-1' : ''}`}>
+              {l.minutes === null ? '?' : asHoursMinutes(l.minutes)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {x.note && (
+        <p className={`mt-1.5 text-2xs max-w-md ${
+          x.incomplete
+            ? 'text-amber-700 dark:text-amber-400 font-medium'
+            : 'text-amber-700 dark:text-amber-400'
+        }`}>
+          {x.note}
+        </p>
+      )}
     </div>
   );
+}
+
+/** A figure for this person's period, as the app's number card (it was an older card with a tiny
+ *  uppercase label). */
+function Stat({ label, value, sub, tone, icon }) {
+  return <StatCard icon={icon} tone={tone === 'green' || tone === 'amber' ? tone : 'slate'} label={label} value={value} sub={sub} />;
 }
