@@ -16,7 +16,9 @@
   z-index: 20;
   flex-direction: column;
   flex-shrink: 0;
-  width: 16.75rem;
+  /* Grows with the screen (round 3): about 232px on a 1024px laptop, 260px at 1440, 288px on a
+     wide monitor. A fixed 268px took over a quarter of a small laptop's width. */
+  width: clamp(14.5rem, 9rem + 8vw, 18rem);
   height: calc(100dvh - 2rem);
   margin: 1rem 0 1rem 1rem;
   padding: 1.15rem .85rem .85rem;
@@ -418,6 +420,33 @@ main .page-header-title,
   border-bottom-color: var(--coral);
   color: var(--coral-ink);
   font-weight: 600;
+}
+
+/* ---- Sidebar on small laptops and wide monitors (round 3) ------------------- */
+/* 1024-1439px (most laptops): everything a step tighter, so the page keeps the room it needs. */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .app-sidebar { height: calc(100dvh - 1.5rem); margin: .75rem 0 .75rem .75rem; padding: .95rem .6rem .65rem; border-radius: 1.25rem; }
+  .app-sidebar.is-collapsed { width: 4.75rem; padding-inline: .55rem; }
+  .app-sidebar-logo { width: 2.4rem; height: 2.4rem; }
+  .app-sidebar-wordmark strong { font-size: .875rem; letter-spacing: .12em; }
+  .app-sidebar-wordmark span { font-size: .65rem; letter-spacing: .26em; }
+  .app-sidebar-nav { margin-top: .75rem; }
+  .app-sidebar-heading { padding: .7rem .6rem .3rem; font-size: .625rem; }
+  .app-sidebar-item { min-height: 2.5rem; gap: .5rem; padding: .45rem .5rem; font-size: .84rem; }
+  .app-sidebar-footer { margin-top: .6rem; padding: .45rem; }
+  .app-sidebar-avatar { width: 2.25rem; height: 2.25rem; }
+  .app-sidebar-user-copy strong { font-size: .8125rem; }
+  .app-sidebar-user-copy span { font-size: .6875rem; }
+}
+/* A short screen (a laptop at 768px tall or less): rows closer, so the menu fits without scrolling. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .app-sidebar-item { min-height: 2.35rem; padding-block: .35rem; margin-top: .1rem; }
+  .app-sidebar-heading { padding-top: .6rem; padding-bottom: .25rem; }
+}
+/* 1600px wide and tall enough: a little more air and a step larger type. */
+@media (min-width: 1600px) and (min-height: 960px) {
+  .app-sidebar { padding: 1.3rem 1rem 1rem; }
+  .app-sidebar-item { min-height: 2.9rem; padding: .6rem .8rem; font-size: .9375rem; }
 }
 
 /* ---- Phone menu sheet: group headings -------------------------------------- */
