@@ -75,3 +75,37 @@
 .att-day-more > :is(button, a) { justify-self: start; }
 .att-day-note { margin: 0; color: var(--surface-text-soft); font-size: .75rem; }
 .att-day-empty { padding: 1.5rem 0; color: var(--surface-text-soft); font-size: .8125rem; text-align: center; }
+
+/* The period and filters on a phone (round 3). */
+.att-period-row > .filter-sheet-button:first-child { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
+.att-period-row > .filter-sheet-button:first-child > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-period-fixed { display: inline-flex; flex: 1; align-items: center; gap: .45rem; color: var(--surface-text); font-size: .875rem; font-weight: 600; }
+.att-period-fix > :is(a, button) { width: 100%; justify-content: center; }
+
+/* A day's punches as a short vertical timeline. */
+.att-steps { position: relative; display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.att-steps li { position: relative; display: grid; grid-template-columns: 3.4rem minmax(0, 1fr) auto; align-items: center; gap: .6rem; min-height: 2rem; padding-left: 1rem; }
+.att-steps li::before { content: ''; position: absolute; left: .2rem; top: 50%; width: .5rem; height: .5rem; border-radius: 999px; background: var(--surface-border-strong); transform: translateY(-50%); }
+.att-steps li:not(:last-child)::after { content: ''; position: absolute; left: .43rem; top: calc(50% + .3rem); bottom: calc(-50% + .3rem); width: 1.5px; background: var(--surface-border); }
+.att-steps li[data-kind="in"]::before { background: var(--tone-green-fg); }
+.att-steps li[data-kind="out"]::before { background: var(--surface-text); }
+.att-steps li[data-kind="away"]::before { background: var(--tone-amber-fg); }
+.att-steps li[data-kind="missing"]::before { background: var(--tone-red-fg); }
+.att-steps time { color: var(--surface-text); font-size: .875rem; font-weight: 650; font-variant-numeric: tabular-nums; }
+.att-steps span { color: var(--surface-text-soft); font-size: .8125rem; }
+.att-steps em { color: var(--surface-text-soft); font-size: .75rem; font-style: normal; font-variant-numeric: tabular-nums; }
+.att-steps em[data-away] { color: var(--tone-amber-fg); font-weight: 600; }
+
+/* The arithmetic, folded away; and the correction as a real button. */
+.att-day-math { border-top: 1px solid var(--surface-border); padding-top: .5rem; }
+.att-day-math summary { display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; color: var(--surface-text); font-size: .8125rem; font-weight: 600; }
+.att-day-math summary::-webkit-details-marker { display: none; }
+.att-day-math[open] summary svg { transform: rotate(180deg); }
+.att-day-math > div { margin-top: .4rem !important; padding-top: 0 !important; border-top: 0 !important; }
+.att-day-fix {
+  display: inline-flex; align-items: center; justify-content: center; gap: .45rem; width: 100%; min-height: 2.75rem;
+  border-radius: .8rem; background: var(--coral-soft); color: var(--coral-ink); font-size: .875rem; font-weight: 650;
+}
+.att-day-fix:disabled { opacity: .5; }
+.att-day-fix:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.att-day-more { margin-left: 0 !important; }

@@ -9,7 +9,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search, ChevronRight, ChevronDown, LogIn, Timer, Hourglass, Building2,
+  CalendarDays, Clock, AlertTriangle, TrendingUp, ArrowLeft, Download, Search, ChevronRight, ChevronDown, LogIn, Timer, Hourglass, Building2, Pencil,
 } from 'lucide-react';
 import { useEmployeeAttendanceSummary } from '../data/employeeAttendance';
 import { fmtMinutes, fmtTime, monthRange, todayIso } from '../data/attendance';
@@ -32,7 +32,9 @@ import PageHeader from './ui/PageHeader';
 import Avatar from './ui/Avatar';
 import { StatCard } from './ui/StatCard';
 import StatusPill from './ui/StatusPill';
-import FilterSheet from './ui/FilterSheet';
+import FilterSheet, { SheetField } from './ui/FilterSheet';
+import { RANGE_PRESETS } from '../lib/dateRange';
+import { punchSteps } from '../lib/weekStrip';
 import { useMediaQuery } from '../lib/useMediaQuery';
 import './attendance/personPicker.css';
 import { btnClass } from './ui/Btn';
@@ -264,19 +266,28 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                 : showRequestCorrection && <Link className={phone ? btnClass('ghost', 'sm') : 'text-xs text-brand-ink underline'} to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(from > todayIso() ? todayIso() : from)}`}>{phone ? 'Request a correction' : 'Request a punch correction'}</Link>;
               // A phone: the dates on top, then Filters (show, status) beside the correction action
               // — the two dropdowns used to stack under the dates in different sizes.
-              if (phone) return (
-                <div className="space-y-2.5">
-                  {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
-                  <div className="phone-tool-row">
-                    <FilterSheet title="Filter days" count={(show !== 'all' ? 1 : 0) + (status !== 'All statuses' ? 1 : 0)}
-                      onClear={() => { setShow('all'); setStatus('All statuses'); }}>
-                      {showSelect}
-                      {statusSelect}
-                    </FilterSheet>
-                    {fix}
+              // A phone: the period as one button (quick ranges and dates in a sheet) beside Filters,
+              // and the correction action under them - the five range pills used to take two rows.
+              if (phone) {
+                const presetLabel = range.preset === 'custom' ? 'Custom dates' : RANGE_PRESETS.find((p) => p.key === range.preset)?.label ?? 'Dates';
+                return (
+                  <div className="space-y-2.5">
+                    <div className="phone-tool-row att-period-row">
+                      {fixedPeriod ? <span className="att-period-fixed"><CalendarDays size={16} aria-hidden="true" /> {shortRange(from, to)}</span> : (
+                        <FilterSheet title="Which days" label={`${presetLabel} · ${shortRange(from, to)}`} icon={CalendarDays}>
+                          <SheetField label="Period" group><DateRangeFilter {...range} /></SheetField>
+                        </FilterSheet>
+                      )}
+                      <FilterSheet title="Filter days" iconOnly count={(show !== 'all' ? 1 : 0) + (status !== 'All statuses' ? 1 : 0)}
+                        onClear={() => { setShow('all'); setStatus('All statuses'); }}>
+                        {showSelect}
+                        {statusSelect}
+                      </FilterSheet>
+                    </div>
+                    {fix && <div className="att-period-fix">{fix}</div>}
                   </div>
-                </div>
-              );
+                );
+              }
               return (
                 <div className="mobile-toolbar flex flex-wrap items-center gap-1.5">
                   {fixedPeriod ? <span className="text-sm font-semibold">{from} to {to}</span> : <DateRangeFilter {...range} />}
@@ -443,12 +454,21 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
                         </button>
                         {open && (
                           <div className="att-day-more">
-                            {punches.length > 0 && <PunchTimeline punches={punches} breakMinutes={r.break_minutes} incomplete={r.breaks_incomplete} />}
-                            <DayBreakdown row={r} />
-                            {r.is_locked ? <p className="att-day-note">Published · locked</p>
+                            {punches.length > 0 && <DaySteps punches={punches} incomplete={r.breaks_incomplete} />}
+                            {punches.length > 0 && (
+                              <details className="att-day-math">
+                                <summary>How the hours add up <ChevronDown size={14} aria-hidden="true" /></summary>
+                                <DayBreakdown row={r} />
+                              </details>
+                            )}
+                            {r.is_locked ? <p className="att-day-note">Published payroll · this day is locked</p>
                               : canCorrectDay && (canEditPunches
-                                ? <button type="button" className={btnClass('ghost', 'sm')} disabled={correctionBusy} onClick={() => { if (!correctionBusy) setCorrectionDate(r.work_date); }}>Edit punches</button>
-                                : <Link className={btnClass('ghost', 'sm')} to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>Correct times</Link>)}
+                                ? <button type="button" className="att-day-fix" disabled={correctionBusy} onClick={() => { if (!correctionBusy) setCorrectionDate(r.work_date); }}>
+                                    <Pencil size={15} aria-hidden="true" /> Edit punches for {fmtDate(r.work_date)}
+                                  </button>
+                                : <Link className="att-day-fix" to={`/attendance/regularizations?employee=${encodeURIComponent(employeeId)}&date=${encodeURIComponent(r.work_date)}`}>
+                                    <Pencil size={15} aria-hidden="true" /> Correct times for {fmtDate(r.work_date)}
+                                  </Link>)}
                           </div>
                         )}
                       </li>
@@ -602,6 +622,42 @@ export default function EmployeeAttendanceDetail({ employeeId: fixedId, employee
   );
 }
 
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** "1 – 23 Oct", "28 Sep – 3 Oct": the period on its button. */
+function shortRange(from, to) {
+  const [fy, fm, fd] = String(from).split('-').map(Number);
+  const [ty, tm, td] = String(to).split('-').map(Number);
+  if (!fy || !ty) return `${from} – ${to}`;
+  const day = (m, d) => `${d} ${MONTH_SHORT[m - 1]}`;
+  if (from === to) return day(fm, fd);
+  if (fy === ty && fm === tm) return `${fd} – ${day(tm, td)}`;
+  return `${day(fm, fd)} – ${day(tm, td)}${fy !== ty ? ` ${ty}` : ''}`;
+}
+
+/** A day's punches on a phone, top to bottom: the time, what it was, and how long until the next
+ *  punch - work in plain text, breaks in amber. The computer's bar chart squeezed eight times onto
+ *  a 250px line and stacked them over each other. */
+function DaySteps({ punches, incomplete }) {
+  const steps = punchSteps(punches);
+  return (
+    <ol className="att-steps" aria-label="Punches">
+      {steps.map((step, i) => {
+        const next = steps[i + 1];
+        const minutes = next ? Math.round((Date.parse(next.at) - Date.parse(step.at)) / 60000) : null;
+        const away = step.label === 'Break';
+        return (
+          <li key={`${step.at}-${i}`} data-kind={i === 0 ? 'in' : step.label === 'Checked out' ? 'out' : away ? 'away' : 'back'}>
+            <time>{fmtTime(step.at)}</time>
+            <span>{step.label}</span>
+            {Number.isFinite(minutes) && minutes > 0 && <em data-away={away || undefined}>{asHoursMinutes(minutes)}</em>}
+          </li>
+        );
+      })}
+      {incomplete && <li data-kind="missing"><time>--:--</time><span>Punch missing</span></li>}
+    </ol>
+  );
+}
 
 /** The subtraction, spelled out. A day reading "in 09:37, out 18:51, overtime 5m" is arithmetically
  *  right and impossible to check: the 79 minutes of break that account for the difference are
