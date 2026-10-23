@@ -59,6 +59,8 @@ export const LANE_TARGETS = {
   progress: { status: 'In Progress', review_stage: null },
   review: { status: 'In Progress', review_stage: 'Internal Review' },
   approved: { status: 'In Progress', review_stage: 'Approved' },
+  // Completed: done, as the card's tick does (completed_at is stamped in useWorkUpdate).
+  done: { status: 'Done' },
   blocked: { status: 'Blocked', review_stage: null },
 };
 export function laneFor(status, review) {
@@ -99,14 +101,20 @@ export function useWorkUpdate() {
       await client.cancelQueries({ queryKey: workKeys.home() });
       const previous = client.getQueryData(workKeys.home());
       if (previous?.pending) {
+        // A move to or from Completed crosses between the open list and today's done list.
+        const change = (task) => {
+          if (task.id !== id) return task;
+          const status = patch.status ?? task.status;
+          const review = 'review_stage' in patch ? patch.review_stage : status === 'In Progress' ? task.review_stage : null;
+          return { ...task, status, review_stage: review, lane: laneFor(status, review), step: stepFor(status, review) };
+        };
+        const all = [...previous.pending, ...(previous.completed_today ?? [])].map(change);
+        const moved = all.find((task) => task.id === id);
+        const doneToday = (previous.completed_today ?? []).map(change).filter((task) => task.status === 'Done');
         client.setQueryData(workKeys.home(), {
           ...previous,
-          pending: previous.pending.map((task) => {
-            if (task.id !== id) return task;
-            const status = patch.status ?? task.status;
-            const review = 'review_stage' in patch ? patch.review_stage : status === 'In Progress' ? task.review_stage : null;
-            return { ...task, status, review_stage: review, lane: laneFor(status, review), step: stepFor(status, review) };
-          }),
+          pending: all.filter((task) => !['Done', 'Cancelled'].includes(task.status)),
+          completed_today: moved?.status === 'Done' && !doneToday.some((task) => task.id === id) ? [moved, ...doneToday] : doneToday,
         });
       }
       return { previous };

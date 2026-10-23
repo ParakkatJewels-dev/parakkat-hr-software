@@ -242,7 +242,7 @@ textarea.ledger-input { resize: vertical; }
 .ledger-history { margin: 6px 0 0; padding: .625rem; overflow-x: auto; border-radius: var(--radius-card); background: var(--surface-subtle); font: 12px/1.6 ui-monospace, Menlo, monospace; white-space: pre-wrap; }
 
 /* ---- Board (2026 redesign): soft columns, white cards, round done button, due chips ---- */
-.ledger-board { display: grid; grid-template-columns: repeat(5, minmax(240px, 1fr)); gap: .9rem; overflow-x: auto; padding-bottom: 2px; }
+.ledger-board { display: grid; grid-template-columns: repeat(6, minmax(240px, 1fr)); gap: .9rem; overflow-x: auto; padding-bottom: 2px; }
 .ledger-lane { min-height: 160px; padding: .75rem; border: 1px solid var(--surface-border); border-radius: var(--radius-card); background: var(--surface-subtle); transition: background .12s, border-color .12s; }
 .ledger-lane[data-over] { border-color: var(--coral); background: var(--coral-soft); }
 .ledger-lane-head { display: flex; align-items: center; gap: .5rem; margin: 0 0 .75rem; padding: .1rem .2rem; color: var(--surface-text) !important; font-size: .95rem !important;
@@ -288,6 +288,11 @@ textarea.ledger-input { resize: vertical; }
 /* Touch dragging (boardTouch.js): the card being moved stays in place, dimmed; a lifted copy follows
    the finger above everything. The lane dots only show on phones. */
 .ledger-card[data-dragging] { opacity: .4; }
+/* Completed (round 3): a filled green tick, the title quieter, the outcome under it. */
+.ledger-card-check.is-done { border-color: #10b96a; background: #10b96a; color: #fff; cursor: default; }
+.ledger-card[data-done] .ledger-card-title { color: var(--surface-text-soft); }
+.ledger-card-outcome { color: var(--surface-text); }
+.ledger-lane-note { color: var(--surface-text-soft); font-size: .75rem; font-weight: 500; }
 .ledger-drag-layer { position: fixed; inset: 0; z-index: 80; overflow: hidden; pointer-events: none; }
 .ledger-drag-ghost { position: absolute; top: 0; left: 0; margin: 0; scale: 1.03; border-color: color-mix(in srgb, var(--coral) 35%, var(--surface-border));
   box-shadow: var(--shadow-pop); cursor: grabbing; will-change: translate; animation: ledger-lift .14s ease-out; }

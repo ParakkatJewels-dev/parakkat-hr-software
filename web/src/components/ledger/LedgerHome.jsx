@@ -218,7 +218,8 @@ export default function LedgerHome() {
           </div>
         </div>
         {view === 'board'
-          ? (data.pending.length ? <TaskBoard tasks={data.pending} onOpen={(id) => open('task', id)} onAdd={() => open('new-task')} />
+          ? (data.pending.length || data.completed_today.length
+            ? <TaskBoard tasks={[...data.pending, ...data.completed_today]} onOpen={(id) => open('task', id)} onAdd={() => open('new-task')} />
             : <p className="ledger-empty">Nothing open. Press N to add a task.</p>)
           : <TaskManagement view="todo" />}
       </section>

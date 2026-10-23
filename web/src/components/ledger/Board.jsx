@@ -1,6 +1,8 @@
-// My work as a board: five lanes worked out from each task's status and review step. Drag a card to
-// another lane (or use "Move to…" / Alt+arrows) and the task itself moves — the same record Task
-// Management shows. Done asks for an optional outcome; a progress note goes straight onto the task.
+// My work as a board: lanes worked out from each task's status and review step, with Completed
+// (what I finished today) after Approved. Drag a card to another lane (or use "Move to…" /
+// Alt+arrows) and the task itself moves — the same record Task Management shows. Dropping on
+// Completed marks it done; dragging it back out reopens it. The tick asks for an optional outcome;
+// a progress note goes straight onto the task.
 // On phones the lanes are a row you swipe through, and a card is dragged by pressing and holding it
 // (boardTouch.js); computers keep HTML5 drag-and-drop.
 import React, { useEffect, useRef, useState } from 'react';
@@ -18,8 +20,12 @@ export const LANES = [
   { id: 'progress', label: 'In progress' },
   { id: 'review', label: 'In review' },
   { id: 'approved', label: 'Approved' },
+  { id: 'done', label: 'Completed', note: 'today' },
   { id: 'blocked', label: 'Blocked' },
 ];
+
+/** The lane a task sits in. The server calls a done task's lane "closed"; on the board it is Completed. */
+export const laneOf = (task) => (task.status === 'Done' ? 'done' : task.lane);
 export const WIP_LIMIT = 3;
 
 function ProgressForm({ task, onDone }) {
@@ -88,7 +94,9 @@ export function TaskCard({ task, onMove, onOpen, dragging = false }) {
   const write = useWorkWrite();
   const [mode, setMode] = useState(null);
   const canEdit = Boolean(task.can_edit);
-  const laneIndex = LANES.findIndex((lane) => lane.id === task.lane);
+  const lane = laneOf(task);
+  const done = lane === 'done';
+  const laneIndex = LANES.findIndex((item) => item.id === lane);
   const onKeyDown = (event) => {
     if (!canEdit || !event.altKey || !['ArrowLeft', 'ArrowRight'].includes(event.key) || event.target !== event.currentTarget) return;
     event.preventDefault();
@@ -96,11 +104,12 @@ export function TaskCard({ task, onMove, onOpen, dragging = false }) {
     if (next) onMove(task, next.id);
   };
   return (
-    <article className="ledger-card" tabIndex={0} aria-label={task.title} data-focused={task.focused || undefined} data-pinned={task.pinned || undefined}
+    <article className="ledger-card" tabIndex={0} aria-label={task.title} data-focused={task.focused || undefined} data-pinned={task.pinned || undefined} data-done={done || undefined}
       data-task-id={task.id} data-dragging={dragging || undefined} draggable={canEdit && !mode} onKeyDown={onKeyDown}
       onDragStart={(event) => { event.dataTransfer.setData('text/plain', task.id); event.dataTransfer.effectAllowed = 'move'; }}>
       <header className="ledger-card-head">
-        {canEdit && (
+        {done ? <span className="ledger-card-check is-done" role="img" aria-label="Completed" title="Completed"><Check size={13} /></span>
+          : canEdit && (
           <button type="button" className="ledger-card-check" aria-label={`Mark "${task.title}" done`} title="Mark done"
             aria-pressed={mode === 'done'} onClick={() => setMode(mode === 'done' ? null : 'done')}><Check size={13} /></button>
         )}
@@ -121,17 +130,18 @@ export function TaskCard({ task, onMove, onOpen, dragging = false }) {
         {task.approved_version && task.lane === 'approved' && <span className="ledger-chip-flag" data-tone="good">Approved: {task.approved_version}</span>}
         {task.revision > 0 && task.lane === 'review' && <span className="ledger-chip-flag">Round {task.revision + 1}</span>}
       </div>
-      {task.last_progress && <p className="ledger-card-progress"><span className="ledger-date">{dateLabel(task.last_progress.date)}</span>{task.last_progress.note}</p>}
+      {done && task.outcome && <p className="ledger-card-progress ledger-card-outcome">{task.outcome}</p>}
+      {!done && task.last_progress && <p className="ledger-card-progress"><span className="ledger-date">{dateLabel(task.last_progress.date)}</span>{task.last_progress.note}</p>}
       {mode === 'done' && <DonePrompt task={task} onDone={() => setMode(null)} />}
       {mode === 'progress' && <ProgressForm task={task} onDone={() => setMode(null)} />}
       {!mode && (
         <footer className="ledger-card-actions">
-          {canEdit && <button type="button" className="ledger-text-button" onClick={() => setMode('progress')}>Log progress</button>}
+          {canEdit && !done && <button type="button" className="ledger-text-button" onClick={() => setMode('progress')}>Log progress</button>}
           <button type="button" className="ledger-text-button" onClick={() => onOpen(task.id)}>Open</button>
           {canEdit && (
             <select className="ledger-move" aria-label={`Move ${task.title} to`} value="" onChange={(event) => onMove(task, event.target.value)}>
-              <option value="">Move to…</option>
-              {LANES.filter((lane) => lane.id !== task.lane).map((lane) => <option key={lane.id} value={lane.id}>{lane.label}</option>)}
+              <option value="">{done ? 'Reopen in…' : 'Move to…'}</option>
+              {LANES.filter((item) => item.id !== lane).map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
             </select>
           )}
         </footer>
@@ -149,7 +159,7 @@ export function TaskBoard({ tasks, onOpen, onAdd }) {
   const boardRef = useRef(null);
   const latest = useRef(null);
   const move = (task, laneId) => {
-    if (!LANE_TARGETS[laneId] || laneId === task.lane) return;
+    if (!LANE_TARGETS[laneId] || laneId === laneOf(task)) return;
     update.mutate({ id: task.id, patch: LANE_TARGETS[laneId] });
   };
   latest.current = { tasks, move };
@@ -177,7 +187,7 @@ export function TaskBoard({ tasks, onOpen, onAdd }) {
     frame.current = requestAnimationFrame(() => { frame.current = 0; syncInView(); });
   };
   useEffect(() => () => cancelAnimationFrame(frame.current), []);
-  const lanes = LANES.map((lane) => ({ ...lane, tasks: tasks.filter((task) => task.lane === lane.id) }));
+  const lanes = LANES.map((lane) => ({ ...lane, tasks: tasks.filter((task) => laneOf(task) === lane.id) }));
   return (
     <div className="ledger-board-wrap">
       {update.error && <p className="ledger-alert" role="alert">{humanDbError(update.error, 'tasks')}</p>}
@@ -199,11 +209,12 @@ export function TaskBoard({ tasks, onOpen, onAdd }) {
               if (task?.can_edit) move(task, lane.id);
             }}>
             <h3 className="ledger-lane-head">{lane.label} <span className="ledger-count">{lane.tasks.length}</span>
+              {lane.note && <span className="ledger-lane-note">{lane.note}</span>}
               {onAdd && lane.id === 'todo' && <button type="button" className="ledger-lane-add" aria-label="Add a task" title="Add a task" onClick={onAdd}><Plus size={16} /></button>}</h3>
             {lane.id === 'progress' && lane.tasks.length > WIP_LIMIT && (
               <p className="ledger-wip" role="note"><AlertTriangle size={13} /> {lane.tasks.length} in progress — more than {WIP_LIMIT} at once slows everything down.</p>)}
             {lane.tasks.map((task) => <TaskCard key={task.id} task={task} onMove={move} onOpen={onOpen} dragging={dragId === task.id} />)}
-            {!lane.tasks.length && <p className="ledger-lane-empty">Nothing here.</p>}
+            {!lane.tasks.length && <p className="ledger-lane-empty">{lane.id === 'done' ? 'Nothing finished today yet.' : 'Nothing here.'}</p>}
           </section>
         ))}
       </div>

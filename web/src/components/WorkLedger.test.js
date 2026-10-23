@@ -85,7 +85,12 @@ test('the Ledger opens on Home with the app header, figures, schedule and my boa
   assert.match(html, /1 open task is past the due date/);
   assert.match(html, /stat-card-label">Open<\/span><span class="stat-card-value">8<\/span>/);
   assert.match(html, /stat-card-label">Help today<\/span><span class="stat-card-value">1<\/span><span class="stat-card-sub">20m<\/span>/);
-  for (const lane of ['To do', 'In progress', 'In review', 'Approved', 'Blocked']) assert.match(html, new RegExp(`class="ledger-lane-head">${lane} `), lane);
+  for (const lane of ['To do', 'In progress', 'In review', 'Approved', 'Completed', 'Blocked']) assert.match(html, new RegExp(`class="ledger-lane-head">${lane} `), lane);
+  const lanes = [...html.matchAll(/class="ledger-lane-head">([^<]+?) </g)].map((match) => match[1]);
+  assert.deepEqual(lanes, ['To do', 'In progress', 'In review', 'Approved', 'Completed', 'Blocked'], 'Completed comes right after Approved');
+  assert.match(html, /data-lane-id="done" aria-label="Completed, 1 tasks"/, 'today’s done work sits in Completed');
+  assert.match(html, /aria-label="Completed" title="Completed"/, 'a completed card shows a filled tick, not a Mark done button');
+  assert.match(html, /Handed over/, 'and its outcome');
   assert.match(html, /<h3[^>]*>Today’s schedule/, 'the schedule card');
   assert.match(html, /4 in progress — more than 3 at once/, 'WIP warning above three');
   assert.match(html, /Overdue · /);
