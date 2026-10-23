@@ -33,10 +33,18 @@ if ([int]($nodeVersion.Split('.')[0]) -lt 20) {
 Write-Host "Node.js $nodeVersion  OK" -ForegroundColor Green
 
 # --- 2. .env ---------------------------------------------------------------
+# A fresh download from the HR dashboard has no .env, only the template (no passwords in it).
+# An update unzipped over an existing install keeps the machine's own .env, because the download
+# never contains one.
 if (-not (Test-Path '.env')) {
-  Write-Host '.env file is missing. Copy the WHOLE services\attendance folder from the main project' -ForegroundColor Red
-  Write-Host '(it contains a prepared .env) and run this script again.'
-  exit 1
+  if (Test-Path 'deploy\env.template') {
+    Copy-Item 'deploy\env.template' '.env'
+    Write-Host 'First install: settings file (.env) created from the template.' -ForegroundColor Green
+  } else {
+    Write-Host '.env file is missing. Download the sync service again from the HR dashboard' -ForegroundColor Red
+    Write-Host '(Attendance setup -> Sync status) and run Install.bat from the unzipped folder.'
+    exit 1
+  }
 }
 $envText = Get-Content '.env' -Raw -Encoding UTF8
 
@@ -75,7 +83,7 @@ if ($addr.Trim()) {
 
 # 2b. Easy Time Pro login - asked only while the placeholders are still in place.
 # (To change it later, edit .env or set the two values back to "FILL_ME" and re-run.)
-if ($envText -match 'FILL_ME') {
+if ($envText -match 'BIOTIME_(USERNAME|PASSWORD)="FILL_ME"') {
   Write-Host 'Enter the Easy Time Pro login (what HR types at the /login page).' -ForegroundColor Yellow
   $etpUser = Read-Host 'Easy Time Pro username'
   $etpPassSecure = Read-Host 'Easy Time Pro password' -AsSecureString
@@ -96,7 +104,7 @@ if ($envText -match 'FILL_ME') {
   # .Replace() is a literal string swap - regex -replace would mangle passwords containing '$'.
   $envText = $envText.Replace('BIOTIME_USERNAME="FILL_ME"', 'BIOTIME_USERNAME="' + $etpUser + '"')
   $envText = $envText.Replace('BIOTIME_PASSWORD="FILL_ME"', 'BIOTIME_PASSWORD="' + $etpPass + '"')
-  if ($envText -match 'FILL_ME') {
+  if ($envText -match 'BIOTIME_(USERNAME|PASSWORD)="FILL_ME"') {
     Write-Host 'Could not write the login into .env (the file format has changed). Fix .env by hand.' -ForegroundColor Red
     exit 1
   }
@@ -104,6 +112,45 @@ if ($envText -match 'FILL_ME') {
   Write-Host 'Login saved into .env' -ForegroundColor Green
 } else {
   Write-Host '.env already configured  OK' -ForegroundColor Green
+}
+
+# 2c. Database password - the cloud database the HR dashboard uses. Required while the template
+# still says FILL_ME, and offered on every run, so a password changed in Supabase is put right by
+# running Install.bat again rather than by editing a connection string by hand.
+$dbLine = [regex]::Match($envText, 'DATABASE_URL="postgres(?:ql)?://[^:"]+:([^@"]*)@')
+if (-not $dbLine.Success) {
+  Write-Host 'The .env file has no DATABASE_URL="postgresql://..." line.' -ForegroundColor Red
+  Write-Host 'Delete .env and run Install.bat again to start from the template.'
+  exit 1
+}
+$dbMissing = $dbLine.Groups[1].Value -eq 'FILL_ME'
+if ($dbMissing) {
+  Write-Host 'Enter the database password (Supabase -> Project Settings -> Database).' -ForegroundColor Yellow
+  $dbPrompt = 'Database password'
+} else {
+  Write-Host 'Database password: press Enter to keep the saved one, or type the new one if it was changed in Supabase.' -ForegroundColor Yellow
+  $dbPrompt = 'Database password [Enter = keep]'
+}
+$dbSecure = Read-Host $dbPrompt -AsSecureString
+$dbPass = [Runtime.InteropServices.Marshal]::PtrToStringAuto(
+  [Runtime.InteropServices.Marshal]::SecureStringToBSTR($dbSecure))
+if ($dbPass) {
+  if ($dbPass -match "[`r`n]" -or $dbPass -ne $dbPass.Trim()) {
+    Write-Host 'The password has a line break or leading/trailing spaces - retype it and re-run.' -ForegroundColor Red
+    exit 1
+  }
+  # The password sits inside a URL, so characters like @ # / ? % must be escaped or the database
+  # reads a different password (and answers "authentication failed").
+  $dbEncoded = [Uri]::EscapeDataString($dbPass)
+  $swap = [System.Text.RegularExpressions.MatchEvaluator]{ param($m) $m.Groups[1].Value + $dbEncoded + $m.Groups[2].Value }
+  $envText = [regex]::Replace($envText, '((?:DIRECT_)?DATABASE_URL="postgres(?:ql)?://[^:"]+:)[^@"]*(@)', $swap)
+  Set-Content '.env' $envText -NoNewline -Encoding UTF8
+  Write-Host 'Database password saved into .env' -ForegroundColor Green
+} elseif ($dbMissing) {
+  Write-Host 'The database password is needed - run Install.bat again and enter it.' -ForegroundColor Red
+  exit 1
+} else {
+  Write-Host 'Keeping the saved database password' -ForegroundColor Green
 }
 
 # Replace the old daily roster default so new Easy Time Pro employees arrive promptly.
@@ -201,6 +248,9 @@ if ($LASTEXITCODE -ne 0) {
   Write-Host ' - Easy Time Pro is not running on this machine (open it and re-run)'
   Write-Host ' - Wrong username/password (edit the .env file, or delete the BIOTIME_USERNAME/'
   Write-Host '   BIOTIME_PASSWORD values back to "FILL_ME" and re-run this script)'
+  Write-Host ' - "Authentication failed against database server": the database password is wrong.'
+  Write-Host '   Reset it in Supabase (Project Settings -> Database -> Reset database password),'
+  Write-Host '   then run Install.bat again and type it at the "Database password" question'
   Write-Host ' - No internet connection (the database lives in the cloud)'
   exit 1
 }
