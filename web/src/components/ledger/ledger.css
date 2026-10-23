@@ -264,12 +264,18 @@ textarea.ledger-input { resize: vertical; }
 .ledger-card-marks { display: inline-flex; align-items: center; margin-left: auto; color: var(--surface-text-soft); }
 .ledger-card-marks button { width: 1.75rem !important; height: 1.75rem !important; padding: 0 !important; }
 .ledger-card-marks button[aria-pressed="true"] { color: var(--coral); }
+/* Long words — file names, links, joined_words — wrap inside the card rather than running out
+   of it or under the star and pin (round 3). Inherited by everything in the card. */
+.ledger-card, .ledger-list-row { min-width: 0; overflow-wrap: anywhere; }
+.ledger-card-meta > span, .ledger-card-chips > *, .ledger-chip-flag { min-width: 0; max-width: 100%; }
+.ledger-card .ledger-chip-flag, .ledger-list-row .ledger-chip-flag { margin: 0; white-space: normal; }
+.ledger-card-chips:not(:empty) { display: flex; flex-wrap: wrap; gap: .3rem; }
 .ledger-card-title { flex: 1; min-width: 0; margin: 0; font-size: .9rem !important; font-weight: 650 !important; line-height: 1.35 !important; color: var(--surface-text); }
 .ledger-card-step { margin: .45rem 0 0 1.95rem; }
 .ledger-card-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .7rem; margin: .55rem 0 0 1.95rem; color: var(--surface-text-soft); font-size: var(--text-xs); }
 .ledger-card-meta > span { display: inline-flex; align-items: center; gap: .3rem; }
 .ledger-card-owner { color: var(--surface-text); font-weight: 500; }
-.ledger-card-avatar { display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 999px; font-size: .625rem; font-weight: 700; }
+.ledger-card-avatar { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 1.5rem; height: 1.5rem; border-radius: 999px; font-size: .625rem; font-weight: 700; }
 .ledger-due-chip { padding: .15rem .55rem; border-radius: 999px; background: #e8f2fe; color: #0b57d0; font-weight: 600; }
 .ledger-due-chip[data-tone="bad"] { background: #fee7eb; color: #b40f2b; }
 .dark .ledger-due-chip { background: rgba(96, 165, 250, .16); color: #93c5fd; }
@@ -410,7 +416,7 @@ textarea.ledger-input { resize: vertical; }
 
 /* ---- Task panel, new task ---- */
 .ledger-drawer.ledger-drawer-wide { width: min(760px, 100%); }
-.ledger-card-open { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ledger-card-open { max-width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .ledger-card-open:hover { color: var(--accent-ink); }
 .ledger-card-open:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 2px; border-radius: .25rem; }
 .ledger-task-drawer { display: grid; gap: .75rem; }
