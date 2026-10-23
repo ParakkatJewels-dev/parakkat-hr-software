@@ -47,6 +47,7 @@ import MobileTabBar from './components/shell/MobileTabBar';
 import RoleWelcome from './components/shell/RoleWelcome';
 import { NavigationCountBadge, NavigationCountStatus } from './components/ui/CountBadge';
 import Sidebar from './components/shell/Sidebar';
+import { setTechnicalViewer } from './lib/technicalDetail';
 import SearchPanel from './components/shell/SearchPanel';
 import { ShellNavContext } from './components/shell/shellNavContext';
 import './components/shell/shell.css';
@@ -120,6 +121,9 @@ const SEARCH_SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.te
 export default function App() {
   const { employee, user, isSuperAdmin, signOut, assignments, permissions, hiddenScreens } = useAuth();
   const { canAny, canBeyondSelf, viewingAsEmployee } = usePermissions();
+  // Technical failure detail (sync service down, database errors) is for those who manage the
+  // attendance devices - HR and super admins; everyone else gets a plain "being looked into".
+  setTechnicalViewer(!viewingAsEmployee && canAny('device.manage'));
   useRealtimeSync(); // live-sync data across devices via Supabase Realtime
   const incomingMessages = useIncomingMessageDelivery();
   const unreadMessageCount = unreadTotal(incomingMessages.data);

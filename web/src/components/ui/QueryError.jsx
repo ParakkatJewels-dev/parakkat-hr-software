@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { humanDbError } from '../../lib/dbErrors';
+import { FRIENDLY_ISSUE, showsTechnicalDetail } from '../../lib/technicalDetail';
 import Btn from './Btn';
 
 /** Keep failed reads distinct from empty results, and retry without reloading the page. */
@@ -12,7 +13,8 @@ export default function QueryError({ error, title = 'This could not be loaded.',
       <AlertTriangle size={17} className="mt-0.5 shrink-0" aria-hidden="true" />
       <div className="min-w-0 space-y-1 text-sm">
         <p className="font-semibold">{title}</p>
-        <p className="break-words">{humanDbError(error)}</p>
+        {/* The error text is for the people who can act on it (see lib/technicalDetail). */}
+        <p className="break-words">{showsTechnicalDetail() ? humanDbError(error) : FRIENDLY_ISSUE}</p>
         {hasData && <p>Showing the last available data. It may be out of date.</p>}
       </div>
     </div>

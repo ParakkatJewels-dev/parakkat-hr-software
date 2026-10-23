@@ -41,6 +41,7 @@ import EmployeeAttendanceDetail from './EmployeeAttendanceDetail';
 import { humanDbError } from '../lib/dbErrors';
 import { correctionDateLabel, regularizationTimes } from '../lib/regularizationTimes';
 import { needsPunchFix } from '../lib/attendanceIssues';
+import { showsTechnicalDetail } from '../lib/technicalDetail';
 import { attendanceTimeline } from '../lib/attendanceTimeline';
 import { useSectionCounts } from '../data/sectionCounts';
 import { navigationCountLabel, navigationScreenCount } from '../lib/navigationCounts';
@@ -320,6 +321,8 @@ function hasAttendanceException(row) {
 
 function TodayView({ workDate, setWorkDate }) {
   const { data = [], isLoading, error, summary, refetch, isFetching } = useAttendanceSummary(workDate);
+  // Only the people who manage the devices get the technical diagnosis (lib/technicalDetail).
+  const technical = showsTechnicalDetail();
   // Only meaningful while looking at today: a stalled terminal cannot explain a gap in last March.
   const { data: health } = useSyncHealth();
   const isToday = workDate === todayIso();
@@ -440,6 +443,7 @@ function TodayView({ workDate, setWorkDate }) {
         <div className="premium-card attendance-sync-warning border-amber-300 dark:border-amber-900/60">
           <div className="flex items-start gap-2">
             <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+            {technical ? (
             <div className="text-xs text-amber-800 dark:text-amber-200">
               <span className="font-bold">
                 {DIAGNOSIS[health.level].label} — nothing has arrived for {forHumans(health.minutes)}.
@@ -447,6 +451,12 @@ function TodayView({ workDate, setWorkDate }) {
               {DIAGNOSIS[health.level].hint} The figures below stop at that point, so people still
               at work will show as having no punch out.
             </div>
+            ) : (
+            <div className="text-xs text-amber-800 dark:text-amber-200">
+              <span className="font-bold">Attendance updates are delayed by a technical issue.</span>{' '}
+              It is being looked into. Until it is fixed, people still at work may show without a punch out.
+            </div>
+            )}
           </div>
         </div>
       ) : null}
