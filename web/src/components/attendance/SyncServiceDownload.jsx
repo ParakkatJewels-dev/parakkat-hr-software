@@ -2,7 +2,7 @@
 // status). It used to travel on a pen drive or as a git clone, and a copied folder brought the
 // development machine's settings along. The zip (made by `npm run pack:attendance`) has the code
 // and the installer only: Install.bat asks for the Easy Time Pro login and the database password,
-// and unzipping an update over an installed copy keeps that machine's own settings.
+// and run from a new folder it takes over an existing install (settings and Windows service).
 import React, { useEffect, useState } from 'react';
 import { Download, MonitorDown } from 'lucide-react';
 import { btnClass } from '../ui/Btn';
@@ -45,8 +45,9 @@ export default function SyncServiceDownload() {
         <li>When asked, enter the <strong>Easy Time Pro login</strong> and the <strong>database password</strong> (Supabase → Project Settings → Database).</li>
       </ol>
       <p className="sync-download-note">
-        Updating: unzip the new download over the old folder and run Install.bat again — the saved settings stay. If the database
-        password was changed in Supabase, type the new one when Install.bat asks.
+        Updating: unzip the new download anywhere and run Install.bat. If the sync is already installed from another folder, it
+        brings that folder’s settings across and moves the service here. If the database password was changed in Supabase, type
+        the new one when Install.bat asks.
       </p>
     </section>
   );
