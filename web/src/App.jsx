@@ -5,7 +5,7 @@ import {
 } from './lib/navMap';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  House, Users, CalendarDays, Calendar, Wallet, Receipt, Headset, LogOut, X, Sun, Moon, FolderOpen, ChartColumn, Shield, Settings, Terminal, Search, ChevronRight, ClipboardList, Download, RefreshCw, WifiOff, Laptop, Target, UserRound, Bell, MessageSquare, Ellipsis,
+  House, Users, CalendarDays, Calendar, Wallet, Receipt, Headset, LogOut, X, Sun, Moon, FolderOpen, ChartColumn, Shield, Settings, Search, ChevronRight, CalendarPlus, LifeBuoy, Fingerprint, ClipboardList, Download, RefreshCw, WifiOff, Laptop, Target, UserRound, Bell, MessageSquare, Ellipsis,
 } from 'lucide-react';
 
 // Import components
@@ -47,6 +47,7 @@ import MobileTabBar from './components/shell/MobileTabBar';
 import RoleWelcome from './components/shell/RoleWelcome';
 import { NavigationCountBadge, NavigationCountStatus } from './components/ui/CountBadge';
 import Sidebar from './components/shell/Sidebar';
+import SearchPanel from './components/shell/SearchPanel';
 import { ShellNavContext } from './components/shell/shellNavContext';
 import './components/shell/shell.css';
 import { useAuth } from './auth/AuthContext';
@@ -311,7 +312,8 @@ export default function App() {
 
   // Command Palette trigger
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const [commandSearch, setCommandSearch] = useState('');
+  // A new page closes the search, whichever way the page changed.
+  useEffect(() => { setShowCommandPalette(false); }, [location.pathname]);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [installError, setInstallError] = useState(null);
   const [isPwaInstalled, setIsPwaInstalled] = useState(() => isStandalonePwa());
@@ -607,26 +609,30 @@ export default function App() {
     if (isNotFound || !sec.tabs.some((t) => t.id === activeTab) || target.includes('ticketQueue=needs-action')) setActiveTab(target);
   };
 
-  const commandOptions = [
-    { label: 'Go to Dashboard', action: () => setActiveTab('dashboard') },
-    { label: 'Open Employee Directory', action: () => setActiveTab('directory') },
-    { label: 'Go to Attendance', action: () => setActiveTab('attendance') },
-    { label: 'Apply for Time-Off / Leave', action: () => setActiveTab('leave') },
-    { label: 'Open Task Management', action: () => setActiveTab('tasks') },
-    { label: 'Open Messages', action: () => setActiveTab('messages') },
-    { label: 'Submit an Expense Claim', action: () => setActiveTab('expense') },
-    { label: 'View Asset Inventory', action: () => setActiveTab('assets') },
-    { label: 'Run Payroll', action: () => setActiveTab('payroll') },
-    { label: 'Open Reports & Analytics', action: () => setActiveTab('reports') },
-    { label: 'Open My Profile', action: () => setActiveTab('profile') },
-    { label: 'Toggle Light/Dark Theme', action: () => toggleTheme() },
-  ]
-    .filter((c) => c.label === 'Toggle Light/Dark Theme' || true)
-    .map((c) => ({ ...c, action: () => { c.action(); setShowCommandPalette(false); } }));
-
-  const filteredCommands = commandOptions.filter((cmd) =>
-    cmd.label.toLowerCase().includes(commandSearch.toLowerCase())
-  );
+  // What the search offers (components/shell/SearchPanel): every screen this person can open,
+  // from the same tree as the sidebar, and a few quick actions - only those they may take.
+  const searchScreens = (() => {
+    const seen = new Set();
+    return visibleSections.flatMap((sec) => sec.tabs.map((tab) => ({ sec, tab }))).filter(({ tab }) => {
+      if (seen.has(tab.id)) return false;
+      seen.add(tab.id);
+      return true;
+    }).map(({ sec, tab }) => ({
+      id: tab.id,
+      label: tab.label,
+      hint: sec.tabs.length > 1 && sec.label !== tab.label ? sec.label : null,
+      keywords: `${sec.label} ${MOBILE_NAV_LABELS[tab.id] ?? ''}`,
+      icon: tab.icon ?? sec.icon,
+      run: () => setActiveTab(navTarget(tab)),
+    }));
+  })();
+  const searchActions = [
+    canViewTab('leave') && { id: 'action-leave', label: 'Apply for leave', keywords: 'time off holiday vacation', icon: CalendarPlus, run: () => setActiveTab('leave') },
+    canViewTab('attendance') && { id: 'action-fix', label: 'Fix my attendance', keywords: 'correction punch regularization missed', icon: Fingerprint, run: () => setActiveTab('attendance/regularizations') },
+    canViewTab('expense') && { id: 'action-expense', label: 'Claim an expense', keywords: 'reimbursement bill receipt', icon: Receipt, run: () => setActiveTab('expense') },
+    canViewTab('helpdesk') && { id: 'action-ticket', label: 'Raise a help ticket', keywords: 'support it problem issue', icon: LifeBuoy, run: () => setActiveTab('helpdesk') },
+    { id: 'action-theme', label: theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode', keywords: 'theme appearance dark light night', icon: theme === 'dark' ? Sun : Moon, run: () => toggleTheme() },
+  ].filter(Boolean);
 
   /**
    * The menu opened from Profile contains the complete permitted navigation tree.
@@ -799,46 +805,8 @@ export default function App() {
           </div>
         </header>
 
-        {/* Command Palette (Ctrl + K) Inline Tray */}
-        {showCommandPalette && (
-          <div className="bg-white dark:bg-neutral-950 border-b border-neutral-200 dark:border-neutral-900 p-4 space-y-3 animate-fade-in transition-all">
-            <div className="input-shell command-palette-input max-w-2xl mx-auto flex items-center space-x-3 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-850 rounded-xl px-3 py-1.5">
-              <Search size={14} className="text-neutral-450 shrink-0" />
-              <input
-                type="text"
-                autoFocus
-                placeholder="Search action or type command (e.g. Apply for Leave)..."
-                value={commandSearch}
-                onChange={(e) => setCommandSearch(e.target.value)}
-                className="w-full bg-transparent border-none text-xs text-neutral-800 dark:text-neutral-250 placeholder-neutral-450 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 rounded-md"
-              />
-              <button
-                onClick={() => setShowCommandPalette(false)}
-                className="text-2xs font-mono px-2 py-0.5 bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-750 text-neutral-500 hover:text-black dark:hover:text-white rounded border border-neutral-200 dark:border-neutral-700 cursor-pointer"
-              >
-                Close (ESC)
-              </button>
-            </div>
-
-            <div className="max-w-2xl mx-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
-              {filteredCommands.map((cmd, idx) => (
-                <button
-                  key={idx}
-                  onClick={cmd.action}
-                  className="text-left px-3 py-2 bg-neutral-50 dark:bg-neutral-900/40 hover:bg-neutral-100/50 dark:hover:bg-neutral-900 border border-neutral-150 dark:border-neutral-900 rounded-xl text-xs font-medium flex items-center justify-between cursor-pointer transition-colors"
-                >
-                  <span>{cmd.label}</span>
-                  <Terminal size={11} className="text-neutral-400 opacity-60" />
-                </button>
-              ))}
-              {filteredCommands.length === 0 && (
-                <div className="col-span-full py-4 text-center text-xs text-neutral-450">
-                  No actions match your search query.
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <SearchPanel open={showCommandPalette} onClose={() => setShowCommandPalette(false)}
+          screens={searchScreens} actions={searchActions} currentId={activeTab} />
 
         <main
           id="main-content"
